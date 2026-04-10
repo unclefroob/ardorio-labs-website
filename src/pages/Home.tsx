@@ -47,8 +47,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: EASE }}
           >
-            <p className="label mb-6">Tech & AI Consulting · ardorio.co</p>
-            <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink">
+<h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink">
               Technology<br />
               <em>consulting</em> for<br />
               enterprises and<br />
