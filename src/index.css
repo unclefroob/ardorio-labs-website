@@ -19,6 +19,11 @@
   ::selection {
     @apply bg-ink text-cream-100;
   }
+
+  /* Bodoni Moda optical sizing — ensures high-contrast strokes render correctly at display sizes */
+  .font-serif {
+    font-optical-sizing: auto;
+  }
 }
 
 @layer components {

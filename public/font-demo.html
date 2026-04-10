@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ardorio — Font Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=DM+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F8F5F0;
+      --cream-2: #F0EDE7;
+      --cream-3: #E5E1D9;
+      --ink: #1C1917;
+      --muted: #78716C;
+      --border: #D5D0C7;
+    }
+
+    html { background: #EDEAE4; }
+
+    body {
+      padding: 40px 24px 80px;
+      background: #EDEAE4;
+    }
+
+    .page-header {
+      max-width: 1400px;
+      margin: 0 auto 48px;
+      font-family: 'Geist', system-ui, sans-serif;
+    }
+    .page-header h1 {
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .page-header p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--cream);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .card-label {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--cream-2);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-label .badge {
+      font-family: 'Geist Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .card-label .stack {
+      font-family: 'Geist', system-ui, sans-serif;
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .card-body {
+      padding: 28px 24px;
+    }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* ─── Option A: Cormorant + Space Grotesk ─── */
+    .a-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    .a-nav {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--ink);
+    }
+    .a-h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 52px;
+      font-weight: 500;
+      line-height: 1.05;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    .a-h1 em {
+      font-style: italic;
+      font-weight: 400;
+    }
+    .a-h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+    .a-body {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+    .a-btn {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--ink);
+      color: var(--cream);
+      padding: 8px 18px;
+      border-radius: 100px;
+      display: inline-block;
+    }
+    .a-service-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    /* ─── Option B: Fraunces + Geist ─── */
+    .b-label {
+      font-family: 'Geist Mono', monospace;
+      font-size: 9px;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    .b-nav {
+      font-family: 'Geist', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .b-h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 52px;
+      font-weight: 600;
+      font-variation-settings: 'WONK' 1;
+      line-height: 1.05;
+      color: var(--ink);
+    }
+    .b-h1 em {
+      font-style: italic;
+      font-weight: 400;
+    }
+    .b-h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 26px;
+      font-weight: 600;
+      font-variation-settings: 'WONK' 1;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+    .b-body {
+      font-family: 'Geist', sans-serif;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+    .b-btn {
+      font-family: 'Geist', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--ink);
+      color: var(--cream);
+      padding: 8px 18px;
+      border-radius: 100px;
+      display: inline-block;
+    }
+    .b-service-title {
+      font-family: 'Fraunces', serif;
+      font-size: 21px;
+      font-weight: 600;
+      font-variation-settings: 'WONK' 1;
+      color: var(--ink);
+    }
+
+    /* ─── Option C: Bodoni Moda + DM Sans ─── */
+    .c-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    .c-nav {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .c-h1 {
+      font-family: 'Bodoni Moda', serif;
+      font-size: 52px;
+      font-weight: 400;
+      font-optical-sizing: auto;
+      line-height: 1.08;
+      color: var(--ink);
+    }
+    .c-h1 em {
+      font-style: italic;
+    }
+    .c-h2 {
+      font-family: 'Bodoni Moda', serif;
+      font-size: 26px;
+      font-weight: 400;
+      font-optical-sizing: auto;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+    .c-body {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+    .c-btn {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--ink);
+      color: var(--cream);
+      padding: 8px 18px;
+      border-radius: 100px;
+      display: inline-block;
+    }
+    .c-service-title {
+      font-family: 'Bodoni Moda', serif;
+      font-size: 21px;
+      font-weight: 400;
+      color: var(--ink);
+    }
+
+    /* ─── Option D: Spectral + Plus Jakarta Sans ─── */
+    .d-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    .d-nav {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .d-h1 {
+      font-family: 'Spectral', serif;
+      font-size: 52px;
+      font-weight: 500;
+      line-height: 1.07;
+      color: var(--ink);
+    }
+    .d-h1 em {
+      font-style: italic;
+      font-weight: 400;
+    }
+    .d-h2 {
+      font-family: 'Spectral', serif;
+      font-size: 26px;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+    .d-body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+    .d-btn {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--ink);
+      color: var(--cream);
+      padding: 8px 18px;
+      border-radius: 100px;
+      display: inline-block;
+    }
+    .d-service-title {
+      font-family: 'Spectral', serif;
+      font-size: 21px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    /* Shared layout helpers */
+    .mock-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .mock-nav-links {
+      display: flex;
+      gap: 14px;
+    }
+    .section-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-row:last-child { border-bottom: none; }
+    .section-index {
+      min-width: 28px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>Ardorio — Font Demo</h1>
+    <p>Four pairings rendered with real content. Open in browser to compare live.</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- ─── A: Cormorant Garamond + Space Grotesk ─── -->
+    <div class="card">
+      <div class="card-label">
+        <span class="badge">Option A</span>
+        <span class="stack">Cormorant Garamond · Space Grotesk · Space Mono</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Nav -->
+        <div class="mock-nav">
+          <span class="a-nav">ardorio</span>
+          <div class="mock-nav-links">
+            <span class="a-body" style="color:#78716C;font-size:11px">Services</span>
+            <span class="a-body" style="color:#78716C;font-size:11px">Work</span>
+            <span class="a-body" style="color:#78716C;font-size:11px">Contact</span>
+          </div>
+        </div>
+
+        <!-- Hero -->
+        <div style="margin-bottom:20px">
+          <div class="a-label" style="margin-bottom:10px">Tech & AI Consulting · ardorio.co</div>
+          <div class="a-h1">Technology<br><em>consulting</em> for<br>enterprises and<br>founders.</div>
+        </div>
+        <div class="a-body" style="margin-bottom:14px">We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.</div>
+        <span class="a-btn">Start a conversation</span>
+
+        <hr class="divider">
+
+        <!-- Services list -->
+        <div class="a-label" style="margin-bottom:12px">What we do</div>
+        <div class="section-row">
+          <span class="a-label section-index">01</span>
+          <div>
+            <div class="a-service-title">Enterprise Consulting</div>
+            <div class="a-body" style="margin-top:4px;font-size:12px">We help large organisations move faster — modernising infrastructure and building engineering culture.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="a-label section-index">02</span>
+          <div>
+            <div class="a-service-title">AI Consulting</div>
+            <div class="a-body" style="margin-top:4px;font-size:12px">From readiness assessments to production deployments that actually work.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="a-label section-index">03</span>
+          <div>
+            <div class="a-service-title">Startup Launch</div>
+            <div class="a-body" style="margin-top:4px;font-size:12px">We co-build with ambitious founders until you're live.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- CTA strip -->
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="a-h2">Got something<br>to build?</div>
+          <span class="a-btn">Get in touch</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── B: Fraunces + Geist ─── -->
+    <div class="card">
+      <div class="card-label">
+        <span class="badge">Option B</span>
+        <span class="stack">Fraunces · Geist · Geist Mono</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Nav -->
+        <div class="mock-nav">
+          <span class="b-nav">ardorio</span>
+          <div class="mock-nav-links">
+            <span class="b-body" style="color:#78716C;font-size:11px">Services</span>
+            <span class="b-body" style="color:#78716C;font-size:11px">Work</span>
+            <span class="b-body" style="color:#78716C;font-size:11px">Contact</span>
+          </div>
+        </div>
+
+        <!-- Hero -->
+        <div style="margin-bottom:20px">
+          <div class="b-label" style="margin-bottom:10px">Tech & AI Consulting · ardorio.co</div>
+          <div class="b-h1">Technology<br><em>consulting</em> for<br>enterprises and<br>founders.</div>
+        </div>
+        <div class="b-body" style="margin-bottom:14px">We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.</div>
+        <span class="b-btn">Start a conversation</span>
+
+        <hr class="divider">
+
+        <!-- Services list -->
+        <div class="b-label" style="margin-bottom:12px">What we do</div>
+        <div class="section-row">
+          <span class="b-label section-index">01</span>
+          <div>
+            <div class="b-service-title">Enterprise Consulting</div>
+            <div class="b-body" style="margin-top:4px;font-size:12px">We help large organisations move faster — modernising infrastructure and building engineering culture.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="b-label section-index">02</span>
+          <div>
+            <div class="b-service-title">AI Consulting</div>
+            <div class="b-body" style="margin-top:4px;font-size:12px">From readiness assessments to production deployments that actually work.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="b-label section-index">03</span>
+          <div>
+            <div class="b-service-title">Startup Launch</div>
+            <div class="b-body" style="margin-top:4px;font-size:12px">We co-build with ambitious founders until you're live.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- CTA strip -->
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="b-h2">Got something<br>to build?</div>
+          <span class="b-btn">Get in touch</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── C: Bodoni Moda + DM Sans ─── -->
+    <div class="card">
+      <div class="card-label">
+        <span class="badge">Option C</span>
+        <span class="stack">Bodoni Moda · DM Sans · IBM Plex Mono</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Nav -->
+        <div class="mock-nav">
+          <span class="c-nav">ardorio</span>
+          <div class="mock-nav-links">
+            <span class="c-body" style="color:#78716C;font-size:11px">Services</span>
+            <span class="c-body" style="color:#78716C;font-size:11px">Work</span>
+            <span class="c-body" style="color:#78716C;font-size:11px">Contact</span>
+          </div>
+        </div>
+
+        <!-- Hero -->
+        <div style="margin-bottom:20px">
+          <div class="c-label" style="margin-bottom:10px">Tech & AI Consulting · ardorio.co</div>
+          <div class="c-h1">Technology<br><em>consulting</em> for<br>enterprises and<br>founders.</div>
+        </div>
+        <div class="c-body" style="margin-bottom:14px">We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.</div>
+        <span class="c-btn">Start a conversation</span>
+
+        <hr class="divider">
+
+        <!-- Services list -->
+        <div class="c-label" style="margin-bottom:12px">What we do</div>
+        <div class="section-row">
+          <span class="c-label section-index">01</span>
+          <div>
+            <div class="c-service-title">Enterprise Consulting</div>
+            <div class="c-body" style="margin-top:4px;font-size:12px">We help large organisations move faster — modernising infrastructure and building engineering culture.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="c-label section-index">02</span>
+          <div>
+            <div class="c-service-title">AI Consulting</div>
+            <div class="c-body" style="margin-top:4px;font-size:12px">From readiness assessments to production deployments that actually work.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="c-label section-index">03</span>
+          <div>
+            <div class="c-service-title">Startup Launch</div>
+            <div class="c-body" style="margin-top:4px;font-size:12px">We co-build with ambitious founders until you're live.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- CTA strip -->
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="c-h2">Got something<br>to build?</div>
+          <span class="c-btn">Get in touch</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── D: Spectral + Plus Jakarta Sans ─── -->
+    <div class="card">
+      <div class="card-label">
+        <span class="badge">Option D</span>
+        <span class="stack">Spectral · Plus Jakarta Sans · DM Mono</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Nav -->
+        <div class="mock-nav">
+          <span class="d-nav">ardorio</span>
+          <div class="mock-nav-links">
+            <span class="d-body" style="color:#78716C;font-size:11px">Services</span>
+            <span class="d-body" style="color:#78716C;font-size:11px">Work</span>
+            <span class="d-body" style="color:#78716C;font-size:11px">Contact</span>
+          </div>
+        </div>
+
+        <!-- Hero -->
+        <div style="margin-bottom:20px">
+          <div class="d-label" style="margin-bottom:10px">Tech & AI Consulting · ardorio.co</div>
+          <div class="d-h1">Technology<br><em>consulting</em> for<br>enterprises and<br>founders.</div>
+        </div>
+        <div class="d-body" style="margin-bottom:14px">We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.</div>
+        <span class="d-btn">Start a conversation</span>
+
+        <hr class="divider">
+
+        <!-- Services list -->
+        <div class="d-label" style="margin-bottom:12px">What we do</div>
+        <div class="section-row">
+          <span class="d-label section-index">01</span>
+          <div>
+            <div class="d-service-title">Enterprise Consulting</div>
+            <div class="d-body" style="margin-top:4px;font-size:12px">We help large organisations move faster — modernising infrastructure and building engineering culture.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="d-label section-index">02</span>
+          <div>
+            <div class="d-service-title">AI Consulting</div>
+            <div class="d-body" style="margin-top:4px;font-size:12px">From readiness assessments to production deployments that actually work.</div>
+          </div>
+        </div>
+        <div class="section-row">
+          <span class="d-label section-index">03</span>
+          <div>
+            <div class="d-service-title">Startup Launch</div>
+            <div class="d-body" style="margin-top:4px;font-size:12px">We co-build with ambitious founders until you're live.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- CTA strip -->
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="d-h2">Got something<br>to build?</div>
+          <span class="d-btn">Get in touch</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
