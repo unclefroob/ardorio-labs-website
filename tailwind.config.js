@@ -4,34 +4,27 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        serif: ['Instrument Serif', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['DM Mono', 'ui-monospace', 'monospace'],
       },
       colors: {
-        navy: {
-          950: '#060b17',
-          900: '#0a1225',
-          800: '#0f1d3a',
-          700: '#162850',
+        cream: {
+          50: '#FDFCF9',
+          100: '#F8F5F0',
+          200: '#F0EDE7',
+          300: '#E5E1D9',
+          400: '#D5D0C7',
         },
-        brand: {
-          DEFAULT: '#2563eb',
-          light: '#3b82f6',
-          dark: '#1d4ed8',
+        stone: {
+          950: '#1C1917',
+          900: '#292524',
+          800: '#44403C',
+          600: '#78716C',
+          400: '#A8A29E',
+          300: '#D6D3D1',
         },
-      },
-      animation: {
-        'fade-in': 'fadeIn 0.7s ease-out',
-        'slide-up': 'slideUp 0.7s ease-out',
-      },
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(24px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
+        ink: '#1C1917',
       },
     },
   },

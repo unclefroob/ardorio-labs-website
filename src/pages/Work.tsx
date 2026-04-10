@@ -1,141 +1,155 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, ExternalLink } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ArrowUpRight } from 'lucide-react'
 
 export default function Work() {
   return (
-    <div className="pt-24">
+    <div className="pt-14">
       {/* Header */}
-      <section className="py-20 hero-glow">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-brand-light text-sm font-semibold uppercase tracking-widest mb-4">Our Work</p>
-          <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight mb-5">
-            Projects we're proud of
-          </h1>
-          <p className="text-lg text-white/50 max-w-xl mx-auto">
-            We partner closely with every client. Here's what we've built together.
-          </p>
+      <div className="divider" />
+      <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+          <div className="lg:col-span-7">
+            <p className="label mb-6">Our Work</p>
+            <h1 className="font-serif text-5xl sm:text-6xl text-ink leading-tight">
+              Things we've<br />
+              <em>shipped.</em>
+            </h1>
+          </div>
+          <div className="lg:col-span-5">
+            <p className="text-stone-600 leading-relaxed">
+              We partner closely with every client. More case studies from enterprise and AI engagements are coming — the first one is below.
+            </p>
+          </div>
         </div>
-      </section>
+      </div>
+
+      <div className="divider" />
 
       {/* PathIQ Case Study */}
-      <section className="max-w-7xl mx-auto px-6 py-16">
-        <div className="glass rounded-2xl overflow-hidden">
-          {/* Case study header */}
-          <div className="p-10 lg:p-14 border-b border-white/5">
-            <div className="flex flex-wrap items-start justify-between gap-6">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-green-400 text-xs font-medium mb-5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  Live
-                </div>
-                <h2 className="text-3xl font-bold text-white mb-3">PathIQ</h2>
-                <a
-                  href="https://pathiq.com.au"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-brand-light text-sm hover:text-white transition-colors"
-                >
-                  pathiq.com.au <ExternalLink size={13} />
-                </a>
+      <div className="max-w-6xl mx-auto px-6 py-14">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {/* Project header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+            <div>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="label">Live</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {['Product Strategy', 'Full-Stack Dev', 'AI Integration', 'UX Design', 'Launch'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-white/60"
-                  >
-                    {tag}
-                  </span>
-                ))}
+              <h2 className="font-serif text-4xl text-ink">PathIQ</h2>
+            </div>
+            <a
+              href="https://pathiq.com.au"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost self-start sm:self-auto"
+            >
+              Visit site <ArrowUpRight size={14} />
+            </a>
+          </div>
+
+          {/* Main content */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Story */}
+            <div className="lg:col-span-7 space-y-5 text-stone-700 leading-relaxed">
+              <p>
+                PathIQ is a platform that helps professionals navigate career transitions with more clarity and confidence. The founders came to Ardorio with a sharp idea and domain insight — but needed a technical co-builder to own the full product.
+              </p>
+              <p>
+                We joined the team at the beginning: shaped the product architecture, built the full-stack application, designed the user flows, and shipped the AI-powered recommendation engine that sits at the core of the platform.
+              </p>
+              <p>
+                From first commit to launch, we moved fast without cutting corners — and the result is a polished, scalable product live at pathiq.com.au.
+              </p>
+            </div>
+
+            {/* Meta / tags */}
+            <div className="lg:col-span-5 space-y-8">
+              <div>
+                <p className="label mb-3">Scope</p>
+                <div className="space-y-2">
+                  {[
+                    'Product Strategy',
+                    'Full-Stack Development',
+                    'UX & Interface Design',
+                    'AI Feature Engineering',
+                    'Go-to-Market Support',
+                  ].map((item) => (
+                    <div key={item} className="flex items-center gap-3 text-sm text-stone-600">
+                      <span className="font-mono text-stone-400">—</span>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="label mb-3">Outcomes</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { value: '0 → 1', label: 'Full build' },
+                    { value: 'On time', label: 'Delivery' },
+                    { value: 'AI-core', label: 'Architecture' },
+                    { value: 'Live', label: 'Status' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="p-4 bg-cream-200 rounded-xl">
+                      <div className="font-serif text-xl text-ink">{stat.value}</div>
+                      <div className="label mt-0.5">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Case study body */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
-            {/* Story */}
-            <div className="lg:col-span-2 p-10 lg:p-14 border-b lg:border-b-0 lg:border-r border-white/5">
-              <h3 className="text-lg font-semibold text-white mb-4">The project</h3>
-              <div className="space-y-4 text-white/60 leading-relaxed">
-                <p>
-                  PathIQ is a platform designed to help professionals navigate career transitions and make smarter decisions about their career path. The founders came to Ardorio with a clear vision but needed a technical partner who could own the full build.
-                </p>
-                <p>
-                  We worked alongside the PathIQ team from early product definition through to launch — handling architecture decisions, building the full-stack application, integrating AI-powered recommendation features, and designing the user experience from the ground up.
-                </p>
-                <p>
-                  The result is a polished, scalable platform that shipped on time and is live at pathiq.com.au.
+          {/* Testimonial */}
+          <div className="mt-12 p-8 bg-cream-200 rounded-2xl">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="lg:col-span-8">
+                <p className="font-serif text-3xl text-cream-400 leading-none mb-3 select-none">"</p>
+                <p className="text-stone-500 italic leading-relaxed">
+                  We're currently putting together a full case study with the PathIQ founder. Their testimonial will live here — watch this space.
                 </p>
               </div>
-
-              <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {[
-                  { value: '0 → 1', label: 'Full product build' },
-                  { value: 'On time', label: 'Delivered to schedule' },
-                  { value: 'AI-powered', label: 'Career recommendations' },
-                ].map((stat) => (
-                  <div key={stat.label} className="p-5 bg-white/[0.03] border border-white/5 rounded-xl">
-                    <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
-                    <div className="text-xs text-white/40">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Testimonial */}
-            <div className="p-10 lg:p-12 flex flex-col justify-between bg-white/[0.02]">
-              <div>
-                <div className="text-5xl text-brand/30 font-serif leading-none mb-5">"</div>
-                <p className="text-white/40 italic text-sm leading-relaxed">
-                  We're currently working with the PathIQ founder on a case study and testimonial. Check back soon.
-                </p>
-              </div>
-              <div className="mt-8 flex items-center gap-3 pt-8 border-t border-white/5">
-                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                  <span className="text-white/40 text-xs font-bold">PQ</span>
+              <div className="lg:col-span-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-cream-300 flex items-center justify-center shrink-0">
+                  <span className="font-mono text-xs text-stone-600">PQ</span>
                 </div>
                 <div>
-                  <div className="text-white/40 text-sm font-medium">PathIQ Founder</div>
+                  <p className="text-sm font-medium text-stone-800">PathIQ Founder</p>
                   <a
                     href="https://pathiq.com.au"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-light/50 text-xs hover:text-brand-light transition-colors"
+                    className="text-xs text-stone-500 hover:text-ink transition-colors"
                   >
-                    pathiq.com.au
+                    pathiq.com.au ↗
                   </a>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </motion.div>
+      </div>
 
-      {/* More coming soon */}
-      <section className="max-w-7xl mx-auto px-6 pb-16">
-        <div className="glass rounded-2xl p-10 text-center border-dashed">
-          <p className="text-white/20 text-sm font-medium uppercase tracking-widest mb-3">More work</p>
-          <p className="text-white/40 text-base">
-            Additional case studies from our enterprise and AI consulting engagements coming soon.
-          </p>
-        </div>
-      </section>
+      <div className="divider" />
 
-      {/* CTA */}
-      <section className="py-20 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold text-white tracking-tight mb-4">Want to be next?</h2>
-          <p className="text-white/50 mb-8 max-w-md mx-auto">
-            Whether you're launching a product or transforming an enterprise — we'd love to hear what you're building.
-          </p>
-          <Link
-            to="/contact"
-            className="inline-flex items-center gap-2 px-7 py-3.5 bg-brand hover:bg-brand-light text-white font-medium rounded-lg transition-colors"
-          >
-            Start a conversation <ArrowRight size={16} />
+      {/* More coming */}
+      <div className="max-w-6xl mx-auto px-6 py-12">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div>
+            <p className="label mb-2">More case studies</p>
+            <p className="text-stone-600 text-sm">Enterprise and AI engagements — coming soon.</p>
+          </div>
+          <Link to="/contact" className="btn-primary shrink-0">
+            Work with us
           </Link>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
