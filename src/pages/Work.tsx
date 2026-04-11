@@ -122,8 +122,8 @@ export default function Work() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-8">
                 <p className="font-serif text-3xl text-cream-400 leading-none mb-3 select-none">"</p>
-                <p className="text-stone-500 italic leading-relaxed">
-                  We're currently putting together a full case study with the PathIQ founder. Their testimonial will live here — watch this space.
+                <p className="text-stone-700 italic leading-relaxed">
+                  Working with Ryan and Jansen from Ardorio has been a game changer for bringing PathIQ to life. From day one, they've gone above and beyond, not just executing on ideas, but genuinely investing in the vision behind PathIQ. Their ability to translate concepts into practical, scalable solutions has been outstanding, and they've consistently delivered with speed, clarity, and professionalism.
                 </p>
               </div>
               <div className="lg:col-span-4 flex items-center gap-3">
@@ -131,7 +131,8 @@ export default function Work() {
                   <span className="font-mono text-xs text-stone-600">PQ</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-stone-800">PathIQ Founder</p>
+                  <p className="text-sm font-medium text-stone-800">Calum Batey</p>
+                  <p className="text-xs text-stone-500">Founder, PathIQ</p>
                   <a
                     href="https://pathiq.com.au"
                     target="_blank"
