@@ -8,6 +8,7 @@ interface FormData {
   name: string
   email: string
   company: string
+  phone: string
   message: string
   type: string
 }
@@ -29,6 +30,7 @@ export default function Contact() {
     name: '',
     email: '',
     company: '',
+    phone: '',
     message: '',
     type: '',
   })
@@ -57,7 +59,7 @@ export default function Contact() {
       })
       if (res.ok) {
         setState('success')
-        setForm({ name: '', email: '', company: '', message: '', type: '' })
+        setForm({ name: '', email: '', company: '', phone: '', message: '', type: '' })
       } else {
         setState('error')
       }
@@ -104,14 +106,6 @@ export default function Contact() {
                 <p className="label mb-1.5">Response time</p>
                 <p>Within 24 hours</p>
               </div>
-              <div>
-                <p className="label mb-1.5">Good fit for</p>
-                <ul className="space-y-1.5">
-                  <li>Enterprise tech modernisation</li>
-                  <li>AI strategy and deployment</li>
-                  <li>Startup product launch</li>
-                </ul>
-              </div>
             </div>
           </div>
 
@@ -151,7 +145,7 @@ export default function Contact() {
                       type="text"
                       value={form.name}
                       onChange={handleChange}
-                      placeholder="Jane Smith"
+                      placeholder="Your name"
                       className={inputClass}
                     />
                     {errors.name && <p className="text-red-500 text-xs mt-1 font-mono">{errors.name}</p>}
@@ -166,7 +160,7 @@ export default function Contact() {
                       type="email"
                       value={form.email}
                       onChange={handleChange}
-                      placeholder="jane@company.com"
+                      placeholder="you@company.com"
                       className={inputClass}
                     />
                     {errors.email && <p className="text-red-500 text-xs mt-1 font-mono">{errors.email}</p>}
@@ -183,10 +177,26 @@ export default function Contact() {
                       type="text"
                       value={form.company}
                       onChange={handleChange}
-                      placeholder="Acme Corp"
+                      placeholder="Your company"
                       className={inputClass}
                     />
                   </div>
+                  <div>
+                    <label className="label block mb-2" htmlFor="phone">Phone</label>
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={form.phone}
+                      onChange={handleChange}
+                      placeholder="Your phone number"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                   <div>
                     <label className="label block mb-2" htmlFor="type">Inquiry type</label>
                     <select
@@ -215,7 +225,7 @@ export default function Contact() {
                     rows={5}
                     value={form.message}
                     onChange={handleChange}
-                    placeholder="Tell us what you're working on..."
+                    placeholder="What are you working on?"
                     className={`${inputClass} resize-none`}
                   />
                   {errors.message && <p className="text-red-500 text-xs mt-1 font-mono">{errors.message}</p>}

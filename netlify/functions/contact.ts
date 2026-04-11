@@ -21,7 +21,7 @@ export const handler: Handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON' }) }
   }
 
-  const { name, email, company, message, type } = body
+  const { name, email, company, phone, message, type } = body
 
   if (!name?.trim() || !email?.trim() || !message?.trim()) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) }
@@ -46,6 +46,7 @@ export const handler: Handler = async (event) => {
         `Name: ${name}`,
         `Email: ${email}`,
         company ? `Company: ${company}` : '',
+        phone ? `Phone: ${phone}` : '',
         type ? `Inquiry type: ${inquiryLabels[type] ?? type}` : '',
         '',
         message,
@@ -60,6 +61,7 @@ export const handler: Handler = async (event) => {
           <tr><td style="padding-bottom:8px"><strong>Name:</strong> ${name}</td></tr>
           <tr><td style="padding-bottom:8px"><strong>Email:</strong> <a href="mailto:${email}">${email}</a></td></tr>
           ${company ? `<tr><td style="padding-bottom:8px"><strong>Company:</strong> ${company}</td></tr>` : ''}
+          ${phone ? `<tr><td style="padding-bottom:8px"><strong>Phone:</strong> ${phone}</td></tr>` : ''}
           ${type ? `<tr><td style="padding-bottom:8px"><strong>Inquiry type:</strong> ${inquiryLabels[type] ?? type}</td></tr>` : ''}
           <tr><td style="padding-top:16px;border-top:1px solid #e7e5e4">
             <p style="white-space:pre-wrap;margin:0">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
