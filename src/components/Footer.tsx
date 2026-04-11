@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import Logo from './Logo'
 
 export default function Footer() {
   const year = new Date().getFullYear()
@@ -10,8 +11,9 @@ export default function Footer() {
           <div>
             <Link
               to="/"
-              className="font-mono text-sm font-medium text-ink hover:text-stone-700 transition-colors"
+              className="flex items-center gap-1.5 font-mono text-sm font-medium text-ink hover:text-stone-700 transition-colors"
             >
+              <Logo size={14} />
               ardorio
             </Link>
             <p className="label mt-1">ardorio.co</p>

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { motion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
+import Logo from '../components/Logo'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
@@ -44,7 +45,8 @@ export default function Home() {
         canonical="/"
       />
       {/* Hero */}
-      <section className="pt-32 pb-20 max-w-6xl mx-auto px-6">
+      <section className="relative overflow-hidden pt-32 pb-20 max-w-6xl mx-auto px-6">
+        <Logo size={200} className="absolute top-32 right-0 opacity-[0.07] pointer-events-none" />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-10 items-end">
           {/* Heading */}
           <motion.div

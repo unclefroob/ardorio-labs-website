@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import Logo from './Logo'
 
 const navLinks = [
   { label: 'Services', to: '/services' },
@@ -42,8 +43,9 @@ export default function Navbar() {
           {/* Logo */}
           <Link
             to="/"
-            className="font-mono text-sm font-medium tracking-tight text-ink hover:text-stone-700 transition-colors"
+            className="flex items-center gap-1.5 font-mono text-sm font-medium tracking-tight text-ink hover:text-stone-700 transition-colors"
           >
+            <Logo size={18} />
             ardorio
           </Link>
 
