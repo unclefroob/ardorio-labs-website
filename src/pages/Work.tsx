@@ -169,6 +169,14 @@ export default function Work() {
               <Link to="/work/clevedon" className="btn-primary">
                 Read case study <ArrowUpRight size={14} />
               </Link>
+              <a
+                href="https://clevedon.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-ghost"
+              >
+                Visit site <ArrowUpRight size={14} />
+              </a>
             </div>
           </div>
 
