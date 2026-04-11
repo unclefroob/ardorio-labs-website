@@ -184,15 +184,16 @@ export default function Home() {
             {/* Testimonial block */}
             <div className="p-10 lg:p-14 border-t lg:border-t-0 lg:border-l border-cream-300 flex flex-col justify-center bg-cream-100/50">
               <p className="font-serif text-5xl text-cream-400 leading-none mb-4 select-none">"</p>
-              <p className="text-stone-500 italic leading-relaxed text-sm mb-8">
-                A testimonial from the PathIQ founder is on the way — we worked closely with their team through the full product launch.
+              <p className="text-stone-700 italic leading-relaxed text-sm mb-8">
+                Working with Ryan and Jansen from Ardorio has been a game changer for bringing PathIQ to life. From day one, they've gone above and beyond, not just executing on ideas, but genuinely investing in the vision behind PathIQ. Their ability to translate concepts into practical, scalable solutions has been outstanding, and they've consistently delivered with speed, clarity, and professionalism.
               </p>
               <div className="flex items-center gap-3 pt-6 border-t border-cream-300">
                 <div className="w-9 h-9 rounded-full bg-cream-300 flex items-center justify-center">
                   <span className="font-mono text-xs text-stone-600">PQ</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-stone-800">PathIQ Founder</p>
+                  <p className="text-sm font-medium text-stone-800">Calum Batey</p>
+                  <p className="text-xs text-stone-500">Founder, PathIQ</p>
                   <a
                     href="https://pathiq.com.au"
                     target="_blank"
