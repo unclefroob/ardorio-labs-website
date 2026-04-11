@@ -1,19 +1,20 @@
 import { Link } from 'react-router-dom'
 import { motion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
+import SEO from '../components/SEO'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
 const services = [
   {
     index: '01',
-    title: 'Enterprise Tech Consulting',
+    title: 'Enterprise Technology',
     short: 'Enterprise',
     description: 'We help large organisations move faster — auditing tech stacks, modernising infrastructure, and building the engineering culture to sustain it.',
   },
   {
     index: '02',
-    title: 'AI Consulting',
+    title: 'AI Engineering',
     short: 'Artificial Intelligence',
     description: 'From readiness assessments to production deployments — we help organisations find, build, and govern AI that actually works.',
   },
@@ -37,6 +38,11 @@ const fadeUp: Variants = {
 export default function Home() {
   return (
     <div>
+      <SEO
+        title="Technology Built for Australian Enterprises & Founders"
+        description="Ardorio partners with Australian enterprises and startup founders to build technology that ships — enterprise platforms, AI engineering, and end-to-end product development."
+        canonical="/"
+      />
       {/* Hero */}
       <section className="pt-32 pb-20 max-w-6xl mx-auto px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-10 items-end">
@@ -49,7 +55,7 @@ export default function Home() {
           >
 <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink">
               Technology<br />
-              <em>consulting</em> for<br />
+              <em>built</em> for<br />
               enterprises and<br />
               founders.
             </h1>
@@ -167,8 +173,8 @@ export default function Home() {
                 </div>
               </div>
               <div className="mt-10">
-                <Link to="/work" className="btn-primary">
-                  View case study
+                <Link to="/work/pathiq" className="btn-primary">
+                  Read case study
                 </Link>
               </div>
             </div>

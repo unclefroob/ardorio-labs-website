@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import SEO from '../components/SEO'
 
 type FormState = 'idle' | 'sending' | 'success' | 'error'
 
@@ -14,8 +15,8 @@ interface FormData {
 const FORMSPREE_ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID'
 
 const inquiryTypes = [
-  { value: 'enterprise', label: 'Enterprise consulting' },
-  { value: 'ai', label: 'AI consulting' },
+  { value: 'enterprise', label: 'Enterprise technology' },
+  { value: 'ai', label: 'AI engineering' },
   { value: 'startup', label: 'Startup partnership' },
   { value: 'other', label: 'Something else' },
 ]
@@ -77,6 +78,11 @@ export default function Contact() {
 
   return (
     <div className="pt-14">
+      <SEO
+        title="Contact — Start a Conversation"
+        description="Talk to Ardorio about enterprise technology, AI engineering, or a startup product partnership in Australia. We respond within 24 hours."
+        canonical="/contact"
+      />
       <div className="divider" />
 
       <div className="max-w-6xl mx-auto px-6 py-16">

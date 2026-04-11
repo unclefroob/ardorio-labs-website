@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
+import SEO from '../components/SEO'
 
 const services = [
   {
     id: 'enterprise',
     index: '01',
-    title: 'Enterprise Tech Consulting',
+    title: 'Enterprise Technology',
     description:
       'We embed with enterprise teams to diagnose what\'s slowing them down and fix it — whether that\'s legacy infrastructure, fragmented tooling, or an engineering culture that can\'t keep pace with the business.',
     offerings: [
@@ -22,7 +23,7 @@ const services = [
   {
     id: 'ai',
     index: '02',
-    title: 'AI Consulting',
+    title: 'AI Engineering',
     description:
       'AI that ships and stays in production — not just prototypes. We help organisations identify where AI creates real value, then build and deploy it in a way that\'s safe, maintainable, and measurable.',
     offerings: [
@@ -56,6 +57,11 @@ const services = [
 export default function Services() {
   return (
     <div className="pt-14">
+      <SEO
+        title="Services — Enterprise Technology, AI Engineering & Startup Partnerships"
+        description="Ardorio delivers enterprise technology, AI engineering, and startup product development across Australia. We get close to the problem and build something that lasts."
+        canonical="/services"
+      />
       {/* Header */}
       <div className="divider" />
       <div className="max-w-6xl mx-auto px-6 py-16">

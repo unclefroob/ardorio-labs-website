@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
+import SEO from '../components/SEO'
 
 export default function Work() {
   return (
     <div className="pt-14">
+      <SEO
+        title="Work — Products We've Built"
+        description="Case studies from Ardorio's enterprise technology and AI product engagements in Australia. See how we build from zero to live."
+        canonical="/work"
+      />
       {/* Header */}
       <div className="divider" />
       <div className="max-w-6xl mx-auto px-6 py-16">
@@ -42,14 +48,19 @@ export default function Work() {
               </div>
               <h2 className="font-serif text-4xl text-ink">PathIQ</h2>
             </div>
-            <a
-              href="https://pathiq.com.au"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-ghost self-start sm:self-auto"
-            >
-              Visit site <ArrowUpRight size={14} />
-            </a>
+            <div className="flex items-center gap-3 self-start sm:self-auto">
+              <Link to="/work/pathiq" className="btn-primary">
+                Read case study <ArrowUpRight size={14} />
+              </Link>
+              <a
+                href="https://pathiq.com.au"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-ghost"
+              >
+                Visit site <ArrowUpRight size={14} />
+              </a>
+            </div>
           </div>
 
           {/* Main content */}
