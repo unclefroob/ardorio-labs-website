@@ -1,0 +1,226 @@
+<style>
+  .site-mockup {
+    font-family: 'Georgia', serif;
+    background: #f7f5f0;
+    border: 1px solid #e2ddd6;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .site-nav {
+    background: #f7f5f0;
+    border-bottom: 1px solid #e2ddd6;
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #1c1917;
+  }
+  .site-nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .site-nav-links {
+    display: flex;
+    gap: 24px;
+    color: #78716c;
+    font-size: 12px;
+  }
+  .site-nav-btn {
+    background: #1c1917;
+    color: #f7f5f0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: sans-serif;
+  }
+  .site-body {
+    padding: 28px 24px 20px;
+  }
+  .site-hero-text {
+    font-family: 'Georgia', serif;
+    font-size: 26px;
+    font-style: italic;
+    color: #1c1917;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .site-sub {
+    font-family: sans-serif;
+    font-size: 12px;
+    color: #78716c;
+    margin-bottom: 14px;
+  }
+  .site-divider { border-top: 1px solid #e2ddd6; margin: 0; }
+  .site-footer {
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #78716c;
+  }
+  .logo-icon {
+    width: 20px;
+    height: 19px;
+    flex-shrink: 0;
+  }
+  .logo-icon-lg {
+    width: 40px;
+    height: 38px;
+    flex-shrink: 0;
+    opacity: 0.12;
+  }
+  .hero-logo-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .tag {
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #78716c;
+    border: 1px solid #e2ddd6;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-bottom: 8px;
+  }
+</style>
+
+<h2>Where should the logo appear?</h2>
+<p class="subtitle">The favicon is already a custom purple mark — let's decide where and how to use it on-site. Three options below.</p>
+
+<div class="cards">
+
+  <!-- Option A: Icon + wordmark in nav & footer -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; background: #eee8de;">
+      <div class="site-mockup" style="margin: 0; border-radius: 0; border: none;">
+        <div class="site-nav">
+          <div class="site-nav-logo">
+            <svg class="logo-icon" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+            </svg>
+            ardorio
+          </div>
+          <div class="site-nav-links">
+            <span>Services</span><span>Work</span><span>Newsroom</span>
+            <span class="site-nav-btn">Get in touch</span>
+          </div>
+        </div>
+        <div class="site-body">
+          <div class="site-hero-text">Technology<br/><em>built</em> for<br/>enterprises.</div>
+          <div class="site-sub">We partner with major corporations and startup founders...</div>
+        </div>
+        <div class="site-divider" />
+        <div class="site-footer">
+          <div class="site-nav-logo" style="gap:6px">
+            <svg class="logo-icon" style="width:14px;height:13px" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+            </svg>
+            ardorio
+          </div>
+          <span>© 2025 Ardorio. All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Icon + wordmark</h3>
+      <p>Small icon alongside the "ardorio" text in navbar and footer. Subtle — the icon reinforces the brand mark without dominating.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Icon only in nav -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; background: #eee8de;">
+      <div class="site-mockup" style="margin: 0; border-radius: 0; border: none;">
+        <div class="site-nav">
+          <div class="site-nav-logo">
+            <svg class="logo-icon" style="width:24px;height:23px" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+            </svg>
+          </div>
+          <div class="site-nav-links">
+            <span>Services</span><span>Work</span><span>Newsroom</span>
+            <span class="site-nav-btn">Get in touch</span>
+          </div>
+        </div>
+        <div class="site-body">
+          <div class="site-hero-text">Technology<br/><em>built</em> for<br/>enterprises.</div>
+          <div class="site-sub">We partner with major corporations and startup founders...</div>
+        </div>
+        <div class="site-divider" />
+        <div class="site-footer">
+          <div>
+            <div class="site-nav-logo" style="gap:6px">
+              <svg style="width:14px;height:13px" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+              </svg>
+              ardorio
+            </div>
+          </div>
+          <span>© 2025 Ardorio. All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Icon only in navbar</h3>
+      <p>Just the mark in the navbar (no text), with icon + text in the footer. Confident and minimal — works well if the mark is distinctive enough standalone.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Icon + wordmark in nav, large decorative in hero -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; background: #eee8de;">
+      <div class="site-mockup" style="margin: 0; border-radius: 0; border: none;">
+        <div class="site-nav">
+          <div class="site-nav-logo">
+            <svg class="logo-icon" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+            </svg>
+            ardorio
+          </div>
+          <div class="site-nav-links">
+            <span>Services</span><span>Work</span><span>Newsroom</span>
+            <span class="site-nav-btn">Get in touch</span>
+          </div>
+        </div>
+        <div class="site-body">
+          <div class="hero-logo-row">
+            <svg style="width:52px;height:50px;opacity:0.1;flex-shrink:0;margin-top:2px" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+            </svg>
+            <div class="site-hero-text" style="margin:0">Technology<br/><em>built</em> for<br/>enterprises.</div>
+          </div>
+          <div class="site-sub">We partner with major corporations and startup founders...</div>
+        </div>
+        <div class="site-divider" />
+        <div class="site-footer">
+          <div class="site-nav-logo" style="gap:6px">
+            <svg class="logo-icon" style="width:14px;height:13px" viewBox="0 0 48 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+            </svg>
+            ardorio
+          </div>
+          <span>© 2025 Ardorio. All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Icon + wordmark everywhere, plus ghost in hero</h3>
+      <p>Icon + text in nav and footer, plus a large low-opacity ghost mark sitting beside the hero heading as a decorative element.</p>
+    </div>
+  </div>
+
+</div>
