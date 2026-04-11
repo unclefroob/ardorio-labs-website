@@ -7,6 +7,7 @@ import Services from './pages/Services'
 import Work from './pages/Work'
 import Contact from './pages/Contact'
 import PathIQCaseStudy from './pages/work/PathIQ'
+import ClevedonCaseStudy from './pages/work/Clevedon'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/work" element={<Work />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/work/pathiq" element={<PathIQCaseStudy />} />
+            <Route path="/work/clevedon" element={<ClevedonCaseStudy />} />
           </Routes>
         </main>
         <Footer />
