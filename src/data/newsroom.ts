@@ -63,28 +63,6 @@ export const news: NewsItem[] = [
 <p>Clevedon is live at <a href="https://clevedon.app" target="_blank" rel="noopener noreferrer">clevedon.app</a>.</p>
     `.trim(),
   },
-  {
-    slug: 'ardorio-labs-launched',
-    date: '2025-11-01',
-    category: 'Company',
-    title: 'Ardorio is open for business',
-    excerpt:
-      'We\'re a technology studio partnering with Australian enterprises and ambitious founders. Today we\'re announcing who we are, what we build, and why we built Ardorio the way we did.',
-    body: `
-<p>Ardorio is a technology studio. We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.</p>
-
-<p>We started Ardorio because we saw a gap: organisations that needed serious technical muscle but didn't want to hire a large agency or wait six months for a team to ramp. Founders who had the vision and the market insight but needed a co-builder who could take full technical ownership.</p>
-
-<h3>What we do</h3>
-<ul>
-  <li><strong>Enterprise Technology</strong> — We help large organisations move faster: auditing tech stacks, modernising infrastructure, and building the engineering culture to sustain it.</li>
-  <li><strong>AI Engineering</strong> — From readiness assessments to production deployments. We help organisations find, build, and govern AI that actually works.</li>
-  <li><strong>Startup Launch Partnerships</strong> — We co-build with ambitious founders. Product strategy, full-stack development, and go-to-market — until you're live.</li>
-</ul>
-
-<p>We're based in Australia and work with clients across the Asia-Pacific region. If you're building something ambitious, we'd like to hear about it.</p>
-    `.trim(),
-  },
 ]
 
 export function getNewsItem(slug: string): NewsItem | undefined {
