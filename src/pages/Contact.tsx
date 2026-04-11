@@ -12,7 +12,7 @@ interface FormData {
   type: string
 }
 
-const FORMSPREE_ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID'
+const CONTACT_ENDPOINT = '/.netlify/functions/contact'
 
 const inquiryTypes = [
   { value: 'enterprise', label: 'Enterprise technology' },
@@ -50,9 +50,9 @@ export default function Contact() {
     if (!validate()) return
     setState('sending')
     try {
-      const res = await fetch(FORMSPREE_ENDPOINT, {
+      const res = await fetch(CONTACT_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
       if (res.ok) {
