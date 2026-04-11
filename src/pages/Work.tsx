@@ -102,10 +102,10 @@ export default function Work() {
                 <p className="label mb-3">Outcomes</p>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { value: '0 → 1', label: 'Full build' },
-                    { value: 'On time', label: 'Delivery' },
-                    { value: 'AI-core', label: 'Architecture' },
-                    { value: 'Live', label: 'Status' },
+                    { value: '3', label: 'Markets served' },
+                    { value: '12', label: 'Career archetypes' },
+                    { value: 'Claude', label: 'AI at the core' },
+                    { value: 'Live', label: 'pathiq.com.au' },
                   ].map((stat) => (
                     <div key={stat.label} className="p-4 bg-cream-200 rounded-xl">
                       <div className="font-serif text-xl text-ink">{stat.value}</div>
@@ -213,9 +213,9 @@ export default function Work() {
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     { value: '0 → 1', label: 'Full build' },
-                    { value: 'On time', label: 'Delivery' },
                     { value: '3 tiers', label: 'Monetisation' },
-                    { value: 'Live', label: 'Status' },
+                    { value: 'Any role', label: 'Domain-aware AI' },
+                    { value: 'Live', label: 'In production' },
                   ].map((stat) => (
                     <div key={stat.label} className="p-4 bg-cream-200 rounded-xl">
                       <div className="font-serif text-xl text-ink">{stat.value}</div>
