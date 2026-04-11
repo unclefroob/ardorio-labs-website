@@ -1,16 +1,16 @@
 import type { Handler } from '@netlify/functions'
-import sgMail from '@sendgrid/mail'
+import { Resend } from 'resend'
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' }
   }
 
-  const apiKey = process.env.SENDGRID_API_KEY
-  const toEmail = process.env.SENDGRID_TO_EMAIL
+  const apiKey = process.env.RESEND_API_KEY
+  const toEmail = process.env.RESEND_TO_EMAIL
 
   if (!apiKey || !toEmail) {
-    console.error('Missing SENDGRID_API_KEY or SENDGRID_TO_EMAIL env vars')
+    console.error('Missing RESEND_API_KEY or RESEND_TO_EMAIL env vars')
     return { statusCode: 500, body: JSON.stringify({ error: 'Server misconfiguration' }) }
   }
 
@@ -27,8 +27,6 @@ export const handler: Handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) }
   }
 
-  sgMail.setApiKey(apiKey)
-
   const inquiryLabels: Record<string, string> = {
     enterprise: 'Enterprise technology',
     ai: 'AI engineering',
@@ -36,49 +34,44 @@ export const handler: Handler = async (event) => {
     other: 'Something else',
   }
 
-  const msg = {
-    to: toEmail,
-    from: { name: 'Ardorio Website', email: toEmail },
-    replyTo: { name, email },
-    subject: `New enquiry from ${name}${company ? ` at ${company}` : ''}`,
-    text: [
-      `Name: ${name}`,
-      `Email: ${email}`,
-      company ? `Company: ${company}` : '',
-      type ? `Inquiry type: ${inquiryLabels[type] ?? type}` : '',
-      '',
-      message,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    html: `
-      <table style="font-family:sans-serif;font-size:14px;color:#1c1917;max-width:560px">
-        <tr><td style="padding-bottom:24px">
-          <strong style="font-size:18px">New enquiry from ${name}</strong>
-        </td></tr>
-        <tr><td style="padding-bottom:8px"><strong>Name:</strong> ${name}</td></tr>
-        <tr><td style="padding-bottom:8px"><strong>Email:</strong> <a href="mailto:${email}">${email}</a></td></tr>
-        ${company ? `<tr><td style="padding-bottom:8px"><strong>Company:</strong> ${company}</td></tr>` : ''}
-        ${type ? `<tr><td style="padding-bottom:8px"><strong>Inquiry type:</strong> ${inquiryLabels[type] ?? type}</td></tr>` : ''}
-        <tr><td style="padding-top:16px;border-top:1px solid #e7e5e4">
-          <p style="white-space:pre-wrap;margin:0">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
-        </td></tr>
-      </table>
-    `,
-  }
+  const resend = new Resend(apiKey)
 
   try {
-    await sgMail.send(msg)
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ ok: true }),
-    }
+    await resend.emails.send({
+      from: 'Ardorio Website <onboarding@resend.dev>',
+      to: toEmail,
+      reply_to: `${name} <${email}>`,
+      subject: `New enquiry from ${name}${company ? ` at ${company}` : ''}`,
+      text: [
+        `Name: ${name}`,
+        `Email: ${email}`,
+        company ? `Company: ${company}` : '',
+        type ? `Inquiry type: ${inquiryLabels[type] ?? type}` : '',
+        '',
+        message,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      html: `
+        <table style="font-family:sans-serif;font-size:14px;color:#1c1917;max-width:560px">
+          <tr><td style="padding-bottom:24px">
+            <strong style="font-size:18px">New enquiry from ${name}</strong>
+          </td></tr>
+          <tr><td style="padding-bottom:8px"><strong>Name:</strong> ${name}</td></tr>
+          <tr><td style="padding-bottom:8px"><strong>Email:</strong> <a href="mailto:${email}">${email}</a></td></tr>
+          ${company ? `<tr><td style="padding-bottom:8px"><strong>Company:</strong> ${company}</td></tr>` : ''}
+          ${type ? `<tr><td style="padding-bottom:8px"><strong>Inquiry type:</strong> ${inquiryLabels[type] ?? type}</td></tr>` : ''}
+          <tr><td style="padding-top:16px;border-top:1px solid #e7e5e4">
+            <p style="white-space:pre-wrap;margin:0">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+          </td></tr>
+        </table>
+      `,
+    })
+
+    return { statusCode: 200, body: JSON.stringify({ ok: true }) }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('SendGrid error:', message)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to send email' }),
-    }
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('Resend error:', msg)
+    return { statusCode: 500, body: JSON.stringify({ error: 'Failed to send email' }) }
   }
 }
