@@ -21,6 +21,7 @@ export default function Footer() {
             {[
               { label: 'Services', to: '/services' },
               { label: 'Work', to: '/work' },
+              { label: 'Newsroom', to: '/newsroom' },
               { label: 'Contact', to: '/contact' },
             ].map((link) => (
               <Link

@@ -8,6 +8,8 @@ import Work from './pages/Work'
 import Contact from './pages/Contact'
 import PathIQCaseStudy from './pages/work/PathIQ'
 import ClevedonCaseStudy from './pages/work/Clevedon'
+import Newsroom from './pages/Newsroom'
+import NewsroomArticle from './pages/NewsroomArticle'
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/work/pathiq" element={<PathIQCaseStudy />} />
             <Route path="/work/clevedon" element={<ClevedonCaseStudy />} />
+            <Route path="/newsroom" element={<Newsroom />} />
+            <Route path="/newsroom/:slug" element={<NewsroomArticle />} />
           </Routes>
         </main>
         <Footer />
