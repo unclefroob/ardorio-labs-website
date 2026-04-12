@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { motion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
+import Logo from '../components/Logo'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
@@ -44,7 +45,8 @@ export default function Home() {
         canonical="/"
       />
       {/* Hero */}
-      <section className="pt-32 pb-20 max-w-6xl mx-auto px-6">
+      <section className="relative overflow-hidden pt-32 pb-20 max-w-6xl mx-auto px-6">
+        <Logo size={200} className="absolute top-32 right-0 opacity-[0.07] pointer-events-none" />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-10 items-end">
           {/* Heading */}
           <motion.div
@@ -182,15 +184,16 @@ export default function Home() {
             {/* Testimonial block */}
             <div className="p-10 lg:p-14 border-t lg:border-t-0 lg:border-l border-cream-300 flex flex-col justify-center bg-cream-100/50">
               <p className="font-serif text-5xl text-cream-400 leading-none mb-4 select-none">"</p>
-              <p className="text-stone-500 italic leading-relaxed text-sm mb-8">
-                A testimonial from the PathIQ founder is on the way — we worked closely with their team through the full product launch.
+              <p className="text-stone-700 italic leading-relaxed text-sm mb-8">
+                Working with Ryan and Jansen from Ardorio has been a game changer for bringing PathIQ to life. From day one, they've gone above and beyond, not just executing on ideas, but genuinely investing in the vision behind PathIQ. Their ability to translate concepts into practical, scalable solutions has been outstanding, and they've consistently delivered with speed, clarity, and professionalism.
               </p>
               <div className="flex items-center gap-3 pt-6 border-t border-cream-300">
                 <div className="w-9 h-9 rounded-full bg-cream-300 flex items-center justify-center">
                   <span className="font-mono text-xs text-stone-600">PQ</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-stone-800">PathIQ Founder</p>
+                  <p className="text-sm font-medium text-stone-800">Calum Batey</p>
+                  <p className="text-xs text-stone-500">Founder, PathIQ</p>
                   <a
                     href="https://pathiq.com.au"
                     target="_blank"

@@ -20,9 +20,10 @@
     @apply bg-ink text-cream-100;
   }
 
-  /* Bodoni Moda optical sizing — ensures high-contrast strokes render correctly at display sizes */
+  /* Bodoni Moda optical sizing — lock opsz to text cut (12) so hairlines stay thick at display sizes */
   .font-serif {
-    font-optical-sizing: auto;
+    font-optical-sizing: none;
+    font-variation-settings: 'opsz' 12;
   }
 }
 

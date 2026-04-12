@@ -24,7 +24,7 @@ export default function Work() {
           </div>
           <div className="lg:col-span-5">
             <p className="text-stone-600 leading-relaxed">
-              We partner closely with every client. More case studies from enterprise and AI engagements are coming — the first one is below.
+              We partner closely with every client. More case studies from enterprise and AI engagements are coming.
             </p>
           </div>
         </div>
@@ -122,8 +122,8 @@ export default function Work() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-8">
                 <p className="font-serif text-3xl text-cream-400 leading-none mb-3 select-none">"</p>
-                <p className="text-stone-500 italic leading-relaxed">
-                  We're currently putting together a full case study with the PathIQ founder. Their testimonial will live here — watch this space.
+                <p className="text-stone-700 italic leading-relaxed">
+                  Working with Ryan and Jansen from Ardorio has been a game changer for bringing PathIQ to life. From day one, they've gone above and beyond, not just executing on ideas, but genuinely investing in the vision behind PathIQ. Their ability to translate concepts into practical, scalable solutions has been outstanding, and they've consistently delivered with speed, clarity, and professionalism.
                 </p>
               </div>
               <div className="lg:col-span-4 flex items-center gap-3">
@@ -131,7 +131,8 @@ export default function Work() {
                   <span className="font-mono text-xs text-stone-600">PQ</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-stone-800">PathIQ Founder</p>
+                  <p className="text-sm font-medium text-stone-800">Calum Batey</p>
+                  <p className="text-xs text-stone-500">Founder, PathIQ</p>
                   <a
                     href="https://pathiq.com.au"
                     target="_blank"
@@ -224,6 +225,93 @@ export default function Work() {
                     { value: '3 tiers', label: 'Monetisation' },
                     { value: 'Any role', label: 'Domain-aware AI' },
                     { value: 'Live', label: 'In production' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="p-4 bg-cream-200 rounded-xl">
+                      <div className="font-serif text-xl text-ink">{stat.value}</div>
+                      <div className="label mt-0.5">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      <div className="divider" />
+
+      {/* Rosterio Case Study */}
+      <div className="max-w-6xl mx-auto px-6 py-14">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          {/* Project header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+            <div>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="label">Live</span>
+              </div>
+              <h2 className="font-serif text-4xl text-ink">Rosterio</h2>
+            </div>
+            <div className="flex items-center gap-3 self-start sm:self-auto">
+              <Link to="/work/rosterio" className="btn-primary">
+                Read case study <ArrowUpRight size={14} />
+              </Link>
+              <a
+                href="https://rosterio.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-ghost"
+              >
+                Visit site <ArrowUpRight size={14} />
+              </a>
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Story */}
+            <div className="lg:col-span-7 space-y-5 text-stone-700 leading-relaxed">
+              <p>
+                Rosterio is a workforce operating system for businesses that run on shifts — hospitality, retail, healthcare, venues. Managers build rosters, auto-fill gaps in one click, handle swap requests, and export timesheets straight to payroll. Staff get a mobile app that keeps them across their schedule without a group chat.
+              </p>
+              <p>
+                We built the product end to end: full-stack application, a constraint-aware scheduling engine, shift marketplace, GPS time & attendance, Stripe billing, and iOS and Android apps. From first commit to launch, one team owned all of it.
+              </p>
+            </div>
+
+            {/* Meta / tags */}
+            <div className="lg:col-span-5 space-y-8">
+              <div>
+                <p className="label mb-3">Scope</p>
+                <div className="space-y-2">
+                  {[
+                    'Product Strategy',
+                    'Full-Stack Development',
+                    'Scheduling Engine',
+                    'GPS Time & Attendance',
+                    'iOS & Android Apps',
+                    'Go-to-Market Support',
+                  ].map((item) => (
+                    <div key={item} className="flex items-center gap-3 text-sm text-stone-600">
+                      <span className="font-mono text-stone-400">—</span>
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="label mb-3">Outcomes</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { value: '0 → 1', label: 'Full build' },
+                    { value: '2 plans', label: 'Monetisation' },
+                    { value: 'iOS + Android', label: 'Mobile apps' },
+                    { value: 'Live', label: 'rosterio.app' },
                   ].map((stat) => (
                     <div key={stat.label} className="p-4 bg-cream-200 rounded-xl">
                       <div className="font-serif text-xl text-ink">{stat.value}</div>
