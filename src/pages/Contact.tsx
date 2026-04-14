@@ -106,6 +106,11 @@ export default function Contact() {
                 <p className="label mb-1.5">Response time</p>
                 <p>Within 24 hours</p>
               </div>
+              <div>
+                <p className="label mb-1.5">Legal entity</p>
+                <p>Ardorio Pty Ltd</p>
+                <p className="mt-1 text-stone-500">ABN 67 676 147 658</p>
+              </div>
             </div>
           </div>
 

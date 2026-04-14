@@ -43,8 +43,9 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-cream-300 mt-8 pt-6">
-          <p className="label">© {year} Ardorio. All rights reserved.</p>
+        <div className="border-t border-cream-300 mt-8 pt-6 space-y-1">
+          <p className="label">© {year} Ardorio Pty Ltd. All rights reserved.</p>
+          <p className="label">ABN 67 676 147 658</p>
         </div>
       </div>
     </footer>
