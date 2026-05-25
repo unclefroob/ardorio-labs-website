@@ -1,6 +1,6 @@
 export type TicketStatus = 'backlog' | 'in-progress' | 'testing' | 'sign-off' | 'done'
 export type TicketPriority = 'high' | 'medium' | 'low'
-export type TicketCategory = 'Feature' | 'Bug' | 'Design' | 'Infrastructure' | 'Integration Testing' | 'Acceptance Testing'
+export type TicketCategory = 'Feature' | 'Bug' | 'Design' | 'Infrastructure'
 export type TicketHorizon = 'infra' | 'H1' | 'H2' | 'H3'
 
 export interface Ticket {
