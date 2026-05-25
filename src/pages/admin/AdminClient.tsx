@@ -29,7 +29,7 @@ export default function AdminClient() {
 
   // Ticket form
   const [ticketForm, setTicketForm] = useState<Omit<Ticket, 'id'>>({
-    title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1',
+    title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [],
   })
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null)
 
@@ -70,7 +70,7 @@ export default function AdminClient() {
       ? project.tickets.map(t => t.id === editingTicketId ? { ...ticketForm, id: editingTicketId } : t)
       : [...project.tickets, { ...ticketForm, id: crypto.randomUUID() }]
     saveProject({ ...project, tickets })
-    setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1' })
+    setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] })
     setEditingTicketId(null)
   }
 
@@ -81,7 +81,7 @@ export default function AdminClient() {
 
   function editTicket(ticket: Ticket) {
     setEditingTicketId(ticket.id)
-    setTicketForm({ title: ticket.title, description: ticket.description, status: ticket.status, priority: ticket.priority, category: ticket.category, horizon: ticket.horizon })
+    setTicketForm({ title: ticket.title, description: ticket.description, status: ticket.status, priority: ticket.priority, category: ticket.category, horizon: ticket.horizon, comments: ticket.comments ?? [] })
     setSection('tickets')
   }
 
@@ -207,7 +207,7 @@ export default function AdminClient() {
                   {editingTicketId ? 'Update ticket' : 'Add ticket'}
                 </button>
                 {editingTicketId && (
-                  <button onClick={() => { setEditingTicketId(null); setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1' }) }} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
+                  <button onClick={() => { setEditingTicketId(null); setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] }) }} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
                     Cancel
                   </button>
                 )}

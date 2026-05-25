@@ -3,6 +3,14 @@ export type TicketPriority = 'high' | 'medium' | 'low'
 export type TicketCategory = 'Feature' | 'Bug' | 'Design' | 'Infrastructure'
 export type TicketHorizon = 'infra' | 'H1' | 'H2' | 'H3'
 
+export interface Comment {
+  id: string
+  author: string
+  role: 'admin' | 'client'
+  content: string
+  createdAt: string
+}
+
 export interface Ticket {
   id: string
   title: string
@@ -11,6 +19,7 @@ export interface Ticket {
   priority: TicketPriority
   category: TicketCategory
   horizon: TicketHorizon
+  comments?: Comment[]
 }
 
 export type MilestoneStatus = 'pending' | 'awaiting-approval' | 'signed-off'

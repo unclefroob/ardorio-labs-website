@@ -1,4 +1,4 @@
-import type { Ticket, Milestone } from '../../types/dashboard'
+import type { Ticket, Milestone, Comment } from '../../types/dashboard'
 import StatusColumn from './StatusColumn'
 import MilestoneTracker from './MilestoneTracker'
 
@@ -8,9 +8,10 @@ interface Props {
   canSignOff?: boolean
   onSignOff?: (milestoneId: string) => void
   signingOff?: string | null
+  onCommentsUpdate: (ticketId: string, comments: Comment[]) => void
 }
 
-export default function StatusBoard({ tickets, milestones, canSignOff, onSignOff, signingOff }: Props) {
+export default function StatusBoard({ tickets, milestones, canSignOff, onSignOff, signingOff, onCommentsUpdate }: Props) {
   const backlog    = tickets.filter(t => t.status === 'backlog')
   const inProgress = tickets.filter(t => t.status === 'in-progress')
   const testing    = tickets.filter(t => t.status === 'testing')
@@ -31,11 +32,11 @@ export default function StatusBoard({ tickets, milestones, canSignOff, onSignOff
       <div className="max-w-7xl mx-auto px-6 py-10">
         <p className="label mb-6">Progress Board</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-          <StatusColumn status="backlog"      tickets={backlog}    />
-          <StatusColumn status="in-progress"  tickets={inProgress} />
-          <StatusColumn status="testing"      tickets={testing}    />
-          <StatusColumn status="sign-off"     tickets={signOff}    />
-          <StatusColumn status="done"         tickets={done}       />
+          <StatusColumn status="backlog"      tickets={backlog}    onCommentsUpdate={onCommentsUpdate} />
+          <StatusColumn status="in-progress"  tickets={inProgress} onCommentsUpdate={onCommentsUpdate} />
+          <StatusColumn status="testing"      tickets={testing}    onCommentsUpdate={onCommentsUpdate} />
+          <StatusColumn status="sign-off"     tickets={signOff}    onCommentsUpdate={onCommentsUpdate} />
+          <StatusColumn status="done"         tickets={done}       onCommentsUpdate={onCommentsUpdate} />
         </div>
       </div>
     </>

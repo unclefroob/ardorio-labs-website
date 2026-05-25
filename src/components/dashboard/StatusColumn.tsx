@@ -1,4 +1,4 @@
-import type { Ticket, TicketStatus } from '../../types/dashboard'
+import type { Ticket, TicketStatus, Comment } from '../../types/dashboard'
 import TicketCard from './TicketCard'
 
 const columnConfig: Record<TicketStatus, { label: string; accent: string }> = {
@@ -12,9 +12,10 @@ const columnConfig: Record<TicketStatus, { label: string; accent: string }> = {
 interface Props {
   status: TicketStatus
   tickets: Ticket[]
+  onCommentsUpdate: (ticketId: string, comments: Comment[]) => void
 }
 
-export default function StatusColumn({ status, tickets }: Props) {
+export default function StatusColumn({ status, tickets, onCommentsUpdate }: Props) {
   const { label, accent } = columnConfig[status]
 
   return (
@@ -31,7 +32,7 @@ export default function StatusColumn({ status, tickets }: Props) {
       ) : (
         <div className="space-y-3">
           {tickets.map((ticket, i) => (
-            <TicketCard key={ticket.id} ticket={ticket} index={i} />
+            <TicketCard key={ticket.id} ticket={ticket} index={i} onCommentsUpdate={onCommentsUpdate} />
           ))}
         </div>
       )}
