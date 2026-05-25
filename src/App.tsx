@@ -11,6 +11,7 @@ import ClevedonCaseStudy from './pages/work/Clevedon'
 import RosterioCaseStudy from './pages/work/Rosterio'
 import Newsroom from './pages/Newsroom'
 import NewsroomArticle from './pages/NewsroomArticle'
+import ClientDashboard from './pages/ClientDashboard'
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
             <Route path="/work/rosterio" element={<RosterioCaseStudy />} />
             <Route path="/newsroom" element={<Newsroom />} />
             <Route path="/newsroom/:slug" element={<NewsroomArticle />} />
+            <Route path="/:slug" element={<ClientDashboard />} />
           </Routes>
         </main>
         <Footer />
