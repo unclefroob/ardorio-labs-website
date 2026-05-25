@@ -9,6 +9,15 @@ interface AdminUser {
   email: string
 }
 
+interface ModalState {
+  open: boolean
+  editingId: string | null
+  username: string
+  password: string
+}
+
+const emptyModal: ModalState = { open: false, editingId: null, username: '', password: '' }
+
 export default function AdminStaff() {
   const { logout } = useAuth()
   const navigate = useNavigate()
@@ -17,9 +26,7 @@ export default function AdminStaff() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
-
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ username: '', password: '' })
+  const [modal, setModal] = useState<ModalState>(emptyModal)
 
   useEffect(() => {
     apiFetch<AdminUser[]>('/admin-users')
@@ -29,32 +36,32 @@ export default function AdminStaff() {
   }, [])
 
   function flash(m: string) { setMsg(m); setTimeout(() => setMsg(''), 2500) }
+  function openCreate() { setModal({ open: true, editingId: null, username: '', password: '' }) }
+  function openEdit(u: AdminUser) { setModal({ open: true, editingId: u._id, username: u.email, password: '' }) }
+  function closeModal() { setModal(emptyModal) }
 
-  async function upsert() {
-    if (!form.username.trim()) return
+  async function save() {
+    if (!modal.username.trim()) return
     setSaving(true)
     try {
-      if (editingId) {
+      if (modal.editingId) {
         const body: Record<string, string> = {}
-        if (form.username) body.username = form.username
-        if (form.password) body.password = form.password
-        const updated = await apiFetch<AdminUser>(`/admin-users/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(body),
+        if (modal.username) body.username = modal.username
+        if (modal.password) body.password = modal.password
+        const updated = await apiFetch<AdminUser>(`/admin-users/${modal.editingId}`, {
+          method: 'PUT', body: JSON.stringify(body),
         })
-        setUsers(u => u.map(x => x._id === editingId ? updated : x))
+        setUsers(u => u.map(x => x._id === modal.editingId ? updated : x))
         flash('Saved.')
       } else {
-        if (!form.password) { flash('Password is required'); return }
+        if (!modal.password) { flash('Password is required'); return }
         const created = await apiFetch<AdminUser>('/admin-users', {
-          method: 'POST',
-          body: JSON.stringify(form),
+          method: 'POST', body: JSON.stringify({ username: modal.username, password: modal.password }),
         })
         setUsers(u => [...u, created])
         flash('Admin user created.')
       }
-      setForm({ username: '', password: '' })
-      setEditingId(null)
+      closeModal()
     } catch (e: unknown) {
       flash(e instanceof Error ? e.message : 'Error')
     } finally {
@@ -72,12 +79,7 @@ export default function AdminStaff() {
     }
   }
 
-  function startEdit(user: AdminUser) {
-    setEditingId(user._id)
-    setForm({ username: user.email, password: '' })
-  }
-
-  const inputCls = "w-full bg-cream-200 border border-cream-300 rounded-xl px-3 py-2 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors"
+  const inputCls = "w-full bg-cream-100 border border-cream-300 rounded-xl px-3 py-2 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors"
 
   return (
     <div className="min-h-screen bg-cream-100">
@@ -102,79 +104,83 @@ export default function AdminStaff() {
             <h1 className="font-serif text-3xl text-ink mb-1">Admin users</h1>
             <p className="text-stone-500 text-sm">Manage staff access to the admin dashboard.</p>
           </div>
-          {msg && <span className="font-mono text-xs text-stone-500">{msg}</span>}
+          <div className="flex items-center gap-3">
+            {msg && <span className="font-mono text-xs text-stone-500">{msg}</span>}
+            <button onClick={openCreate} className="btn-primary">New admin user</button>
+          </div>
         </div>
 
         {loading && <p className="font-mono text-xs text-stone-400 animate-pulse">Loading...</p>}
         {error && <p className="font-mono text-xs text-red-500">{error}</p>}
 
-        {!loading && (
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Form */}
-            <div className="bg-cream-200 border border-cream-300 rounded-2xl p-6 space-y-4">
-              <h2 className="font-mono text-xs text-stone-400 uppercase tracking-wider">
-                {editingId ? 'Edit admin user' : 'New admin user'}
-              </h2>
+        {!loading && users.length === 0 && (
+          <div className="text-center py-24 border border-dashed border-cream-300 rounded-2xl">
+            <p className="text-stone-400 text-sm">No admin users yet.</p>
+          </div>
+        )}
 
+        {!loading && users.length > 0 && (
+          <div className="grid gap-2">
+            {users.map(user => (
+              <div key={user._id} className="flex items-center justify-between bg-cream-200 border border-cream-300 rounded-2xl px-6 py-4">
+                <p className="font-medium text-ink">{user.email}</p>
+                <div className="flex gap-4">
+                  <button onClick={() => openEdit(user)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
+                  <button onClick={() => deleteUser(user._id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      {modal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={closeModal} />
+          <div className="relative bg-cream-100 border border-cream-300 rounded-2xl p-8 w-full max-w-sm shadow-xl">
+            <h2 className="font-serif text-xl text-ink mb-6">
+              {modal.editingId ? 'Edit admin user' : 'New admin user'}
+            </h2>
+
+            <div className="space-y-4 mb-6">
               <div>
                 <label className="label block mb-1.5">Username</label>
                 <input
+                  autoFocus
                   className={inputCls}
                   placeholder="e.g. ryan"
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                  value={modal.username}
+                  onChange={e => setModal(m => ({ ...m, username: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && save()}
                 />
               </div>
-
               <div>
                 <label className="label block mb-1.5">
-                  {editingId ? 'New password' : 'Password'}{' '}
-                  {editingId && <span className="text-stone-400">(leave blank to keep current)</span>}
+                  Password{modal.editingId && <span className="text-stone-400 ml-1">(leave blank to keep current)</span>}
                 </label>
                 <input
                   type="password"
                   className={inputCls}
                   placeholder="••••••••"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  value={modal.password}
+                  onChange={e => setModal(m => ({ ...m, password: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && save()}
                 />
               </div>
-
-              <div className="flex gap-2 pt-2">
-                <button onClick={upsert} disabled={saving} className="btn-primary disabled:opacity-50">
-                  {editingId ? 'Update' : 'Create'}
-                </button>
-                {editingId && (
-                  <button
-                    onClick={() => { setEditingId(null); setForm({ username: '', password: '' }) }}
-                    className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
             </div>
 
-            {/* User list */}
-            <div className="space-y-3">
-              {users.length === 0 && (
-                <div className="text-center py-16 border border-dashed border-cream-300 rounded-2xl">
-                  <p className="text-stone-400 text-sm">No admin users found.</p>
-                </div>
-              )}
-              {users.map(user => (
-                <div key={user._id} className="flex items-center justify-between bg-cream-200 border border-cream-300 rounded-2xl px-5 py-4">
-                  <p className="font-medium text-ink">{user.email}</p>
-                  <div className="flex gap-3">
-                    <button onClick={() => startEdit(user)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
-                    <button onClick={() => deleteUser(user._id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
-                  </div>
-                </div>
-              ))}
+            <div className="flex gap-3">
+              <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+                {saving ? 'Saving…' : modal.editingId ? 'Save changes' : 'Create'}
+              </button>
+              <button onClick={closeModal} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
+                Cancel
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
