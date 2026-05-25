@@ -4,6 +4,7 @@ import TicketCard from './TicketCard'
 const columnConfig: Record<TicketStatus, { label: string; accent: string }> = {
   backlog: { label: 'Backlog', accent: 'border-stone-300' },
   ongoing: { label: 'In Progress', accent: 'border-amber-400' },
+  testing: { label: 'Testing', accent: 'border-blue-400' },
   done: { label: 'Done', accent: 'border-green-500' },
 }
 

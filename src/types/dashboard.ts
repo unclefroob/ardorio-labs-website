@@ -1,6 +1,6 @@
-export type TicketStatus = 'backlog' | 'ongoing' | 'done'
+export type TicketStatus = 'backlog' | 'ongoing' | 'testing' | 'done'
 export type TicketPriority = 'high' | 'medium' | 'low'
-export type TicketCategory = 'Feature' | 'Bug' | 'Design' | 'Infrastructure'
+export type TicketCategory = 'Feature' | 'Bug' | 'Design' | 'Infrastructure' | 'Payment Testing' | 'Acceptance Testing'
 
 export interface Ticket {
   id: string

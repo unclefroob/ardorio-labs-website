@@ -33,7 +33,7 @@ export default function TicketCard({ ticket, index }: Props) {
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityDot[ticket.priority]}`} />
           <span className="label">{ticket.priority}</span>
         </div>
-        <span className="font-mono text-xs bg-cream-100 text-stone-600 rounded-full px-2 py-0.5">
+        <span className="font-mono text-xs bg-cream-100 text-stone-600 rounded-full px-2 py-0.5 text-right leading-tight">
           {ticket.category}
         </span>
       </div>
