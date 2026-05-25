@@ -93,7 +93,8 @@ export default function AdminClient() {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
 
-  // Ticket form
+  // Ticket modal
+  const [ticketModalOpen, setTicketModalOpen] = useState(false)
   const [ticketForm, setTicketForm] = useState<Omit<Ticket, 'id'>>({
     title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [],
   })
@@ -149,25 +150,35 @@ export default function AdminClient() {
     saveProject({ ...project, tickets: newTickets })
   }
 
+  function openNewTicket() {
+    setEditingTicketId(null)
+    setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] })
+    setTicketModalOpen(true)
+  }
+
+  function openEditTicket(ticket: Ticket) {
+    setEditingTicketId(ticket.id)
+    setTicketForm({ title: ticket.title, description: ticket.description, status: ticket.status, priority: ticket.priority, category: ticket.category, horizon: ticket.horizon, comments: ticket.comments ?? [] })
+    setTicketModalOpen(true)
+  }
+
+  function closeTicketModal() {
+    setTicketModalOpen(false)
+    setEditingTicketId(null)
+  }
+
   function upsertTicket() {
     if (!project || !ticketForm.title.trim()) return
     const tickets = editingTicketId
       ? project.tickets.map(t => t.id === editingTicketId ? { ...ticketForm, id: editingTicketId } : t)
       : [...project.tickets, { ...ticketForm, id: crypto.randomUUID() }]
     saveProject({ ...project, tickets })
-    setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] })
-    setEditingTicketId(null)
+    closeTicketModal()
   }
 
   function deleteTicket(id: string) {
     if (!project) return
     saveProject({ ...project, tickets: project.tickets.filter(t => t.id !== id) })
-  }
-
-  function editTicket(ticket: Ticket) {
-    setEditingTicketId(ticket.id)
-    setTicketForm({ title: ticket.title, description: ticket.description, status: ticket.status, priority: ticket.priority, category: ticket.category, horizon: ticket.horizon, comments: ticket.comments ?? [] })
-    setSection('tickets')
   }
 
   function upsertMilestone() {
@@ -264,43 +275,15 @@ export default function AdminClient() {
         {/* ── TICKETS ── */}
         {section === 'tickets' && (
           <div className="space-y-8">
-            {/* Form */}
-            <div className="bg-cream-200 border border-cream-300 rounded-2xl p-6">
-              <h2 className="font-mono text-xs text-stone-400 mb-4 uppercase tracking-wider">
-                {editingTicketId ? 'Edit ticket' : 'Add ticket'}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                <input className={inputCls} placeholder="Title" value={ticketForm.title} onChange={e => setTicketForm(f => ({ ...f, title: e.target.value }))} />
-                <input className={inputCls} placeholder="Description (optional)" value={ticketForm.description} onChange={e => setTicketForm(f => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <select className={selectCls} value={ticketForm.horizon} onChange={e => setTicketForm(f => ({ ...f, horizon: e.target.value as TicketHorizon }))}>
-                  {HORIZONS.map(h => <option key={h} value={h}>{h}</option>)}
-                </select>
-                <select className={selectCls} value={ticketForm.status} onChange={e => setTicketForm(f => ({ ...f, status: e.target.value as TicketStatus }))}>
-                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <select className={selectCls} value={ticketForm.priority} onChange={e => setTicketForm(f => ({ ...f, priority: e.target.value as TicketPriority }))}>
-                  {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-                <select className={selectCls} value={ticketForm.category} onChange={e => setTicketForm(f => ({ ...f, category: e.target.value as TicketCategory }))}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={upsertTicket} disabled={saving} className="btn-primary disabled:opacity-50">
-                  {editingTicketId ? 'Update ticket' : 'Add ticket'}
-                </button>
-                {editingTicketId && (
-                  <button
-                    onClick={() => { setEditingTicketId(null); setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] }) }}
-                    className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
+            <div className="flex justify-end">
+              <button onClick={openNewTicket} className="btn-primary">New ticket</button>
             </div>
+
+            {project.tickets.length === 0 && (
+              <div className="text-center py-24 border border-dashed border-cream-300 rounded-2xl">
+                <p className="text-stone-400 text-sm">No tickets yet.</p>
+              </div>
+            )}
 
             {/* Ticket list grouped by horizon — each group is independently sortable */}
             {HORIZONS.map(h => {
@@ -317,7 +300,7 @@ export default function AdminClient() {
                     <SortableContext items={hTickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
                       <div className="grid gap-2">
                         {hTickets.map(t => (
-                          <SortableTicketRow key={t.id} ticket={t} onEdit={editTicket} onDelete={deleteTicket} />
+                          <SortableTicketRow key={t.id} ticket={t} onEdit={openEditTicket} onDelete={deleteTicket} />
                         ))}
                       </div>
                     </SortableContext>
@@ -414,6 +397,57 @@ export default function AdminClient() {
           </div>
         )}
       </div>
+
+      {/* Ticket modal */}
+      {ticketModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={closeTicketModal} />
+          <div className="relative bg-cream-100 border border-cream-300 rounded-2xl p-8 w-full max-w-lg shadow-xl">
+            <h2 className="font-serif text-xl text-ink mb-6">
+              {editingTicketId ? 'Edit ticket' : 'New ticket'}
+            </h2>
+            <div className="space-y-3 mb-6">
+              <input
+                autoFocus
+                className={inputCls}
+                placeholder="Title"
+                value={ticketForm.title}
+                onChange={e => setTicketForm(f => ({ ...f, title: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && upsertTicket()}
+              />
+              <input
+                className={inputCls}
+                placeholder="Description (optional)"
+                value={ticketForm.description}
+                onChange={e => setTicketForm(f => ({ ...f, description: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && upsertTicket()}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <select className={selectCls} value={ticketForm.horizon} onChange={e => setTicketForm(f => ({ ...f, horizon: e.target.value as TicketHorizon }))}>
+                  {HORIZONS.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <select className={selectCls} value={ticketForm.status} onChange={e => setTicketForm(f => ({ ...f, status: e.target.value as TicketStatus }))}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select className={selectCls} value={ticketForm.priority} onChange={e => setTicketForm(f => ({ ...f, priority: e.target.value as TicketPriority }))}>
+                  {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <select className={selectCls} value={ticketForm.category} onChange={e => setTicketForm(f => ({ ...f, category: e.target.value as TicketCategory }))}>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={upsertTicket} disabled={saving} className="btn-primary disabled:opacity-50">
+                {saving ? 'Saving…' : editingTicketId ? 'Save changes' : 'Add ticket'}
+              </button>
+              <button onClick={closeTicketModal} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
