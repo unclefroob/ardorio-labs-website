@@ -46,15 +46,15 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="label block mb-1.5">Email</label>
+            <label className="label block mb-1.5">Username</label>
             <input
-              type="email"
+              type="text"
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
               className="w-full bg-cream-200 border border-cream-300 rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors"
-              placeholder="you@ardorio.co"
-              autoComplete="email"
+              placeholder="username"
+              autoComplete="username"
             />
           </div>
           <div>
