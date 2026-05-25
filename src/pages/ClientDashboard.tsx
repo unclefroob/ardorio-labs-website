@@ -28,7 +28,9 @@ export default function ClientDashboard() {
       })
       .then(data => {
         if (data) {
-          setClient({ notes: [], ...data })
+          const project = data as ClientProject
+          if (!project.notes) project.notes = []
+          setClient(project)
           setStatus('ok')
         }
       })
@@ -44,8 +46,9 @@ export default function ClientDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error()
-      const updated: ClientProject = await res.json()
-      setClient({ notes: client?.notes ?? [], ...updated })
+      const updated = await res.json() as ClientProject
+      if (!updated.notes) updated.notes = client?.notes ?? []
+      setClient(updated)
     } finally {
       setSigningOff(null)
     }

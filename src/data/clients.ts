@@ -7,6 +7,7 @@ export const clients: ClientRegistry = {
     projectName: 'Ritchies Mobile & In-Store Platform',
     description: 'A new customer mobile app and in-store digital platform — loyalty, ordering, self-checkout, and a staff operations suite across all Ritchies locations. Delivered across three Horizons.',
     lastUpdated: '25 May 2026',
+    notes: [],
 
     milestones: [
       {
@@ -15,7 +16,7 @@ export const clients: ClientRegistry = {
         label: 'Infrastructure',
         description: 'Azure environment, TestFlight base, backend & auth',
         approver: 'Wayne Harrison',
-        status: 'paid',
+        status: 'signed-off',
         date: 'Apr 2026',
       },
       {
