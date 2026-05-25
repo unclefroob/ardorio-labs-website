@@ -155,7 +155,7 @@ export const clients: ClientRegistry = {
         description: 'End-to-end payment testing on iOS and Android: card entry, Apple Pay, Google Pay, declined card handling, and refund path. In active UAT.',
         status: 'testing',
         priority: 'high',
-        category: 'Payment Testing',
+        category: 'Integration Testing',
         horizon: 'H2',
       },
       {
@@ -220,7 +220,7 @@ export const clients: ClientRegistry = {
         description: 'In-store self-checkout payment terminal (Tyro) integration. Tap, chip, contactless, and split tender. Will require dedicated payment UAT session.',
         status: 'backlog',
         priority: 'high',
-        category: 'Payment Testing',
+        category: 'Integration Testing',
         horizon: 'H3',
       },
       {

@@ -7,7 +7,7 @@ const statusDot: Record<MilestoneStatus, string> = {
 }
 
 const statusLabel: Record<MilestoneStatus, string> = {
-  paid: 'Payment received',
+  paid: 'Complete',
   'awaiting-approval': 'Awaiting sign-off',
   pending: 'Pending',
 }
@@ -25,7 +25,7 @@ interface Props {
 export default function MilestoneTracker({ milestones }: Props) {
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
-      <p className="label mb-4">Payment Milestones</p>
+      <p className="label mb-4">Project Milestones</p>
       <div className="flex items-start gap-2 overflow-x-auto pb-2">
         {milestones.map((m, i) => (
           <div key={m.id} className="flex items-start gap-2 shrink-0">
