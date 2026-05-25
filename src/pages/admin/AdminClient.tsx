@@ -12,7 +12,7 @@ const STATUSES: TicketStatus[] = ['backlog', 'in-progress', 'testing', 'sign-off
 const PRIORITIES: TicketPriority[] = ['high', 'medium', 'low']
 const CATEGORIES: TicketCategory[] = ['Feature', 'Bug', 'Design', 'Infrastructure']
 const HORIZONS: TicketHorizon[] = ['infra', 'H1', 'H2', 'H3']
-const MILESTONE_STATUSES: MilestoneStatus[] = ['pending', 'awaiting-approval', 'paid']
+const MILESTONE_STATUSES: MilestoneStatus[] = ['pending', 'awaiting-approval', 'signed-off']
 
 type Section = 'tickets' | 'milestones' | 'settings'
 

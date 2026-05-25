@@ -13,7 +13,7 @@ export interface Ticket {
   horizon: TicketHorizon
 }
 
-export type MilestoneStatus = 'pending' | 'awaiting-approval' | 'paid'
+export type MilestoneStatus = 'pending' | 'awaiting-approval' | 'signed-off'
 
 export interface Milestone {
   id: string
@@ -25,6 +25,13 @@ export interface Milestone {
   date?: string
 }
 
+export interface Note {
+  id: string
+  author: string
+  content: string
+  createdAt: string
+}
+
 export interface ClientProject {
   slug: string
   clientName: string
@@ -33,6 +40,7 @@ export interface ClientProject {
   lastUpdated: string
   milestones: Milestone[]
   tickets: Ticket[]
+  notes: Note[]
 }
 
 export type ClientRegistry = Record<string, ClientProject>

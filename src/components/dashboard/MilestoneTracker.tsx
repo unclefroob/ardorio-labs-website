@@ -4,29 +4,32 @@ import type { Milestone, MilestoneStatus, Ticket, TicketHorizon } from '../../ty
 import TicketCard from './TicketCard'
 
 const statusDot: Record<MilestoneStatus, string> = {
-  paid:               'bg-green-500',
+  'signed-off':      'bg-green-500',
   'awaiting-approval':'bg-amber-400',
-  pending:            'bg-stone-300',
+  pending:           'bg-stone-300',
 }
 
 const statusLabel: Record<MilestoneStatus, string> = {
-  paid:               'Complete',
+  'signed-off':      'Signed off',
   'awaiting-approval':'Awaiting sign-off',
-  pending:            'Pending',
+  pending:           'Pending',
 }
 
 const statusText: Record<MilestoneStatus, string> = {
-  paid:               'text-green-600',
+  'signed-off':      'text-green-600',
   'awaiting-approval':'text-amber-600',
-  pending:            'text-stone-400',
+  pending:           'text-stone-400',
 }
 
 interface Props {
   milestones: Milestone[]
   tickets: Ticket[]
+  canSignOff?: boolean
+  onSignOff?: (milestoneId: string) => void
+  signingOff?: string | null
 }
 
-export default function MilestoneTracker({ milestones, tickets }: Props) {
+export default function MilestoneTracker({ milestones, tickets, canSignOff, onSignOff, signingOff }: Props) {
   const [active, setActive] = useState<TicketHorizon | null>(null)
 
   const toggle = (horizon: TicketHorizon) =>
@@ -41,31 +44,44 @@ export default function MilestoneTracker({ milestones, tickets }: Props) {
       <div className="flex items-start gap-2 overflow-x-auto pb-2">
         {milestones.map((m, i) => (
           <div key={m.id} className="flex items-start gap-2 shrink-0">
-            <button
-              onClick={() => toggle(m.horizon)}
-              className={`rounded-xl p-4 w-52 text-left transition-colors ${
-                active === m.horizon
-                  ? 'bg-cream-300'
-                  : 'bg-cream-200 hover:bg-cream-300'
+            <div
+              className={`rounded-xl p-4 w-56 text-left transition-colors ${
+                active === m.horizon ? 'bg-cream-300' : 'bg-cream-200'
               }`}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[m.status]}`} />
-                <span className="label">{m.label}</span>
-              </div>
-              <p className="text-sm font-medium text-ink leading-snug">{m.description}</p>
-              <p className={`font-mono text-xs mt-2 ${statusText[m.status]}`}>
-                {statusLabel[m.status]}
-              </p>
-              {m.date && (
-                <p className="font-mono text-xs text-stone-400 mt-0.5">{m.date}</p>
-              )}
-              {m.status !== 'pending' && (
-                <p className="font-mono text-xs text-stone-400 mt-2 border-t border-cream-300 pt-2">
-                  {m.approver}
+              <button
+                onClick={() => toggle(m.horizon)}
+                className="w-full text-left"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[m.status]}`} />
+                  <span className="label">{m.label}</span>
+                </div>
+                <p className="text-sm font-medium text-ink leading-snug">{m.description}</p>
+                <p className={`font-mono text-xs mt-2 ${statusText[m.status]}`}>
+                  {statusLabel[m.status]}
                 </p>
+                {m.date && (
+                  <p className="font-mono text-xs text-stone-400 mt-0.5">{m.date}</p>
+                )}
+                {m.status !== 'pending' && m.approver && (
+                  <p className="font-mono text-xs text-stone-400 mt-2 border-t border-cream-300 pt-2">
+                    {m.approver}
+                  </p>
+                )}
+              </button>
+
+              {canSignOff && m.status === 'awaiting-approval' && onSignOff && (
+                <button
+                  onClick={() => onSignOff(m.id)}
+                  disabled={signingOff === m.id}
+                  className="mt-3 w-full font-mono text-xs bg-ink text-cream-100 rounded-lg py-1.5 hover:bg-stone-800 transition-colors disabled:opacity-50"
+                >
+                  {signingOff === m.id ? 'Signing off…' : 'Sign off'}
+                </button>
               )}
-            </button>
+            </div>
+
             {i < milestones.length - 1 && (
               <span className="font-mono text-stone-300 text-sm mt-5 shrink-0">→</span>
             )}

@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import type { ClientProject } from '../types/dashboard'
+import type { ClientProject, Note } from '../types/dashboard'
 import ClientHeader from '../components/dashboard/ClientHeader'
 import StatusBoard from '../components/dashboard/StatusBoard'
+import ProjectNotes from '../components/dashboard/ProjectNotes'
+import { useClientAuth } from '../context/ClientAuthContext'
 
 const API = import.meta.env.VITE_API_URL
 
 export default function ClientDashboard() {
   const { slug } = useParams<{ slug: string }>()
+  const { token, assignedProjects } = useClientAuth()
   const [client, setClient] = useState<ClientProject | null>(null)
   const [status, setStatus] = useState<'loading' | 'not-found' | 'error' | 'ok'>('loading')
+  const [signingOff, setSigningOff] = useState<string | null>(null)
+
+  const isAssignedClient = !!token && assignedProjects.includes(slug ?? '')
 
   useEffect(() => {
     if (!slug) { setStatus('not-found'); return }
-
     setStatus('loading')
     fetch(`${API}/clients/${slug}`)
       .then(res => {
@@ -22,10 +27,44 @@ export default function ClientDashboard() {
         return res.json()
       })
       .then(data => {
-        if (data) { setClient(data); setStatus('ok') }
+        if (data) {
+          setClient({ notes: [], ...data })
+          setStatus('ok')
+        }
       })
       .catch(() => setStatus('error'))
   }, [slug])
+
+  async function handleSignOff(milestoneId: string) {
+    if (!slug || !token) return
+    setSigningOff(milestoneId)
+    try {
+      const res = await fetch(`${API}/clients/${slug}/milestones/${milestoneId}/sign-off`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error()
+      const updated: ClientProject = await res.json()
+      setClient({ notes: client?.notes ?? [], ...updated })
+    } finally {
+      setSigningOff(null)
+    }
+  }
+
+  async function handleAddNote(content: string) {
+    if (!slug || !token) return
+    const res = await fetch(`${API}/clients/${slug}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? 'Failed to save note')
+    }
+    const notes: Note[] = await res.json()
+    setClient(c => c ? { ...c, notes } : c)
+  }
 
   if (status === 'loading') {
     return (
@@ -66,7 +105,19 @@ export default function ClientDashboard() {
     <div className="pt-14">
       <div className="divider" />
       <ClientHeader client={client!} />
-      <StatusBoard tickets={client!.tickets} milestones={client!.milestones} />
+      <StatusBoard
+        tickets={client!.tickets}
+        milestones={client!.milestones}
+        canSignOff={isAssignedClient}
+        onSignOff={handleSignOff}
+        signingOff={signingOff}
+      />
+      {isAssignedClient && (
+        <>
+          <div className="divider" />
+          <ProjectNotes notes={client!.notes} onAdd={handleAddNote} />
+        </>
+      )}
     </div>
   )
 }

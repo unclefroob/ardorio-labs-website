@@ -5,9 +5,12 @@ import MilestoneTracker from './MilestoneTracker'
 interface Props {
   tickets: Ticket[]
   milestones: Milestone[]
+  canSignOff?: boolean
+  onSignOff?: (milestoneId: string) => void
+  signingOff?: string | null
 }
 
-export default function StatusBoard({ tickets, milestones }: Props) {
+export default function StatusBoard({ tickets, milestones, canSignOff, onSignOff, signingOff }: Props) {
   const backlog    = tickets.filter(t => t.status === 'backlog')
   const inProgress = tickets.filter(t => t.status === 'in-progress')
   const testing    = tickets.filter(t => t.status === 'testing')
@@ -17,7 +20,13 @@ export default function StatusBoard({ tickets, milestones }: Props) {
   return (
     <>
       <div className="divider" />
-      <MilestoneTracker milestones={milestones} tickets={tickets} />
+      <MilestoneTracker
+        milestones={milestones}
+        tickets={tickets}
+        canSignOff={canSignOff}
+        onSignOff={onSignOff}
+        signingOff={signingOff}
+      />
       <div className="divider" />
       <div className="max-w-7xl mx-auto px-6 py-10">
         <p className="label mb-6">Progress Board</p>
