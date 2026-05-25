@@ -3,6 +3,23 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/apiClient'
 import Logo from '../../components/Logo'
 import { useAuth } from '../../context/AuthContext'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type {
   ClientProject, Ticket, Milestone,
   TicketStatus, TicketPriority, TicketCategory, TicketHorizon, MilestoneStatus
@@ -15,6 +32,55 @@ const HORIZONS: TicketHorizon[] = ['infra', 'H1', 'H2', 'H3']
 const MILESTONE_STATUSES: MilestoneStatus[] = ['pending', 'awaiting-approval', 'signed-off']
 
 type Section = 'tickets' | 'milestones' | 'settings'
+
+function GripHandle(props: React.HTMLAttributes<SVGSVGElement>) {
+  return (
+    <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" {...props}>
+      <circle cx="2" cy="3" r="1.5" />
+      <circle cx="8" cy="3" r="1.5" />
+      <circle cx="2" cy="8" r="1.5" />
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="2" cy="13" r="1.5" />
+      <circle cx="8" cy="13" r="1.5" />
+    </svg>
+  )
+}
+
+interface TicketRowProps {
+  ticket: Ticket
+  onEdit: (t: Ticket) => void
+  onDelete: (id: string) => void
+}
+
+function SortableTicketRow({ ticket, onEdit, onDelete }: TicketRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ticket.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className={`flex items-center bg-cream-200 border border-cream-300 rounded-xl px-4 py-3 gap-3 ${isDragging ? 'shadow-lg z-10 relative' : ''}`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="text-stone-300 hover:text-stone-500 transition-colors cursor-grab active:cursor-grabbing touch-none shrink-0"
+        tabIndex={-1}
+        aria-label="Drag to reorder"
+      >
+        <GripHandle />
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-ink truncate">{ticket.title}</p>
+        <p className="font-mono text-xs text-stone-400 mt-0.5">{ticket.status} · {ticket.category} · {ticket.priority}</p>
+      </div>
+      <div className="flex gap-3 shrink-0">
+        <button onClick={() => onEdit(ticket)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
+        <button onClick={() => onDelete(ticket.id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
+      </div>
+    </div>
+  )
+}
 
 export default function AdminClient() {
   const { slug } = useParams<{ slug: string }>()
@@ -39,6 +105,11 @@ export default function AdminClient() {
   })
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
   useEffect(() => {
     apiFetch<ClientProject>(`/clients/${slug}`)
       .then(setProject)
@@ -62,6 +133,20 @@ export default function AdminClient() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleDragEnd(event: DragEndEvent, horizon: TicketHorizon) {
+    const { active, over } = event
+    if (!over || active.id === over.id || !project) return
+
+    const hTickets = project.tickets.filter(t => t.horizon === horizon)
+    const oldIndex = hTickets.findIndex(t => t.id === active.id)
+    const newIndex = hTickets.findIndex(t => t.id === over.id)
+    const reordered = arrayMove(hTickets, oldIndex, newIndex)
+
+    let ri = 0
+    const newTickets = project.tickets.map(t => t.horizon === horizon ? reordered[ri++] : t)
+    saveProject({ ...project, tickets: newTickets })
   }
 
   function upsertTicket() {
@@ -207,34 +292,36 @@ export default function AdminClient() {
                   {editingTicketId ? 'Update ticket' : 'Add ticket'}
                 </button>
                 {editingTicketId && (
-                  <button onClick={() => { setEditingTicketId(null); setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] }) }} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
+                  <button
+                    onClick={() => { setEditingTicketId(null); setTicketForm({ title: '', description: '', status: 'backlog', priority: 'medium', category: 'Feature', horizon: 'H1', comments: [] }) }}
+                    className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3"
+                  >
                     Cancel
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Ticket list grouped by horizon */}
+            {/* Ticket list grouped by horizon — each group is independently sortable */}
             {HORIZONS.map(h => {
-              const tickets = project.tickets.filter(t => t.horizon === h)
-              if (!tickets.length) return null
+              const hTickets = project.tickets.filter(t => t.horizon === h)
+              if (!hTickets.length) return null
               return (
                 <div key={h}>
                   <p className="font-mono text-xs text-stone-400 mb-2 uppercase tracking-wider">{h}</p>
-                  <div className="grid gap-2">
-                    {tickets.map(t => (
-                      <div key={t.id} className="flex items-center justify-between bg-cream-200 border border-cream-300 rounded-xl px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-ink truncate">{t.title}</p>
-                          <p className="font-mono text-xs text-stone-400 mt-0.5">{t.status} · {t.category} · {t.priority}</p>
-                        </div>
-                        <div className="flex gap-3 ml-4 shrink-0">
-                          <button onClick={() => editTicket(t)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
-                          <button onClick={() => deleteTicket(t.id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
-                        </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={e => handleDragEnd(e, h)}
+                  >
+                    <SortableContext items={hTickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                      <div className="grid gap-2">
+                        {hTickets.map(t => (
+                          <SortableTicketRow key={t.id} ticket={t} onEdit={editTicket} onDelete={deleteTicket} />
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )
             })}
@@ -267,7 +354,10 @@ export default function AdminClient() {
                   {editingMilestoneId ? 'Update milestone' : 'Add milestone'}
                 </button>
                 {editingMilestoneId && (
-                  <button onClick={() => { setEditingMilestoneId(null); setMilestoneForm({ horizon: 'H1', label: '', description: '', approver: '', status: 'pending', date: '' }) }} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
+                  <button
+                    onClick={() => { setEditingMilestoneId(null); setMilestoneForm({ horizon: 'H1', label: '', description: '', approver: '', status: 'pending', date: '' }) }}
+                    className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3"
+                  >
                     Cancel
                   </button>
                 )}
