@@ -76,7 +76,6 @@ function SortableTicketRow({ ticket, onEdit, onDelete }: TicketRowProps) {
       </div>
       <div className="flex gap-3 shrink-0">
         <button onClick={() => onEdit(ticket)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
-        <button onClick={() => onDelete(ticket.id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
       </div>
     </div>
   )
@@ -437,13 +436,23 @@ export default function AdminClient() {
                 </select>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button onClick={upsertTicket} disabled={saving} className="btn-primary disabled:opacity-50">
-                {saving ? 'Saving…' : editingTicketId ? 'Save changes' : 'Add ticket'}
-              </button>
-              <button onClick={closeTicketModal} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
-                Cancel
-              </button>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-3">
+                <button onClick={upsertTicket} disabled={saving} className="btn-primary disabled:opacity-50">
+                  {saving ? 'Saving…' : editingTicketId ? 'Save changes' : 'Add ticket'}
+                </button>
+                <button onClick={closeTicketModal} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
+                  Cancel
+                </button>
+              </div>
+              {editingTicketId && (
+                <button
+                  onClick={() => { deleteTicket(editingTicketId); closeTicketModal() }}
+                  className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
