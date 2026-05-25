@@ -54,8 +54,8 @@ export default function TicketCard({ ticket, index, onCommentsUpdate }: Props) {
           </div>
           <div className="flex items-center gap-2">
             {commentCount > 0 && (
-              <span className="font-mono text-xs text-stone-400">
-                💬 {commentCount}
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-ink text-cream-100 font-mono text-[10px] font-medium px-1">
+                {commentCount}
               </span>
             )}
             <span className="font-mono text-xs bg-cream-100 text-stone-600 rounded-full px-2 py-0.5 whitespace-nowrap">

@@ -17,6 +17,7 @@ import AdminIndex from './pages/admin/AdminIndex'
 import AdminClient from './pages/admin/AdminClient'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminStaff from './pages/admin/AdminStaff'
+import AcceptInvite from './pages/admin/AcceptInvite'
 import ProtectedRoute from './components/admin/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
 import { ClientAuthProvider } from './context/ClientAuthContext'
@@ -32,6 +33,7 @@ function App() {
       <Routes>
         {/* Admin routes — no Navbar/Footer */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/accept-invite" element={<AcceptInvite />} />
         <Route path="/admin" element={<ProtectedRoute><AdminIndex /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute><AdminStaff /></ProtectedRoute>} />

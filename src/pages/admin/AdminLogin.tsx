@@ -19,7 +19,7 @@ export default function AdminLogin() {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username: email, password }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Login failed'); return }

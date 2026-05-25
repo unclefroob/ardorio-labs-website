@@ -6,7 +6,10 @@ import Logo from '../../components/Logo'
 
 interface AdminUser {
   _id: string
+  username: string
   email: string
+  displayName: string
+  invitePending: boolean
 }
 
 interface ModalState {
@@ -14,9 +17,11 @@ interface ModalState {
   editingId: string | null
   username: string
   password: string
+  email: string
+  displayName: string
 }
 
-const emptyModal: ModalState = { open: false, editingId: null, username: '', password: '' }
+const emptyModal: ModalState = { open: false, editingId: null, username: '', password: '', email: '', displayName: '' }
 
 export default function AdminStaff() {
   const { logout } = useAuth()
@@ -25,6 +30,8 @@ export default function AdminStaff() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [resending, setResending] = useState<string | null>(null)
+  const [resettingPw, setResettingPw] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [modal, setModal] = useState<ModalState>(emptyModal)
 
@@ -35,9 +42,9 @@ export default function AdminStaff() {
       .finally(() => setLoading(false))
   }, [])
 
-  function flash(m: string) { setMsg(m); setTimeout(() => setMsg(''), 2500) }
-  function openCreate() { setModal({ open: true, editingId: null, username: '', password: '' }) }
-  function openEdit(u: AdminUser) { setModal({ open: true, editingId: u._id, username: u.email, password: '' }) }
+  function flash(m: string) { setMsg(m); setTimeout(() => setMsg(''), 3000) }
+  function openCreate() { setModal({ open: true, editingId: null, username: '', password: '', email: '', displayName: '' }) }
+  function openEdit(u: AdminUser) { setModal({ open: true, editingId: u._id, username: u.username, password: '', email: u.email, displayName: u.displayName }) }
   function closeModal() { setModal(emptyModal) }
 
   async function save() {
@@ -45,7 +52,7 @@ export default function AdminStaff() {
     setSaving(true)
     try {
       if (modal.editingId) {
-        const body: Record<string, string> = {}
+        const body: Record<string, string> = { email: modal.email, displayName: modal.displayName }
         if (modal.username) body.username = modal.username
         if (modal.password) body.password = modal.password
         const updated = await apiFetch<AdminUser>(`/admin-users/${modal.editingId}`, {
@@ -54,18 +61,43 @@ export default function AdminStaff() {
         setUsers(u => u.map(x => x._id === modal.editingId ? updated : x))
         flash('Saved.')
       } else {
-        if (!modal.password) { flash('Password is required'); return }
+        if (!modal.email.trim()) { flash('Email is required to send an invite'); return }
         const created = await apiFetch<AdminUser>('/admin-users', {
-          method: 'POST', body: JSON.stringify({ username: modal.username, password: modal.password }),
+          method: 'POST', body: JSON.stringify({ username: modal.username, email: modal.email, displayName: modal.displayName }),
         })
         setUsers(u => [...u, created])
-        flash('Admin user created.')
+        flash(`Invite sent to ${modal.email}`)
       }
       closeModal()
     } catch (e: unknown) {
       flash(e instanceof Error ? e.message : 'Error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function resendInvite(user: AdminUser) {
+    setResending(user._id)
+    try {
+      await apiFetch(`/admin-users/${user._id}/resend-invite`, { method: 'POST' })
+      flash(`Invite resent to ${user.email}`)
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : 'Could not resend invite')
+    } finally {
+      setResending(null)
+    }
+  }
+
+  async function resetPassword(user: AdminUser) {
+    if (!user.email) { flash('User has no email address'); return }
+    setResettingPw(user._id)
+    try {
+      await apiFetch(`/admin-users/${user._id}/reset-password`, { method: 'POST' })
+      flash(`Password reset email sent to ${user.email}`)
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : 'Could not send reset email')
+    } finally {
+      setResettingPw(null)
     }
   }
 
@@ -106,7 +138,7 @@ export default function AdminStaff() {
           </div>
           <div className="flex items-center gap-3">
             {msg && <span className="font-mono text-xs text-stone-500">{msg}</span>}
-            <button onClick={openCreate} className="btn-primary">New admin user</button>
+            <button onClick={openCreate} className="btn-primary">Invite admin user</button>
           </div>
         </div>
 
@@ -123,8 +155,36 @@ export default function AdminStaff() {
           <div className="grid gap-2">
             {users.map(user => (
               <div key={user._id} className="flex items-center justify-between bg-cream-200 border border-cream-300 rounded-2xl px-6 py-4">
-                <p className="font-medium text-ink">{user.email}</p>
-                <div className="flex gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-ink">{user.displayName || user.username}</p>
+                    {user.invitePending && (
+                      <span className="font-mono text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        Invite pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-xs text-stone-400">{user.username}{user.email ? ` · ${user.email}` : ''}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  {user.invitePending && user.email && (
+                    <button
+                      onClick={() => resendInvite(user)}
+                      disabled={resending === user._id}
+                      className="font-mono text-xs text-stone-400 hover:text-ink transition-colors disabled:opacity-40"
+                    >
+                      {resending === user._id ? 'Sending…' : 'Resend invite'}
+                    </button>
+                  )}
+                  {!user.invitePending && user.email && (
+                    <button
+                      onClick={() => resetPassword(user)}
+                      disabled={resettingPw === user._id}
+                      className="font-mono text-xs text-stone-400 hover:text-ink transition-colors disabled:opacity-40"
+                    >
+                      {resettingPw === user._id ? 'Sending…' : 'Reset password'}
+                    </button>
+                  )}
                   <button onClick={() => openEdit(user)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
                   <button onClick={() => deleteUser(user._id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
                 </div>
@@ -139,15 +199,31 @@ export default function AdminStaff() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={closeModal} />
           <div className="relative bg-cream-100 border border-cream-300 rounded-2xl p-8 w-full max-w-sm shadow-xl">
-            <h2 className="font-serif text-xl text-ink mb-6">
-              {modal.editingId ? 'Edit admin user' : 'New admin user'}
+            <h2 className="font-serif text-xl text-ink mb-2">
+              {modal.editingId ? 'Edit admin user' : 'Invite admin user'}
             </h2>
+            {!modal.editingId && (
+              <p className="text-stone-500 text-sm mb-6">
+                An invitation will be sent to their email so they can set their own password.
+              </p>
+            )}
+            {modal.editingId && <div className="mb-6" />}
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="label block mb-1.5">Username</label>
+                <label className="label block mb-1.5">Display name</label>
                 <input
                   autoFocus
+                  className={inputCls}
+                  placeholder="e.g. Ryan Kwan"
+                  value={modal.displayName}
+                  onChange={e => setModal(m => ({ ...m, displayName: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && save()}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1.5">Username</label>
+                <input
                   className={inputCls}
                   placeholder="e.g. ryan"
                   value={modal.username}
@@ -156,23 +232,38 @@ export default function AdminStaff() {
                 />
               </div>
               <div>
-                <label className="label block mb-1.5">
-                  Password{modal.editingId && <span className="text-stone-400 ml-1">(leave blank to keep current)</span>}
-                </label>
+                <label className="label block mb-1.5">Email</label>
                 <input
-                  type="password"
+                  type="email"
                   className={inputCls}
-                  placeholder="••••••••"
-                  value={modal.password}
-                  onChange={e => setModal(m => ({ ...m, password: e.target.value }))}
+                  placeholder="ryan@ardorio.co"
+                  value={modal.email}
+                  onChange={e => setModal(m => ({ ...m, email: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && save()}
                 />
               </div>
+              {modal.editingId && (
+                <div>
+                  <label className="label block mb-1.5">
+                    Password <span className="text-stone-400">(leave blank to keep current)</span>
+                  </label>
+                  <input
+                    type="password"
+                    className={inputCls}
+                    placeholder="••••••••"
+                    value={modal.password}
+                    onChange={e => setModal(m => ({ ...m, password: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && save()}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
               <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
-                {saving ? 'Saving…' : modal.editingId ? 'Save changes' : 'Create'}
+                {saving
+                  ? (modal.editingId ? 'Saving…' : 'Sending invite…')
+                  : (modal.editingId ? 'Save changes' : 'Send invite')}
               </button>
               <button onClick={closeModal} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors px-3">
                 Cancel

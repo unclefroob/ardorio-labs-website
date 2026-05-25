@@ -8,6 +8,8 @@ import type { ClientProject } from '../../types/dashboard'
 interface ClientUser {
   _id: string
   username: string
+  email: string
+  displayName: string
   assignedProjects: string[]
 }
 
@@ -16,10 +18,12 @@ interface ModalState {
   editingId: string | null
   username: string
   password: string
+  email: string
+  displayName: string
   assignedProjects: string[]
 }
 
-const emptyModal: ModalState = { open: false, editingId: null, username: '', password: '', assignedProjects: [] }
+const emptyModal: ModalState = { open: false, editingId: null, username: '', password: '', email: '', displayName: '', assignedProjects: [] }
 
 export default function AdminUsers() {
   const { logout } = useAuth()
@@ -43,7 +47,7 @@ export default function AdminUsers() {
 
   function flash(m: string) { setMsg(m); setTimeout(() => setMsg(''), 2500) }
   function openCreate() { setModal({ ...emptyModal, open: true }) }
-  function openEdit(u: ClientUser) { setModal({ open: true, editingId: u._id, username: u.username, password: '', assignedProjects: [...u.assignedProjects] }) }
+  function openEdit(u: ClientUser) { setModal({ open: true, editingId: u._id, username: u.username, password: '', email: u.email, displayName: u.displayName, assignedProjects: [...u.assignedProjects] }) }
   function closeModal() { setModal(emptyModal) }
 
   function toggleProject(slug: string) {
@@ -60,7 +64,7 @@ export default function AdminUsers() {
     setSaving(true)
     try {
       if (modal.editingId) {
-        const body: Record<string, unknown> = { assignedProjects: modal.assignedProjects }
+        const body: Record<string, unknown> = { assignedProjects: modal.assignedProjects, email: modal.email, displayName: modal.displayName }
         if (modal.username) body.username = modal.username
         if (modal.password) body.password = modal.password
         const updated = await apiFetch<ClientUser>(`/client-users/${modal.editingId}`, {
@@ -71,7 +75,7 @@ export default function AdminUsers() {
       } else {
         if (!modal.password) { flash('Password is required'); return }
         const created = await apiFetch<ClientUser>('/client-users', {
-          method: 'POST', body: JSON.stringify({ username: modal.username, password: modal.password, assignedProjects: modal.assignedProjects }),
+          method: 'POST', body: JSON.stringify({ username: modal.username, password: modal.password, email: modal.email, displayName: modal.displayName, assignedProjects: modal.assignedProjects }),
         })
         setUsers(u => [...u, created])
         flash('Client user created.')
@@ -107,12 +111,8 @@ export default function AdminUsers() {
     return (
       <div className="flex items-center justify-between py-3 px-4 bg-cream-200 border border-cream-300 rounded-xl">
         <div>
-          <p className="font-medium text-ink text-sm">{user.username}</p>
-          {user.assignedProjects.length > 1 && (
-            <p className="font-mono text-xs text-stone-400 mt-0.5">
-              {user.assignedProjects.join(', ')}
-            </p>
-          )}
+          <p className="font-medium text-ink text-sm">{user.displayName || user.username}</p>
+          <p className="font-mono text-xs text-stone-400 mt-0.5">{user.username}{user.email ? ` · ${user.email}` : ''}</p>
         </div>
         <div className="flex gap-4">
           <button onClick={() => openEdit(user)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
@@ -194,13 +194,32 @@ export default function AdminUsers() {
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="label block mb-1.5">Username</label>
+                <label className="label block mb-1.5">Display name</label>
                 <input
                   autoFocus
+                  className={inputCls}
+                  placeholder="e.g. Ritchies Brewing"
+                  value={modal.displayName}
+                  onChange={e => setModal(m => ({ ...m, displayName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1.5">Username</label>
+                <input
                   className={inputCls}
                   placeholder="e.g. ritchies"
                   value={modal.username}
                   onChange={e => setModal(m => ({ ...m, username: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1.5">Email</label>
+                <input
+                  type="email"
+                  className={inputCls}
+                  placeholder="contact@ritchies.co.nz"
+                  value={modal.email}
+                  onChange={e => setModal(m => ({ ...m, email: e.target.value }))}
                 />
               </div>
               <div>
