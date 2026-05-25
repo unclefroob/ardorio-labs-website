@@ -26,7 +26,7 @@ export default function ClientDashboard() {
     <div className="pt-14">
       <div className="divider" />
       <ClientHeader client={client} />
-      <StatusBoard tickets={client.tickets} />
+      <StatusBoard tickets={client.tickets} milestones={client.milestones} />
     </div>
   )
 }

@@ -2,10 +2,11 @@ import type { Ticket, TicketStatus } from '../../types/dashboard'
 import TicketCard from './TicketCard'
 
 const columnConfig: Record<TicketStatus, { label: string; accent: string }> = {
-  backlog: { label: 'Backlog', accent: 'border-stone-300' },
-  ongoing: { label: 'In Progress', accent: 'border-amber-400' },
-  testing: { label: 'Testing', accent: 'border-blue-400' },
-  done: { label: 'Done', accent: 'border-green-500' },
+  backlog:      { label: 'Backlog',           accent: 'border-stone-300' },
+  'in-progress':{ label: 'In Development',   accent: 'border-amber-400' },
+  testing:      { label: 'Testing',           accent: 'border-blue-400'  },
+  'sign-off':   { label: 'Awaiting Sign-Off', accent: 'border-violet-400'},
+  done:         { label: 'Done',              accent: 'border-green-500' },
 }
 
 interface Props {

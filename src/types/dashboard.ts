@@ -1,6 +1,7 @@
-export type TicketStatus = 'backlog' | 'ongoing' | 'testing' | 'done'
+export type TicketStatus = 'backlog' | 'in-progress' | 'testing' | 'sign-off' | 'done'
 export type TicketPriority = 'high' | 'medium' | 'low'
 export type TicketCategory = 'Feature' | 'Bug' | 'Design' | 'Infrastructure' | 'Payment Testing' | 'Acceptance Testing'
+export type TicketHorizon = 'infra' | 'H1' | 'H2' | 'H3'
 
 export interface Ticket {
   id: string
@@ -9,6 +10,19 @@ export interface Ticket {
   status: TicketStatus
   priority: TicketPriority
   category: TicketCategory
+  horizon: TicketHorizon
+}
+
+export type MilestoneStatus = 'pending' | 'awaiting-approval' | 'paid'
+
+export interface Milestone {
+  id: string
+  horizon: TicketHorizon
+  label: string
+  description: string
+  approver: string
+  status: MilestoneStatus
+  date?: string
 }
 
 export interface ClientProject {
@@ -17,6 +31,7 @@ export interface ClientProject {
   projectName: string
   description: string
   lastUpdated: string
+  milestones: Milestone[]
   tickets: Ticket[]
 }
 

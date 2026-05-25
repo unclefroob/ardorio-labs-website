@@ -3,9 +3,16 @@ import { motion } from 'framer-motion'
 import type { Ticket } from '../../types/dashboard'
 
 const priorityDot: Record<Ticket['priority'], string> = {
-  high: 'bg-red-400',
+  high:   'bg-red-400',
   medium: 'bg-amber-400',
-  low: 'bg-stone-300',
+  low:    'bg-stone-300',
+}
+
+const horizonBadge: Record<Ticket['horizon'], string> = {
+  infra: 'Infra',
+  H1:    'H1',
+  H2:    'H2',
+  H3:    'H3',
 }
 
 interface Props {
@@ -24,8 +31,13 @@ export default function TicketCard({ ticket, index }: Props) {
       onClick={() => setExpanded(!expanded)}
       className="bg-cream-200 hover:bg-cream-300 rounded-xl p-4 cursor-pointer transition-colors"
     >
-      <p className="text-sm font-medium text-ink leading-snug">{ticket.title}</p>
-      <p className={`text-xs text-stone-600 leading-relaxed mt-1.5 ${expanded ? '' : 'line-clamp-2'}`}>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <p className="text-sm font-medium text-ink leading-snug">{ticket.title}</p>
+        <span className="font-mono text-xs text-stone-400 bg-cream-100 rounded px-1.5 py-0.5 shrink-0">
+          {horizonBadge[ticket.horizon]}
+        </span>
+      </div>
+      <p className={`text-xs text-stone-600 leading-relaxed mt-1 ${expanded ? '' : 'line-clamp-2'}`}>
         {ticket.description}
       </p>
       <div className="flex items-center justify-between mt-3">
