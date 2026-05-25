@@ -17,7 +17,7 @@ export default function StatusBoard({ tickets, milestones }: Props) {
   return (
     <>
       <div className="divider" />
-      <MilestoneTracker milestones={milestones} />
+      <MilestoneTracker milestones={milestones} tickets={tickets} />
       <div className="divider" />
       <div className="max-w-7xl mx-auto px-6 py-10">
         <p className="label mb-6">Progress Board</p>
