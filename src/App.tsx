@@ -15,20 +15,30 @@ import ClientDashboard from './pages/ClientDashboard'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminIndex from './pages/admin/AdminIndex'
 import AdminClient from './pages/admin/AdminClient'
+import AdminUsers from './pages/admin/AdminUsers'
 import ProtectedRoute from './components/admin/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
+import { ClientAuthProvider } from './context/ClientAuthContext'
+import ClientLogin from './pages/ClientLogin'
+import ClientPortal from './pages/ClientPortal'
 
 function App() {
   return (
     <HelmetProvider>
     <AuthProvider>
+    <ClientAuthProvider>
     <BrowserRouter>
       <Routes>
         {/* Admin routes — no Navbar/Footer */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<ProtectedRoute><AdminIndex /></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
         <Route path="/admin/:slug" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
+
+        {/* Client portal — no Navbar/Footer */}
+        <Route path="/login" element={<ClientLogin />} />
+        <Route path="/portal" element={<ClientPortal />} />
 
         {/* Public routes */}
         <Route path="/*" element={
@@ -53,6 +63,7 @@ function App() {
         } />
       </Routes>
     </BrowserRouter>
+    </ClientAuthProvider>
     </AuthProvider>
     </HelmetProvider>
   )

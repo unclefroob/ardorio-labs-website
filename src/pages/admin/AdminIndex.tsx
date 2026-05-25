@@ -45,9 +45,14 @@ export default function AdminIndex() {
             <h1 className="font-serif text-3xl text-ink mb-1">Client projects</h1>
             <p className="text-stone-500 text-sm">Manage dashboards and project status.</p>
           </div>
-          <Link to="/admin/new" className="btn-primary">
-            New client
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/admin/users" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
+              Manage users
+            </Link>
+            <Link to="/admin/new" className="btn-primary">
+              New client
+            </Link>
+          </div>
         </div>
 
         {loading && (
