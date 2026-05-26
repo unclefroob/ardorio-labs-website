@@ -49,10 +49,9 @@ function GripHandle(props: React.HTMLAttributes<SVGSVGElement>) {
 interface TicketRowProps {
   ticket: Ticket
   onEdit: (t: Ticket) => void
-  onDelete: (id: string) => void
 }
 
-function SortableTicketRow({ ticket, onEdit, onDelete }: TicketRowProps) {
+function SortableTicketRow({ ticket, onEdit }: TicketRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ticket.id })
 
   return (
@@ -299,7 +298,7 @@ export default function AdminClient() {
                     <SortableContext items={hTickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
                       <div className="grid gap-2">
                         {hTickets.map(t => (
-                          <SortableTicketRow key={t.id} ticket={t} onEdit={openEditTicket} onDelete={deleteTicket} />
+                          <SortableTicketRow key={t.id} ticket={t} onEdit={openEditTicket} />
                         ))}
                       </div>
                     </SortableContext>
