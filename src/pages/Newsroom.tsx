@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
-import { news, formatDate, type NewsCategory } from '../data/newsroom'
+import { listNews, formatDate, type NewsCategory, type NewsItem } from '../data/newsroom'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
@@ -26,8 +26,18 @@ const categoryColour: Record<NewsCategory, string> = {
 
 export default function Newsroom() {
   const [active, setActive] = useState<NewsCategory | 'All'>('All')
+  const [items, setItems] = useState<NewsItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const sorted = [...news].sort(
+  useEffect(() => {
+    listNews()
+      .then(setItems)
+      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const sorted = [...items].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   )
 
@@ -83,7 +93,15 @@ export default function Newsroom() {
 
       {/* News list */}
       <div className="max-w-6xl mx-auto px-6 pb-20 pt-6">
-        {filtered.length === 0 ? (
+        {loading && (
+          <p className="font-mono text-xs text-stone-400 animate-pulse py-12">Loading…</p>
+        )}
+
+        {error && !loading && (
+          <p className="font-mono text-xs text-red-500 py-12">{error}</p>
+        )}
+
+        {!loading && !error && filtered.length === 0 ? (
           <p className="text-stone-500 py-12 text-sm">Nothing here yet — check back soon.</p>
         ) : (
           <div>

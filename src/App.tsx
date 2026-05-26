@@ -17,6 +17,8 @@ import AdminIndex from './pages/admin/AdminIndex'
 import AdminClient from './pages/admin/AdminClient'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminStaff from './pages/admin/AdminStaff'
+import AdminNewsroom from './pages/admin/AdminNewsroom'
+import AdminNewsroomEdit from './pages/admin/AdminNewsroomEdit'
 import AcceptInvite from './pages/admin/AcceptInvite'
 import ProtectedRoute from './components/admin/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
@@ -37,6 +39,9 @@ function App() {
         <Route path="/admin" element={<ProtectedRoute><AdminIndex /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute><AdminStaff /></ProtectedRoute>} />
+        <Route path="/admin/newsroom" element={<ProtectedRoute><AdminNewsroom /></ProtectedRoute>} />
+        <Route path="/admin/newsroom/new" element={<ProtectedRoute><AdminNewsroomEdit /></ProtectedRoute>} />
+        <Route path="/admin/newsroom/:slug" element={<ProtectedRoute><AdminNewsroomEdit /></ProtectedRoute>} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
         <Route path="/admin/:slug" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
 

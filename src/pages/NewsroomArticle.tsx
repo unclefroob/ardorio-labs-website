@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
-import { getNewsItem, news, formatDate, type NewsCategory } from '../data/newsroom'
+import { listNews, formatDate, type NewsCategory, type NewsItem } from '../data/newsroom'
+import { renderMarkdown } from '../lib/markdown'
 
 const categoryColour: Record<NewsCategory, string> = {
   Partnership: 'bg-emerald-50 text-emerald-700',
@@ -12,14 +14,35 @@ const categoryColour: Record<NewsCategory, string> = {
 
 export default function NewsroomArticle() {
   const { slug } = useParams<{ slug: string }>()
-  const item = getNewsItem(slug ?? '')
+  const [items, setItems] = useState<NewsItem[] | null>(null)
+  const [error, setError] = useState('')
 
-  if (!item) {
-    return <Navigate to="/newsroom" replace />
+  useEffect(() => {
+    listNews()
+      .then(setItems)
+      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
+  }, [])
+
+  if (error) {
+    return (
+      <div className="pt-32 max-w-6xl mx-auto px-6">
+        <p className="font-mono text-xs text-red-500">{error}</p>
+      </div>
+    )
   }
 
-  // Find adjacent item (next older)
-  const sorted = [...news].sort(
+  if (items === null) {
+    return (
+      <div className="pt-32 max-w-6xl mx-auto px-6">
+        <p className="font-mono text-xs text-stone-400 animate-pulse">Loading…</p>
+      </div>
+    )
+  }
+
+  const item = items.find(n => n.slug === slug)
+  if (!item) return <Navigate to="/newsroom" replace />
+
+  const sorted = [...items].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   )
   const currentIndex = sorted.findIndex((n) => n.slug === item.slug)
@@ -88,7 +111,7 @@ export default function NewsroomArticle() {
       >
         <div
           className="prose-newsroom max-w-3xl text-stone-700 leading-relaxed space-y-5"
-          dangerouslySetInnerHTML={{ __html: item.body }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(item.body) }}
         />
       </motion.article>
 
