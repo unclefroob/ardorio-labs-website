@@ -46,6 +46,9 @@ export default function AdminIndex() {
             <p className="text-stone-500 text-sm">Manage dashboards and project status.</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/admin/buxton" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
+              Buxton
+            </Link>
             <Link to="/admin/newsroom" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
               Newsroom
             </Link>
