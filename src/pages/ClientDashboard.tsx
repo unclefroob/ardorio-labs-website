@@ -7,13 +7,16 @@ import ProjectNotes from '../components/dashboard/ProjectNotes'
 import { useClientAuth } from '../context/ClientAuthContext'
 import { useAuth } from '../context/AuthContext'
 import { DashboardContext } from '../context/DashboardContext'
+import { isTokenExpired } from '../lib/jwt'
 
 const API = import.meta.env.VITE_API_URL
 
 export default function ClientDashboard() {
   const { slug } = useParams<{ slug: string }>()
-  const { token: adminToken } = useAuth()
+  const { token: rawAdminToken } = useAuth()
   const { token: clientToken, assignedProjects } = useClientAuth()
+  // An expired admin token would render admin controls whose requests 401.
+  const adminToken = rawAdminToken && !isTokenExpired(rawAdminToken) ? rawAdminToken : null
   const [client, setClient] = useState<ClientProject | null>(null)
   const [status, setStatus] = useState<'loading' | 'not-found' | 'error' | 'ok'>('loading')
   const [signingOff, setSigningOff] = useState<string | null>(null)

@@ -1,6 +1,19 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
+import { isTokenExpired } from '../lib/jwt'
 
 const TOKEN_KEY = 'ardorio_client_token'
+
+// An expired token is worse than none: the UI would offer actions the API
+// will reject with 401. Treat it as logged out and clean it up.
+function readStoredToken(): string | null {
+  const t = localStorage.getItem(TOKEN_KEY)
+  if (!t) return null
+  if (isTokenExpired(t)) {
+    localStorage.removeItem(TOKEN_KEY)
+    return null
+  }
+  return t
+}
 
 interface ClientAuthState {
   token: string | null
@@ -21,9 +34,9 @@ function parseAssigned(token: string): string[] {
 }
 
 export function ClientAuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY))
+  const [token, setToken] = useState<string | null>(readStoredToken)
   const [assignedProjects, setAssigned] = useState<string[]>(() => {
-    const t = localStorage.getItem(TOKEN_KEY)
+    const t = readStoredToken()
     return t ? parseAssigned(t) : []
   })
 
