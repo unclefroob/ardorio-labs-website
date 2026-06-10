@@ -15,6 +15,7 @@ import ClientDashboard from './pages/ClientDashboard'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminIndex from './pages/admin/AdminIndex'
 import AdminClient from './pages/admin/AdminClient'
+import AdminClientNew from './pages/admin/AdminClientNew'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminStaff from './pages/admin/AdminStaff'
 import AdminNewsroom from './pages/admin/AdminNewsroom'
@@ -52,7 +53,7 @@ function App() {
         <Route path="/admin/buxton/onboarding" element={<ProtectedRoute><AdminBuxtonOnboarding /></ProtectedRoute>} />
         <Route path="/admin/buxton/content" element={<ProtectedRoute><AdminBuxtonContent /></ProtectedRoute>} />
         <Route path="/admin/buxton/usage" element={<ProtectedRoute><AdminBuxtonUsage /></ProtectedRoute>} />
-        <Route path="/admin/new" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
+        <Route path="/admin/new" element={<ProtectedRoute><AdminClientNew /></ProtectedRoute>} />
         <Route path="/admin/:slug" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
 
         {/* Client portal — no Navbar/Footer */}
