@@ -21,6 +21,19 @@ export async function apiFetch<T = unknown>(path: string, options: RequestInit =
       ...options.headers,
     },
   })
+
+  // Sliding session: the API re-issues a token when the current one is near
+  // expiry. Persist it so active admins never hit the 7-day cliff.
+  const refreshed = res.headers.get('x-refreshed-token')
+  if (refreshed) localStorage.setItem(TOKEN_KEY, refreshed)
+
+  if (res.status === 401 && token) {
+    // The admin session expired or was revoked. Clear it and send the user
+    // back to login instead of stranding them on a page of failed fetches.
+    localStorage.removeItem(TOKEN_KEY)
+    window.location.assign('/admin/login?reason=expired')
+    throw new Error('Session expired')
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error ?? `API error ${res.status}`)

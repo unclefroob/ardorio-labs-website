@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/Logo'
 
 export default function AdminLogin() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sessionExpired = searchParams.get('reason') === 'expired'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -43,6 +45,10 @@ export default function AdminLogin() {
 
         <h1 className="font-serif text-3xl text-ink mb-1">Sign in</h1>
         <p className="text-stone-500 text-sm mb-8">Access the Ardorio admin dashboard.</p>
+
+        {sessionExpired && !error && (
+          <p className="font-mono text-xs text-amber-600 mb-4">Your session has expired. Please sign in again.</p>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

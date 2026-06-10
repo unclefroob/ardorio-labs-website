@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useClientAuth } from '../context/ClientAuthContext'
 import Logo from '../components/Logo'
 import type { ClientProject } from '../types/dashboard'
 
 export default function ClientPortal() {
-  const { assignedProjects, logout } = useClientAuth()
+  const { token, assignedProjects, logout } = useClientAuth()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<ClientProject[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,6 +20,10 @@ export default function ClientPortal() {
   }, [assignedProjects])
 
   function handleLogout() { logout(); navigate('/login') }
+
+  // ClientAuthProvider discards expired tokens on load, so no token here
+  // means signed out (or session expired) — either way, back to login.
+  if (!token) return <Navigate to="/login" replace />
 
   return (
     <div className="min-h-screen bg-cream-100">
