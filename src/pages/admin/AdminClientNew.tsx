@@ -1,0 +1,156 @@
+import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
+import { apiFetch } from '../../lib/apiClient'
+import Logo from '../../components/Logo'
+import type { ClientProject } from '../../types/dashboard'
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
+export default function AdminClientNew() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+  const [clientName, setClientName] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [slug, setSlug] = useState('')
+  const [slugEdited, setSlugEdited] = useState(false)
+  const [description, setDescription] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // Track manual slug edits so typing the client name stops overwriting them
+  function handleClientName(value: string) {
+    setClientName(value)
+    if (!slugEdited) setSlug(slugify(value))
+  }
+
+  function handleSlug(value: string) {
+    setSlugEdited(true)
+    setSlug(value)
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const finalSlug = slugify(slug)
+    if (!finalSlug) { setError('Slug is required'); return }
+    setError('')
+    setSaving(true)
+    try {
+      const created = await apiFetch<ClientProject>('/clients', {
+        method: 'POST',
+        body: JSON.stringify({
+          slug: finalSlug,
+          clientName: clientName.trim(),
+          projectName: projectName.trim(),
+          description: description.trim(),
+          lastUpdated: new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }),
+          milestones: [],
+          tickets: [],
+          notes: [],
+        }),
+      })
+      navigate(`/admin/${created.slug}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create client')
+      setSaving(false)
+    }
+  }
+
+  function handleLogout() { logout(); navigate('/admin/login') }
+
+  const inputCls = "w-full bg-cream-200 border border-cream-300 rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors"
+
+  return (
+    <div className="min-h-screen bg-cream-100">
+      <header className="border-b border-cream-300 bg-cream-100">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Logo size={18} />
+            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
+            <span className="font-mono text-xs text-stone-400 ml-1">/ admin / new</span>
+          </div>
+          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-xl mx-auto px-6 py-12">
+        <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
+          &larr; All clients
+        </Link>
+
+        <h1 className="font-serif text-3xl text-ink mt-6 mb-1">New client</h1>
+        <p className="text-stone-500 text-sm mb-8">Create a client project with an empty dashboard.</p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label block mb-1.5">Client name</label>
+            <input
+              type="text"
+              required
+              value={clientName}
+              onChange={e => handleClientName(e.target.value)}
+              className={inputCls}
+              placeholder="Acme Group"
+            />
+          </div>
+          <div>
+            <label className="label block mb-1.5">Project name</label>
+            <input
+              type="text"
+              required
+              value={projectName}
+              onChange={e => setProjectName(e.target.value)}
+              className={inputCls}
+              placeholder="Customer portal rebuild"
+            />
+          </div>
+          <div>
+            <label className="label block mb-1.5">Slug</label>
+            <input
+              type="text"
+              required
+              value={slug}
+              onChange={e => handleSlug(e.target.value)}
+              className={`${inputCls} font-mono`}
+              placeholder="acme-group"
+            />
+            <p className="font-mono text-xs text-stone-400 mt-1.5">
+              Dashboard will live at ardorio.co/{slugify(slug) || '...'}
+            </p>
+          </div>
+          <div>
+            <label className="label block mb-1.5">Description</label>
+            <textarea
+              required
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={3}
+              className={inputCls}
+              placeholder="One or two sentences shown on the client dashboard."
+            />
+          </div>
+
+          {error && <p className="font-mono text-xs text-red-500">{error}</p>}
+
+          <div className="flex items-center gap-3 pt-2">
+            <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
+              {saving ? 'Creating...' : 'Create client'}
+            </button>
+            <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
+              Cancel
+            </Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
