@@ -7,9 +7,13 @@ export const handler: Handler = async (event) => {
   }
 
   const apiKey = process.env.RESEND_API_KEY
-  const toEmail = process.env.RESEND_TO_EMAIL
+  // RESEND_TO_EMAIL may be a comma-separated list of recipients
+  const toEmails = (process.env.RESEND_TO_EMAIL || '')
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean)
 
-  if (!apiKey || !toEmail) {
+  if (!apiKey || toEmails.length === 0) {
     console.error('Missing RESEND_API_KEY or RESEND_TO_EMAIL env vars')
     return { statusCode: 500, body: JSON.stringify({ error: 'Server misconfiguration' }) }
   }
@@ -39,7 +43,7 @@ export const handler: Handler = async (event) => {
   try {
     await resend.emails.send({
       from: 'Ardorio Website <no-reply@ardorio.co>',
-      to: toEmail,
+      to: toEmails,
       replyTo: `${name} <${email}>`,
       subject: `New enquiry from ${name}${company ? ` at ${company}` : ''}`,
       text: [
