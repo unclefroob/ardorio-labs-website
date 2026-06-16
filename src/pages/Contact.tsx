@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import SEO from '../components/SEO'
+import { apiFetch } from '../lib/apiClient'
 
 type FormState = 'idle' | 'sending' | 'success' | 'error'
 
@@ -12,8 +13,6 @@ interface FormData {
   message: string
   type: string
 }
-
-const CONTACT_ENDPOINT = '/.netlify/functions/contact'
 
 const inquiryTypes = [
   { value: 'enterprise', label: 'Enterprise technology' },
@@ -52,17 +51,12 @@ export default function Contact() {
     if (!validate()) return
     setState('sending')
     try {
-      const res = await fetch(CONTACT_ENDPOINT, {
+      await apiFetch('/contact', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      if (res.ok) {
-        setState('success')
-        setForm({ name: '', email: '', company: '', phone: '', message: '', type: '' })
-      } else {
-        setState('error')
-      }
+      setState('success')
+      setForm({ name: '', email: '', company: '', phone: '', message: '', type: '' })
     } catch {
       setState('error')
     }
