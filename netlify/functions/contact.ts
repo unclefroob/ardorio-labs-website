@@ -38,9 +38,9 @@ export const handler: Handler = async (event) => {
 
   try {
     await resend.emails.send({
-      from: 'Ardorio Website <onboarding@resend.dev>',
+      from: 'Ardorio Website <no-reply@ardorio.co>',
       to: toEmail,
-      reply_to: `${name} <${email}>`,
+      replyTo: `${name} <${email}>`,
       subject: `New enquiry from ${name}${company ? ` at ${company}` : ''}`,
       text: [
         `Name: ${name}`,
