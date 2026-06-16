@@ -35,10 +35,10 @@ export default function Footer() {
               </Link>
             ))}
             <a
-              href="mailto:hello@ardorio.co"
+              href="mailto:jansen@ardorio.co"
               className="text-sm text-stone-600 hover:text-ink transition-colors"
             >
-              hello@ardorio.co
+              jansen@ardorio.co
             </a>
           </div>
         </div>
