@@ -7,7 +7,6 @@ import Services from './pages/Services'
 import Work from './pages/Work'
 import Contact from './pages/Contact'
 import PathIQCaseStudy from './pages/work/PathIQ'
-import ClevedonCaseStudy from './pages/work/Clevedon'
 import RosterioCaseStudy from './pages/work/Rosterio'
 import Newsroom from './pages/Newsroom'
 import NewsroomArticle from './pages/NewsroomArticle'
@@ -71,7 +70,6 @@ function App() {
                 <Route path="/work" element={<Work />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/work/pathiq" element={<PathIQCaseStudy />} />
-                <Route path="/work/clevedon" element={<ClevedonCaseStudy />} />
                 <Route path="/work/rosterio" element={<RosterioCaseStudy />} />
                 <Route path="/newsroom" element={<Newsroom />} />
                 <Route path="/newsroom/:slug" element={<NewsroomArticle />} />
