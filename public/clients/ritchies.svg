@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" role="img" aria-label="Ritchies IGA Supermarket and Liquor">
+  <text x="0" y="58" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-weight="800" font-size="56" letter-spacing="-0.02em" fill="#002491">Ritchies</text>
+  <line x1="1" y1="74" x2="278" y2="74" stroke="#002491" stroke-width="2.5"/>
+  <text x="1" y="93" font-family="'DM Sans', 'Inter', system-ui, sans-serif" font-weight="600" font-size="14" letter-spacing="0.04em" fill="#002491">IGA · Supermarket &amp; Liquor</text>
+</svg>
