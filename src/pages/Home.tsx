@@ -176,8 +176,8 @@ export default function Home() {
           <div className="flex items-center gap-10">
             <img
               src="/clients/ritchies.svg"
-              alt="Ritchies IGA"
-              className="h-9 w-auto"
+              alt="Ritchies — Where the Community Benefits"
+              className="h-7 w-auto"
             />
           </div>
         </motion.div>
