@@ -173,12 +173,18 @@ export default function Home() {
           className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-12"
         >
           <p className="label shrink-0 text-stone-500">Trusted by</p>
-          <div className="flex items-center gap-10">
+          <div className="flex items-center gap-x-10 gap-y-5 flex-wrap text-ink">
             <img
               src="/clients/ritchies.svg"
-              alt="Ritchies — Where the Community Benefits"
-              className="h-7 w-auto"
+              alt="Ritchies"
+              className="h-5 w-auto"
             />
+            <span className="flex items-center gap-2" aria-label="PathIQ">
+              <img src="/clients/pathiq-mark.png" alt="" className="h-7 w-auto" />
+              <span className="font-sans font-bold text-2xl tracking-tight leading-none">
+                PathIQ
+              </span>
+            </span>
           </div>
         </motion.div>
       </section>
