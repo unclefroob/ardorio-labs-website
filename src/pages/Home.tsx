@@ -1,30 +1,57 @@
 import { Link } from 'react-router-dom'
-import { motion, type Variants, type Easing } from 'framer-motion'
+import { motion, useReducedMotion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
-import Logo from '../components/Logo'
+import GlowMark from '../components/GlowMark'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
+
+const heroLines = ['Technology', 'built for', 'enterprises and', 'founders.']
 
 const services = [
   {
     index: '01',
     title: 'Enterprise Technology',
-    short: 'Enterprise',
+    short: 'enterprise',
     description: 'We help large organisations move faster — auditing tech stacks, modernising infrastructure, and building the engineering culture to sustain it.',
   },
   {
     index: '02',
     title: 'AI Engineering',
-    short: 'Artificial Intelligence',
+    short: 'ai',
     description: 'From readiness assessments to production deployments — we help organisations find, build, and govern AI that actually works.',
   },
   {
     index: '03',
+    title: 'AI Training & Consulting',
+    short: 'ai-training',
+    description: 'We help teams actually use AI — practical training, hands-on workshops, and advisory that turns it from a talking point into everyday capability.',
+  },
+  {
+    index: '04',
     title: 'Startup Launch Partnerships',
-    short: 'Startups',
+    short: 'startups',
     description: 'We co-build with ambitious founders. Product strategy, full-stack development, and go-to-market — until you\'re live.',
   },
+]
+
+const capabilities = [
+  'Enterprise Technology',
+  'AI Engineering',
+  'AI Training',
+  'RAG Pipelines',
+  'Cloud Migration',
+  'AI Governance',
+  'Full-Stack Engineering',
+  'Product Strategy',
+  'iOS & Android',
+  'Go-to-Market',
+]
+
+const signals = [
+  { value: '0 → 1', label: 'From first commit to launch' },
+  { value: 'Web · iOS · Android', label: 'Shipped across every platform' },
+  { value: 'Claude', label: 'AI built into the product' },
 ]
 
 const fadeUp: Variants = {
@@ -36,57 +63,139 @@ const fadeUp: Variants = {
   }),
 }
 
+const lineReveal: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.1 + i * 0.11, duration: 0.6, ease: EASE },
+  }),
+}
+
+const drawIn: Variants = {
+  hidden: { scaleX: 0, opacity: 0 },
+  show: { scaleX: 1, opacity: 1, transition: { duration: 0.7, ease: EASE } },
+}
+
+function AnimatedDivider() {
+  return (
+    <motion.div
+      className="divider origin-left"
+      variants={drawIn}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: '-60px' }}
+    />
+  )
+}
+
 export default function Home() {
+  const reduce = useReducedMotion()
+
   return (
     <div>
       <SEO
         title="Technology Built for Australian Enterprises & Founders"
-        description="Ardorio partners with Australian enterprises and startup founders to build technology that ships — enterprise platforms, AI engineering, and end-to-end product development."
+        description="Ardorio partners with Australian enterprises and startup founders to build technology that ships — enterprise platforms, AI engineering, AI training, and end-to-end product development."
         canonical="/"
       />
       {/* Hero */}
-      <section className="relative overflow-hidden pt-32 pb-20 max-w-6xl mx-auto px-6">
-        <Logo size={200} className="absolute top-32 right-0 opacity-[0.07] pointer-events-none" />
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-10 items-end">
-          {/* Heading */}
-          <motion.div
-            className="lg:col-span-7"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: EASE }}
-          >
-<h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink">
-              Technology<br />
-              <em>built</em> for<br />
-              enterprises and<br />
-              founders.
-            </h1>
-          </motion.div>
+      <section className="grain relative overflow-hidden pt-28 pb-16 sm:pt-32 sm:pb-20">
+        <div className="relative z-[1] max-w-6xl mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-12 items-center">
+            {/* Heading + intro */}
+            <div className="lg:col-span-7">
+              <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink">
+                {heroLines.map((line, i) => (
+                  <motion.span
+                    key={line}
+                    className="block"
+                    custom={i}
+                    variants={lineReveal}
+                    initial="hidden"
+                    animate="show"
+                  >
+                    {line === 'built for' ? (
+                      <>
+                        <em>built</em> for
+                      </>
+                    ) : (
+                      line
+                    )}
+                  </motion.span>
+                ))}
+              </h1>
 
-          {/* Right column */}
-          <motion.div
-            className="lg:col-span-5 lg:pb-2"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.6, ease: EASE }}
-          >
-            <p className="text-stone-600 text-lg leading-relaxed mb-8">
-              We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.
-            </p>
-            <div className="flex flex-wrap items-center gap-4">
-              <Link to="/contact" className="btn-primary">
-                Start a conversation
-              </Link>
-              <Link to="/work" className="btn-ghost">
-                See our work <ArrowUpRight size={14} />
-              </Link>
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
+              >
+                <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-md">
+                  We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.
+                </p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Link to="/contact" className="btn-primary">
+                    Start a conversation
+                  </Link>
+                  <Link to="/work" className="btn-ghost">
+                    See our work <ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              </motion.div>
             </div>
-          </motion.div>
+
+            {/* Glowing mark */}
+            <motion.div
+              className="lg:col-span-5 hidden lg:flex items-center justify-center relative"
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.35, duration: 0.9, ease: EASE }}
+            >
+              <GlowMark size={340} />
+              {/* Floating accent dots */}
+              {!reduce && (
+                <>
+                  <motion.span
+                    className="absolute rounded-full"
+                    style={{ width: 6, height: 6, background: '#47BFFF', top: '18%', left: '22%', boxShadow: '0 0 12px 3px rgba(71,191,255,0.4)' }}
+                    animate={{ y: [0, -10, 0], opacity: [0.55, 0.85, 0.55] }}
+                    transition={{ duration: 5, ease: 'easeInOut', repeat: Infinity }}
+                  />
+                  <motion.span
+                    className="absolute rounded-full"
+                    style={{ width: 4, height: 4, background: '#863BFF', bottom: '22%', left: '30%', boxShadow: '0 0 10px 2px rgba(134,59,255,0.4)' }}
+                    animate={{ y: [0, 12, 0], opacity: [0.4, 0.7, 0.4] }}
+                    transition={{ duration: 6.5, ease: 'easeInOut', repeat: Infinity, delay: 0.6 }}
+                  />
+                  <motion.span
+                    className="absolute rounded-full"
+                    style={{ width: 3, height: 3, background: '#EDE6FF', top: '34%', right: '26%' }}
+                    animate={{ y: [0, -8, 0], opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 5.5, ease: 'easeInOut', repeat: Infinity, delay: 1.1 }}
+                  />
+                </>
+              )}
+            </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* Divider */}
+      {/* Capability marquee */}
       <div className="divider" />
+      <div className="marquee-mask relative overflow-hidden py-4 select-none">
+        <div className="flex w-max animate-marquee">
+          {[...capabilities, ...capabilities].map((cap, i) => (
+            <span key={i} className="flex items-center label text-stone-500 shrink-0">
+              <span className="px-7">{cap}</span>
+              <span className="text-cream-400" aria-hidden>·</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <AnimatedDivider />
 
       {/* Services — editorial list */}
       <section className="max-w-6xl mx-auto px-6 py-16">
@@ -133,7 +242,30 @@ export default function Home() {
       </section>
 
       {/* Divider */}
-      <div className="divider" />
+      <AnimatedDivider />
+
+      {/* Signals — honest, qualitative proof */}
+      <section className="max-w-6xl mx-auto px-6 py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {signals.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              custom={i}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, margin: '-40px' }}
+              variants={fadeUp}
+              className="p-6 bg-cream-200 rounded-2xl"
+            >
+              <div className="font-serif text-2xl sm:text-3xl text-ink">{stat.value}</div>
+              <div className="label mt-2 text-stone-500">{stat.label}</div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Divider */}
+      <AnimatedDivider />
 
       {/* Featured work — PathIQ */}
       <section className="max-w-6xl mx-auto px-6 py-16">
@@ -210,7 +342,7 @@ export default function Home() {
       </section>
 
       {/* Divider */}
-      <div className="divider" />
+      <AnimatedDivider />
 
       {/* Bottom CTA — minimal strip */}
       <section className="max-w-6xl mx-auto px-6 py-20">
