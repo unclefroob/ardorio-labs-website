@@ -56,21 +56,7 @@
   z-index: 0;
 }
 
-/* Capability marquee — slow mono ticker */
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.animate-marquee {
-  animation: marquee 42s linear infinite;
-}
-.marquee-mask {
-  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
-  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee { animation: none; }
   html { scroll-behavior: auto; }
 }
 

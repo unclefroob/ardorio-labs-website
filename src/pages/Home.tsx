@@ -35,25 +35,6 @@ const services = [
   },
 ]
 
-const capabilities = [
-  'Enterprise Technology',
-  'AI Engineering',
-  'AI Training',
-  'RAG Pipelines',
-  'Cloud Migration',
-  'AI Governance',
-  'Full-Stack Engineering',
-  'Product Strategy',
-  'iOS & Android',
-  'Go-to-Market',
-]
-
-const signals = [
-  { value: '0 → 1', label: 'From first commit to launch' },
-  { value: 'Web · iOS · Android', label: 'Shipped across every platform' },
-  { value: 'Claude', label: 'AI built into the product' },
-]
-
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: (i: number) => ({
@@ -181,18 +162,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Capability marquee */}
+      {/* Trusted by */}
       <div className="divider" />
-      <div className="marquee-mask relative overflow-hidden py-4 select-none">
-        <div className="flex w-max animate-marquee">
-          {[...capabilities, ...capabilities].map((cap, i) => (
-            <span key={i} className="flex items-center label text-stone-500 shrink-0">
-              <span className="px-7">{cap}</span>
-              <span className="text-cream-400" aria-hidden>·</span>
-            </span>
-          ))}
-        </div>
-      </div>
+      <section className="max-w-6xl mx-auto px-6 py-9">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-40px' }}
+          transition={{ duration: 0.5, ease: EASE }}
+          className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-12"
+        >
+          <p className="label shrink-0 text-stone-500">Trusted by</p>
+          <div className="flex items-center gap-10">
+            <img
+              src="/clients/ritchies.svg"
+              alt="Ritchies IGA"
+              className="h-9 w-auto"
+            />
+          </div>
+        </motion.div>
+      </section>
 
       {/* Divider */}
       <AnimatedDivider />
@@ -236,29 +225,6 @@ export default function Home() {
                   </p>
                 </div>
               </Link>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Divider */}
-      <AnimatedDivider />
-
-      {/* Signals — honest, qualitative proof */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {signals.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              custom={i}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: '-40px' }}
-              variants={fadeUp}
-              className="p-6 bg-cream-200 rounded-2xl"
-            >
-              <div className="font-serif text-2xl sm:text-3xl text-ink">{stat.value}</div>
-              <div className="label mt-2 text-stone-500">{stat.label}</div>
             </motion.div>
           ))}
         </div>
