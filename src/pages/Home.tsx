@@ -176,7 +176,7 @@ export default function Home() {
           <div className="flex items-center gap-x-10 gap-y-5 flex-wrap text-ink">
             <img
               src="/clients/ritchies.svg"
-              alt="Ritchies"
+              alt="Ritchies IGA + Liquor"
               className="h-5 w-auto"
             />
             <span className="flex items-center gap-2" aria-label="PathIQ">
