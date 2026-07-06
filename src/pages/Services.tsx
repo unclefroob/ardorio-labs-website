@@ -37,8 +37,24 @@ const services = [
     clients: 'Enterprises beginning or scaling their AI program',
   },
   {
-    id: 'startups',
+    id: 'ai-training',
     index: '03',
+    title: 'AI Training & Consulting',
+    description:
+      'Most organisations don\'t have an AI problem — they have an adoption problem. We work with your people directly: teaching the tools, setting the guardrails, and building the confidence to use AI well in real work, not in a sandbox.',
+    offerings: [
+      'AI literacy and hands-on training',
+      'Team workshops and enablement',
+      'Tool selection and rollout',
+      'Prompting and workflow design',
+      'Responsible-use policy and guardrails',
+      'Executive and board advisory',
+    ],
+    clients: 'Organisations rolling AI out to their teams',
+  },
+  {
+    id: 'startups',
+    index: '04',
     title: 'Startup Launch Partnerships',
     description:
       'We don\'t take on many startup partnerships — but when we do, we go all in. We sit inside the founding team and own whatever needs owning: product strategy, engineering, design, go-to-market. Until you\'re live.',
@@ -58,8 +74,8 @@ export default function Services() {
   return (
     <div className="pt-14">
       <SEO
-        title="Services — Enterprise Technology, AI Engineering & Startup Partnerships"
-        description="Ardorio delivers enterprise technology, AI engineering, and startup product development across Australia. We get close to the problem and build something that lasts."
+        title="Services — Enterprise Technology, AI Engineering, AI Training & Startup Partnerships"
+        description="Ardorio delivers enterprise technology, AI engineering, AI training and consulting, and startup product development across Australia. We get close to the problem and build something that lasts."
         canonical="/services"
       />
       {/* Header */}
@@ -69,7 +85,7 @@ export default function Services() {
           <div className="lg:col-span-7">
             <p className="label mb-6">Services</p>
             <h1 className="font-serif text-5xl sm:text-6xl text-ink leading-tight">
-              Three ways we<br />
+              Four ways we<br />
               <em>create impact.</em>
             </h1>
           </div>
