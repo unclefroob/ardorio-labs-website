@@ -40,3 +40,31 @@ export async function apiFetch<T = unknown>(path: string, options: RequestInit =
   }
   return res.json()
 }
+
+// Multipart upload — does NOT set Content-Type so the browser adds the
+// multipart boundary itself. Sends the admin bearer token like apiFetch.
+export async function apiUpload<T = unknown>(path: string, formData: FormData): Promise<T> {
+  if (!API) {
+    throw new Error('API URL is not configured (VITE_API_URL missing at build time).')
+  }
+  const token = localStorage.getItem(TOKEN_KEY)
+  const res = await fetch(`${API}${path}`, {
+    method: 'POST',
+    body: formData,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+
+  const refreshed = res.headers.get('x-refreshed-token')
+  if (refreshed) localStorage.setItem(TOKEN_KEY, refreshed)
+
+  if (res.status === 401 && token) {
+    localStorage.removeItem(TOKEN_KEY)
+    window.location.assign('/admin/login?reason=expired')
+    throw new Error('Session expired')
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `Upload error ${res.status}`)
+  }
+  return res.json()
+}

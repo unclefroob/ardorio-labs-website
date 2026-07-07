@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/Logo'
@@ -8,6 +8,7 @@ import {
   deleteNews,
   getNews,
   updateNews,
+  uploadNewsImage,
   type NewsCategory,
   type NewsItem,
 } from '../../data/newsroom'
@@ -20,6 +21,7 @@ type FormState = {
   title: string
   excerpt: string
   body: string
+  image: string
   published: boolean
 }
 
@@ -30,6 +32,7 @@ const emptyForm: FormState = {
   title: '',
   excerpt: '',
   body: '',
+  image: '',
   published: true,
 }
 
@@ -46,6 +49,7 @@ export default function AdminNewsroomEdit() {
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
   const [preview, setPreview] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (isNew) return
@@ -59,6 +63,7 @@ export default function AdminNewsroomEdit() {
           title: item.title,
           excerpt: item.excerpt,
           body: item.body,
+          image: item.image ?? '',
           published: item.published !== false,
         })
       })
@@ -67,6 +72,23 @@ export default function AdminNewsroomEdit() {
   }, [isNew, slug])
 
   function flash(m: string) { setMsg(m); setTimeout(() => setMsg(''), 2500) }
+
+  async function handleUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file
+    if (!file) return
+    setError('')
+    setUploading(true)
+    try {
+      const { url } = await uploadNewsImage(file)
+      setForm(f => ({ ...f, image: url }))
+      flash('Image uploaded.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   async function save() {
     if (!form.title.trim() || !form.excerpt.trim() || !form.body.trim()) {
@@ -209,6 +231,42 @@ export default function AdminNewsroomEdit() {
             </div>
 
             <div>
+              <label className="label block mb-1.5">
+                Image URL <span className="text-stone-400 normal-case font-sans">(optional — hero image, also used for social sharing)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  className={inputCls}
+                  placeholder="https://… or upload a file"
+                  value={form.image}
+                  onChange={e => setForm(f => ({ ...f, image: e.target.value }))}
+                />
+                <label className={`shrink-0 inline-flex items-center px-4 rounded-xl border border-cream-300 bg-cream-200 text-sm text-stone-700 hover:border-stone-400 transition-colors cursor-pointer whitespace-nowrap ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploading ? 'Uploading…' : 'Upload'}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                </label>
+                {form.image.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, image: '' }))}
+                    className="shrink-0 font-mono text-xs text-stone-400 hover:text-red-500 transition-colors px-1"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {form.image.trim() && (
+                <img
+                  src={form.image}
+                  alt=""
+                  className="mt-2 rounded-lg border border-cream-300 max-h-40 w-auto object-cover"
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  onLoad={e => { (e.currentTarget as HTMLImageElement).style.display = '' }}
+                />
+              )}
+            </div>
+
+            <div>
               <label className="label block mb-1.5">Excerpt</label>
               <textarea
                 rows={3}
@@ -279,6 +337,15 @@ export default function AdminNewsroomEdit() {
           <div className="hidden lg:block">
             <p className="label mb-3">Live preview</p>
             <div className="bg-cream-200 border border-cream-300 rounded-2xl p-6 sticky top-6">
+              {form.image.trim() && (
+                <img
+                  src={form.image}
+                  alt=""
+                  className="rounded-xl mb-5 w-full max-h-52 object-cover border border-cream-300"
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  onLoad={e => { (e.currentTarget as HTMLImageElement).style.display = '' }}
+                />
+              )}
               <div className="flex items-center gap-3 mb-4">
                 <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-mono tracking-wide bg-cream-300 text-stone-600">
                   {form.category}

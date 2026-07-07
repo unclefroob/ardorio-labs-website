@@ -54,6 +54,7 @@ export default function NewsroomArticle() {
         title={item.title}
         description={item.excerpt}
         canonical={`/newsroom/${item.slug}`}
+        ogImage={item.image || undefined}
         type="article"
       />
 
@@ -99,6 +100,23 @@ export default function NewsroomArticle() {
           </p>
         </div>
       </motion.div>
+
+      {/* Hero image */}
+      {item.image && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.5 }}
+          className="max-w-6xl mx-auto px-6 pb-14"
+        >
+          <img
+            src={item.image}
+            alt=""
+            className="w-full rounded-2xl border border-cream-300 object-cover max-h-[32rem] bg-cream-200"
+            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </motion.div>
+      )}
 
       <div className="divider" />
 
