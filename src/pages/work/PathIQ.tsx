@@ -2,11 +2,16 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowUpRight, ArrowLeft } from 'lucide-react'
 import SEO from '../../components/SEO'
+import PathIQEvalFlow from '../../components/PathIQEvalFlow'
+import PathIQProductMap from '../../components/PathIQProductMap'
+import PathIQMarkets from '../../components/PathIQMarkets'
+import PathIQApproach from '../../components/PathIQApproach'
 
 const scope = [
   'Product strategy and roadmap',
   'End-to-end platform engineering',
   'Student-facing application',
+  'Internal CRM and sales pipeline',
   'Institution management portal',
   'AI-powered simulation scoring',
   'Personality and career matching',
@@ -15,56 +20,21 @@ const scope = [
   'Go-to-market strategy and launch',
 ]
 
-const outcomes = [
-  { value: '0 → 1', label: 'Full build' },
-  { value: '3', label: 'Markets served' },
-  { value: 'AI-first', label: 'From day one' },
-  { value: 'Live', label: 'On time' },
-]
-
 const productFeatures = [
   {
     index: '01',
     title: 'A profile that actually fits',
-    body: `Most career tools ask what students want. PathIQ finds out what they're actually like. The personality assessment covers working style, motivation, social preferences, and learning approach — and returns a primary archetype (Analyst, Builder, Creator, Organiser, Communicator, Supporter, Leader, Explorer, Innovator, Strategist, Technician, or Advisor) alongside a secondary where the picture warrants it. Students leave with a starting point that reflects who they are, not what they hoped to hear.`,
+    body: `Most career tools ask what students want. PathIQ finds out what they're actually like. The personality assessment covers working style, motivation, social preferences, and learning approach, and returns a primary archetype (Analyst, Builder, Creator, Organiser, Communicator, Supporter, Leader, Explorer, Innovator, Strategist, Technician, or Advisor) alongside a secondary where the picture warrants it. Students leave with a starting point that reflects who they are, not what they hoped to hear.`,
   },
   {
     index: '02',
     title: 'Careers matched to performance, not preference',
-    body: `Interest alone is a weak signal. PathIQ ranks career matches using both personality fit and how a student actually performed in simulations — so the list reflects where they're likely to thrive, not just what sounded appealing on paper. The more a student explores, the sharper their results become.`,
+    body: `Interest alone is a weak signal. PathIQ ranks career matches using both personality fit and how a student actually performed in simulations, so the list reflects where they're likely to thrive, not just what sounded appealing on paper. The more a student explores, the sharper their results become.`,
   },
   {
     index: '03',
     title: 'Degree recommendations that close the loop',
-    body: `Career matches connect directly to degree programmes ranked by relevance to the student's results. Schools and universities scope the catalogue to their own offerings, so students see pathways that are real and available to them. For universities, it's a way to connect prospective students to the programmes they're genuinely a good fit for — before they've even applied.`,
-  },
-]
-
-const aiDetails = [
-  {
-    index: '01',
-    title: 'Prompt augmentation at evaluation time',
-    body: `Student responses aren't sent to Claude in isolation. Each evaluation prompt is assembled at runtime by injecting the simulation title, task prompt, and scenario text into a stored template — so the model evaluates responses in full context. Claude knows what role the student was playing, what scenario they were in, and what the task asked before reading a word of their answer.`,
-  },
-  {
-    index: '02',
-    title: 'CMS-authored system prompts',
-    body: `Evaluation rubrics live in the database, not in code. Institution admins write the system prompt and user prompt template for each task directly in the management portal — defining what good looks like for their specific scenario. The evaluation engine substitutes runtime variables into the template at call time. Non-technical staff can change how the AI judges a task without a deployment.`,
-  },
-  {
-    index: '03',
-    title: 'Structured output with JSON constraints',
-    body: `Every evaluation call instructs Claude to return JSON only — a score and a feedback string. The response is validated with a regex extraction step as a safety net against stray formatting, and score values are clamped to a valid range regardless of what the model returns. The AI layer behaves like a typed service boundary: predictable inputs, predictable outputs.`,
-  },
-  {
-    index: '04',
-    title: 'Parallel inference with timeout isolation',
-    body: `When a student completes a simulation with multiple open-ended tasks, all evaluations are dispatched concurrently — no sequential waiting. A configurable timeout runs against each call independently using Promise.race, so a slow API response can't delay the rest of the results. Any individual failure degrades gracefully without surfacing an error to the student.`,
-  },
-  {
-    index: '05',
-    title: 'Hybrid AI and rule-based scoring',
-    body: `Structured task types — multiple choice, ranking, checkbox, numeric — are scored with deterministic logic that never touches the API. AI evaluation is reserved for open-ended responses where language understanding is the point. This keeps costs proportional to complexity, makes structured results fully reproducible, and concentrates AI spend on the tasks that actually benefit from it.`,
+    body: `Career matches connect directly to degree programmes ranked by relevance to the student's results. Schools and universities scope the catalogue to their own offerings, so students see pathways that are real and available to them. For universities, it's a way to connect prospective students to the programmes they're genuinely a good fit for, before they've even applied.`,
   },
 ]
 
@@ -72,8 +42,8 @@ export default function PathIQCaseStudy() {
   return (
     <div className="pt-14">
       <SEO
-        title="PathIQ — AI-Powered Career Platform Case Study"
-        description="How Ardorio built PathIQ — an AI-powered career exploration platform for Australian students, schools, and universities — from zero to live."
+        title="PathIQ | AI-Powered Career Platform Case Study"
+        description="How Ardorio built PathIQ, an AI-powered career exploration platform for Australian students, schools, and universities, from zero to live."
         canonical="/work/pathiq"
         type="article"
       />
@@ -103,7 +73,7 @@ export default function PathIQCaseStudy() {
           </div>
           <div className="lg:col-span-5 flex flex-col gap-4">
             <p className="text-stone-600 leading-relaxed">
-              We built PathIQ from the ground up — strategy, product, engineering, and launch. The founders brought the domain expertise. We brought everything else.
+              A founder came to us with an idea. We turned it into PathIQ: a live product students step inside to test-drive careers, backed by an internal CRM the team uses to run the platform and their sales.
             </p>
             <a
               href="https://pathiq.com.au"
@@ -119,42 +89,53 @@ export default function PathIQCaseStudy() {
 
       <div className="divider" />
 
-      {/* Outcome stats */}
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {outcomes.map((stat) => (
-            <div key={stat.label} className="p-6 bg-cream-200 rounded-2xl">
-              <div className="font-serif text-2xl text-ink">{stat.value}</div>
-              <div className="label mt-1">{stat.label}</div>
-            </div>
-          ))}
+      {/* One idea, two products */}
+      <div className="max-w-6xl mx-auto px-6 py-14">
+        <div className="mb-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+          <h2 className="font-serif text-3xl text-ink lg:col-span-5">
+            One idea,<br />
+            <em>two products.</em>
+          </h2>
+          <p className="text-stone-600 leading-relaxed lg:col-span-6">
+            A founder came to us with an idea. We built the product students use, and the internal CRM the team runs it on, from content and institutions through to the sales pipeline.
+          </p>
         </div>
+        <PathIQProductMap />
+      </div>
+
+      <div className="divider" />
+
+      {/* How we got here */}
+      <div className="max-w-6xl mx-auto px-6 py-14">
+        <div className="mb-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+          <h2 className="font-serif text-3xl text-ink lg:col-span-5">
+            How we<br />
+            <em>got here.</em>
+          </h2>
+          <p className="text-stone-600 leading-relaxed lg:col-span-6">
+            A founder's idea only becomes a product through a run of decisions. These were the calls that shaped PathIQ, each one a step off the more obvious path.
+          </p>
+        </div>
+        <PathIQApproach />
       </div>
 
       <div className="divider" />
 
       {/* What it is */}
       <div className="max-w-6xl mx-auto px-6 py-14">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-4">
+        <div className="mb-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+          <div className="lg:col-span-5">
             <p className="label mb-4">The product</p>
             <h2 className="font-serif text-3xl text-ink">
               Career discovery,<br />
               <em>done properly.</em>
             </h2>
           </div>
-          <div className="lg:col-span-7 space-y-5 text-stone-700 leading-relaxed">
-            <p>
-              PathIQ helps students figure out what careers actually suit them — not through a list of job titles and a personality quiz, but by putting them inside the job itself. They take an assessment, get matched to career archetypes that fit their working style, and then step through realistic day-in-the-life simulations for the careers that interest them most.
-            </p>
-            <p>
-              The platform serves three markets: students who want to make better decisions for themselves, schools looking to improve career guidance outcomes, and universities using it to connect prospective students to programmes that genuinely match them. All three run on the same platform, with separate catalogues and configurations for each.
-            </p>
-            <p>
-              The founders came to Ardorio with deep domain expertise and a clear problem to solve. We built the product around it — and stayed until it was live.
-            </p>
-          </div>
+          <p className="text-stone-600 leading-relaxed lg:col-span-6">
+            Students don't read about a career, they spend a day inside it. The same platform serves three markets, each with its own catalogue and configuration.
+          </p>
         </div>
+        <PathIQMarkets />
       </div>
 
       <div className="divider" />
@@ -169,7 +150,7 @@ export default function PathIQCaseStudy() {
               <em>to a clear path forward.</em>
             </h2>
             <p className="text-stone-600 leading-relaxed lg:col-span-6">
-              PathIQ connects the dots between who a student is, which careers suit them, and which degree gets them there — all in one place, grounded in how they actually perform.
+              PathIQ connects the dots between who a student is, which careers suit them, and which degree gets them there, all in one place, grounded in how they actually perform.
             </p>
           </div>
         </div>
@@ -201,37 +182,41 @@ export default function PathIQCaseStudy() {
       {/* AI section */}
       <div className="max-w-6xl mx-auto px-6 py-14">
         <div className="mb-12">
-          <p className="label mb-4">AI engineering</p>
+          <p className="label mb-4">The scoring engine</p>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
             <h2 className="font-serif text-3xl text-ink lg:col-span-5">
-              Claude at the core<br />
-              <em>of every simulation.</em>
+              Inside a single<br />
+              <em>evaluation.</em>
             </h2>
             <p className="text-stone-600 leading-relaxed lg:col-span-6">
-              The evaluation engine goes beyond sending a response to a model. Every call is context-assembled, rubric-driven, and structured for consistent output — with parallel dispatch, timeout isolation, and graceful degradation built in from the start.
+              The AI-and-rules split is decided the moment a response comes in. Open-ended answers go to Claude, marked against the rubric; structured answers are scored by rules. Here is the full run, from submission to feedback.
             </p>
           </div>
         </div>
 
-        <div>
-          {aiDetails.map((item, i) => (
-            <motion.div
-              key={item.index}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.45, delay: i * 0.05 }}
-              className="py-8 border-b border-cream-300 grid grid-cols-1 lg:grid-cols-12 gap-6"
-            >
-              <div className="lg:col-span-4 flex items-start gap-4">
-                <span className="label shrink-0 pt-0.5 w-6">{item.index}</span>
-                <h3 className="font-serif text-xl text-ink">{item.title}</h3>
-              </div>
-              <p className="lg:col-span-8 text-stone-600 leading-relaxed text-sm">
-                {item.body}
-              </p>
-            </motion.div>
-          ))}
+        <PathIQEvalFlow />
+
+        {/* The rubric */}
+        <div className="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+          <div className="lg:col-span-5">
+            <p className="label mb-3">The rubric</p>
+            <h3 className="font-serif text-2xl text-ink leading-tight">
+              The institution's<br />
+              <em>definition of good.</em>
+            </h3>
+          </div>
+          <div className="lg:col-span-7">
+            <p className="text-stone-600 leading-relaxed text-sm mb-6">
+              A rubric is how a school or university defines a strong answer. Staff write it in the CRM, no deploy required. At evaluation time it is injected into the prompt alongside the task and scenario, so Claude marks every student against the same standard rather than an opinion of the moment.
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs font-mono text-stone-600">
+              <span className="px-3 py-2 rounded-lg bg-cream-200 text-center">Written in the CRM</span>
+              <span className="text-cream-400 text-center sm:px-1" aria-hidden>→</span>
+              <span className="px-3 py-2 rounded-lg bg-cream-200 text-center">Injected into the prompt</span>
+              <span className="text-cream-400 text-center sm:px-1" aria-hidden>→</span>
+              <span className="px-3 py-2 rounded-lg bg-cream-200 text-center">Claude marks against it</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -244,7 +229,7 @@ export default function PathIQCaseStudy() {
             <p className="label mb-4">Scope</p>
             <h2 className="font-serif text-3xl text-ink">Everything,<br /><em>end to end.</em></h2>
             <p className="text-stone-500 text-sm mt-4 leading-relaxed">
-              Three products. Three markets. One team that owned all of it.
+              Two products, three markets. One team that owned all of it.
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -278,10 +263,10 @@ export default function PathIQCaseStudy() {
                 Not a quiz.<br />A day on the job.
               </h2>
               <p className="text-stone-600 leading-relaxed text-sm mb-5">
-                Each simulation drops a student into a real scenario — a hospital emergency, a design brief, a marketing crisis, a legal case. They make decisions, weigh trade-offs, write responses, and work through the kind of tasks that actually define the job.
+                Each simulation drops a student into a real scenario, like a hospital emergency, a design brief, a marketing crisis, or a legal case. They make decisions, weigh trade-offs, write responses, and work through the kind of tasks that actually define the job.
               </p>
               <p className="text-stone-600 leading-relaxed text-sm">
-                When they finish, they find out how they actually performed — not how they thought they would. That gap is what makes PathIQ useful. It replaces guesswork about future careers with evidence.
+                When they finish, they find out how they actually performed, not how they thought they would. That gap is what makes PathIQ useful. It replaces guesswork about future careers with evidence.
               </p>
             </div>
             <div className="space-y-4">
