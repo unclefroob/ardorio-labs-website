@@ -207,7 +207,7 @@ export default function Home() {
               variants={fadeUp}
             >
               <Link
-                to={`/services#${service.short.toLowerCase().replace(/\s/g, '-')}`}
+                to={`/services/${service.short}`}
                 className="group flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 py-7 border-b border-cream-300 hover:bg-cream-200 -mx-4 px-4 rounded-lg transition-colors"
               >
                 <div className="flex-1 min-w-0">
