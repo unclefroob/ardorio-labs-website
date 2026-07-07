@@ -33,6 +33,14 @@ const projects = [
   },
 ]
 
+const testimonial = {
+  quote:
+    "Working with Ryan and Jansen from Ardorio has been a game changer for bringing PathIQ to life. From day one, they've gone above and beyond, not just executing on ideas, but genuinely investing in the vision. Their ability to translate concepts into practical, scalable solutions has been outstanding, and they've consistently delivered with speed, clarity, and professionalism.",
+  name: 'Calum Batey',
+  role: 'Founder, PathIQ',
+  initials: 'PQ',
+}
+
 export default function Work() {
   return (
     <div className="pt-14">
@@ -109,6 +117,34 @@ export default function Work() {
           ))}
         </div>
       </div>
+
+      <div className="divider" />
+
+      {/* Testimonial */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-40px' }}
+        transition={{ duration: 0.5, ease: EASE }}
+        className="max-w-6xl mx-auto px-6 py-16"
+      >
+        <div className="bg-cream-200 rounded-2xl p-10 lg:p-16">
+          <p className="label text-stone-500 mb-6">What our clients say</p>
+          <p className="font-serif text-6xl text-cream-400 leading-none select-none mb-2">"</p>
+          <blockquote className="font-serif text-2xl sm:text-[1.7rem] text-ink leading-snug max-w-4xl">
+            {testimonial.quote}
+          </blockquote>
+          <div className="mt-10 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-full bg-cream-300 flex items-center justify-center shrink-0">
+              <span className="font-mono text-xs text-stone-600">{testimonial.initials}</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-stone-800">{testimonial.name}</p>
+              <p className="text-xs text-stone-500">{testimonial.role}</p>
+            </div>
+          </div>
+        </div>
+      </motion.section>
 
       <div className="divider" />
 
