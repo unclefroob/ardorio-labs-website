@@ -3,6 +3,7 @@ import { motion, useReducedMotion, type Variants, type Easing } from 'framer-mot
 import { ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
 import GlowMark from '../components/GlowMark'
+import HomeNewsroom from '../components/HomeNewsroom'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
@@ -11,27 +12,21 @@ const heroLines = ['Technology', 'built for', 'enterprises and', 'founders.']
 const services = [
   {
     index: '01',
-    title: 'Enterprise Technology',
-    short: 'enterprise',
-    description: 'We help large organisations move faster — auditing tech stacks, modernising infrastructure, and building the engineering culture to sustain it.',
+    title: 'Find the gap, build the fix',
+    short: 'applied-ai',
+    description: 'We go into your business, work out where AI and technology create real leverage, and build the product or tool that captures it. You end up with a working system in production, not a strategy deck.',
   },
   {
     index: '02',
-    title: 'AI Engineering',
-    short: 'ai',
-    description: 'From readiness assessments to production deployments — we help organisations find, build, and govern AI that actually works.',
+    title: 'AI Training & Enablement',
+    short: 'training',
+    description: 'We upskill your team on AI that\'s genuinely useful in day-to-day work, with hands-on training, practical workshops, and the guardrails to use it safely. It\'s often how a larger build begins.',
   },
   {
     index: '03',
-    title: 'AI Training & Consulting',
-    short: 'ai-training',
-    description: 'We help teams actually use AI — practical training, hands-on workshops, and advisory that turns it from a talking point into everyday capability.',
-  },
-  {
-    index: '04',
-    title: 'Startup Launch Partnerships',
-    short: 'startups',
-    description: 'We co-build with ambitious founders. Product strategy, full-stack development, and go-to-market — until you\'re live.',
+    title: 'Zero to MVP',
+    short: 'mvp',
+    description: 'We build POCs and MVPs for founders fast, enough real product to put in front of users, test the idea, and raise or sell against.',
   },
 ]
 
@@ -77,7 +72,7 @@ export default function Home() {
     <div>
       <SEO
         title="Technology Built for Australian Enterprises & Founders"
-        description="Ardorio partners with Australian enterprises and startup founders to build technology that ships — enterprise platforms, AI engineering, AI training, and end-to-end product development."
+        description="Ardorio finds where AI creates real leverage in your business and builds the products to capture it, trains teams to use AI well, and builds MVPs for Australian founders fast. We build what we recommend."
         canonical="/"
       />
       {/* Hero */}
@@ -113,7 +108,7 @@ export default function Home() {
                 transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
               >
                 <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-md">
-                  We partner with major corporations and startup founders to build technology that ships — and keeps working after we're gone.
+                  We partner with major corporations and startup founders to build technology that ships, and keeps working after we're gone.
                 </p>
                 <div className="flex flex-wrap items-center gap-4">
                   <Link to="/contact" className="btn-primary">
@@ -173,7 +168,7 @@ export default function Home() {
           className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-12"
         >
           <p className="label shrink-0 text-stone-500">Trusted by</p>
-          <div className="flex items-center gap-x-10 gap-y-5 flex-wrap text-ink">
+          <div className="flex items-center gap-x-10 gap-y-5 flex-wrap text-stone-600">
             <img
               src="/clients/ritchies.svg"
               alt="Ritchies IGA + Liquor"
@@ -215,7 +210,6 @@ export default function Home() {
                 to={`/services#${service.short.toLowerCase().replace(/\s/g, '-')}`}
                 className="group flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 py-7 border-b border-cream-300 hover:bg-cream-200 -mx-4 px-4 rounded-lg transition-colors"
               >
-                <span className="label shrink-0 pt-1 w-8">{service.index}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-4">
                     <h3 className="font-serif text-2xl text-ink group-hover:text-stone-700 transition-colors">
@@ -235,6 +229,9 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* Latest newsroom entry */}
+      <HomeNewsroom />
 
       {/* Divider */}
       <AnimatedDivider />
@@ -265,7 +262,7 @@ export default function Home() {
                 </div>
                 <h2 className="font-serif text-4xl text-ink mb-4">PathIQ</h2>
                 <p className="text-stone-600 leading-relaxed mb-8">
-                  Career navigation platform built from scratch. We owned the full product — architecture, design, engineering, and AI recommendation features — from first commit to launch.
+                  Career navigation platform built from scratch. We owned the full product, from architecture and design through to engineering and the AI recommendation features, first commit to launch.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {['Product Strategy', 'Full-Stack', 'AI Features', 'Launch'].map((tag) => (

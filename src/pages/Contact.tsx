@@ -75,7 +75,7 @@ export default function Contact() {
   return (
     <div className="pt-14">
       <SEO
-        title="Contact — Start a Conversation"
+        title="Contact | Start a Conversation"
         description="Talk to Ardorio about enterprise technology, AI engineering, or a startup product partnership in Australia. We respond within 24 hours."
         canonical="/contact"
       />

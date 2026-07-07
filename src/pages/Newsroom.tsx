@@ -46,8 +46,8 @@ export default function Newsroom() {
   return (
     <div className="pt-14">
       <SEO
-        title="Newsroom — Announcements, Partnerships & Updates"
-        description="The latest from Ardorio — new partnerships, products we've shipped, and company announcements."
+        title="Newsroom | Announcements, Partnerships & Updates"
+        description="The latest from Ardorio, including new partnerships, products we've shipped, and company announcements."
         canonical="/newsroom"
       />
 
@@ -64,7 +64,7 @@ export default function Newsroom() {
           </div>
           <div className="lg:col-span-5">
             <p className="text-stone-600 leading-relaxed">
-              Partnerships, new products, and company announcements — everything happening at Ardorio.
+              Partnerships, new products, and company announcements, everything happening at Ardorio.
             </p>
           </div>
         </div>
@@ -102,7 +102,7 @@ export default function Newsroom() {
         )}
 
         {!loading && !error && filtered.length === 0 ? (
-          <p className="text-stone-500 py-12 text-sm">Nothing here yet — check back soon.</p>
+          <p className="text-stone-500 py-12 text-sm">Nothing here yet. Check back soon.</p>
         ) : (
           <div>
             {filtered.map((item, i) => (

@@ -5,68 +5,52 @@ import SEO from '../components/SEO'
 
 const services = [
   {
-    id: 'enterprise',
+    id: 'applied-ai',
     index: '01',
-    title: 'Enterprise Technology',
+    title: 'Find the gap, build the fix',
     description:
-      'We embed with enterprise teams to diagnose what\'s slowing them down and fix it — whether that\'s legacy infrastructure, fragmented tooling, or an engineering culture that can\'t keep pace with the business.',
+      'Most organisations don\'t have an AI problem, they have an adoption problem. We come in, work out where AI and better technology actually create leverage, and build the thing that captures it. We build what we recommend, so you end up with a working system in production rather than a strategy deck that sits on a shelf.',
     offerings: [
-      'Technology audits and roadmapping',
-      'Digital transformation strategy',
-      'Cloud migration and architecture',
-      'Engineering team structure and process',
-      'Vendor evaluation and selection',
-      'Platform and infrastructure modernisation',
+      'Opportunity and gap assessments',
+      'Custom AI features (RAG, agents, LLM integration)',
+      'Full-stack products and internal tooling',
+      'Workflow automation and integration',
+      'Legacy and infrastructure modernisation',
+      'Governance, guardrails and responsible use',
     ],
-    clients: 'Major corporations and government organisations',
+    clients: 'Established businesses that know AI matters but not yet where it pays off',
   },
   {
-    id: 'ai',
+    id: 'training',
     index: '02',
-    title: 'AI Engineering',
+    title: 'AI Training & Enablement',
     description:
-      'AI that ships and stays in production — not just prototypes. We help organisations identify where AI creates real value, then build and deploy it in a way that\'s safe, maintainable, and measurable.',
-    offerings: [
-      'AI readiness and opportunity assessments',
-      'LLM integration and prompt engineering',
-      'Custom model training and fine-tuning',
-      'RAG pipelines and knowledge systems',
-      'AI governance and risk frameworks',
-      'AI product design and UX',
-    ],
-    clients: 'Enterprises beginning or scaling their AI program',
-  },
-  {
-    id: 'ai-training',
-    index: '03',
-    title: 'AI Training & Consulting',
-    description:
-      'Most organisations don\'t have an AI problem — they have an adoption problem. We work with your people directly: teaching the tools, setting the guardrails, and building the confidence to use AI well in real work, not in a sandbox.',
+      'Most teams don\'t need another AI talking point, they need to use it well in real work. We train your people directly, with hands-on workshops, practical prompting and workflow design, and the responsible-use guardrails that keep it safe. It\'s also how much of our build work starts, because once a team sees what\'s possible, the gaps worth fixing become obvious.',
     offerings: [
       'AI literacy and hands-on training',
       'Team workshops and enablement',
-      'Tool selection and rollout',
       'Prompting and workflow design',
+      'Tool selection and rollout',
       'Responsible-use policy and guardrails',
       'Executive and board advisory',
     ],
-    clients: 'Organisations rolling AI out to their teams',
+    clients: 'Teams rolling AI out and unsure where to start',
   },
   {
-    id: 'startups',
-    index: '04',
-    title: 'Startup Launch Partnerships',
+    id: 'mvp',
+    index: '03',
+    title: 'Zero to MVP',
     description:
-      'We don\'t take on many startup partnerships — but when we do, we go all in. We sit inside the founding team and own whatever needs owning: product strategy, engineering, design, go-to-market. Until you\'re live.',
+      'Founders come to us with sharp domain insight and no time to build a team. We build the POC or MVP fast, enough real product to put in front of users, test the idea, and raise or sell against. Product strategy, full-stack build, AI features, and the push to launch.',
     offerings: [
+      'Rapid POC and MVP builds',
       'Product strategy and validation',
       'Full-stack development',
-      'UX and interface design',
       'AI-powered product features',
-      'Go-to-market strategy',
-      'Investor readiness support',
+      'UX and interface design',
+      'Launch and go-to-market support',
     ],
-    clients: 'Pre-seed and seed stage founders with strong domain insight',
+    clients: 'Founders with strong domain insight and no time to build a team',
   },
 ]
 
@@ -74,33 +58,15 @@ export default function Services() {
   return (
     <div className="pt-14">
       <SEO
-        title="Services — Enterprise Technology, AI Engineering, AI Training & Startup Partnerships"
-        description="Ardorio delivers enterprise technology, AI engineering, AI training and consulting, and startup product development across Australia. We get close to the problem and build something that lasts."
+        title="Services | Applied AI, AI Training & Rapid MVP Builds"
+        description="Ardorio finds where AI creates leverage in your business and builds the products to capture it, trains teams to adopt AI well, and builds POCs and MVPs for founders fast. We build what we recommend."
         canonical="/services"
       />
-      {/* Header */}
-      <div className="divider" />
-      <div className="max-w-6xl mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
-          <div className="lg:col-span-7">
-            <p className="label mb-6">Services</p>
-            <h1 className="font-serif text-5xl sm:text-6xl text-ink leading-tight">
-              Four ways we<br />
-              <em>create impact.</em>
-            </h1>
-          </div>
-          <div className="lg:col-span-5">
-            <p className="text-stone-600 leading-relaxed">
-              Each engagement is different. But our approach is the same — get close to the problem, be honest about what's needed, and build something that lasts.
-            </p>
-          </div>
-        </div>
-      </div>
-
+      <h1 className="sr-only">Services</h1>
       <div className="divider" />
 
       {/* Services */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8 pt-14">
         {services.map((service, i) => (
           <motion.div
             key={service.id}

@@ -7,7 +7,7 @@ export default function Work() {
   return (
     <div className="pt-14">
       <SEO
-        title="Work — Products We've Built"
+        title="Work | Products We've Built"
         description="Case studies from Ardorio's enterprise technology and AI product engagements in Australia. See how we build from zero to live."
         canonical="/work"
       />
@@ -68,13 +68,13 @@ export default function Work() {
             {/* Story */}
             <div className="lg:col-span-7 space-y-5 text-stone-700 leading-relaxed">
               <p>
-                PathIQ is a platform that helps professionals navigate career transitions with more clarity and confidence. The founders came to Ardorio with a sharp idea and domain insight — but needed a technical co-builder to own the full product.
+                PathIQ is a platform that helps professionals navigate career transitions with more clarity and confidence. The founders came to Ardorio with a sharp idea and domain insight, but needed a technical co-builder to own the full product.
               </p>
               <p>
                 We joined the team at the beginning: shaped the product architecture, built the full-stack application, designed the user flows, and shipped the AI-powered recommendation engine that sits at the core of the platform.
               </p>
               <p>
-                From first commit to launch, we moved fast without cutting corners — and the result is a polished, scalable product live at pathiq.com.au.
+                From first commit to launch, we moved fast without cutting corners, and the result is a polished, scalable product live at pathiq.com.au.
               </p>
             </div>
 
@@ -186,7 +186,7 @@ export default function Work() {
             {/* Story */}
             <div className="lg:col-span-7 space-y-5 text-stone-700 leading-relaxed">
               <p>
-                Rosterio is a workforce operating system for businesses that run on shifts — hospitality, retail, healthcare, venues. Managers build rosters, auto-fill gaps in one click, handle swap requests, and export timesheets straight to payroll. Staff get a mobile app that keeps them across their schedule without a group chat.
+                Rosterio is a workforce operating system for businesses that run on shifts, like hospitality, retail, healthcare, and venues. Managers build rosters, auto-fill gaps in one click, handle swap requests, and export timesheets straight to payroll. Staff get a mobile app that keeps them across their schedule without a group chat.
               </p>
               <p>
                 We built the product end to end: full-stack application, a constraint-aware scheduling engine, shift marketplace, GPS time & attendance, Stripe billing, and iOS and Android apps. From first commit to launch, one team owned all of it.
@@ -242,7 +242,7 @@ export default function Work() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
             <p className="label mb-2">More case studies</p>
-            <p className="text-stone-600 text-sm">Enterprise and AI engagements — coming soon.</p>
+            <p className="text-stone-600 text-sm">More enterprise and AI engagements are coming soon.</p>
           </div>
           <Link to="/contact" className="btn-primary shrink-0">
             Work with us

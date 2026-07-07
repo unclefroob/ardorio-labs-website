@@ -26,22 +26,22 @@ const productFeatures = [
   {
     index: '01',
     title: 'Roster management without the spreadsheet',
-    body: `Most shift businesses still build rosters in Excel — or worse, a whiteboard. Rosterio replaces that with a drag-and-drop scheduler that shows your labour cost in real time as you add shifts, lets you save recurring schedules as templates, and publishes to the whole team in one click. Multi-location support is built in from the start, not bolted on later.`,
+    body: `Most shift businesses still build rosters in Excel, or worse, a whiteboard. Rosterio replaces that with a drag-and-drop scheduler that shows your labour cost in real time as you add shifts, lets you save recurring schedules as templates, and publishes to the whole team in one click. Multi-location support is built in from the start, not bolted on later.`,
   },
   {
     index: '02',
     title: 'Auto-fill that actually thinks',
-    body: `The auto-fill engine assigns staff to unfilled shifts in under a second. It considers role eligibility, declared availability, weekly hour balance across the team, and cost — so the roster it generates isn't just filled, it's fair and within budget. Managers review the result, make any tweaks, and publish. A full week's roster that used to take an hour takes five minutes.`,
+    body: `The auto-fill engine assigns staff to unfilled shifts in under a second. It considers role eligibility, declared availability, weekly hour balance across the team, and cost, so the roster it generates isn't just filled, it's fair and within budget. Managers review the result, make any tweaks, and publish. A full week's roster that used to take an hour takes five minutes.`,
   },
   {
     index: '03',
     title: 'A marketplace for open shifts',
-    body: `When a shift can't be covered, managers post it to the marketplace. Staff browse open shifts from the mobile app and claim the ones they want — no group chat required. The manager gets a one-tap approval notification. The shift fills. No back-and-forth. Rosterio keeps a full audit trail of every claim and approval in case payroll or compliance ever needs it.`,
+    body: `When a shift can't be covered, managers post it to the marketplace. Staff browse open shifts from the mobile app and claim the ones they want, with no group chat required. The manager gets a one-tap approval notification. The shift fills. No back-and-forth. Rosterio keeps a full audit trail of every claim and approval in case payroll or compliance ever needs it.`,
   },
   {
     index: '04',
     title: 'GPS clock-in that closes the payroll loop',
-    body: `Staff clock in and out from the mobile app. GPS verification confirms they're on-site without requiring a dedicated hardware terminal. Timesheets auto-generate from the clock records and go to managers for approval before export. The result is payroll data that flows directly from the roster — fewer errors, less manual reconciliation, and a CSV that any payroll provider can import.`,
+    body: `Staff clock in and out from the mobile app. GPS verification confirms they're on-site without requiring a dedicated hardware terminal. Timesheets auto-generate from the clock records and go to managers for approval before export. The result is payroll data that flows directly from the roster, with fewer errors, less manual reconciliation, and a CSV that any payroll provider can import.`,
   },
 ]
 
@@ -49,7 +49,7 @@ const engineDetails = [
   {
     index: '01',
     title: 'Constraint satisfaction in a single pass',
-    body: `The auto-fill engine doesn't brute-force combinations. It scores each candidate against every open shift using a weighted function — role match, availability, hours already scheduled, and hourly cost — and assigns greedily in a single pass ordered by constraint tightness. Shifts with fewer eligible staff are filled first, so the engine doesn't paint itself into a corner. It runs in under a second on a full week's roster regardless of team size.`,
+    body: `The auto-fill engine doesn't brute-force combinations. It scores each candidate against every open shift using a weighted function of role match, availability, hours already scheduled, and hourly cost, then assigns greedily in a single pass ordered by constraint tightness. Shifts with fewer eligible staff are filled first, so the engine doesn't paint itself into a corner. It runs in under a second on a full week's roster regardless of team size.`,
   },
   {
     index: '02',
@@ -59,7 +59,7 @@ const engineDetails = [
   {
     index: '03',
     title: 'Real-time labour cost in the scheduler',
-    body: `As a manager adds or moves shifts, the estimated labour cost updates immediately — before they publish. The figure accounts for each staff member's hourly rate and the hours assigned that week. Managers see the cost consequence of every scheduling decision in real time, which means fewer "wait, how much?" moments when payroll runs.`,
+    body: `As a manager adds or moves shifts, the estimated labour cost updates immediately, before they publish. The figure accounts for each staff member's hourly rate and the hours assigned that week. Managers see the cost consequence of every scheduling decision in real time, which means fewer "wait, how much?" moments when payroll runs.`,
   },
 ]
 
@@ -67,8 +67,8 @@ export default function RosterioCaseStudy() {
   return (
     <div className="pt-14">
       <SEO
-        title="Rosterio — Workforce Management Platform Case Study"
-        description="How Ardorio built Rosterio — a full-stack workforce operating system for shift-based businesses, from scheduling and auto-fill to GPS attendance and payroll export."
+        title="Rosterio | Workforce Management Platform Case Study"
+        description="How Ardorio built Rosterio, a full-stack workforce operating system for shift-based businesses, from scheduling and auto-fill to GPS attendance and payroll export."
         canonical="/work/rosterio"
         type="article"
       />
@@ -98,7 +98,7 @@ export default function RosterioCaseStudy() {
           </div>
           <div className="lg:col-span-5 flex flex-col gap-4">
             <p className="text-stone-600 leading-relaxed">
-              We built Rosterio from the ground up — strategy, product, engineering, and launch. Scheduling, attendance, payroll, mobile. One platform for every part of running a shift team.
+              We built Rosterio from the ground up, across strategy, product, engineering, and launch. Scheduling, attendance, payroll, mobile. One platform for every part of running a shift team.
             </p>
             <a
               href="https://rosterio.app"
@@ -140,13 +140,13 @@ export default function RosterioCaseStudy() {
           </div>
           <div className="lg:col-span-7 space-y-5 text-stone-700 leading-relaxed">
             <p>
-              Rosterio is a workforce operating system for businesses that run on shifts — hospitality, retail, healthcare, venues. The kind of businesses where the roster is built on a Sunday, half the team messages in sick on Wednesday, and payroll is reconciled by hand on Friday afternoon.
+              Rosterio is a workforce operating system for businesses that run on shifts, like hospitality, retail, healthcare, and venues. The kind of businesses where the roster is built on a Sunday, half the team messages in sick on Wednesday, and payroll is reconciled by hand on Friday afternoon.
             </p>
             <p>
               The platform covers the full lifecycle: scheduling, publishing, auto-filling gaps, handling swap requests, tracking attendance with GPS clock-in, and exporting timesheets straight to payroll. Staff get a mobile app on iOS and Android that keeps them across their schedule without needing to check a group chat.
             </p>
             <p>
-              We built it from the ground up — product strategy, full-stack application, scheduling engine, mobile, billing, and launch. The founders had the industry knowledge. We built everything around it.
+              We built it from the ground up, across product strategy, full-stack application, scheduling engine, mobile, billing, and launch. The founders had the industry knowledge. We built everything around it.
             </p>
           </div>
         </div>
@@ -203,7 +203,7 @@ export default function RosterioCaseStudy() {
               <em>in under a second.</em>
             </h2>
             <p className="text-stone-600 leading-relaxed lg:col-span-6">
-              The auto-fill engine isn't a random assignment. It's a constraint-aware scheduler that considers roles, availability, cost, and fairness simultaneously — and shows the cost impact of every decision before the roster goes out.
+              The auto-fill engine isn't a random assignment. It's a constraint-aware scheduler that considers roles, availability, cost, and fairness simultaneously, and shows the cost impact of every decision before the roster goes out.
             </p>
           </div>
         </div>
@@ -273,10 +273,10 @@ export default function RosterioCaseStudy() {
                 From roster to payroll<br />in one place.
               </h2>
               <p className="text-stone-600 leading-relaxed text-sm mb-5">
-                The workflow follows the real cadence of a shift business — build the roster, publish it, handle the week's changes as they happen, then close out with timesheets that are already approved and ready to export.
+                The workflow follows the real cadence of a shift business. Build the roster, publish it, handle the week's changes as they happen, then close out with timesheets that are already approved and ready to export.
               </p>
               <p className="text-stone-600 leading-relaxed text-sm">
-                Staff interact through the mobile app — viewing their schedule, picking up open shifts, requesting swaps, and clocking in. Everything flows back to the manager view without a message being sent.
+                Staff interact through the mobile app, viewing their schedule, picking up open shifts, requesting swaps, and clocking in. Everything flows back to the manager view without a message being sent.
               </p>
             </div>
             <div className="space-y-4">
