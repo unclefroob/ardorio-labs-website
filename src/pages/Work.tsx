@@ -131,7 +131,7 @@ export default function Work() {
         <div className="bg-cream-200 rounded-2xl p-10 lg:p-16">
           <p className="label text-stone-500 mb-6">What our clients say</p>
           <p className="font-serif text-6xl text-cream-400 leading-none select-none mb-2">"</p>
-          <blockquote className="font-serif text-2xl sm:text-[1.7rem] text-ink leading-snug max-w-4xl">
+          <blockquote className="italic text-stone-700 text-lg sm:text-xl leading-relaxed max-w-3xl">
             {testimonial.quote}
           </blockquote>
           <div className="mt-10 flex items-center gap-4">
