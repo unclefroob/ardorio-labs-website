@@ -259,7 +259,7 @@ export default function AdminNewsroomEdit() {
                 <img
                   src={form.image}
                   alt=""
-                  className="mt-2 rounded-lg border border-cream-300 max-h-40 w-auto object-cover"
+                  className="mt-2 rounded-lg border border-cream-300 max-h-40 w-auto"
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                   onLoad={e => { (e.currentTarget as HTMLImageElement).style.display = '' }}
                 />
@@ -341,7 +341,7 @@ export default function AdminNewsroomEdit() {
                 <img
                   src={form.image}
                   alt=""
-                  className="rounded-xl mb-5 w-full max-h-52 object-cover border border-cream-300"
+                  className="rounded-xl mb-5 mx-auto block w-auto max-w-full max-h-72 object-contain bg-cream-100 border border-cream-300"
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                   onLoad={e => { (e.currentTarget as HTMLImageElement).style.display = '' }}
                 />

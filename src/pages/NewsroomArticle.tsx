@@ -112,7 +112,7 @@ export default function NewsroomArticle() {
           <img
             src={item.image}
             alt=""
-            className="w-full rounded-2xl border border-cream-300 object-cover max-h-[32rem] bg-cream-200"
+            className="block mx-auto w-auto max-w-full max-h-[36rem] rounded-2xl border border-cream-300"
             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           />
         </motion.div>

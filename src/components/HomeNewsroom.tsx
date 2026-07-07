@@ -54,11 +54,11 @@ export default function HomeNewsroom() {
             className={`group block ${item.image ? 'grid grid-cols-1 lg:grid-cols-2' : ''}`}
           >
             {item.image && (
-              <div className="lg:order-last bg-cream-300/50">
+              <div className="lg:order-last bg-cream-300/40 flex items-center justify-center p-4 min-h-[14rem] lg:min-h-0">
                 <img
                   src={item.image}
                   alt=""
-                  className="w-full h-56 lg:h-full object-cover"
+                  className="max-w-full max-h-64 lg:max-h-[26rem] w-auto object-contain rounded-lg"
                   onError={e => {
                     const box = e.currentTarget.parentElement
                     if (box) box.style.display = 'none'
