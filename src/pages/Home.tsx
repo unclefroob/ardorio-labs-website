@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, useReducedMotion, type Variants, type Easing } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
 import GlowMark from '../components/GlowMark'
@@ -7,7 +8,25 @@ import HomeNewsroom from '../components/HomeNewsroom'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
-const heroLines = ['Technology', 'built for', 'enterprises and', 'founders.']
+// One headline per narrative, cycled in the hero. The italic "actually" is the
+// constant beat; the subject and payoff rotate to speak to each audience.
+const heroHeadlines = [
+  // Applied AI — established businesses
+  <>
+    <span className="block">Where AI <em>actually</em></span>
+    <span className="block">pays off.</span>
+  </>,
+  // AI training & enablement
+  <>
+    <span className="block">Where your team</span>
+    <span className="block"><em>actually</em> uses AI.</span>
+  </>,
+  // Zero to MVP — founders
+  <>
+    <span className="block">Where founders</span>
+    <span className="block"><em>actually</em> launch.</span>
+  </>,
+]
 
 const services = [
   {
@@ -39,15 +58,6 @@ const fadeUp: Variants = {
   }),
 }
 
-const lineReveal: Variants = {
-  hidden: { opacity: 0, y: 24 },
-  show: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: 0.1 + i * 0.11, duration: 0.6, ease: EASE },
-  }),
-}
-
 const drawIn: Variants = {
   hidden: { scaleX: 0, opacity: 0 },
   show: { scaleX: 1, opacity: 1, transition: { duration: 0.7, ease: EASE } },
@@ -67,6 +77,16 @@ function AnimatedDivider() {
 
 export default function Home() {
   const reduce = useReducedMotion()
+  const [idx, setIdx] = useState(0)
+
+  useEffect(() => {
+    if (reduce) return
+    const timer = setInterval(
+      () => setIdx((i) => (i + 1) % heroHeadlines.length),
+      5200,
+    )
+    return () => clearInterval(timer)
+  }, [reduce])
 
   return (
     <div>
@@ -81,34 +101,28 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-12 items-center">
             {/* Heading + intro */}
             <div className="lg:col-span-7">
-              <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink">
-                {heroLines.map((line, i) => (
-                  <motion.span
-                    key={line}
-                    className="block"
-                    custom={i}
-                    variants={lineReveal}
-                    initial="hidden"
-                    animate="show"
+              <div className="min-h-[7rem] sm:min-h-[9rem] lg:min-h-[10rem]">
+                <AnimatePresence mode="wait">
+                  <motion.h1
+                    key={idx}
+                    className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink"
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -18 }}
+                    transition={{ duration: 0.5, ease: EASE }}
                   >
-                    {line === 'built for' ? (
-                      <>
-                        <em>built</em> for
-                      </>
-                    ) : (
-                      line
-                    )}
-                  </motion.span>
-                ))}
-              </h1>
+                    {heroHeadlines[idx]}
+                  </motion.h1>
+                </AnimatePresence>
+              </div>
 
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
               >
-                <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-md">
-                  We partner with major corporations and startup founders to build technology that ships, and keeps working after we're gone.
+                <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-lg">
+                  We help established businesses get real value from AI, and founders get their first product off the ground. We do the actual work, not just talk about it, and we stick around long after it's live.
                 </p>
                 <div className="flex flex-wrap items-center gap-4">
                   <Link to="/contact" className="btn-primary">
