@@ -82,7 +82,17 @@ export default function RosterioCaseStudy() {
       </div>
 
       {/* Header */}
-      <div className="max-w-6xl mx-auto px-6 pb-14">
+      <div className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-40 right-0 w-[36rem] h-[36rem]"
+          style={{
+            background:
+              'radial-gradient(circle at 60% 45%, rgba(134,59,255,0.14), rgba(71,191,255,0.10) 42%, transparent 70%)',
+            filter: 'blur(32px)',
+          }}
+        />
+      <div className="relative max-w-6xl mx-auto px-6 pb-14">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
           <div className="lg:col-span-7">
             <div className="flex items-center gap-2.5 mb-4">
@@ -111,6 +121,7 @@ export default function RosterioCaseStudy() {
           </div>
         </div>
       </div>
+      </div>
 
       <div className="divider" />
 
@@ -119,7 +130,7 @@ export default function RosterioCaseStudy() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {outcomes.map((stat) => (
             <div key={stat.label} className="p-6 bg-cream-200 rounded-2xl">
-              <div className="font-serif text-2xl text-ink">{stat.value}</div>
+              <div className="font-serif text-2xl" style={{ color: '#863BFF' }}>{stat.value}</div>
               <div className="label mt-1">{stat.label}</div>
             </div>
           ))}
@@ -180,7 +191,7 @@ export default function RosterioCaseStudy() {
               className="py-8 border-b border-cream-300 grid grid-cols-1 lg:grid-cols-12 gap-6"
             >
               <div className="lg:col-span-4 flex items-start gap-4">
-                <span className="label shrink-0 pt-0.5 w-6">{item.index}</span>
+                <span className="label shrink-0 pt-0.5 w-6" style={{ color: '#863BFF' }}>{item.index}</span>
                 <h3 className="font-serif text-xl text-ink">{item.title}</h3>
               </div>
               <p className="lg:col-span-8 text-stone-600 leading-relaxed text-sm">
@@ -219,7 +230,7 @@ export default function RosterioCaseStudy() {
               className="py-8 border-b border-cream-300 grid grid-cols-1 lg:grid-cols-12 gap-6"
             >
               <div className="lg:col-span-4 flex items-start gap-4">
-                <span className="label shrink-0 pt-0.5 w-6">{item.index}</span>
+                <span className="label shrink-0 pt-0.5 w-6" style={{ color: '#863BFF' }}>{item.index}</span>
                 <h3 className="font-serif text-xl text-ink">{item.title}</h3>
               </div>
               <p className="lg:col-span-8 text-stone-600 leading-relaxed text-sm">
@@ -288,7 +299,7 @@ export default function RosterioCaseStudy() {
                 { step: '05', label: 'Export to payroll', detail: 'Approved timesheets export as CSV to any provider' },
               ].map((row) => (
                 <div key={row.step} className="flex items-start gap-4 p-4 bg-cream-100/70 rounded-xl">
-                  <span className="label shrink-0 pt-0.5">{row.step}</span>
+                  <span className="label shrink-0 pt-0.5" style={{ color: '#863BFF' }}>{row.step}</span>
                   <div>
                     <p className="text-sm font-medium text-ink">{row.label}</p>
                     <p className="text-xs text-stone-500 mt-0.5">{row.detail}</p>

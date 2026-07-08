@@ -212,12 +212,12 @@ export default function Home() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-4">
-                    <h3 className="font-serif text-2xl text-ink group-hover:text-stone-700 transition-colors">
+                    <h3 className="font-serif text-2xl text-ink group-hover:text-[#863BFF] transition-colors">
                       {service.title}
                     </h3>
                     <ArrowUpRight
                       size={18}
-                      className="shrink-0 text-stone-400 group-hover:text-ink group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all mt-1"
+                      className="shrink-0 text-stone-400 group-hover:text-[#863BFF] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all mt-1"
                     />
                   </div>
                   <p className="text-stone-600 text-sm mt-2 leading-relaxed max-w-xl">
