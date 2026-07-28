@@ -21,11 +21,11 @@ import AdminStaff from './pages/admin/AdminStaff'
 import AdminNewsroom from './pages/admin/AdminNewsroom'
 import AdminNewsroomEdit from './pages/admin/AdminNewsroomEdit'
 import AcceptInvite from './pages/admin/AcceptInvite'
-import AdminBuxtonOverview from './pages/admin/buxton/Overview'
-import AdminBuxtonWiki from './pages/admin/buxton/Wiki'
-import AdminBuxtonOnboarding from './pages/admin/buxton/Onboarding'
-import AdminBuxtonContent from './pages/admin/buxton/Content'
-import AdminBuxtonUsage from './pages/admin/buxton/Usage'
+import AdminAssistantOverview from './pages/admin/assistant/Overview'
+import AdminAssistantWiki from './pages/admin/assistant/Wiki'
+import AdminAssistantOnboarding from './pages/admin/assistant/Onboarding'
+import AdminAssistantContent from './pages/admin/assistant/Content'
+import AdminAssistantUsage from './pages/admin/assistant/Usage'
 import ProtectedRoute from './components/admin/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
 import { ClientAuthProvider } from './context/ClientAuthContext'
@@ -48,11 +48,11 @@ function App() {
         <Route path="/admin/newsroom" element={<ProtectedRoute><AdminNewsroom /></ProtectedRoute>} />
         <Route path="/admin/newsroom/new" element={<ProtectedRoute><AdminNewsroomEdit /></ProtectedRoute>} />
         <Route path="/admin/newsroom/:slug" element={<ProtectedRoute><AdminNewsroomEdit /></ProtectedRoute>} />
-        <Route path="/admin/buxton" element={<ProtectedRoute><AdminBuxtonOverview /></ProtectedRoute>} />
-        <Route path="/admin/buxton/wiki" element={<ProtectedRoute><AdminBuxtonWiki /></ProtectedRoute>} />
-        <Route path="/admin/buxton/onboarding" element={<ProtectedRoute><AdminBuxtonOnboarding /></ProtectedRoute>} />
-        <Route path="/admin/buxton/content" element={<ProtectedRoute><AdminBuxtonContent /></ProtectedRoute>} />
-        <Route path="/admin/buxton/usage" element={<ProtectedRoute><AdminBuxtonUsage /></ProtectedRoute>} />
+        <Route path="/admin/assistant" element={<ProtectedRoute><AdminAssistantOverview /></ProtectedRoute>} />
+        <Route path="/admin/assistant/wiki" element={<ProtectedRoute><AdminAssistantWiki /></ProtectedRoute>} />
+        <Route path="/admin/assistant/onboarding" element={<ProtectedRoute><AdminAssistantOnboarding /></ProtectedRoute>} />
+        <Route path="/admin/assistant/content" element={<ProtectedRoute><AdminAssistantContent /></ProtectedRoute>} />
+        <Route path="/admin/assistant/usage" element={<ProtectedRoute><AdminAssistantUsage /></ProtectedRoute>} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClientNew /></ProtectedRoute>} />
         <Route path="/admin/:slug" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
 

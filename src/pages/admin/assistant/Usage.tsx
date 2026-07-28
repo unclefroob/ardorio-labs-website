@@ -1,7 +1,7 @@
 /**
  * F4 — Internal LLM cost / usage dashboard (Phase 1: telemetry only).
  *
- * Reads from /admin/buxton/budget (Ardorio admin auth). NEVER customer-facing
+ * Reads from /admin/assistant/budget (Ardorio admin auth). NEVER customer-facing
  * — the customer view at F5 stays in "hours saved" units, not dollars.
  *
  * Phase 2 (enforcement) and Phase 3 (rate-limit middleware) remain on the
@@ -94,7 +94,7 @@ function Sparkline({ trend }: { trend: TrendPoint[] }) {
   )
 }
 
-export default function AdminBuxtonUsage() {
+export default function AdminAssistantUsage() {
   const [month, setMonth] = useState<string>(currentMonthOption())
   const [data, setData] = useState<BudgetResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -106,7 +106,7 @@ export default function AdminBuxtonUsage() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    apiFetch<BudgetResponse>(`/admin/buxton/budget?month=${encodeURIComponent(month)}`)
+    apiFetch<BudgetResponse>(`/admin/assistant/budget?month=${encodeURIComponent(month)}`)
       .then(res => { if (!cancelled) setData(res) })
       .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load') })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -119,7 +119,7 @@ export default function AdminBuxtonUsage() {
         <header className="flex items-end justify-between gap-6 mb-10">
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-stone-600">
-              Buxton · Internal
+              Assistant · Internal
             </p>
             <h1 className="font-serif text-4xl text-ink mt-2" style={{ fontVariationSettings: '"opsz" 12' }}>
               Usage &amp; cost

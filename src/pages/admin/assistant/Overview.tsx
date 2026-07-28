@@ -1,5 +1,5 @@
 /**
- * Ardorio ops view of the Buxton customer. Health, last activity, subscription
+ * Ardorio ops view of the Assistant customer. Health, last activity, subscription
  * state, links to the deeper Wiki / Onboarding / Content / Usage views.
  *
  * Trello: cross-cutting (F4 cost view + onboarding status + tone calibration progress).
@@ -8,18 +8,18 @@
 import { Link } from 'react-router-dom'
 
 const SECTIONS = [
-  { to: '/admin/buxton/wiki', label: 'AI Brain wiki', desc: 'Author + edit Buxton tone, suburb, objection, and script pages (W2 + O2).' },
-  { to: '/admin/buxton/onboarding', label: 'Onboarding', desc: 'O1 intake review, O3 calibration test pass, O5 completion checklist.' },
-  { to: '/admin/buxton/content', label: 'Content artefacts', desc: 'Customer-uploaded emails, listings, IG examples awaiting wiki ingestion.' },
-  { to: '/admin/buxton/usage', label: 'Usage & cost (internal)', desc: 'F4 cost dashboard, cache hit rate, per-user spend, runaway-use alerts.' },
+  { to: '/admin/assistant/wiki', label: 'AI Brain wiki', desc: 'Author + edit Assistant tone, suburb, objection, and script pages (W2 + O2).' },
+  { to: '/admin/assistant/onboarding', label: 'Onboarding', desc: 'O1 intake review, O3 calibration test pass, O5 completion checklist.' },
+  { to: '/admin/assistant/content', label: 'Content artefacts', desc: 'Customer-uploaded emails, listings, IG examples awaiting wiki ingestion.' },
+  { to: '/admin/assistant/usage', label: 'Usage & cost (internal)', desc: 'F4 cost dashboard, cache hit rate, per-user spend, runaway-use alerts.' },
 ]
 
-export default function AdminBuxtonOverview() {
+export default function AdminAssistantOverview() {
   return (
     <div className="max-w-4xl mx-auto py-10 px-6 space-y-8">
       <header>
         <p className="text-xs uppercase tracking-wider text-neutral-500">Client</p>
-        <h1 className="text-3xl font-serif">Buxton</h1>
+        <h1 className="text-3xl font-serif">Assistant</h1>
         <p className="text-neutral-600 mt-1">
           Real estate firm. AI assistant deployed at buxton.ardorio.co.
         </p>
