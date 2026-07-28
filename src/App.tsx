@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -32,12 +33,67 @@ import { ClientAuthProvider } from './context/ClientAuthContext'
 import ClientLogin from './pages/ClientLogin'
 import ClientPortal from './pages/ClientPortal'
 
+// index.html ships build-time SEO defaults so non-JS crawlers (social scrapers,
+// which never run our JavaScript) still get a valid title, description and share
+// preview. Once React + react-helmet-async (in React 19's native metadata mode)
+// hoist the per-route tags, both sets live in <head> and duplicate each other.
+// We snapshot the build-time defaults at import time — before React mounts, so
+// the snapshot contains only the static index.html nodes and never a
+// React-managed one — then drop each default once a per-route replacement of the
+// same kind exists. JS-rendering search crawlers then index one correct set.
+const MANAGED_HEAD_SELECTORS = [
+  'title',
+  'link[rel="canonical"]',
+  'meta[name="description"]',
+  'meta[name="twitter:card"]',
+  'meta[name="twitter:title"]',
+  'meta[name="twitter:description"]',
+  'meta[name="twitter:image"]',
+  'meta[property="og:title"]',
+  'meta[property="og:description"]',
+  'meta[property="og:url"]',
+  'meta[property="og:image"]',
+  'meta[property="og:type"]',
+  'meta[property="og:site_name"]',
+  'meta[property="og:locale"]',
+]
+
+const DEFAULT_SEO_NODES: Element[] =
+  typeof document !== 'undefined'
+    ? Array.from(document.head.querySelectorAll(MANAGED_HEAD_SELECTORS.join(',')))
+    : []
+
+function identitySelector(node: Element): string {
+  if (node.tagName === 'TITLE') return 'title'
+  if (node.tagName === 'LINK') return 'link[rel="canonical"]'
+  const name = node.getAttribute('name')
+  if (name) return `meta[name="${name}"]`
+  return `meta[property="${node.getAttribute('property')}"]`
+}
+
+function SeoHeadCleanup() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    for (const node of DEFAULT_SEO_NODES) {
+      if (!node.isConnected) continue
+      // Only drop a build-time default once Helmet has hoisted a replacement of
+      // the same kind (>1 match). On routes with no <SEO> (e.g. admin), the
+      // default has no replacement and is left in place.
+      if (document.head.querySelectorAll(identitySelector(node)).length > 1) {
+        node.remove()
+      }
+    }
+  }, [pathname])
+  return null
+}
+
 function App() {
   return (
     <HelmetProvider>
     <AuthProvider>
     <ClientAuthProvider>
     <BrowserRouter>
+      <SeoHeadCleanup />
       <Routes>
         {/* Admin routes — no Navbar/Footer */}
         <Route path="/admin/login" element={<AdminLogin />} />
