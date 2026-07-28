@@ -15,6 +15,9 @@ import {
   Bot,
   FileStack,
   Gauge,
+  Sparkles,
+  Workflow,
+  Cpu,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -30,6 +33,28 @@ export interface ServiceCapability {
   icon: LucideIcon
 }
 
+export interface ServiceLevel {
+  tag: string // "Beginner", "Intermediate", "Advanced"
+  name: string
+  audience: string
+  outcomes: string[]
+  icon: LucideIcon
+}
+
+export interface ServiceBridge {
+  label: string
+  title: string
+  body: string
+  toSlug: string
+  toLabel: string
+}
+
+export interface ServiceTool {
+  name: string
+  provider: string
+  description: string
+}
+
 export interface Service {
   slug: string
   title: string
@@ -38,7 +63,12 @@ export interface Service {
   description: string
   offerings: string[]
   steps: ServiceStep[]
+  levels?: ServiceLevel[]
+  tools?: ServiceTool[]
+  bridge?: ServiceBridge
   capabilities?: ServiceCapability[]
+  seoTitle?: string // overrides the default "<title> | Services" meta title
+  seoDescription?: string // overrides tagline as the meta description
 }
 
 export const services: Service[] = [
@@ -117,18 +147,81 @@ export const services: Service[] = [
     slug: 'training',
     title: 'AI Training & Enablement',
     tagline:
-      "We upskill your team on AI that's genuinely useful in day-to-day work, and set the guardrails to use it safely.",
+      'We take your team from their first prompt to building with AI, with hands-on training across ChatGPT, Microsoft Copilot and Claude, and the guardrails to use them safely.',
     bestFit: 'Teams rolling AI out and unsure where to start',
     description:
-      "Most teams don't need another AI talking point, they need to use it well in real work. We train your people directly, with hands-on workshops, practical prompting and workflow design, and the responsible-use guardrails that keep it safe. It's also how much of our build work starts, because once a team sees what's possible, the gaps worth fixing become obvious.",
+      "Most teams don't need another AI talking point, they need to use it well in real work. We train your people directly on the tools they already have, ChatGPT, Microsoft Copilot and Claude, from staff using AI for the first time through to the technical champions who'll build with it. Hands-on workshops, practical prompt engineering and workflow design, agents and context engineering for the people ready to go deeper, and the responsible-use guardrails that keep it safe. It's also how much of our build work starts, because once a team sees what's possible, the gaps worth fixing become obvious.",
     offerings: [
       'AI literacy and hands-on training',
-      'Team workshops and enablement',
-      'Prompting and workflow design',
-      'Tool selection and rollout',
+      'ChatGPT, Copilot and Claude enablement',
+      'Prompt engineering and workflow design',
+      'Building AI agents and custom assistants',
+      'Context engineering and RAG foundations',
       'Responsible-use policy and guardrails',
       'Executive and board advisory',
     ],
+    levels: [
+      {
+        tag: 'Beginner',
+        name: 'Foundations',
+        audience: 'Whole teams and staff new to AI',
+        icon: Sparkles,
+        outcomes: [
+          'What tools like ChatGPT, Copilot and Claude do well',
+          'Everyday prompting that saves real time',
+          'Using AI safely with company information',
+        ],
+      },
+      {
+        tag: 'Intermediate',
+        name: 'Applied',
+        audience: 'Power users and team leads',
+        icon: Workflow,
+        outcomes: [
+          'Prompt engineering for the workflows you run today',
+          'Building custom assistants and shared prompt libraries',
+          'Giving AI the right context from your documents and data',
+        ],
+      },
+      {
+        tag: 'Advanced',
+        name: 'Builder',
+        audience: 'Technical staff and internal champions',
+        icon: Cpu,
+        outcomes: [
+          'Building AI agents that take multi-step actions',
+          'Context engineering and retrieval (RAG) to keep answers grounded',
+          'Wiring AI into your systems and APIs, then evaluating what you ship',
+        ],
+      },
+    ],
+    tools: [
+      {
+        name: 'ChatGPT',
+        provider: 'OpenAI',
+        description:
+          'Writing, research and analysis, plus custom GPTs your team can share across everyday work.',
+      },
+      {
+        name: 'Microsoft Copilot',
+        provider: 'Microsoft',
+        description:
+          'Real value from Copilot across Microsoft 365, in Word, Excel, Outlook and Teams, and GitHub Copilot for developers.',
+      },
+      {
+        name: 'Claude',
+        provider: 'Anthropic',
+        description:
+          'Long-document work, coding and building agents that take real actions inside clear guardrails.',
+      },
+    ],
+    bridge: {
+      label: 'Where it leads',
+      title: 'Training is where the build starts',
+      body: "Once a team sees what AI can really do, the gaps worth fixing become obvious. By then we already understand your workflows, so we can build the custom tools, agents and integrations that turn those first wins into real leverage.",
+      toSlug: 'applied-ai',
+      toLabel: 'See how we build',
+    },
     steps: [
       {
         title: 'Assess',
@@ -151,6 +244,9 @@ export const services: Service[] = [
         body: 'We check back in and help the new habits stick. This is often where the gaps worth building surface.',
       },
     ],
+    seoTitle: 'AI Training for Teams | ChatGPT, Copilot & Claude',
+    seoDescription:
+      'Hands-on AI training for teams, beginner to advanced. Learn ChatGPT, Microsoft Copilot and Claude, prompt engineering, building AI agents and context engineering (RAG), with responsible-use guardrails.',
   },
   {
     slug: 'mvp',

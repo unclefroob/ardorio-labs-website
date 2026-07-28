@@ -1,8 +1,10 @@
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowUpRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
 import SEO from '../components/SEO'
 import ServiceSteps from '../components/ServiceSteps'
+import ServiceLevels from '../components/ServiceLevels'
+import ServiceTools from '../components/ServiceTools'
 import { getService, services } from '../data/services'
 
 export default function ServiceDetail() {
@@ -16,8 +18,8 @@ export default function ServiceDetail() {
   return (
     <div className="pt-14">
       <SEO
-        title={`${service.title} | Services`}
-        description={service.tagline}
+        title={service.seoTitle || `${service.title} | Services`}
+        description={service.seoDescription || service.tagline}
         canonical={`/services/${service.slug}`}
       />
 
@@ -104,6 +106,40 @@ export default function ServiceDetail() {
         </>
       )}
 
+      {service.levels && service.levels.length > 0 && (
+        <>
+          <div className="divider" />
+
+          {/* Training levels — beginner to advanced */}
+          <div className="max-w-6xl mx-auto px-6 py-14">
+            <div className="mb-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+              <h2 className="font-serif text-3xl text-ink lg:col-span-5">Beginner to advanced</h2>
+              <p className="text-stone-600 leading-relaxed lg:col-span-6">
+                Training that meets each person where they are, from staff using AI for the first time to the people who will own it.
+              </p>
+            </div>
+            <ServiceLevels levels={service.levels} />
+          </div>
+        </>
+      )}
+
+      {service.tools && service.tools.length > 0 && (
+        <>
+          <div className="divider" />
+
+          {/* Tools we train on */}
+          <div className="max-w-6xl mx-auto px-6 py-14">
+            <div className="mb-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
+              <h2 className="font-serif text-3xl text-ink lg:col-span-5">Tools we train on</h2>
+              <p className="text-stone-600 leading-relaxed lg:col-span-6">
+                We stay tool-agnostic and keep pace with a fast-moving landscape, so your team learns what works today and how to judge what comes next.
+              </p>
+            </div>
+            <ServiceTools tools={service.tools} />
+          </div>
+        </>
+      )}
+
       {service.capabilities && service.capabilities.length > 0 && (
         <>
           <div className="divider" />
@@ -140,6 +176,48 @@ export default function ServiceDetail() {
                 </motion.div>
               ))}
             </div>
+          </div>
+        </>
+      )}
+
+      {service.bridge && (
+        <>
+          <div className="divider" />
+
+          {/* Bridge — where this service leads next */}
+          <div className="max-w-6xl mx-auto px-6 py-14">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.5 }}
+              className="relative overflow-hidden rounded-2xl bg-cream-200 p-10 lg:p-14"
+            >
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -top-32 -right-10 w-[30rem] h-[30rem]"
+                style={{
+                  background:
+                    'radial-gradient(circle at 60% 45%, rgba(134,59,255,0.16), rgba(71,191,255,0.12) 42%, transparent 70%)',
+                  filter: 'blur(30px)',
+                }}
+              />
+              <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                <div className="lg:col-span-8">
+                  <p className="label mb-4">{service.bridge.label}</p>
+                  <h2 className="font-serif text-3xl text-ink mb-4">{service.bridge.title}</h2>
+                  <p className="text-stone-600 leading-relaxed max-w-2xl">{service.bridge.body}</p>
+                </div>
+                <div className="lg:col-span-4 lg:text-right">
+                  <Link
+                    to={`/services/${service.bridge.toSlug}`}
+                    className="btn-primary inline-flex items-center gap-2"
+                  >
+                    {service.bridge.toLabel} <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </>
       )}
