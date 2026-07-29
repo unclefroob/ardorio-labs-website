@@ -58,7 +58,7 @@ export default function Work() {
             <p className="label mb-6">Our work</p>
             <h1 className="font-serif text-5xl sm:text-6xl text-ink leading-tight">
               Things we've<br />
-              <em>shipped.</em>
+              <em>done.</em>
             </h1>
           </div>
           <div className="lg:col-span-5">
