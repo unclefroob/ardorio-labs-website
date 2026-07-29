@@ -8,44 +8,39 @@ import HomeNewsroom from '../components/HomeNewsroom'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
-// One headline per narrative, cycled in the hero. The italic "actually" is the
-// constant beat; the subject and payoff rotate to speak to each audience.
+// One headline per facet of a single theme: efficiency. Plain and direct, each
+// a factual payoff with one word emphasised. The rotation reinforces one
+// promise instead of splitting across audiences.
 const heroHeadlines = [
-  // Applied AI — established businesses
+  // Output
   <>
-    <span className="block">Where AI <em>actually</em></span>
-    <span className="block">pays off.</span>
+    <span className="block">Less manual work,</span>
+    <span className="block"><em>more</em> output.</span>
   </>,
-  // AI training & enablement
+  // Same team, more done
   <>
-    <span className="block">Where your team</span>
-    <span className="block"><em>actually</em> uses AI.</span>
+    <span className="block">More done, with</span>
+    <span className="block">the <em>same</em> team.</span>
   </>,
-  // Zero to MVP — founders
+  // Velocity
   <>
-    <span className="block">Where founders</span>
-    <span className="block"><em>actually</em> launch.</span>
+    <span className="block">Your team,</span>
+    <span className="block">moving <em>faster</em>.</span>
   </>,
 ]
 
 const services = [
   {
     index: '01',
-    title: 'Find the gap, build the fix',
+    title: 'Automate the manual work',
     short: 'applied-ai',
-    description: 'We go into your business, work out where AI and technology create real leverage, and build the product or tool that captures it. You end up with a working system in production, not a strategy deck.',
+    description: 'We go into your business, find the repetitive work that takes up your team\'s time, and build the AI that handles it. You get a working system running in production, not a strategy deck.',
   },
   {
     index: '02',
     title: 'AI Training & Enablement',
     short: 'training',
-    description: 'We upskill your team on AI that\'s genuinely useful in day-to-day work, with hands-on training, practical workshops, and the guardrails to use it safely. It\'s often how a larger build begins.',
-  },
-  {
-    index: '03',
-    title: 'Zero to MVP',
-    short: 'mvp',
-    description: 'We build POCs and MVPs for founders fast, enough real product to put in front of users, test the idea, and raise or sell against.',
+    description: 'We train your team to get through their real work faster with AI, with hands-on workshops and the guardrails to use it safely. It\'s often how a larger build begins.',
   },
 ]
 
@@ -91,8 +86,8 @@ export default function Home() {
   return (
     <div>
       <SEO
-        title="Technology Built for Australian Enterprises & Founders"
-        description="Ardorio finds where AI creates real leverage in your business and builds the products to capture it, trains teams to use AI well, and builds MVPs for Australian founders fast. We build what we recommend."
+        title="AI That Makes Australian Businesses More Efficient"
+        description="Ardorio helps Australian businesses run leaner with AI. We find the slow, manual, repetitive work across your business and build the AI and tooling that removes it, then train your team to run it. We build what we recommend."
         canonical="/"
       />
       {/* Hero */}
@@ -122,7 +117,7 @@ export default function Home() {
                 transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
               >
                 <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-lg">
-                  We help established businesses get real value from AI, and founders get their first product off the ground. We do the actual work, not just talk about it, and we stick around long after it's live.
+                  We find the repetitive work that slows your business down and build the AI that handles it. You get working systems running in production and a team trained to run them, and we stay involved long after it goes live.
                 </p>
                 <div className="flex flex-wrap items-center gap-4">
                   <Link to="/contact" className="btn-primary">
@@ -276,7 +271,7 @@ export default function Home() {
                 </div>
                 <h2 className="font-serif text-4xl text-ink mb-4">PathIQ</h2>
                 <p className="text-stone-600 leading-relaxed mb-8">
-                  Career navigation platform built from scratch. We owned the full product, from architecture and design through to engineering and the AI recommendation features, first commit to launch.
+                  Career navigation platform built from scratch, where AI does work that would otherwise need a team of advisors. We owned the full product, from architecture and design through to the AI recommendation engine that matches people to paths in seconds, first commit to launch.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {['Product Strategy', 'Full-Stack', 'AI Features', 'Launch'].map((tag) => (
