@@ -92,8 +92,8 @@ export default function Contact() {
             <div className="space-y-6 text-sm text-stone-600">
               <div>
                 <p className="label mb-1.5">Email</p>
-                <a href="mailto:jansen@ardorio.co" className="text-ink hover:underline underline-offset-4">
-                  jansen@ardorio.co
+                <a href="mailto:hello@ardorio.co" className="text-ink hover:underline underline-offset-4">
+                  hello@ardorio.co
                 </a>
               </div>
               <div>
@@ -233,8 +233,8 @@ export default function Contact() {
                 {state === 'error' && (
                   <p className="text-red-500 text-sm font-mono">
                     Something went wrong. Email us directly at{' '}
-                    <a href="mailto:jansen@ardorio.co" className="underline">
-                      jansen@ardorio.co
+                    <a href="mailto:hello@ardorio.co" className="underline">
+                      hello@ardorio.co
                     </a>
                   </p>
                 )}
