@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useReducedMotion, type Variants, type Easing }
 import { ArrowUpRight, Workflow, GraduationCap } from 'lucide-react'
 import SEO from '../components/SEO'
 import GlowMark from '../components/GlowMark'
+import Sparkles, { type Spark, SPARK_COLORS } from '../components/Sparkles'
 import HomeNewsroom from '../components/HomeNewsroom'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
@@ -44,6 +45,13 @@ const services = [
     description: 'We get your team through their real work faster with AI, with hands-on workshops and the guardrails to use it safely.',
     tags: ['ChatGPT', 'Copilot', 'Claude', 'Building agents'],
   },
+]
+
+// A sparse cluster drifting near the closing call-to-action.
+const ctaSparks: Spark[] = [
+  { x: '80%', y: '28%', size: 5, color: SPARK_COLORS.purple, delay: 0, duration: 6 },
+  { x: '92%', y: '62%', size: 3, color: SPARK_COLORS.cyan, delay: 0.7, duration: 5.5 },
+  { x: '70%', y: '80%', size: 4, color: SPARK_COLORS.lilac, delay: 1.2, duration: 6.8 },
 ]
 
 const fadeUp: Variants = {
@@ -199,15 +207,27 @@ export default function Home() {
       <AnimatedDivider />
 
       {/* Services — editorial list */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
-        <div className="flex items-center justify-between mb-10">
+      <section className="relative max-w-6xl mx-auto px-6 py-16">
+        {/* Ambient purple glow behind the cards */}
+        <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[760px] max-w-full h-[380px] rounded-full"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, rgba(134,59,255,0.10) 0%, rgba(71,191,255,0.05) 45%, transparent 70%)',
+              filter: 'blur(50px)',
+            }}
+          />
+        </div>
+        <Sparkles className="z-0" />
+        <div className="relative z-[1] flex items-center justify-between mb-10">
           <p className="label">What we do</p>
           <Link to="/services" className="btn-ghost text-xs">
             All services <ArrowUpRight size={12} />
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="relative z-[1] grid grid-cols-1 md:grid-cols-2 gap-6">
           {services.map((service, i) => {
             const Icon = service.icon
             return (
@@ -224,7 +244,7 @@ export default function Home() {
                   className="group h-full flex flex-col bg-cream-200 rounded-2xl p-8 hover:bg-cream-300/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-6">
-                    <span className="w-11 h-11 rounded-xl bg-cream-100 border border-cream-300 flex items-center justify-center text-[#863BFF] group-hover:scale-105 transition-transform">
+                    <span className="w-11 h-11 rounded-xl bg-cream-100 border border-cream-300 flex items-center justify-center text-[#863BFF] shadow-[0_0_20px_rgba(134,59,255,0.18)] group-hover:shadow-[0_0_30px_rgba(134,59,255,0.38)] group-hover:scale-105 transition-all duration-300">
                       <Icon size={20} strokeWidth={1.75} />
                     </span>
                     <ArrowUpRight
@@ -339,13 +359,25 @@ export default function Home() {
       <AnimatedDivider />
 
       {/* Bottom CTA — minimal strip */}
-      <section className="max-w-6xl mx-auto px-6 py-20">
+      <section className="relative overflow-hidden max-w-6xl mx-auto px-6 py-20">
+        {/* Ambient purple glow behind the CTA */}
+        <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
+          <div
+            className="absolute right-[8%] top-1/2 -translate-y-1/2 w-[520px] max-w-full h-[300px] rounded-full"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, rgba(134,59,255,0.12) 0%, rgba(71,191,255,0.05) 50%, transparent 72%)',
+              filter: 'blur(46px)',
+            }}
+          />
+        </div>
+        <Sparkles sparks={ctaSparks} className="z-0" />
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6"
+          className="relative z-[1] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6"
         >
           <div>
             <h2 className="font-serif text-3xl text-ink">Got something to build?</h2>
