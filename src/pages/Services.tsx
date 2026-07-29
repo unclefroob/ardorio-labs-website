@@ -19,8 +19,8 @@ export default function Services() {
   return (
     <div className="pt-14">
       <SEO
-        title="Services | Applied AI, AI Training & Rapid MVP Builds"
-        description="Ardorio finds where AI creates leverage in your business and builds the products to capture it, trains teams to adopt AI well, and builds POCs and MVPs for founders fast. We build what we recommend."
+        title="Services | AI Efficiency, Automation & Team Enablement"
+        description="Ardorio finds the slow, manual, repetitive work across your business and builds the AI that removes it, then trains your team to run it. We also build MVPs for founders fast. We build what we recommend."
         canonical="/services"
       />
       <div className="divider" />
@@ -31,13 +31,13 @@ export default function Services() {
           <div className="lg:col-span-7">
             <p className="label mb-6">Services</p>
             <h1 className="font-serif text-5xl sm:text-6xl text-ink leading-tight">
-              How we<br />
-              <em>help.</em>
+              Less manual work,<br />
+              <em>more done.</em>
             </h1>
           </div>
           <div className="lg:col-span-5">
             <p className="text-stone-600 leading-relaxed">
-              Three ways we work, one approach behind them. We get close to the problem, stay honest about what's needed, and build something that lasts.
+              Most of what we do comes down to one thing, helping your business get more done with less effort. We find where AI creates real leverage and build it, and we train your team to work faster with it. For founders, we also build a first product fast.
             </p>
           </div>
         </div>

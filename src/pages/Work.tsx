@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion, type Variants, type Easing } from 'framer-motion'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Gauge } from 'lucide-react'
 import SEO from '../components/SEO'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
@@ -14,13 +14,28 @@ const fadeUp: Variants = {
   }),
 }
 
-const projects = [
+interface Project {
+  slug: string
+  name: string
+  site: string
+  tagline: string
+  // The efficiency payoff: what manual work the product removes for its users.
+  outcome: string
+  // Metric-ready slot. Populate with real figures when we have them, e.g.
+  // { value: '80%', label: 'less time building rosters' }. Rendered only when set.
+  stat?: { value: string; label: string }
+  tags: string[]
+}
+
+const projects: Project[] = [
   {
     slug: 'pathiq',
     name: 'PathIQ',
     site: 'pathiq.com.au',
     tagline:
       'An AI career-discovery platform where students test-drive real careers through simulations. We built the product and the internal CRM the team runs it on.',
+    outcome:
+      'AI does work that would otherwise need a team of career advisors, matching students to real-world career paths in seconds.',
     tags: ['AI product', 'Full-stack', 'Internal CRM'],
   },
   {
@@ -29,6 +44,8 @@ const projects = [
     site: 'rosterio.app',
     tagline:
       'A workforce operating system for shift-based businesses, with constraint-aware auto-fill scheduling, a shift marketplace, GPS attendance, and native mobile apps.',
+    outcome:
+      'Constraint-aware auto-fill builds compliant rosters automatically, replacing the hours managers used to spend piecing them together by hand.',
     tags: ['Full-stack', 'iOS & Android', 'Scheduling engine'],
   },
 ]
@@ -46,7 +63,7 @@ export default function Work() {
     <div className="pt-14">
       <SEO
         title="Work | Products We've Built"
-        description="Case studies from Ardorio's AI and product engagements in Australia. See how we build from zero to live."
+        description="Case studies from Ardorio's AI and product engagements in Australia. See how we build AI products that cut manual work and make businesses more efficient, from zero to live."
         canonical="/work"
       />
       <div className="divider" />
@@ -63,7 +80,7 @@ export default function Work() {
           </div>
           <div className="lg:col-span-5">
             <p className="text-stone-600 leading-relaxed">
-              We build from zero to live and stay close to every client. More case studies from enterprise and AI engagements are coming.
+              We build products that cut the manual work out of a business and put AI on the parts that used to take hours. Zero to live, and we stay close to every client afterwards. More case studies from enterprise and AI engagements are coming.
             </p>
           </div>
         </div>
@@ -89,7 +106,24 @@ export default function Work() {
                 <span className="label">Live · {p.site}</span>
               </div>
               <h2 className="font-serif text-3xl text-ink mb-3">{p.name}</h2>
-              <p className="text-stone-600 leading-relaxed text-sm mb-6 flex-1">{p.tagline}</p>
+              <div className="flex-1">
+                <p className="text-stone-600 leading-relaxed text-sm mb-6">{p.tagline}</p>
+                <div className="mb-6 pt-5 border-t border-cream-300">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Gauge size={13} className="text-[#863BFF]" />
+                    <span className="label text-stone-500">Efficiency</span>
+                  </div>
+                  <p className="text-stone-700 text-sm leading-relaxed">{p.outcome}</p>
+                  {p.stat && (
+                    <p className="mt-3 text-sm text-stone-600">
+                      <span className="font-serif text-2xl text-ink align-middle mr-1.5">
+                        {p.stat.value}
+                      </span>
+                      {p.stat.label}
+                    </p>
+                  )}
+                </div>
+              </div>
               <div className="flex flex-wrap gap-2 mb-8">
                 {p.tags.map((t) => (
                   <span
