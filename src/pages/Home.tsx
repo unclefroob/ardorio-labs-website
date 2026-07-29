@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useReducedMotion, type Variants, type Easing } from 'framer-motion'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Workflow, GraduationCap } from 'lucide-react'
 import SEO from '../components/SEO'
 import GlowMark from '../components/GlowMark'
 import HomeNewsroom from '../components/HomeNewsroom'
@@ -31,16 +31,18 @@ const heroHeadlines = [
 
 const services = [
   {
-    index: '01',
+    icon: Workflow,
     title: 'Automate the manual work',
     short: 'applied-ai',
-    description: 'We go into your business, find the repetitive work that takes up your team\'s time, and build the AI that handles it. You get a working system running in production, not a strategy deck.',
+    description: 'We find the repetitive work that eats your team\'s time and build the AI that handles it. A working system in production, not a strategy deck.',
+    tags: ['Workflow automation', 'Document processing', 'RAG pipelines', 'Integrations'],
   },
   {
-    index: '02',
+    icon: GraduationCap,
     title: 'AI Training & Enablement',
     short: 'training',
-    description: 'We train your team to get through their real work faster with AI, with hands-on workshops and the guardrails to use it safely. It\'s often how a larger build begins.',
+    description: 'We get your team through their real work faster with AI, with hands-on workshops and the guardrails to use it safely.',
+    tags: ['ChatGPT', 'Copilot', 'Claude', 'Building agents'],
   },
 ]
 
@@ -205,37 +207,51 @@ export default function Home() {
           </Link>
         </div>
 
-        <div>
-          {services.map((service, i) => (
-            <motion.div
-              key={service.index}
-              custom={i}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: '-40px' }}
-              variants={fadeUp}
-            >
-              <Link
-                to={`/services/${service.short}`}
-                className="group flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 py-7 border-b border-cream-300 hover:bg-cream-200 -mx-4 px-4 rounded-lg transition-colors"
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {services.map((service, i) => {
+            const Icon = service.icon
+            return (
+              <motion.div
+                key={service.short}
+                custom={i}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true, margin: '-40px' }}
+                variants={fadeUp}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4">
-                    <h3 className="font-serif text-2xl text-ink group-hover:text-[#863BFF] transition-colors">
-                      {service.title}
-                    </h3>
+                <Link
+                  to={`/services/${service.short}`}
+                  className="group h-full flex flex-col bg-cream-200 rounded-2xl p-8 hover:bg-cream-300/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <span className="w-11 h-11 rounded-xl bg-cream-100 border border-cream-300 flex items-center justify-center text-[#863BFF] group-hover:scale-105 transition-transform">
+                      <Icon size={20} strokeWidth={1.75} />
+                    </span>
                     <ArrowUpRight
                       size={18}
-                      className="shrink-0 text-stone-400 group-hover:text-[#863BFF] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all mt-1"
+                      className="text-stone-400 group-hover:text-[#863BFF] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all"
                     />
                   </div>
-                  <p className="text-stone-600 text-sm mt-2 leading-relaxed max-w-xl">
+                  <h3 className="font-serif text-2xl text-ink mb-2 group-hover:text-[#863BFF] transition-colors">
+                    {service.title}
+                  </h3>
+                  <p className="text-stone-600 text-sm leading-relaxed mb-6 flex-1">
                     {service.description}
                   </p>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
+                  <div className="flex flex-wrap gap-2">
+                    {service.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="px-2.5 py-1 bg-cream-100 rounded-full text-xs font-mono text-stone-600 border border-cream-300"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </Link>
+              </motion.div>
+            )
+          })}
         </div>
       </section>
 
