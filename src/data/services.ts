@@ -44,12 +44,12 @@ export interface Service {
 export const services: Service[] = [
   {
     slug: 'applied-ai',
-    title: 'Find the gap, build the fix',
+    title: 'Automate the manual work',
     tagline:
-      'We work out where AI and technology create real leverage in your business, then build the product that captures it.',
-    bestFit: 'Established businesses that know AI matters but not yet where it pays off',
+      'We find the repetitive work that takes up your team\'s time and build the AI that handles it, so those hours go back into the business.',
+    bestFit: 'Established businesses carrying manual work that AI could handle',
     description:
-      "Most organisations don't have an AI problem, they have an adoption problem. We come in, work out where AI and better technology actually create leverage, and build the thing that captures it. We build what we recommend, so you end up with a working system in production rather than a strategy deck that sits on a shelf.",
+      "Most organisations don't have an AI problem, they have a lot of repetitive manual work that takes up the week. We come in, find where that time goes, and build the AI and tooling that handles it. We build what we recommend, so you get a working system running in production that makes the business more efficient, not a strategy deck that sits on a shelf.",
     offerings: [
       'Opportunity and gap assessments',
       'Custom AI features (RAG, agents, LLM integration)',
@@ -117,10 +117,10 @@ export const services: Service[] = [
     slug: 'training',
     title: 'AI Training & Enablement',
     tagline:
-      "We upskill your team on AI that's genuinely useful in day-to-day work, and set the guardrails to use it safely.",
-    bestFit: 'Teams rolling AI out and unsure where to start',
+      "We train your team to get through their real work faster with AI, with the guardrails to use it safely.",
+    bestFit: 'Teams who want to work faster with AI and aren\'t sure where to start',
     description:
-      "Most teams don't need another AI talking point, they need to use it well in real work. We train your people directly, with hands-on workshops, practical prompting and workflow design, and the responsible-use guardrails that keep it safe. It's also how much of our build work starts, because once a team sees what's possible, the gaps worth fixing become obvious.",
+      "Most teams don't need another AI talking point, they need to get through their real work faster. We train your people directly, with hands-on workshops, practical prompting and workflow design, and the responsible-use guardrails that keep it safe. It's also how much of our build work starts, because once a team sees what's possible, the work worth automating becomes obvious.",
     offerings: [
       'AI literacy and hands-on training',
       'Team workshops and enablement',
