@@ -292,7 +292,7 @@ export default function AINativeCRM() {
 
       <div className="divider" />
 
-      {/* Proof + Ardorio AI cross-link */}
+      {/* Ardorio AI cross-link */}
       <section className="max-w-6xl mx-auto px-6 py-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -301,20 +301,18 @@ export default function AINativeCRM() {
           transition={{ duration: 0.5, ease: EASE }}
           className="bg-cream-200 rounded-2xl p-10 lg:p-14"
         >
-          <div className="flex items-center gap-3 mb-8">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="label">In production</span>
-          </div>
+          <p className="label mb-6">Or start ready-made</p>
           <p className="font-serif text-2xl sm:text-3xl text-ink leading-snug max-w-3xl">
-            We built a premium Melbourne real estate firm an AI-native layer over their CRM, drafting in their voice, answering from their own knowledge, and surfacing opportunities their team would have missed by hand.
+            The same AI that powers a custom CRM is available ready-made as Ardorio AI, our product.
           </p>
           <p className="text-stone-600 leading-relaxed mt-6 max-w-2xl">
-            The same AI that powers a custom CRM is available ready-made as{' '}
-            <Link to="/ardorio-ai" className="text-ink underline underline-offset-4 hover:text-stone-600 transition-colors">
-              Ardorio AI
-            </Link>
-            , our product. Start with the product, or have us build the whole system around you.
+            Start with the product, or have us build the whole system around you.
           </p>
+          <div className="mt-8">
+            <Link to="/ardorio-ai" className="btn-ghost">
+              Explore Ardorio AI <ArrowUpRight size={14} />
+            </Link>
+          </div>
         </motion.div>
       </section>
 

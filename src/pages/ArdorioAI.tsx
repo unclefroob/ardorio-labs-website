@@ -245,30 +245,6 @@ export default function ArdorioAI() {
 
       <div className="divider" />
 
-      {/* Proof — Buxton */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-40px' }}
-          transition={{ duration: 0.5, ease: EASE }}
-          className="bg-cream-200 rounded-2xl p-10 lg:p-14"
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="label">In production</span>
-          </div>
-          <p className="font-serif text-2xl sm:text-3xl text-ink leading-snug max-w-3xl">
-            Ardorio AI runs today at a premium Melbourne real estate firm, drafting in their voice, answering from their own knowledge, and surfacing opportunities across their CRM.
-          </p>
-          <p className="text-stone-600 leading-relaxed mt-6 max-w-2xl">
-            We built the layer around how they actually work, ingested their content and tone, and set it live for their agents and support staff. They are the first firm running on Ardorio AI, with more onboarding now.
-          </p>
-        </motion.div>
-      </section>
-
-      <div className="divider" />
-
       {/* CTA */}
       <section className="relative overflow-hidden max-w-6xl mx-auto px-6 py-20">
         <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
