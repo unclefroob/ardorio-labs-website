@@ -32,10 +32,10 @@ const heroHeadlines = [
 const services = [
   {
     icon: Workflow,
-    title: 'Automate the manual work',
+    title: 'Custom builds you own',
     short: 'applied-ai',
-    description: 'We find the repetitive work that eats your team\'s time and build the AI that handles it. A working system in production, not a strategy deck.',
-    tags: ['Workflow automation', 'Document processing', 'RAG pipelines', 'Integrations'],
+    description: 'We build custom, AI-native systems that do your team\'s manual work, from internal tools to full AI-native CRMs, in place of the SaaS you rent.',
+    tags: ['AI-native CRMs', 'Internal tools', 'Workflow automation', 'Integrations'],
   },
   {
     icon: GraduationCap,

@@ -74,18 +74,18 @@ export interface Service {
 export const services: Service[] = [
   {
     slug: 'applied-ai',
-    title: 'Automate the manual work',
+    title: 'Custom builds you own',
     tagline:
-      'We find the repetitive work that takes up your team\'s time and build the AI that handles it, so those hours go back into the business.',
-    bestFit: 'Established businesses carrying manual work that AI could handle',
+      'We build custom, AI-native systems that do your team\'s manual work, from internal tools and automations to full AI-native CRMs, in place of the SaaS you rent.',
+    bestFit: 'Businesses tired of renting generic SaaS that never quite fits how they work',
     description:
-      "Most organisations don't have an AI problem, they have a lot of repetitive manual work that takes up the week. We come in, find where that time goes, and build the AI and tooling that handles it. We build what we recommend, so you get a working system running in production that makes the business more efficient, not a strategy deck that sits on a shelf.",
+      "Most organisations don't have an AI problem, they have a stack of rented SaaS that doesn't fit how they work and a lot of manual work filling the gaps. We build custom, AI-native systems that do that work instead, and that you own outright rather than rent by the seat. Our AI-native CRMs are the flagship, but the same approach covers internal tools, workflow automation, and the integrations that hold it together. We build what we recommend, so you get a working system in production, not a strategy deck that sits on a shelf.",
     offerings: [
-      'Opportunity and gap assessments',
-      'Custom AI features (RAG, agents, LLM integration)',
-      'Full-stack products and internal tooling',
+      'AI-native CRMs',
+      'Custom internal tools and full-stack products',
       'Workflow automation and integration',
-      'Legacy and infrastructure modernisation',
+      'Custom AI features (RAG, agents, LLM integration)',
+      'Legacy and SaaS replacement',
       'Governance, guardrails and responsible use',
     ],
     steps: [
