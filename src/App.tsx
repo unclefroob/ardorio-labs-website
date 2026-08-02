@@ -4,6 +4,8 @@ import { HelmetProvider } from 'react-helmet-async'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Home from './pages/Home'
+import ArdorioAI from './pages/ArdorioAI'
+import AINativeCRM from './pages/AINativeCRM'
 import Services from './pages/Services'
 import ServiceDetail from './pages/ServiceDetail'
 import Work from './pages/Work'
@@ -123,6 +125,8 @@ function App() {
             <main className="flex-1">
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/ardorio-ai" element={<ArdorioAI />} />
+                <Route path="/ai-native-crm" element={<AINativeCRM />} />
                 <Route path="/services" element={<Services />} />
                 <Route path="/services/:slug" element={<ServiceDetail />} />
                 <Route path="/work" element={<Work />} />

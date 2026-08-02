@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Logo from './Logo'
 
 const navLinks = [
+  { label: 'Ardorio AI', to: '/ardorio-ai' },
+  { label: 'AI-Native CRMs', to: '/ai-native-crm' },
   { label: 'Services', to: '/services' },
   { label: 'Work', to: '/work' },
   { label: 'Newsroom', to: '/newsroom' },

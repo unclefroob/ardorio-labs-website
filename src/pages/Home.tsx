@@ -9,24 +9,23 @@ import HomeNewsroom from '../components/HomeNewsroom'
 
 const EASE: Easing = [0.25, 0.1, 0.25, 1]
 
-// One headline per facet of a single theme: efficiency. Plain and direct, each
-// a factual payoff with one word emphasised. The rotation reinforces one
-// promise instead of splitting across audiences.
+// The hero leads on the two flagships (AI that works, systems you own), with the
+// efficiency payoff underneath. Plain and direct, one word emphasised per line.
 const heroHeadlines = [
-  // Output
+  // Flagship promise — AI that works, in systems you own
+  <>
+    <span className="block">AI that does the work,</span>
+    <span className="block">in systems you <em>own</em>.</span>
+  </>,
+  // Own vs rent — the CRM angle
+  <>
+    <span className="block">Own your CRM,</span>
+    <span className="block"><em>don't</em> rent it.</span>
+  </>,
+  // Efficiency payoff
   <>
     <span className="block">Less manual work,</span>
     <span className="block"><em>more</em> output.</span>
-  </>,
-  // Same team, more done
-  <>
-    <span className="block">More done, with</span>
-    <span className="block">the <em>same</em> team.</span>
-  </>,
-  // Velocity
-  <>
-    <span className="block">Your team,</span>
-    <span className="block">moving <em>faster</em>.</span>
   </>,
 ]
 
@@ -47,11 +46,52 @@ const services = [
   },
 ]
 
+// Sparkles for the Ardorio AI product band, clustered toward its right glow.
+const aiSparks: Spark[] = [
+  { x: '86%', y: '24%', size: 5, color: SPARK_COLORS.purple, delay: 0, duration: 6 },
+  { x: '94%', y: '58%', size: 3, color: SPARK_COLORS.cyan, delay: 0.6, duration: 5.4 },
+  { x: '78%', y: '82%', size: 4, color: SPARK_COLORS.lilac, delay: 1.1, duration: 6.6 },
+]
+
 // A sparse cluster drifting near the closing call-to-action.
 const ctaSparks: Spark[] = [
   { x: '80%', y: '28%', size: 5, color: SPARK_COLORS.purple, delay: 0, duration: 6 },
   { x: '92%', y: '62%', size: 3, color: SPARK_COLORS.cyan, delay: 0.7, duration: 5.5 },
   { x: '70%', y: '80%', size: 4, color: SPARK_COLORS.lilac, delay: 1.2, duration: 6.8 },
+]
+
+// The two flagship pushes, shown as prominent bands high on the page.
+const flagships = [
+  {
+    kicker: 'Our product · Ardorio AI',
+    to: '/ardorio-ai',
+    cta: 'Explore Ardorio AI',
+    headline: (
+      <>
+        An AI layer for
+        <br /> your <em>business.</em>
+      </>
+    ),
+    blurb:
+      'The AI layer we build for clients, made a product. It answers from your own knowledge, drafts in your voice, and does the repetitive work your team does by hand.',
+    tags: ['AI Brain', 'Assistant', 'Pipelines', 'CRM intelligence'],
+    sparks: aiSparks,
+  },
+  {
+    kicker: 'Custom build · AI-native CRMs',
+    to: '/ai-native-crm',
+    cta: 'Explore AI-native CRMs',
+    headline: (
+      <>
+        A CRM built for you,
+        <br /> <em>AI-native.</em>
+      </>
+    ),
+    blurb:
+      'Custom CRMs with AI at the core, built around how your business works and owned by you, in place of the SaaS you rent by the seat.',
+    tags: ['Built for you', 'You own it', 'Replaces SaaS', 'AI at the core'],
+    sparks: ctaSparks,
+  },
 ]
 
 const fadeUp: Variants = {
@@ -96,8 +136,8 @@ export default function Home() {
   return (
     <div>
       <SEO
-        title="AI That Makes Australian Businesses More Efficient"
-        description="Ardorio helps Australian businesses run leaner with AI. We find the slow, manual, repetitive work across your business and build the AI and tooling that removes it, then train your team to run it. We build what we recommend."
+        title="AI-Native CRMs & AI Layers for Australian Business"
+        description="Ardorio builds AI that does your team's manual work, in systems you own instead of rent. Custom AI-native CRMs, and Ardorio AI, our ready-made AI layer, set up for you and tuned to how your business works."
         canonical="/"
       />
       {/* Hero */}
@@ -127,14 +167,17 @@ export default function Home() {
                 transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
               >
                 <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-lg">
-                  We find the repetitive work that slows your business down and build the AI that handles it. You get working systems running in production and a team trained to run them, and we stay involved long after it goes live.
+                  We build AI that does your team's manual work, in systems you own instead of rent. Custom AI-native CRMs, and Ardorio AI, our ready-made AI layer. Set up for you, and tuned to how your business actually works.
                 </p>
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                   <Link to="/contact" className="btn-primary">
                     Start a conversation
                   </Link>
-                  <Link to="/work" className="btn-ghost">
-                    See our work <ArrowUpRight size={14} />
+                  <Link to="/ardorio-ai" className="btn-ghost">
+                    Ardorio AI <ArrowUpRight size={14} />
+                  </Link>
+                  <Link to="/ai-native-crm" className="btn-ghost">
+                    AI-native CRMs <ArrowUpRight size={14} />
                   </Link>
                 </div>
               </motion.div>
@@ -201,6 +244,65 @@ export default function Home() {
             </span>
           </div>
         </motion.div>
+      </section>
+
+      {/* Divider */}
+      <AnimatedDivider />
+
+      {/* Flagships — Ardorio AI + AI-native CRMs */}
+      <section className="max-w-6xl mx-auto px-6 py-16">
+        <p className="label mb-10">What we lead with</p>
+        <div className="space-y-6">
+          {flagships.map((f) => (
+            <motion.div
+              key={f.to}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.5, ease: EASE }}
+              className="relative overflow-hidden rounded-2xl bg-cream-200"
+            >
+              <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden>
+                <div
+                  className="absolute right-[-4%] top-1/2 -translate-y-1/2 w-[560px] max-w-full h-[400px] rounded-full"
+                  style={{
+                    background:
+                      'radial-gradient(ellipse at center, rgba(134,59,255,0.14) 0%, rgba(71,191,255,0.06) 48%, transparent 72%)',
+                    filter: 'blur(50px)',
+                  }}
+                />
+              </div>
+              <Sparkles sparks={f.sparks} className="z-0" />
+              <div className="relative z-[1] p-10 lg:p-14">
+                <p className="label mb-5">{f.kicker}</p>
+                <h2 className="font-serif text-4xl sm:text-5xl text-ink leading-tight">
+                  {f.headline}
+                </h2>
+                <p className="text-stone-600 leading-relaxed mt-6 max-w-xl">
+                  {f.blurb}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-7">
+                  {f.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="px-2.5 py-1 bg-cream-100 rounded-full text-xs font-mono text-stone-600 border border-cream-300"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <Link to={f.to} className="btn-primary">
+                    {f.cta}
+                  </Link>
+                  <Link to="/contact" className="btn-ghost">
+                    Book a demo <ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </section>
 
       {/* Divider */}
@@ -274,6 +376,9 @@ export default function Home() {
           })}
         </div>
       </section>
+
+      {/* Divider */}
+      <AnimatedDivider />
 
       {/* Latest newsroom entry */}
       <HomeNewsroom />
