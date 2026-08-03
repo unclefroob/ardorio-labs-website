@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence, useReducedMotion, type Variants, type Easing } from 'framer-motion'
+import { motion, useReducedMotion, type Variants, type Easing } from 'framer-motion'
 import { ArrowUpRight, Workflow, GraduationCap } from 'lucide-react'
 import SEO from '../components/SEO'
 import GlowMark from '../components/GlowMark'
@@ -146,19 +146,31 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-12 items-center">
             {/* Heading + intro */}
             <div className="lg:col-span-7">
-              <div className="min-h-[7rem] sm:min-h-[9rem] lg:min-h-[10rem]">
-                <AnimatePresence mode="wait">
+              {/* All headlines are stacked in one grid cell so the container
+                  always reserves the tallest headline's real height at every
+                  breakpoint (transforms don't affect layout) — the active one
+                  cross-fades in, with no height jump. */}
+              <div className="grid">
+                {heroHeadlines.map((headline, i) => (
                   <motion.h1
-                    key={idx}
-                    className="font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink"
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -18 }}
+                    key={i}
+                    aria-hidden={i !== idx}
+                    className="[grid-area:1/1] font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.05] text-ink"
+                    initial={false}
+                    animate={
+                      reduce
+                        ? { opacity: i === idx ? 1 : 0 }
+                        : {
+                            opacity: i === idx ? 1 : 0,
+                            y: i === idx ? 0 : 18,
+                          }
+                    }
+                    style={{ pointerEvents: i === idx ? 'auto' : 'none' }}
                     transition={{ duration: 0.5, ease: EASE }}
                   >
-                    {heroHeadlines[idx]}
+                    {headline}
                   </motion.h1>
-                </AnimatePresence>
+                ))}
               </div>
 
               <motion.div
