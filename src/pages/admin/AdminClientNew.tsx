@@ -22,6 +22,7 @@ export default function AdminClientNew() {
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
   const [description, setDescription] = useState('')
+  const [billingEmail, setBillingEmail] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -51,6 +52,9 @@ export default function AdminClientNew() {
           projectName: projectName.trim(),
           description: description.trim(),
           lastUpdated: new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }),
+          // Optional at creation — the rest of the billing block is filled in
+          // on the client's settings tab, and is only required to send an invoice.
+          billing: billingEmail.trim() ? { email: billingEmail.trim() } : undefined,
           milestones: [],
           tickets: [],
           notes: [],
@@ -137,6 +141,20 @@ export default function AdminClientNew() {
               className={inputCls}
               placeholder="One or two sentences shown on the client dashboard."
             />
+          </div>
+
+          <div>
+            <label className="label block mb-1.5">Billing email <span className="text-stone-400 font-normal">(optional)</span></label>
+            <input
+              type="email"
+              value={billingEmail}
+              onChange={e => setBillingEmail(e.target.value)}
+              className={inputCls}
+              placeholder="accounts@acmegroup.com"
+            />
+            <p className="font-mono text-xs text-stone-400 mt-1.5">
+              Where invoices are sent. Can be added later, but is required before sending one.
+            </p>
           </div>
 
           {error && <p className="font-mono text-xs text-red-500">{error}</p>}
