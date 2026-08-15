@@ -231,7 +231,8 @@ export default function AdminInvoiceEdit() {
     if (!invoice) return
     setBusy('pdf')
     try {
-      const blob = await apiDownload(`/invoices/public/${invoice.publicToken}/pdf`)
+      // Admin route, not the public token one: that 404s drafts by design.
+      const blob = await apiDownload(`/invoices/${invoice.id}/pdf`)
       saveBlob(blob, `${invoice.invoiceNumber}.pdf`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not download the PDF')
@@ -528,21 +529,25 @@ export default function AdminInvoiceEdit() {
                 </button>
               </>
             )}
+            {/* Copy link stays gated: the hosted page 404s a draft, so offering
+                the link before sending would hand over a dead URL. */}
             {invoice && invoice.status !== 'draft' && (
-              <>
-                <button
-                  onClick={copyHostedLink}
-                  className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2 mt-4"
-                >
-                  Copy link
-                </button>
-                <button
-                  onClick={handleDownloadPdf} disabled={busy === 'pdf'}
-                  className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2 disabled:opacity-40 mt-4"
-                >
-                  {busy === 'pdf' ? 'Preparing...' : 'Download PDF'}
-                </button>
-              </>
+              <button
+                onClick={copyHostedLink}
+                className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2 mt-4"
+              >
+                Copy link
+              </button>
+            )}
+            {/* PDF is available at any status — proofreading a draft before
+                sending it is exactly when you want to see the document. */}
+            {invoice && (
+              <button
+                onClick={handleDownloadPdf} disabled={busy === 'pdf'}
+                className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2 disabled:opacity-40 mt-4"
+              >
+                {busy === 'pdf' ? 'Preparing...' : invoice.status === 'draft' ? 'Preview PDF' : 'Download PDF'}
+              </button>
             )}
           </div>
         </div>
