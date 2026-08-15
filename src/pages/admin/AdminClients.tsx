@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { Link } from 'react-router-dom'
 import { apiFetch } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
+import AdminNav from '../../components/admin/AdminNav'
 import type { ClientBilling } from '../../types/dashboard'
 
 /**
@@ -34,8 +33,6 @@ function slugify(input: string): string {
 const emptyBilling = { email: '', contactName: '', abn: '', address: '' }
 
 export default function AdminClients() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
   const [clients, setClients] = useState<ClientSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -122,30 +119,14 @@ export default function AdminClients() {
     }
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   const totalOutstanding = clients.reduce((sum, c) => sum + c.outstandingCents, 0)
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin / clients</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin / clients" />
 
       <div className="max-w-4xl mx-auto px-6 py-12">
-        <Link to="/admin/invoices" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-          &larr; Invoices
-        </Link>
-
         <div className="flex items-end justify-between mt-6 mb-8">
           <div>
             <h1 className="font-serif text-3xl text-ink mb-1">Clients</h1>

@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
 import { apiFetch } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
+import AdminNav from '../../components/admin/AdminNav'
 import type { BusinessProfile } from '../../types/invoice'
 
 /**
@@ -19,8 +17,6 @@ const EMPTY: BusinessProfile = {
 const inputCls = 'w-full bg-cream-200 border border-cream-300 rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors'
 
 export default function AdminSettings() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
   const [profile, setProfile] = useState<BusinessProfile>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -59,7 +55,6 @@ export default function AdminSettings() {
     }
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   const hasBank = Boolean(profile.bank.bsb || profile.bank.accountNumber || profile.bank.payId)
 
@@ -73,24 +68,9 @@ export default function AdminSettings() {
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin / settings</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin / settings" />
 
       <div className="max-w-2xl mx-auto px-6 py-12">
-        <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-          &larr; All clients
-        </Link>
-
         <h1 className="font-serif text-3xl text-ink mt-6 mb-1">Settings</h1>
         <p className="text-stone-500 text-sm mb-8">
           Your business details as they appear on invoices. Changes apply to the next invoice

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
-import { useAuth } from '../../context/AuthContext'
+import AdminNav from '../../components/admin/AdminNav'
 import {
   DndContext,
   closestCenter,
@@ -83,7 +82,6 @@ function SortableTicketRow({ ticket, onEdit }: TicketRowProps) {
 export default function AdminClient() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
-  const { logout } = useAuth()
   const [project, setProject] = useState<ClientProject | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -236,7 +234,6 @@ export default function AdminClient() {
     navigate('/admin')
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   if (loading) return (
     <div className="min-h-screen bg-cream-100 flex items-center justify-center">
@@ -255,20 +252,7 @@ export default function AdminClient() {
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin /</span>
-            <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">clients</Link>
-            <span className="font-mono text-xs text-stone-400">/ {slug}</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin /" />
 
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="flex items-end justify-between mb-8">

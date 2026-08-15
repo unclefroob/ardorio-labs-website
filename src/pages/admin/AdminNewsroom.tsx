@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import Logo from '../../components/Logo'
+import { Link } from 'react-router-dom'
+import AdminNav from '../../components/admin/AdminNav'
 import { listNews, formatDate, type NewsItem } from '../../data/newsroom'
 
 export default function AdminNewsroom() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
   const [items, setItems] = useState<NewsItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -18,26 +15,12 @@ export default function AdminNewsroom() {
       .finally(() => setLoading(false))
   }, [])
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   const sorted = [...items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin /</span>
-            <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">clients</Link>
-            <span className="font-mono text-xs text-stone-400">/ newsroom</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin /" />
 
       <div className="max-w-5xl mx-auto px-6 py-12">
         <div className="flex items-end justify-between mb-8">

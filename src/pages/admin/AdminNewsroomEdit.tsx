@@ -1,7 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import Logo from '../../components/Logo'
+import AdminNav from '../../components/admin/AdminNav'
 import {
   CATEGORIES,
   createNews,
@@ -39,7 +38,6 @@ const emptyForm: FormState = {
 export default function AdminNewsroomEdit() {
   const { slug } = useParams<{ slug: string }>()
   const isNew = !slug || slug === 'new'
-  const { logout } = useAuth()
   const navigate = useNavigate()
 
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -130,7 +128,6 @@ export default function AdminNewsroomEdit() {
     }
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   if (loading) return (
     <div className="min-h-screen bg-cream-100 flex items-center justify-center">
@@ -142,20 +139,7 @@ export default function AdminNewsroomEdit() {
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin /</span>
-            <Link to="/admin/newsroom" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">newsroom</Link>
-            <span className="font-mono text-xs text-stone-400">/ {isNew ? 'new' : form.slug || slug}</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin /" />
 
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="flex items-end justify-between mb-8">

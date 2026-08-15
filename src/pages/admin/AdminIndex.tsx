@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { Link } from 'react-router-dom'
 import { apiFetch } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
+import AdminNav from '../../components/admin/AdminNav'
 import type { ClientProject } from '../../types/dashboard'
 
 export default function AdminIndex() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
   const [clients, setClients] = useState<ClientProject[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -19,58 +16,19 @@ export default function AdminIndex() {
       .finally(() => setLoading(false))
   }, [])
 
-  function handleLogout() {
-    logout()
-    navigate('/admin/login')
-  }
-
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav />
 
       <div className="max-w-5xl mx-auto px-6 py-12">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h1 className="font-serif text-3xl text-ink mb-1">Client projects</h1>
-            <p className="text-stone-500 text-sm">Manage dashboards and project status.</p>
+            <h1 className="font-serif text-3xl text-ink mb-1">Projects</h1>
+            <p className="text-stone-500 text-sm">Client project dashboards and status. Billing lives under Clients.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link to="/admin/assistant" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Assistant
-            </Link>
-            <Link to="/admin/settings" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Settings
-            </Link>
-            <Link to="/admin/clients" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Clients
-            </Link>
-            <Link to="/admin/invoices" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Invoices
-            </Link>
-            <Link to="/admin/newsroom" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Newsroom
-            </Link>
-            <Link to="/admin/staff" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Staff
-            </Link>
-            <Link to="/admin/users" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
-              Client users
-            </Link>
-            <Link to="/admin/new" className="btn-primary">
-              New client
-            </Link>
-          </div>
+          <Link to="/admin/new" className="btn-primary">
+            New client
+          </Link>
         </div>
 
         {loading && (

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
 import { apiFetch, apiDownload, saveBlob } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
+import AdminNav from '../../components/admin/AdminNav'
 import type { ClientProject } from '../../types/dashboard'
 import {
   PAYMENT_METHOD_LABELS,
@@ -52,7 +51,6 @@ const inputCls = `w-full ${fieldCls}`
 export default function AdminInvoiceEdit() {
   const { id } = useParams<{ id: string }>()
   const isNew = !id || id === 'new'
-  const { logout } = useAuth()
   const navigate = useNavigate()
 
   const [clients, setClients] = useState<ClientProject[]>([])
@@ -247,7 +245,6 @@ export default function AdminInvoiceEdit() {
     setNotice('Invoice link copied.')
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   const readOnly = invoice?.status === 'paid'
   const canSend = Boolean(invoice) && invoice?.status !== 'paid'
@@ -262,20 +259,7 @@ export default function AdminInvoiceEdit() {
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">
-              / admin / invoices / {isNew ? 'new' : invoice?.invoiceNumber}
-            </span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb={isNew ? 'new invoice' : invoice?.invoiceNumber} />
 
       <div className="max-w-3xl mx-auto px-6 py-12">
         <Link to="/admin/invoices" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">

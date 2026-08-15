@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { Link } from 'react-router-dom'
 import { apiFetch, apiDownload, saveBlob } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
+import AdminNav from '../../components/admin/AdminNav'
 import type { Invoice, InvoiceStatus } from '../../types/invoice'
 
 type Filter = 'all' | InvoiceStatus | 'overdue'
@@ -32,8 +31,6 @@ function StatusBadge({ invoice }: { invoice: Invoice }) {
 }
 
 export default function AdminInvoices() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [loading, setLoading] = useState(true)
@@ -61,7 +58,6 @@ export default function AdminInvoices() {
     }
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   const outstanding = invoices
     .filter(i => i.status !== 'paid')
@@ -69,24 +65,9 @@ export default function AdminInvoices() {
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin / invoices</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin / invoices" />
 
       <div className="max-w-5xl mx-auto px-6 py-12">
-        <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-          &larr; All clients
-        </Link>
-
         <div className="flex items-end justify-between mt-6 mb-8">
           <div>
             <h1 className="font-serif text-3xl text-ink mb-1">Invoices</h1>
