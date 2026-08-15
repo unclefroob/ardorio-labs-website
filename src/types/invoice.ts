@@ -38,6 +38,8 @@ export interface Invoice {
   status: InvoiceStatus
   overdue: boolean
   payment: InvoicePayment | null
+  /** Whether a card link is generated for this invoice when it is issued. */
+  offerCardPayment: boolean
   paymentLinkUrl: string
   /** True when we generated the link, rather than it being pasted in. */
   paymentLinkIsAutomatic: boolean
