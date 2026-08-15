@@ -133,7 +133,7 @@ export default function AdminClients() {
             <p className="text-stone-500 text-sm">
               {totalOutstanding > 0
                 ? `${(totalOutstanding / 100).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })} outstanding across all clients.`
-                : 'Who you invoice, and where those invoices go.'}
+                : 'Who you invoice, and the details printed on their invoices.'}
             </p>
           </div>
           {!creating && (
@@ -288,7 +288,7 @@ export default function AdminClients() {
                   <div className="min-w-0">
                     <p className="font-medium text-ink">{c.clientName}</p>
                     <p className="font-mono text-xs text-stone-400 mt-1 truncate">
-                      {c.billing.email || <span className="text-amber-600">No billing email — cannot be invoiced</span>}
+                      {c.billing.email || <span className="text-stone-400">No billing email on record</span>}
                     </p>
                     {c.billing.abn && (
                       <p className="font-mono text-xs text-stone-400 mt-0.5">ABN {c.billing.abn}</p>

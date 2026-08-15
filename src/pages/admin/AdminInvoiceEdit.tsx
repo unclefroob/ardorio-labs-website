@@ -12,8 +12,8 @@ import {
 
 /**
  * Serves both /admin/invoices/new and /admin/invoices/:id, following the
- * AdminNewsroomEdit convention. Send, Mark paid and the download actions only
- * appear once the invoice exists.
+ * AdminNewsroomEdit convention. Issue, Mark paid and the download actions
+ * only appear once the invoice exists.
  */
 
 type FormLine = { description: string; detail: string; qty: string; unitPrice: string }
@@ -182,16 +182,21 @@ export default function AdminInvoiceEdit() {
     }
   }
 
-  async function handleSend() {
+  /**
+   * Issuing does not email anything — invoices go out from a real mailbox, not
+   * from here. It commits the invoice and brings its hosted link to life, then
+   * you send the PDF or the link yourself.
+   */
+  async function handleIssue() {
     if (!invoice) return
-    if (!confirm(`Email ${invoice.invoiceNumber} to ${selectedClient?.billing?.email}?`)) return
-    setError(''); setNotice(''); setBusy('send')
+    if (!confirm(`Issue ${invoice.invoiceNumber}? This makes its client link live. Nothing is emailed — send it yourself.`)) return
+    setError(''); setNotice(''); setBusy('issue')
     try {
-      const sent = await apiFetch<Invoice>(`/invoices/${invoice.id}/send`, { method: 'POST' })
-      setInvoice(sent)
-      setNotice(`Sent to ${selectedClient?.billing?.email}.`)
+      const issued = await apiFetch<Invoice>(`/invoices/${invoice.id}/issue`, { method: 'POST' })
+      setInvoice(issued)
+      setNotice('Issued. Download the PDF or copy the link, then send it from your own email.')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the invoice')
+      setError(e instanceof Error ? e.message : 'Could not issue the invoice')
     } finally {
       setBusy('')
     }
@@ -247,7 +252,6 @@ export default function AdminInvoiceEdit() {
 
 
   const readOnly = invoice?.status === 'paid'
-  const canSend = Boolean(invoice) && invoice?.status !== 'paid'
 
   if (loading) {
     return (
@@ -309,9 +313,10 @@ export default function AdminInvoiceEdit() {
               ))}
             </select>
             {missingBillingEmail && (
-              <p className="font-mono text-xs text-amber-600 mt-1.5">
-                {selectedClient?.clientName} has no billing email. Add one under{' '}
-                <Link to="/admin/clients" className="underline">Clients</Link> before sending.
+              <p className="font-mono text-xs text-stone-400 mt-1.5">
+                No billing email on record for {selectedClient?.clientName}. Not required — nothing is
+                emailed from here — but worth adding under{' '}
+                <Link to="/admin/clients" className="underline">Clients</Link> so you know where it goes.
               </p>
             )}
             <p className="font-mono text-xs text-stone-400 mt-1.5">
@@ -492,14 +497,13 @@ export default function AdminInvoiceEdit() {
                 {saving ? 'Saving...' : isNew ? 'Create invoice' : 'Save changes'}
               </button>
             )}
-            {canSend && (
+            {invoice?.status === 'draft' && (
               <button
-                onClick={handleSend}
-                disabled={busy === 'send' || missingBillingEmail}
-                title={missingBillingEmail ? 'This client has no billing email' : undefined}
+                onClick={handleIssue}
+                disabled={busy === 'issue'}
                 className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2 disabled:opacity-40 mt-4"
               >
-                {busy === 'send' ? 'Sending...' : invoice?.status === 'sent' ? 'Resend' : 'Send to client'}
+                {busy === 'issue' ? 'Issuing...' : 'Issue invoice'}
               </button>
             )}
             {invoice && invoice.status !== 'draft' && !readOnly && (
