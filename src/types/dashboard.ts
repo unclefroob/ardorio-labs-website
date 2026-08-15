@@ -41,12 +41,25 @@ export interface Note {
   createdAt: string
 }
 
+/**
+ * Invoicing details. Only ever present on the authenticated admin responses —
+ * the public GET /clients/:slug strips it, so anything rendering a client
+ * dashboard must treat it as absent.
+ */
+export interface ClientBilling {
+  email?: string
+  contactName?: string
+  abn?: string
+  address?: string
+}
+
 export interface ClientProject {
   slug: string
   clientName: string
   projectName: string
   description: string
   lastUpdated: string
+  billing?: ClientBilling
   milestones: Milestone[]
   tickets: Ticket[]
   notes: Note[]

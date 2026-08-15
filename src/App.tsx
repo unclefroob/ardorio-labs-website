@@ -21,6 +21,11 @@ import AdminClient from './pages/admin/AdminClient'
 import AdminClientNew from './pages/admin/AdminClientNew'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminStaff from './pages/admin/AdminStaff'
+import AdminInvoices from './pages/admin/AdminInvoices'
+import AdminSettings from './pages/admin/AdminSettings'
+import AdminClients from './pages/admin/AdminClients'
+import AdminInvoiceEdit from './pages/admin/AdminInvoiceEdit'
+import PublicInvoice from './pages/PublicInvoice'
 import AdminNewsroom from './pages/admin/AdminNewsroom'
 import AdminNewsroomEdit from './pages/admin/AdminNewsroomEdit'
 import AcceptInvite from './pages/admin/AcceptInvite'
@@ -111,8 +116,21 @@ function App() {
         <Route path="/admin/assistant/onboarding" element={<ProtectedRoute><AdminAssistantOnboarding /></ProtectedRoute>} />
         <Route path="/admin/assistant/content" element={<ProtectedRoute><AdminAssistantContent /></ProtectedRoute>} />
         <Route path="/admin/assistant/usage" element={<ProtectedRoute><AdminAssistantUsage /></ProtectedRoute>} />
+        {/* Declared above /admin/:slug for clarity. React Router v6 ranks the
+            static "invoices" segment above the dynamic :slug regardless of
+            order, the same way /admin/new already does. */}
+        <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+        <Route path="/admin/clients" element={<ProtectedRoute><AdminClients /></ProtectedRoute>} />
+        <Route path="/admin/invoices" element={<ProtectedRoute><AdminInvoices /></ProtectedRoute>} />
+        <Route path="/admin/invoices/new" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
+        <Route path="/admin/invoices/:id" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClientNew /></ProtectedRoute>} />
         <Route path="/admin/:slug" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
+
+        {/* Hosted invoice — unauthenticated, token-gated, and deliberately
+            outside both the admin tree and the marketing Navbar/Footer shell.
+            Two segments, so it never collides with the /:slug catch-all. */}
+        <Route path="/invoice/:token" element={<PublicInvoice />} />
 
         {/* Client portal — no Navbar/Footer */}
         <Route path="/login" element={<ClientLogin />} />

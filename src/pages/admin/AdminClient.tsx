@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/apiClient'
-import Logo from '../../components/Logo'
-import { useAuth } from '../../context/AuthContext'
+import AdminNav from '../../components/admin/AdminNav'
 import {
   DndContext,
   closestCenter,
@@ -21,7 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type {
-  ClientProject, Ticket, Milestone,
+  ClientProject, ClientBilling, Ticket, Milestone,
   TicketStatus, TicketPriority, TicketCategory, TicketHorizon, MilestoneStatus
 } from '../../types/dashboard'
 
@@ -83,13 +82,15 @@ function SortableTicketRow({ ticket, onEdit }: TicketRowProps) {
 export default function AdminClient() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
-  const { logout } = useAuth()
   const [project, setProject] = useState<ClientProject | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [section, setSection] = useState<Section>('tickets')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const [billing, setBilling] = useState<ClientBilling>({})
+  const [billingSaving, setBillingSaving] = useState(false)
+  const [billingMsg, setBillingMsg] = useState('')
 
   // Ticket modal
   const [ticketModalOpen, setTicketModalOpen] = useState(false)
@@ -115,6 +116,32 @@ export default function AdminClient() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [slug])
+
+  // Billing has its own endpoint (the client GET above is public and strips it).
+  useEffect(() => {
+    if (!slug) return
+    apiFetch<ClientBilling>(`/clients/${slug}/billing`)
+      .then(setBilling)
+      .catch(() => { /* a client with no billing yet is normal, not an error */ })
+  }, [slug])
+
+  async function saveBilling() {
+    setBillingSaving(true)
+    setBillingMsg('')
+    try {
+      const saved = await apiFetch<ClientBilling>(`/clients/${slug}/billing`, {
+        method: 'PUT',
+        body: JSON.stringify(billing),
+      })
+      setBilling(saved)
+      setBillingMsg('Billing saved.')
+      setTimeout(() => setBillingMsg(''), 2000)
+    } catch (e: unknown) {
+      setBillingMsg(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setBillingSaving(false)
+    }
+  }
 
   async function saveProject(updated: ClientProject) {
     setSaving(true)
@@ -207,7 +234,6 @@ export default function AdminClient() {
     navigate('/admin')
   }
 
-  function handleLogout() { logout(); navigate('/admin/login') }
 
   if (loading) return (
     <div className="min-h-screen bg-cream-100 flex items-center justify-center">
@@ -226,20 +252,7 @@ export default function AdminClient() {
 
   return (
     <div className="min-h-screen bg-cream-100">
-      <header className="border-b border-cream-300 bg-cream-100">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="font-mono text-sm font-medium text-ink">ardorio</span>
-            <span className="font-mono text-xs text-stone-400 ml-1">/ admin /</span>
-            <Link to="/admin" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">clients</Link>
-            <span className="font-mono text-xs text-stone-400">/ {slug}</span>
-          </div>
-          <button onClick={handleLogout} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AdminNav breadcrumb="admin /" />
 
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="flex items-end justify-between mb-8">
@@ -383,6 +396,52 @@ export default function AdminClient() {
                 {saving ? 'Saving...' : 'Save changes'}
               </button>
               {saveMsg && <p className="font-mono text-xs text-stone-500">{saveMsg}</p>}
+            </div>
+
+            {/* Billing is loaded and saved on its own endpoint: the client
+                GET above is the public one and never carries billing, so
+                folding it into saveProject would wipe it on every save. */}
+            <div className="bg-cream-200 border border-cream-300 rounded-2xl p-6 space-y-3">
+              <h2 className="font-mono text-xs text-stone-400 uppercase tracking-wider mb-1">Billing</h2>
+              <p className="text-sm text-stone-500 mb-3">
+                Used on invoices for this client. The billing email is where invoices are sent.
+              </p>
+              <div>
+                <label className="label block mb-1.5">Billing email</label>
+                <input
+                  type="email" className={inputCls} placeholder="accounts@client.com"
+                  value={billing.email ?? ''}
+                  onChange={e => setBilling(b => ({ ...b, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1.5">Billing contact</label>
+                <input
+                  className={inputCls} placeholder="Dana Smith"
+                  value={billing.contactName ?? ''}
+                  onChange={e => setBilling(b => ({ ...b, contactName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1.5">ABN</label>
+                <input
+                  className={`${inputCls} font-mono`} placeholder="12 345 678 901"
+                  value={billing.abn ?? ''}
+                  onChange={e => setBilling(b => ({ ...b, abn: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label block mb-1.5">Billing address</label>
+                <textarea
+                  rows={2} className={inputCls} placeholder="Level 1, 100 Example St, Melbourne VIC 3000"
+                  value={billing.address ?? ''}
+                  onChange={e => setBilling(b => ({ ...b, address: e.target.value }))}
+                />
+              </div>
+              <button onClick={saveBilling} disabled={billingSaving} className="btn-primary disabled:opacity-50">
+                {billingSaving ? 'Saving...' : 'Save billing'}
+              </button>
+              {billingMsg && <p className="font-mono text-xs text-stone-500">{billingMsg}</p>}
             </div>
 
             <div className="bg-red-50 border border-red-200 rounded-2xl p-6">

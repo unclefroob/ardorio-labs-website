@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
+import Logo from '../../components/Logo'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import Logo from '../../components/Logo'
 
 export default function AdminLogin() {
   const { login } = useAuth()
