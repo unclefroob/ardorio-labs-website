@@ -210,7 +210,11 @@ export default function AdminInvoiceEdit() {
    */
   async function handleIssue() {
     if (!invoice) return
-    if (!confirm(`Issue ${invoice.invoiceNumber}? This saves your changes and makes its client link live. Nothing is emailed — send it yourself.`)) return
+    const reissue = invoice.status === 'sent'
+    const message = reissue
+      ? `Reissue ${invoice.invoiceNumber}? This saves your changes and refreshes the client link — the same URL, showing the corrected invoice. A new card payment link is created if the total changed. Nothing is emailed, so tell the client yourself.`
+      : `Issue ${invoice.invoiceNumber}? This saves your changes and makes its client link live. Nothing is emailed — send it yourself.`
+    if (!confirm(message)) return
     setError(''); setNotice(''); setBusy('issue')
     try {
       const saved = await apiFetch<Invoice>(`/invoices/${invoice.id}`, {
@@ -221,9 +225,10 @@ export default function AdminInvoiceEdit() {
       setInvoice(issued)
       setPaymentLinkUrl(issued.paymentLinkUrl)
       setOfferCardPayment(issued.offerCardPayment)
+      const verb = reissue ? 'Reissued' : 'Issued'
       setNotice(issued.paymentLinkUrl
-        ? 'Issued, with a card payment link. Download the PDF or copy the link, then send it from your own email.'
-        : 'Issued. Download the PDF or copy the link, then send it from your own email.')
+        ? `${verb}, with a card payment link. Download the PDF or copy the link, then send it from your own email.`
+        : `${verb}. Download the PDF or copy the link, then send it from your own email.`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not issue the invoice')
     } finally {
@@ -307,7 +312,8 @@ export default function AdminInvoiceEdit() {
             <p className="text-stone-500 text-sm">
               {isNew
                 ? 'A one-off invoice. The number is assigned when you create it.'
-                : `${invoice?.clientName} · ${invoice?.status}${invoice?.overdue ? ' · overdue' : ''}`}
+                : `${invoice?.clientName} · ${invoice?.status}${invoice?.overdue ? ' · overdue' : ''}` +
+                  `${invoice && invoice.issuedCount > 1 ? ` · reissued ${invoice.issuedCount - 1}×` : ''}`}
             </p>
           </div>
           {!isNew && invoice?.status === 'draft' && (
@@ -545,13 +551,15 @@ export default function AdminInvoiceEdit() {
                 {saving ? 'Saving...' : isNew ? 'Create invoice' : 'Save changes'}
               </button>
             )}
-            {invoice?.status === 'draft' && (
+            {invoice && invoice.status !== 'paid' && (
               <button
                 onClick={handleIssue}
                 disabled={busy === 'issue'}
                 className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2 disabled:opacity-40 mt-4"
               >
-                {busy === 'issue' ? 'Issuing...' : 'Issue invoice'}
+                {busy === 'issue'
+                  ? (invoice.status === 'sent' ? 'Reissuing...' : 'Issuing...')
+                  : (invoice.status === 'sent' ? 'Reissue' : 'Issue invoice')}
               </button>
             )}
             {invoice && invoice.status !== 'draft' && !readOnly && (

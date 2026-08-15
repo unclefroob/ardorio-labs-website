@@ -46,6 +46,7 @@ export interface Invoice {
   publicToken: string
   hostedUrl: string
   sentAt: string | null
+  issuedCount: number
   subtotalCents: number
   gstCents: number
   totalCents: number
