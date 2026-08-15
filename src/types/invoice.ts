@@ -75,6 +75,16 @@ export interface PublicInvoice {
   }
 }
 
+/** Ardorio's own details, edited at /admin/settings and printed on invoices. */
+export interface BusinessProfile {
+  name: string
+  abn: string
+  address: string
+  email: string
+  gstRegistered: boolean
+  bank: { accountName: string; bsb: string; accountNumber: string; payId: string }
+}
+
 export const PAYMENT_TERM_OPTIONS = [7, 14, 30, 45, 60] as const
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

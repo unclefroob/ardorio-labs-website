@@ -22,6 +22,7 @@ import AdminClientNew from './pages/admin/AdminClientNew'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminStaff from './pages/admin/AdminStaff'
 import AdminInvoices from './pages/admin/AdminInvoices'
+import AdminSettings from './pages/admin/AdminSettings'
 import AdminInvoiceEdit from './pages/admin/AdminInvoiceEdit'
 import PublicInvoice from './pages/PublicInvoice'
 import AdminNewsroom from './pages/admin/AdminNewsroom'
@@ -117,6 +118,7 @@ function App() {
         {/* Declared above /admin/:slug for clarity. React Router v6 ranks the
             static "invoices" segment above the dynamic :slug regardless of
             order, the same way /admin/new already does. */}
+        <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
         <Route path="/admin/invoices" element={<ProtectedRoute><AdminInvoices /></ProtectedRoute>} />
         <Route path="/admin/invoices/new" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
         <Route path="/admin/invoices/:id" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />

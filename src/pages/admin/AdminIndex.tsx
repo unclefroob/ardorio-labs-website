@@ -49,6 +49,9 @@ export default function AdminIndex() {
             <Link to="/admin/assistant" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
               Assistant
             </Link>
+            <Link to="/admin/settings" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
+              Settings
+            </Link>
             <Link to="/admin/invoices" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
               Invoices
             </Link>
