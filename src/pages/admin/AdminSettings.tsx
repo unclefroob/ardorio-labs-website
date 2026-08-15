@@ -10,7 +10,7 @@ import type { BusinessProfile } from '../../types/invoice'
  */
 
 const EMPTY: BusinessProfile = {
-  name: '', abn: '', address: '', email: '', gstRegistered: true,
+  name: '', abn: '', address: '', email: '', gstRegistered: true, offerCardPayments: false,
   bank: { accountName: '', bsb: '', accountNumber: '', payId: '' },
 }
 
@@ -186,6 +186,34 @@ export default function AdminSettings() {
                 onChange={e => setBank('payId', e.target.value)}
                 placeholder="accounts@ardorio.co"
               />
+            </div>
+
+            {/* Card is opt-in and stated in fee terms, because that is the
+                only reason to think about it. */}
+            <div className="pt-4 border-t border-cream-300">
+              <label className={`flex items-start gap-3 ${profile.stripeConfigured ? 'cursor-pointer' : 'opacity-60'}`}>
+                <input
+                  type="checkbox" className="mt-1"
+                  disabled={!profile.stripeConfigured}
+                  checked={profile.offerCardPayments}
+                  onChange={e => set('offerCardPayments', e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm text-ink">Also offer card payment</span>
+                  <span className="block font-mono text-xs text-stone-400 mt-1">
+                    Generates a Stripe payment link when an invoice is issued, shown as a secondary
+                    option under the bank details. Costs 1.7% + $0.30 per domestic card payment
+                    (3.5% overseas); bank transfer costs nothing. No Stripe invoicing or tax fees —
+                    GST is calculated here, so Stripe is only asked to take the total.
+                  </span>
+                  {!profile.stripeConfigured && (
+                    <span className="block font-mono text-xs text-amber-600 mt-1.5">
+                      No Stripe key configured on the server, so this does nothing yet.
+                      Set STRIPE_SECRET_KEY.
+                    </span>
+                  )}
+                </span>
+              </label>
             </div>
 
             {!hasBank && (
