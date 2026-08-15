@@ -39,6 +39,8 @@ export interface Invoice {
   overdue: boolean
   payment: InvoicePayment | null
   paymentLinkUrl: string
+  /** True when we generated the link, rather than it being pasted in. */
+  paymentLinkIsAutomatic: boolean
   publicToken: string
   hostedUrl: string
   sentAt: string | null
@@ -84,7 +86,10 @@ export interface BusinessProfile {
   address: string
   email: string
   gstRegistered: boolean
+  offerCardPayments: boolean
   bank: { accountName: string; bsb: string; accountNumber: string; payId: string }
+  /** Derived from the server env, not stored. Read-only. */
+  stripeConfigured?: boolean
 }
 
 export const PAYMENT_TERM_OPTIONS = [7, 14, 30, 45, 60] as const
