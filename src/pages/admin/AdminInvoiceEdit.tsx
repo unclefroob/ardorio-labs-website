@@ -43,7 +43,11 @@ function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-const inputCls = 'w-full bg-cream-200 border border-cream-300 rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors'
+// Width is deliberately NOT part of this. `${inputCls} w-20` looks like it
+// narrows a field but emits `w-full w-20`, and Tailwind orders w-full last, so
+// the field silently stretches to full width and squashes its neighbours.
+const fieldCls = 'bg-cream-200 border border-cream-300 rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-stone-400 focus:outline-none focus:border-stone-400 transition-colors'
+const inputCls = `w-full ${fieldCls}`
 
 export default function AdminInvoiceEdit() {
   const { id } = useParams<{ id: string }>()
@@ -368,43 +372,56 @@ export default function AdminInvoiceEdit() {
           {/* Line items */}
           <div>
             <label className="label block mb-1.5">Line items</label>
+            {/* Column headers: the placeholders disappear once a field has a
+                value, leaving unlabelled numbers. */}
+            <div className="flex items-center gap-2 px-3 pb-1.5">
+              <span className="flex-1 min-w-0 label">Description</span>
+              <span className="w-20 shrink-0 label text-right">Qty</span>
+              <span className="w-28 shrink-0 label text-right">Unit $</span>
+              <span className="w-24 shrink-0 label text-right">Amount</span>
+              <span className="w-4 shrink-0" aria-hidden="true" />
+            </div>
+
             <div className="space-y-2">
               {lines.map((line, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="flex-1 space-y-1.5">
+                <div key={i} className="border border-cream-300 rounded-2xl p-2.5 space-y-2">
+                  <div className="flex items-start gap-2">
                     <input
                       type="text" placeholder="Description" value={line.description} disabled={readOnly}
                       onChange={e => updateLine(i, { description: e.target.value })}
-                      className={`${inputCls} disabled:opacity-60`}
+                      className={`${fieldCls} flex-1 min-w-0 disabled:opacity-60`}
                     />
-                    {/* Optional second line, set smaller and grey on the invoice. */}
                     <input
-                      type="text" placeholder="Detail (optional)" value={line.detail} disabled={readOnly}
-                      onChange={e => updateLine(i, { detail: e.target.value })}
-                      className={`${inputCls} text-xs py-1.5 disabled:opacity-60`}
+                      type="number" step="0.01" min="0" placeholder="Qty" value={line.qty} disabled={readOnly}
+                      onChange={e => updateLine(i, { qty: e.target.value })}
+                      className={`${fieldCls} w-20 shrink-0 font-mono text-right disabled:opacity-60`}
                     />
+                    <input
+                      type="number" step="0.01" min="0" placeholder="0.00" value={line.unitPrice} disabled={readOnly}
+                      onChange={e => updateLine(i, { unitPrice: e.target.value })}
+                      className={`${fieldCls} w-28 shrink-0 font-mono text-right disabled:opacity-60`}
+                    />
+                    <div className="w-24 shrink-0 pt-2.5 text-right font-mono text-sm text-stone-500">
+                      {formatAud(totals.lineAmounts[i] ?? 0)}
+                    </div>
+                    <button
+                      type="button" onClick={() => removeLine(i)}
+                      disabled={readOnly || lines.length === 1}
+                      className="w-4 shrink-0 pt-2.5 font-mono text-xs text-stone-400 hover:text-red-500 disabled:opacity-30 transition-colors"
+                      aria-label={`Remove line ${i + 1}`}
+                      title={lines.length === 1 ? 'An invoice needs at least one line' : 'Remove this line'}
+                    >
+                      &times;
+                    </button>
                   </div>
+
+                  {/* Optional second line — printed smaller and grey under the
+                      description on the invoice itself. */}
                   <input
-                    type="number" step="0.01" min="0" placeholder="Qty" value={line.qty} disabled={readOnly}
-                    onChange={e => updateLine(i, { qty: e.target.value })}
-                    className={`${inputCls} w-20 font-mono text-right disabled:opacity-60`}
+                    type="text" placeholder="Detail (optional)" value={line.detail} disabled={readOnly}
+                    onChange={e => updateLine(i, { detail: e.target.value })}
+                    className={`${fieldCls} w-full text-xs py-1.5 disabled:opacity-60`}
                   />
-                  <input
-                    type="number" step="0.01" min="0" placeholder="Unit $" value={line.unitPrice} disabled={readOnly}
-                    onChange={e => updateLine(i, { unitPrice: e.target.value })}
-                    className={`${inputCls} w-28 font-mono text-right disabled:opacity-60`}
-                  />
-                  <div className="w-24 pt-2.5 text-right font-mono text-sm text-stone-500 shrink-0">
-                    {formatAud(totals.lineAmounts[i] ?? 0)}
-                  </div>
-                  <button
-                    type="button" onClick={() => removeLine(i)}
-                    disabled={readOnly || lines.length === 1}
-                    className="pt-2.5 font-mono text-xs text-stone-400 hover:text-red-500 disabled:opacity-30 transition-colors"
-                    aria-label={`Remove line ${i + 1}`}
-                  >
-                    &times;
-                  </button>
                 </div>
               ))}
             </div>
