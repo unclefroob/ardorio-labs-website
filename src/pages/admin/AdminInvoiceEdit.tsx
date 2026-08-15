@@ -201,15 +201,29 @@ export default function AdminInvoiceEdit() {
    * Issuing does not email anything — invoices go out from a real mailbox, not
    * from here. It commits the invoice and brings its hosted link to life, then
    * you send the PDF or the link yourself.
+   *
+   * It SAVES FIRST, deliberately. Issue acts on the stored invoice, so an edit
+   * still sitting in the form was previously ignored without saying so — tick
+   * "generate a card payment link", press Issue, and no link appeared because
+   * the tick had never reached the server. Issuing what is on screen is the
+   * only behaviour that matches what the button appears to do.
    */
   async function handleIssue() {
     if (!invoice) return
-    if (!confirm(`Issue ${invoice.invoiceNumber}? This makes its client link live. Nothing is emailed — send it yourself.`)) return
+    if (!confirm(`Issue ${invoice.invoiceNumber}? This saves your changes and makes its client link live. Nothing is emailed — send it yourself.`)) return
     setError(''); setNotice(''); setBusy('issue')
     try {
-      const issued = await apiFetch<Invoice>(`/invoices/${invoice.id}/issue`, { method: 'POST' })
+      const saved = await apiFetch<Invoice>(`/invoices/${invoice.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(buildPayload()),
+      })
+      const issued = await apiFetch<Invoice>(`/invoices/${saved.id}/issue`, { method: 'POST' })
       setInvoice(issued)
-      setNotice('Issued. Download the PDF or copy the link, then send it from your own email.')
+      setPaymentLinkUrl(issued.paymentLinkUrl)
+      setOfferCardPayment(issued.offerCardPayment)
+      setNotice(issued.paymentLinkUrl
+        ? 'Issued, with a card payment link. Download the PDF or copy the link, then send it from your own email.'
+        : 'Issued. Download the PDF or copy the link, then send it from your own email.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not issue the invoice')
     } finally {
@@ -499,7 +513,7 @@ export default function AdminInvoiceEdit() {
                 <span className="block text-sm text-ink">Generate a card payment link for this invoice</span>
                 <span className="block font-mono text-xs text-stone-400 mt-1">
                   {cardDefault.configured
-                    ? `Created when the invoice is issued. Costs 1.7% + $0.30 to receive (3.5% overseas); bank transfer costs nothing. Default for new invoices is ${cardDefault.on ? 'on' : 'off'}, set under Settings.`
+                    ? `${invoice?.status === 'draft' || isNew ? 'The link is created when you issue this invoice, not now. ' : ''}Costs 1.7% + $0.30 to receive (3.5% overseas); bank transfer costs nothing. Default for new invoices is ${cardDefault.on ? 'on' : 'off'}, set under Settings.`
                     : 'No Stripe key configured on the server, so no link can be generated.'}
                 </span>
               </span>
