@@ -193,7 +193,12 @@ export default function PublicInvoice() {
               <tbody>
                 {invoice.lineItems.map((line, i) => (
                   <tr key={i} className="border-b border-cream-200">
-                    <td className="py-2.5 text-ink pr-3">{line.description}</td>
+                    <td className="py-2.5 pr-3">
+                      <span className="block text-ink">{line.description}</span>
+                      {line.detail && (
+                        <span className="block text-stone-400 text-xs mt-0.5">{line.detail}</span>
+                      )}
+                    </td>
                     <td className="py-2.5 text-right font-mono text-stone-500">{line.qty}</td>
                     <td className="py-2.5 text-right font-mono text-stone-500">{line.unitPriceFormatted}</td>
                     <td className="py-2.5 text-right font-mono text-ink">{line.amountFormatted}</td>

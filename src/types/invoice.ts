@@ -9,6 +9,8 @@ export type PaymentMethod = 'bank-transfer' | 'payid' | 'card' | 'other'
 
 export interface InvoiceLine {
   description: string
+  /** Optional smaller grey line under the description on the invoice. */
+  detail: string
   qty: number
   unitPriceCents: number
   amountCents: number
@@ -53,7 +55,7 @@ export interface PublicInvoice {
   invoiceNumber: string
   clientName: string
   billTo: { contactName: string; abn: string; address: string }
-  lineItems: { description: string; qty: number; unitPriceFormatted: string; amountFormatted: string }[]
+  lineItems: { description: string; detail: string; qty: number; unitPriceFormatted: string; amountFormatted: string }[]
   issueDate: string
   issueDateFormatted: string
   dueDate: string

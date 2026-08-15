@@ -17,9 +17,9 @@ import {
  * appear once the invoice exists.
  */
 
-type FormLine = { description: string; qty: string; unitPrice: string }
+type FormLine = { description: string; detail: string; qty: string; unitPrice: string }
 
-const emptyLine: FormLine = { description: '', qty: '1', unitPrice: '' }
+const emptyLine: FormLine = { description: '', detail: '', qty: '1', unitPrice: '' }
 
 /** Dollars typed by the admin to integer cents for the wire. */
 function toCents(dollars: string): number {
@@ -92,6 +92,7 @@ export default function AdminInvoiceEdit() {
         setLines(inv.lineItems.length > 0
           ? inv.lineItems.map(l => ({
               description: l.description,
+              detail: l.detail ?? '',
               qty: String(l.qty),
               unitPrice: fromCents(l.unitPriceCents),
             }))
@@ -143,6 +144,7 @@ export default function AdminInvoiceEdit() {
       paymentLinkUrl: paymentLinkUrl.trim(),
       lineItems: lines.map(l => ({
         description: l.description.trim(),
+        detail: l.detail.trim(),
         qty: Number(l.qty),
         unitPriceCents: toCents(l.unitPrice),
       })),
@@ -369,11 +371,19 @@ export default function AdminInvoiceEdit() {
             <div className="space-y-2">
               {lines.map((line, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <input
-                    type="text" placeholder="Description" value={line.description} disabled={readOnly}
-                    onChange={e => updateLine(i, { description: e.target.value })}
-                    className={`${inputCls} flex-1 disabled:opacity-60`}
-                  />
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="text" placeholder="Description" value={line.description} disabled={readOnly}
+                      onChange={e => updateLine(i, { description: e.target.value })}
+                      className={`${inputCls} disabled:opacity-60`}
+                    />
+                    {/* Optional second line, set smaller and grey on the invoice. */}
+                    <input
+                      type="text" placeholder="Detail (optional)" value={line.detail} disabled={readOnly}
+                      onChange={e => updateLine(i, { detail: e.target.value })}
+                      className={`${inputCls} text-xs py-1.5 disabled:opacity-60`}
+                    />
+                  </div>
                   <input
                     type="number" step="0.01" min="0" placeholder="Qty" value={line.qty} disabled={readOnly}
                     onChange={e => updateLine(i, { qty: e.target.value })}
