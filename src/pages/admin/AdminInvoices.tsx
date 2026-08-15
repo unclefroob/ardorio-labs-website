@@ -99,6 +99,9 @@ export default function AdminInvoices() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/admin/clients" className="font-mono text-xs text-stone-400 hover:text-ink transition-colors border border-cream-300 rounded-lg px-3 py-2">
+              Clients
+            </Link>
             <button
               onClick={handleExport}
               disabled={exporting}

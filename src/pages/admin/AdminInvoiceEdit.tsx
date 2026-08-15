@@ -326,10 +326,15 @@ export default function AdminInvoiceEdit() {
             </select>
             {missingBillingEmail && (
               <p className="font-mono text-xs text-amber-600 mt-1.5">
-                {selectedClient?.clientName} has no billing email. Add one on the{' '}
-                <Link to={`/admin/${clientSlug}`} className="underline">client page</Link> before sending.
+                {selectedClient?.clientName} has no billing email. Add one under{' '}
+                <Link to="/admin/clients" className="underline">Clients</Link> before sending.
               </p>
             )}
+            <p className="font-mono text-xs text-stone-400 mt-1.5">
+              <Link to="/admin/clients" className="hover:text-ink transition-colors">
+                Manage clients &amp; billing details &rarr;
+              </Link>
+            </p>
             {!isNew && (
               <p className="font-mono text-xs text-stone-400 mt-1.5">
                 The client cannot be changed after the invoice is created.
