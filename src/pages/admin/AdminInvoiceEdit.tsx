@@ -70,7 +70,20 @@ export default function AdminInvoiceEdit() {
   const [gstEnabled, setGstEnabled] = useState(true)
   const [notes, setNotes] = useState('')
   const [paymentLinkUrl, setPaymentLinkUrl] = useState('')
+  const [offerCardPayment, setOfferCardPayment] = useState(false)
+  const [cardDefault, setCardDefault] = useState<{ on: boolean; configured: boolean }>({ on: false, configured: false })
   const [lines, setLines] = useState<FormLine[]>([{ ...emptyLine }])
+
+  // The business default, so a NEW invoice starts where Settings sits and the
+  // checkbox can explain itself when Stripe is not configured at all.
+  useEffect(() => {
+    apiFetch<{ offerCardPayments: boolean; stripeConfigured: boolean }>('/settings/business')
+      .then(p => {
+        setCardDefault({ on: Boolean(p.offerCardPayments), configured: Boolean(p.stripeConfigured) })
+        if (isNew) setOfferCardPayment(Boolean(p.offerCardPayments))
+      })
+      .catch(() => { /* the server still applies its own default */ })
+  }, [isNew])
 
   // Clients power the picker, and carry the billing email we warn about below.
   useEffect(() => {
@@ -91,6 +104,7 @@ export default function AdminInvoiceEdit() {
         setGstEnabled(inv.gstRate > 0)
         setNotes(inv.notes)
         setPaymentLinkUrl(inv.paymentLinkUrl)
+        setOfferCardPayment(inv.offerCardPayment)
         setLines(inv.lineItems.length > 0
           ? inv.lineItems.map(l => ({
               description: l.description,
@@ -144,6 +158,7 @@ export default function AdminInvoiceEdit() {
       gstRate: gstEnabled ? 0.1 : 0,
       notes: notes.trim(),
       paymentLinkUrl: paymentLinkUrl.trim(),
+      offerCardPayment,
       lineItems: lines.map(l => ({
         description: l.description.trim(),
         detail: l.detail.trim(),
@@ -471,7 +486,26 @@ export default function AdminInvoiceEdit() {
             />
           </div>
 
-          {/* Card payment link */}
+          {/* Card payment */}
+          <div className="bg-cream-200 border border-cream-300 rounded-2xl px-6 py-4">
+            <label className={`flex items-start gap-3 ${readOnly || !cardDefault.configured ? 'opacity-60' : 'cursor-pointer'}`}>
+              <input
+                type="checkbox" className="mt-1"
+                checked={offerCardPayment}
+                disabled={readOnly || !cardDefault.configured}
+                onChange={e => setOfferCardPayment(e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm text-ink">Generate a card payment link for this invoice</span>
+                <span className="block font-mono text-xs text-stone-400 mt-1">
+                  {cardDefault.configured
+                    ? `Created when the invoice is issued. Costs 1.7% + $0.30 to receive (3.5% overseas); bank transfer costs nothing. Default for new invoices is ${cardDefault.on ? 'on' : 'off'}, set under Settings.`
+                    : 'No Stripe key configured on the server, so no link can be generated.'}
+                </span>
+              </span>
+            </label>
+          </div>
+
           <div>
             <label className="label block mb-1.5">Card payment link (optional)</label>
             <input
