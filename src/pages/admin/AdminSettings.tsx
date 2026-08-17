@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/apiClient'
 import AdminNav from '../../components/admin/AdminNav'
-import type { BusinessProfile } from '../../types/invoice'
+import type { BusinessProfile, XeroStatus } from '../../types/invoice'
 
 /**
  * Ardorio's own business details as they appear on issued invoices. These
@@ -11,6 +11,8 @@ import type { BusinessProfile } from '../../types/invoice'
 
 const EMPTY: BusinessProfile = {
   name: '', abn: '', address: '', email: '', gstRegistered: true, offerCardPayments: false,
+  xeroSalesAccountCode: '200', xeroTaxTypeGst: 'OUTPUT',
+  xeroTaxTypeGstFree: 'EXEMPTOUTPUT', xeroPushAsDraft: true,
   bank: { accountName: '', bsb: '', accountNumber: '', payId: '' },
 }
 
@@ -22,6 +24,31 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [xero, setXero] = useState<XeroStatus | null>(null)
+  const [xeroBusy, setXeroBusy] = useState(false)
+
+  function loadXero() {
+    return apiFetch<XeroStatus>('/xero/status').then(setXero).catch(() => setXero(null))
+  }
+
+  useEffect(() => { loadXero() }, [])
+
+  // The OAuth callback returns the browser here with an outcome in the query.
+  useEffect(() => {
+    const outcome = new URLSearchParams(window.location.search).get('xero')
+    if (!outcome) return
+    const messages: Record<string, string> = {
+      connected: 'Connected to Xero.',
+      declined: 'Xero connection was declined.',
+      invalid: 'That Xero link expired. Try connecting again.',
+      failed: 'Could not complete the Xero connection.',
+    }
+    if (outcome === 'connected') setNotice(messages[outcome])
+    else setError(messages[outcome] ?? 'Xero connection failed.')
+    // Clear it so a refresh does not replay the message.
+    window.history.replaceState({}, '', window.location.pathname)
+    loadXero()
+  }, [])
 
   useEffect(() => {
     apiFetch<BusinessProfile>('/settings/business')
@@ -36,6 +63,32 @@ export default function AdminSettings() {
 
   function setBank<K extends keyof BusinessProfile['bank']>(key: K, value: string) {
     setProfile(p => ({ ...p, bank: { ...p.bank, [key]: value } }))
+  }
+
+  async function connectXero() {
+    setXeroBusy(true); setError('')
+    try {
+      const { url } = await apiFetch<{ url: string }>('/xero/connect', { method: 'POST' })
+      // Full navigation, not a popup: Xero's consent screen refuses to frame.
+      window.location.href = url
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the Xero connection')
+      setXeroBusy(false)
+    }
+  }
+
+  async function disconnectXero() {
+    if (!confirm('Disconnect Xero? Invoices already pushed stay in Xero. New ones will stop being pushed until you reconnect.')) return
+    setXeroBusy(true); setError('')
+    try {
+      await apiFetch('/xero/disconnect', { method: 'POST' })
+      await loadXero()
+      setNotice('Disconnected from Xero. Remove the app in Xero too if you want access fully revoked.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not disconnect')
+    } finally {
+      setXeroBusy(false)
+    }
   }
 
   async function handleSave() {
@@ -221,6 +274,106 @@ export default function AdminSettings() {
                 No payment details set. Invoices will show no way to pay unless a card payment link
                 is pasted onto each one.
               </p>
+            )}
+          </div>
+
+          {/* Xero — one-way push of issued invoices into the accounts. */}
+          <div className="bg-cream-200 border border-cream-300 rounded-2xl p-6 space-y-4">
+            <div>
+              <h2 className="font-mono text-xs text-stone-400 uppercase tracking-wider">Xero</h2>
+              <p className="text-sm text-stone-500 mt-2">
+                Pushes each issued invoice into Xero so it lands in the accounts without re-keying.
+                One way only — a payment recorded in Xero does not mark the invoice paid here.
+              </p>
+            </div>
+
+            {!xero?.configured && (
+              <p className="font-mono text-xs text-amber-600">
+                Xero is not configured on the server. Set XERO_CLIENT_ID, XERO_CLIENT_SECRET and
+                XERO_REDIRECT_URI.
+              </p>
+            )}
+
+            {xero?.configured && !xero.connected && (
+              <button onClick={connectXero} disabled={xeroBusy} className="btn-primary disabled:opacity-50">
+                {xeroBusy ? 'Opening Xero...' : 'Connect to Xero'}
+              </button>
+            )}
+
+            {xero?.connected && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink">{xero.tenantName || 'Connected'}</p>
+                    <p className="font-mono text-xs text-stone-400 mt-0.5">
+                      Connected {xero.connectedAt ? new Date(xero.connectedAt).toLocaleDateString('en-AU') : ''}
+                      {xero.lastRefreshedAt && ` · refreshed ${new Date(xero.lastRefreshedAt).toLocaleDateString('en-AU')}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={disconnectXero} disabled={xeroBusy}
+                    className="font-mono text-xs text-stone-400 hover:text-red-500 transition-colors shrink-0 disabled:opacity-50"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+
+                {/* A lapsed connection is stated plainly: it can only be fixed
+                    by reconnecting in a browser, so silence would strand it. */}
+                {xero.lastError && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                    <p className="font-mono text-xs text-red-600">
+                      Xero rejected the last token refresh. Reconnect to restore the link.
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-cream-300">
+                  <div>
+                    <label className="label block mb-1.5">Sales account</label>
+                    <input
+                      className={`${inputCls} font-mono`} value={profile.xeroSalesAccountCode}
+                      onChange={e => set('xeroSalesAccountCode', e.target.value)}
+                      placeholder="200"
+                    />
+                  </div>
+                  <div>
+                    <label className="label block mb-1.5">GST tax code</label>
+                    <input
+                      className={`${inputCls} font-mono`} value={profile.xeroTaxTypeGst}
+                      onChange={e => set('xeroTaxTypeGst', e.target.value)}
+                      placeholder="OUTPUT"
+                    />
+                  </div>
+                  <div>
+                    <label className="label block mb-1.5">GST-free code</label>
+                    <input
+                      className={`${inputCls} font-mono`} value={profile.xeroTaxTypeGstFree}
+                      onChange={e => set('xeroTaxTypeGstFree', e.target.value)}
+                      placeholder="EXEMPTOUTPUT"
+                    />
+                  </div>
+                </div>
+                <p className="font-mono text-xs text-stone-400">
+                  Defaults suit a standard Australian chart of accounts. If yours differs, Xero
+                  rejects the push with the offending code named, and it shows on the invoice.
+                </p>
+
+                <label className="flex items-start gap-3 cursor-pointer pt-2">
+                  <input
+                    type="checkbox" className="mt-1"
+                    checked={profile.xeroPushAsDraft}
+                    onChange={e => set('xeroPushAsDraft', e.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm text-ink">Push as a draft in Xero</span>
+                    <span className="block font-mono text-xs text-stone-400 mt-1">
+                      Recommended. Untick and invoices post straight into the books as approved,
+                      with no chance to look first.
+                    </span>
+                  </span>
+                </label>
+              </div>
             )}
           </div>
 

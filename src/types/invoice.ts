@@ -47,6 +47,9 @@ export interface Invoice {
   hostedUrl: string
   sentAt: string | null
   issuedCount: number
+  xeroInvoiceId: string
+  xeroPushedAt: string | null
+  xeroPushError: string
   subtotalCents: number
   gstCents: number
   totalCents: number
@@ -90,9 +93,24 @@ export interface BusinessProfile {
   email: string
   gstRegistered: boolean
   offerCardPayments: boolean
+  xeroSalesAccountCode: string
+  xeroTaxTypeGst: string
+  xeroTaxTypeGstFree: string
+  xeroPushAsDraft: boolean
   bank: { accountName: string; bsb: string; accountNumber: string; payId: string }
   /** Derived from the server env, not stored. Read-only. */
   stripeConfigured?: boolean
+}
+
+/** Connection state for the one-way Xero push. */
+export interface XeroStatus {
+  configured: boolean
+  connected: boolean
+  tenantName: string
+  connectedAt: string | null
+  lastRefreshedAt: string | null
+  lastError: string
+  refreshTokenExpiresAt: string | null
 }
 
 export const PAYMENT_TERM_OPTIONS = [7, 14, 30, 45, 60] as const

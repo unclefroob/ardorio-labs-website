@@ -278,6 +278,20 @@ export default function AdminInvoiceEdit() {
     }
   }
 
+  async function handlePushToXero() {
+    if (!invoice) return
+    setError(''); setNotice(''); setBusy('xero')
+    try {
+      const pushed = await apiFetch<Invoice>(`/invoices/${invoice.id}/push-to-xero`, { method: 'POST' })
+      setInvoice(pushed)
+      setNotice('Pushed to Xero.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not push to Xero')
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function copyHostedLink() {
     if (!invoice) return
     await navigator.clipboard.writeText(invoice.hostedUrl)
@@ -322,6 +336,33 @@ export default function AdminInvoiceEdit() {
             </button>
           )}
         </div>
+
+        {/* Xero push state. Only meaningful once issued, and only shown when
+            there is something to say — pushed, or failed and retryable. */}
+        {invoice && invoice.status !== 'draft' && (invoice.xeroInvoiceId || invoice.xeroPushError) && (
+          <div className={`mb-6 border rounded-xl px-4 py-3 ${
+            invoice.xeroInvoiceId ? 'border-cream-300 bg-cream-200' : 'border-amber-200 bg-amber-50'
+          }`}>
+            {invoice.xeroInvoiceId ? (
+              <p className="font-mono text-xs text-stone-500">
+                In Xero{invoice.xeroPushedAt ? ` since ${new Date(invoice.xeroPushedAt).toLocaleDateString('en-AU')}` : ''}.
+              </p>
+            ) : (
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-amber-700">Not in Xero — the push failed.</p>
+                  <p className="font-mono text-xs text-amber-600 mt-1 break-words">{invoice.xeroPushError}</p>
+                </div>
+                <button
+                  onClick={handlePushToXero} disabled={busy === 'xero'}
+                  className="font-mono text-xs text-amber-700 hover:text-ink transition-colors border border-amber-300 rounded-lg px-3 py-1.5 shrink-0 disabled:opacity-50"
+                >
+                  {busy === 'xero' ? 'Pushing...' : 'Retry'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {readOnly && (
           <div className="mb-6 border border-emerald-200 bg-emerald-50 rounded-xl px-4 py-3">
