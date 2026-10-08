@@ -259,11 +259,6 @@ export default function Home() {
         >
           <p className="label shrink-0 text-stone-500">Trusted by</p>
           <div className="flex items-center gap-x-10 gap-y-5 flex-wrap text-stone-600">
-            <img
-              src="/clients/ritchies.svg"
-              alt="Ritchies IGA + Liquor"
-              className="h-5 w-auto"
-            />
             <span className="flex items-center gap-2" aria-label="PathIQ">
               <img src="/clients/pathiq-mark.png" alt="" className="h-7 w-auto" />
               <span className="font-sans font-bold text-2xl tracking-tight leading-none">
