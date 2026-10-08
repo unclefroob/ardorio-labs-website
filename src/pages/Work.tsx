@@ -43,7 +43,7 @@ const projects: Project[] = [
     name: 'Rosterio',
     site: 'rosterio.app',
     tagline:
-      'A workforce operating system for shift-based businesses, with constraint-aware auto-fill scheduling, a shift marketplace, GPS attendance, and native mobile apps.',
+      'Our own workforce platform for shift-based businesses, with constraint-aware auto-fill scheduling, an award engine that applies each customer\'s compliance rules, GPS attendance, and native mobile apps.',
     outcome:
       'Constraint-aware auto-fill builds compliant rosters automatically, replacing the hours managers used to spend piecing them together by hand.',
     tags: ['Full-stack', 'iOS & Android', 'Scheduling engine'],

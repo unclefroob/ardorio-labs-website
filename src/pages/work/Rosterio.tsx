@@ -68,7 +68,7 @@ export default function RosterioCaseStudy() {
     <div className="pt-14">
       <SEO
         title="Rosterio | Workforce Management Platform Case Study"
-        description="How Ardorio built Rosterio, a full-stack workforce operating system for shift-based businesses, from scheduling and auto-fill to GPS attendance and payroll export."
+        description="How Ardorio built Rosterio, its own full-stack workforce operating system for shift-based businesses, from scheduling and auto-fill to GPS attendance and payroll export."
         canonical="/work/rosterio"
         type="article"
       />
@@ -108,7 +108,7 @@ export default function RosterioCaseStudy() {
           </div>
           <div className="lg:col-span-5 flex flex-col gap-4">
             <p className="text-stone-600 leading-relaxed">
-              We built Rosterio from the ground up, across strategy, product, engineering, and launch. Scheduling, attendance, payroll, mobile. One platform for every part of running a shift team.
+              Rosterio is Ardorio's own product, built from the ground up across strategy, product, engineering, and launch. Scheduling, attendance, payroll, mobile. One platform for every part of running a shift team.
             </p>
             <a
               href="https://rosterio.app"
@@ -157,7 +157,7 @@ export default function RosterioCaseStudy() {
               The platform covers the full lifecycle: scheduling, publishing, auto-filling gaps, handling swap requests, tracking attendance with GPS clock-in, and exporting timesheets straight to payroll. Staff get a mobile app on iOS and Android that keeps them across their schedule without needing to check a group chat.
             </p>
             <p>
-              We built it from the ground up, across product strategy, full-stack application, scheduling engine, mobile, billing, and launch. The founders had the industry knowledge. We built everything around it.
+              Rosterio is our own product. We designed it, built it from the ground up across product strategy, full-stack application, scheduling engine, mobile, billing, and launch, and we run it today.
             </p>
           </div>
         </div>
@@ -313,47 +313,17 @@ export default function RosterioCaseStudy() {
 
       <div className="divider" />
 
-      {/* Testimonial */}
-      <div className="max-w-6xl mx-auto px-6 py-14">
-        <div className="p-8 bg-cream-200 rounded-2xl">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-8">
-              <p className="font-serif text-3xl text-cream-400 leading-none mb-3 select-none">"</p>
-              <p className="text-stone-500 italic leading-relaxed">
-                We're putting together a full testimonial with the Rosterio founder. It will live here shortly.
-              </p>
-            </div>
-            <div className="lg:col-span-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-cream-300 flex items-center justify-center shrink-0">
-                <span className="font-mono text-xs text-stone-600">RO</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-stone-800">Rosterio Founder</p>
-                <a
-                  href="https://rosterio.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-stone-500 hover:text-ink transition-colors"
-                >
-                  rosterio.app ↗
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="divider" />
 
       {/* Footer CTA */}
       <div className="max-w-6xl mx-auto px-6 py-16">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div>
-            <h2 className="font-serif text-2xl text-ink">Got something to build?</h2>
-            <p className="text-stone-600 mt-1 text-sm">We respond within 24 hours.</p>
+            <h2 className="font-serif text-2xl text-ink">Rosterio is ours. See what it does today.</h2>
+            <p className="text-stone-600 mt-1 text-sm">Including the award engine that applies your own compliance rules.</p>
           </div>
-          <Link to="/contact" className="btn-primary shrink-0">
-            Get in touch
+          <Link to="/rosterio" className="btn-primary shrink-0">
+            Explore Rosterio
           </Link>
         </div>
       </div>

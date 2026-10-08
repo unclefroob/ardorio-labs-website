@@ -12,6 +12,7 @@ import Work from './pages/Work'
 import Contact from './pages/Contact'
 import PathIQCaseStudy from './pages/work/PathIQ'
 import RosterioCaseStudy from './pages/work/Rosterio'
+import Rosterio from './pages/Rosterio'
 import Newsroom from './pages/Newsroom'
 import NewsroomArticle from './pages/NewsroomArticle'
 import ClientDashboard from './pages/ClientDashboard'
@@ -145,6 +146,7 @@ function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/ardorio-ai" element={<ArdorioAI />} />
                 <Route path="/ai-native-crm" element={<AINativeCRM />} />
+                <Route path="/rosterio" element={<Rosterio />} />
                 <Route path="/services" element={<Services />} />
                 <Route path="/services/:slug" element={<ServiceDetail />} />
                 <Route path="/work" element={<Work />} />
