@@ -1,20 +1,30 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDown } from 'lucide-react'
 import Logo from './Logo'
 
-const navLinks = [
-  { label: 'Ardorio AI', to: '/ardorio-ai' },
-  { label: 'AI-Native CRMs', to: '/ai-native-crm' },
+// Grouped under "Products" on desktop so the bar stays readable as the
+// product line grows; listed flat in the mobile menu.
+const productLinks = [
+  { label: 'Ardorio AI', to: '/ardorio-ai', blurb: 'An AI layer for your business' },
+  { label: 'Rosterio', to: '/rosterio', blurb: 'Workforce management with your compliance rules built in' },
+  { label: 'AI-Native CRMs', to: '/ai-native-crm', blurb: 'A custom CRM you own' },
+]
+
+const siteLinks = [
   { label: 'Services', to: '/services' },
   { label: 'Work', to: '/work' },
   { label: 'Newsroom', to: '/newsroom' },
   { label: 'Contact', to: '/contact' },
 ]
 
+const navLinks = [...productLinks, ...siteLinks]
+
 export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [productsOpen, setProductsOpen] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
@@ -53,7 +63,59 @@ export default function Navbar() {
 
           {/* Desktop */}
           <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
+            <div
+              className="relative"
+              onMouseEnter={() => setProductsOpen(true)}
+              onMouseLeave={() => setProductsOpen(false)}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setProductsOpen(false)
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setProductsOpen((v) => !v)}
+                onKeyDown={(e) => e.key === 'Escape' && setProductsOpen(false)}
+                aria-expanded={productsOpen}
+                aria-haspopup="true"
+                className={`flex items-center gap-1 text-sm transition-colors ${
+                  productLinks.some((l) => l.to === location.pathname)
+                    ? 'text-ink font-medium'
+                    : 'text-stone-600 hover:text-ink'
+                }`}
+              >
+                Products
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${productsOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              <AnimatePresence>
+                {productsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-1/2 -translate-x-1/2 top-full pt-3"
+                  >
+                    <div className="w-72 bg-cream-100 border border-cream-300 rounded-xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.08)]">
+                      {productLinks.map((link) => (
+                        <Link
+                          key={link.to}
+                          to={link.to}
+                          onClick={() => setProductsOpen(false)}
+                          className="block rounded-lg px-3 py-2.5 hover:bg-cream-200 transition-colors"
+                        >
+                          <span className="block text-sm text-ink font-medium">{link.label}</span>
+                          <span className="block text-xs text-stone-500 mt-0.5">{link.blurb}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            {siteLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
@@ -103,7 +165,7 @@ export default function Navbar() {
                 >
                   <Link
                     to={link.to}
-                    className="block py-4 text-4xl font-serif text-ink border-b border-cream-300 hover:text-stone-700 transition-colors"
+                    className="block py-3 text-3xl sm:text-4xl font-serif text-ink border-b border-cream-300 hover:text-stone-700 transition-colors"
                   >
                     {link.label}
                   </Link>

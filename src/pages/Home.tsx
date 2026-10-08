@@ -60,7 +60,8 @@ const ctaSparks: Spark[] = [
   { x: '70%', y: '80%', size: 4, color: SPARK_COLORS.lilac, delay: 1.2, duration: 6.8 },
 ]
 
-// The two flagship pushes, shown as prominent bands high on the page.
+// The flagship pushes (two products, then custom builds), shown as prominent
+// bands high on the page.
 const flagships = [
   {
     kicker: 'Our product · Ardorio AI',
@@ -75,6 +76,21 @@ const flagships = [
     blurb:
       'The AI layer we build for clients, made a product. It answers from your own knowledge, drafts in your voice, and does the repetitive work your team does by hand.',
     tags: ['AI Brain', 'Assistant', 'Pipelines', 'CRM intelligence'],
+    sparks: aiSparks,
+  },
+  {
+    kicker: 'Our product · Rosterio',
+    to: '/rosterio',
+    cta: 'Explore Rosterio',
+    headline: (
+      <>
+        Your compliance rules,
+        <br /> applied to <em>every shift.</em>
+      </>
+    ),
+    blurb:
+      'Workforce management for shift-based businesses. Rostering, attendance, leave and payroll export, with an award engine that applies your organisation\'s own reading of its awards and agreements to every roster before it goes out.',
+    tags: ['Rostering', 'Award engine', 'Time & attendance', 'Payroll export'],
     sparks: aiSparks,
   },
   {
@@ -179,7 +195,7 @@ export default function Home() {
                 transition={{ delay: 0.55, duration: 0.6, ease: EASE }}
               >
                 <p className="text-stone-600 text-lg leading-relaxed mt-8 mb-8 max-w-lg">
-                  We build AI that does your team's manual work, in systems you own instead of rent. Custom AI-native CRMs, and Ardorio AI, our ready-made AI layer. Set up for you, and tuned to how your business actually works.
+                  We build AI that does your team's manual work, in systems you own instead of rent. Custom AI-native CRMs, plus our own products: Ardorio AI and Rosterio. Set up for you, and tuned to how your business actually works.
                 </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                   <Link to="/contact" className="btn-primary">
@@ -261,7 +277,7 @@ export default function Home() {
       {/* Divider */}
       <AnimatedDivider />
 
-      {/* Flagships — Ardorio AI + AI-native CRMs */}
+      {/* Flagships — Ardorio AI + Rosterio + AI-native CRMs */}
       <section className="max-w-6xl mx-auto px-6 py-16">
         <p className="label mb-10">What we lead with</p>
         <div className="space-y-6">
