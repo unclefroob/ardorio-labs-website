@@ -22,3 +22,22 @@ export function uid(prefix: string): string {
 export function isValidId(id: string): boolean {
   return ID_RE.test(id)
 }
+
+function fnv(s: string, seed: number): string {
+  let h = seed >>> 0
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
+  }
+  return h.toString(36).padStart(7, '0')
+}
+
+/** Deterministic id from a natural key, so concurrent clients converge on one record: `<prefix>_<hash>`. */
+export function stableId(prefix: string, key: string): string {
+  return `${prefix}_${fnv(key, 2166136261)}${fnv(key, 33554467)}`
+}
+
+/** Pass an id through when it is valid, otherwise squash it to a valid one (contract: ids over 80 chars are hashed). */
+export function detId(id: string): string {
+  return isValidId(id) ? id : stableId(id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 8) || 'id', id)
+}

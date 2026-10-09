@@ -3,6 +3,7 @@ import { F } from './F'
 import { localData } from './plan'
 import { S, SYNCED_COLLECTIONS, idx, type SyncedCollection } from './store'
 import type { Pipeline, PipelineField } from './types'
+import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 
 const CORE_LABELS: Readonly<Record<string, string>> = {
   name: 'Name',
@@ -144,7 +145,7 @@ function formatTyped(key: string, v: unknown, type: string | undefined, collecti
     return stage?.name ?? 'Unknown stage'
   }
   if ((key === 'ownerId' || key === 'assigneeId' || key === 'managerId') && typeof v === 'string') {
-    return idx.users.get(v)?.name ?? 'A teammate'
+    return idx.users.get(v)?.name ?? (v === SYSTEM_USER_ID ? SYSTEM_USER.name : 'A teammate')
   }
   if (key === 'companyId' && typeof v === 'string') return idx.companies.get(v)?.name ?? 'Unknown company'
   if (key === 'contactId' && typeof v === 'string') return idx.contacts.get(v)?.name ?? 'Unknown contact'

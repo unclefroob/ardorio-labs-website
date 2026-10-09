@@ -73,7 +73,7 @@ function TaskDrawerForm({ t }: { t: Task }) {
           <Btn kind="danger" icon="trash" aria-label="Delete task" onClick={remove} />
           <span className="sp" />
           <Btn onClick={save}>Save</Btn>
-          {!Q.done(t) && <Btn kind="pri" icon="check" onClick={() => { UI.drawer(null); completeFlow(t) }}>Complete</Btn>}
+          {!Q.done(t) && <Btn kind="pri" icon={t.kind === 'email' ? 'mail' : 'check'} onClick={() => { UI.drawer(null); completeFlow(t) }}>{t.kind === 'email' ? 'Open email' : 'Complete'}</Btn>}
         </>
       )}
     >
@@ -81,7 +81,7 @@ function TaskDrawerForm({ t }: { t: Task }) {
         {!can && <Banner icon="lock">Read-only. You can't edit tasks in {Q.biz(t.businessId)?.name ?? 'this business'}.</Banner>}
         <Fld label="Title"><Inp value={f.title} onChange={v => set('title', v)} disabled={!can} /></Fld>
         <div className="grid g2">
-          <Fld label="Status"><Sel value={f.status} onChange={v => set('status', v)} options={TASK_STATUSES} disabled={!can} /></Fld>
+          <Fld label="Status"><Sel value={f.status} onChange={v => set('status', v)} options={t.kind === 'email' ? TASK_STATUSES.filter(x => x !== 'Completed') : TASK_STATUSES} disabled={!can} /></Fld>
           <Fld label="Priority"><Sel value={f.priority} onChange={v => set('priority', v)} options={PRIORITIES} disabled={!can} /></Fld>
           <Fld label="Due date"><Inp type="date" value={f.date} onChange={v => set('date', v)} disabled={!can} /></Fld>
           <Fld label="Time"><Inp type="time" value={f.time} onChange={v => set('time', v)} disabled={!can} /></Fld>
@@ -90,6 +90,14 @@ function TaskDrawerForm({ t }: { t: Task }) {
           <Sel value={f.assigneeId} onChange={v => set('assigneeId', v)} disabled={!mgr || !can} options={owners.map(u => [u.id, u.name + (u.id === Q.me().id ? ' (you)' : '')] as const)} />
         </Fld>
         <Fld label="Description"><TA value={f.desc} onChange={v => set('desc', v)} rows={3} disabled={!can} /></Fld>
+        {t.kind === 'email' && t.draft && (
+          <div className="card-b" style={{ background: 'var(--surf2)', border: '1px solid var(--line)', borderRadius: 'var(--r)' }}>
+            <div className="row sm" style={{ gap: 6 }}><Icon n="mail" s={13} /><b>Draft email</b><span className="sp" /><span className="faint">to {t.draft.to}</span></div>
+            <div className="sm" style={{ marginTop: 6 }}><b>{t.draft.subject}</b></div>
+            <div className="sm muted" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{t.draft.body}</div>
+            {!Q.done(t) && <div style={{ marginTop: 8 }}><Btn size="sm" icon="mail" onClick={() => { UI.drawer(null); completeFlow(t) }}>Open email</Btn></div>}
+          </div>
+        )}
         {t.script && (
           <div className="ai card-b">
             <div className="ai-h"><Icon n="spark" s={13} />Script / suggested message</div>

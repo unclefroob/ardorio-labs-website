@@ -1,4 +1,5 @@
 import { now as clockNow } from './clock'
+import { wallFromMs } from './tz'
 
 const p2 = (n: number): string => String(n).padStart(2, '0')
 
@@ -21,12 +22,13 @@ function iso(date: Date): string {
   return `${date.getFullYear()}-${p2(date.getMonth() + 1)}-${p2(date.getDate())}T${p2(date.getHours())}:${p2(date.getMinutes())}`
 }
 
+/** "Now" as a Date whose local fields read the org-timezone wall clock, so it compares with `d()` values. */
 function nowDate(): Date {
-  return new Date(clockNow())
+  return d(wallFromMs(clockNow()))
 }
 
 function nowIso(): string {
-  return iso(nowDate())
+  return wallFromMs(clockNow()).slice(0, 16)
 }
 
 function addDays(s: string, n: number): string {

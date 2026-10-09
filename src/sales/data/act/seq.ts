@@ -1,7 +1,7 @@
-import { requestEngineTick } from '../../engine/lease'
 import { F } from '../F'
 import { uid } from '../ids'
-import { act, audit, ensureRels, schedule } from '../internals'
+import { nudgeEngine } from '../engineNudge'
+import { act, audit, ensureRels } from '../internals'
 import { Q } from '../Q'
 import { commit } from '../commit'
 import { idx, S } from '../store'
@@ -15,7 +15,7 @@ export function saveSequence(seq: SequenceInput): Sequence {
   if (!s) {
     s = {
       id: uid('sq'), createdBy: S.session.userId, ownerId: S.session.userId, createdAt: now, updatedAt: now, status: 'draft', steps: [], description: '',
-      mailboxId: '', mode: 'approval', exits: ['Human reply', 'Meeting booked', 'Unsubscribe', 'Invalid email', 'Manually removed'], window: [9, 17],
+      mailboxId: '', exits: ['Human reply', 'Meeting booked', 'Unsubscribe', 'Invalid email', 'Manually removed'], window: [9, 17],
       businessDays: true, dailyLimit: 50, shared: true, ...seq,
     }
     S.sequences.push(s)
@@ -35,7 +35,7 @@ export function setSeqStatus(id: string, st: string): void {
   if (!s) return
   s.status = st
   audit(`Sequence ${st}`, s.name)
-  if (st === 'active') requestEngineTick()
+  if (st === 'active') nudgeEngine()
   commit()
 }
 
@@ -82,10 +82,9 @@ export function enrol(ctids: string[], seqId: string, o: EnrolOpts = {}): EnrolR
     const rel = ensureRels(cid, seq.businessId, o.ownerId)
     const ct = Q.contact(cid)
     const start = o.start && o.start > now ? o.start : now
-    const first = seq.steps[0]
     const e: Enrolment = {
       id: uid('en'), seqId, contactId: cid, businessId: seq.businessId, ownerId: o.ownerId || seq.ownerId, mailboxId: o.mailboxId || seq.mailboxId,
-      status: 'active', stepIdx: 0, nextDue: schedule(start, first?.delay || 0, first?.unit, seq), startedAt: start, threadId: null, history: [], reason: '',
+      status: 'active', stepIdx: 0, nextDue: null, startedAt: start, threadId: null, history: [], reason: '',
     }
     S.enrolments.push(e)
     idx.enrolments.set(e.id, e)
@@ -94,20 +93,25 @@ export function enrol(ctids: string[], seqId: string, o: EnrolOpts = {}): EnrolR
     audit('Sequence enrolled', `${ct?.name ?? cid} → ${seq.name}`)
     res.ok.push(cid)
   }
-  requestEngineTick()
+  if (res.ok.length) nudgeEngine()
   commit()
   return res
 }
 
 const ENROL_LABEL: Record<string, string> = { paused: 'Sequence paused', removed: 'Removed from sequence', active: 'Sequence resumed' }
 
-export function setEnrol(id: string, st: string, reason?: string): void {
+/** Change an enrolment's status without committing, so callers can fold it into a larger batch. */
+export function applyEnrol(id: string, st: string, reason?: string): Enrolment | undefined {
   const e = idx.enrolments.get(id)
-  if (!e) return
+  if (!e) return undefined
   e.status = st
   e.reason = reason || ''
-  if (st === 'active' && !e.nextDue) e.nextDue = F.nowIso()
-  if (st === 'removed' || st === 'paused') {
+  if (st === 'active') {
+    // A user resume: the server executes the step on its next pass, from "now" in org time.
+    e.nextDue = F.nowIso()
+    e.resumeAt = null
+    e.pauseReason = null
+  } else if (st === 'removed' || st === 'paused') {
     for (const m of S.messages) if (m.enrolmentId === id && m.status === 'pending') m.status = 'discarded'
   }
   act({
@@ -115,6 +119,11 @@ export function setEnrol(id: string, st: string, reason?: string): void {
     subject: `${ENROL_LABEL[st] ?? `Sequence ${st}`} — ${Q.seq(e.seqId)?.name ?? ''}`,
   })
   audit(`Sequence ${st}`, Q.contact(e.contactId)?.name ?? e.contactId)
-  if (st === 'active') requestEngineTick()
+  return e
+}
+
+export function setEnrol(id: string, st: string, reason?: string): void {
+  if (!applyEnrol(id, st, reason)) return
+  if (st === 'active') nudgeEngine()
   commit()
 }

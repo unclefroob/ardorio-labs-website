@@ -19,6 +19,3 @@ export type Draft = Sequence & { versions?: SeqVersion[] }
 export const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v))
 
 export const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T
-
-/** Whether an email step resolves to approval-queue sending. */
-export const needsApproval = (approval: string | undefined, mode: string): boolean => (!approval || approval === 'inherit' ? mode === 'approval' : approval === 'approval')

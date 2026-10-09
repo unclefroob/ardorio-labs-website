@@ -1,4 +1,4 @@
-import { requestEngineTick } from '../../engine/lease'
+import { nudgeEngine } from '../engineNudge'
 import { F } from '../F'
 import { uid } from '../ids'
 import { act, audit, ensureRels, mgrsOf, notify } from '../internals'
@@ -138,7 +138,7 @@ export function markWon(id: string, f: WonForm): void {
   if (rel) rel.status = 'Customer'
   audit('Deal stage changed', `${d.name}: ${from?.name ?? '?'} → Closed Won`)
   notify([...mgrsOf(d.businessId), d.ownerId], { type: 'Goal milestone', title: `Deal won: ${d.title}`, body: F.money(d.value), link: { page: 'deal', id: d.id } })
-  requestEngineTick()
+  nudgeEngine()
   commit()
 }
 

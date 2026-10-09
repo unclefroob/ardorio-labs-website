@@ -46,6 +46,16 @@ describe('names', () => {
     expect(conflicts.userName('u-gone')).toBe('a teammate')
   })
 
+  it("names the server engine's writes 'SalesOS engine', without adding it to the user list", async () => {
+    const { conflicts, bootstrap: b, store } = await loadSales()
+    const { Q } = await import('./Q')
+    b.hydrate(bootstrap({}, [user('u-other', 'Olivia')]))
+    expect(conflicts.userName('system')).toBe('SalesOS engine')
+    expect(Q.user('system')?.name).toBe('SalesOS engine')
+    expect(store.S.users.map(u => u.id)).toEqual(['u-me', 'u-other'])
+    expect(Q.usersIn('ros').map(u => u.id)).not.toContain('system')
+  })
+
   it('describeRecord names the record by name, title or subject', async () => {
     const { conflicts } = await loadSales()
     expect(conflicts.describeRecord('companies', { name: 'Acme' })).toBe('company "Acme"')

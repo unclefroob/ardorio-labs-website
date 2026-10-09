@@ -33,7 +33,7 @@ export function Sequences() {
       r: s => (
         <div>
           <div className="row"><BizDot b={s.businessId} /><b>{s.name}</b></div>
-          <div className="faint xs">{s.mode === 'approval' ? 'Approval required' : 'Auto-send'} · {Q.mailbox(s.mailboxId)?.address ?? 'No mailbox'}</div>
+          <div className="faint xs">Manual send · {Q.mailbox(s.mailboxId)?.address ?? 'No mailbox'}</div>
         </div>
       ),
     },
@@ -84,7 +84,7 @@ export function Sequences() {
   const none = !visible.length
   return (
     <div className="page">
-      <PageHead title="Sequences" sub="Multi-step outreach with approval rules, manual tasks and simulated execution">
+      <PageHead title="Sequences" sub="Multi-step outreach where every email step becomes a task for a rep to send">
         <Btn
           icon="clock" disabled={!canCreate} title={canCreate ? undefined : 'Needs edit access'}
           onClick={() => {

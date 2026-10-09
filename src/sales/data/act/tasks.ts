@@ -1,7 +1,8 @@
-import { requestEngineTick } from '../../engine/lease'
 import { F } from '../F'
 import { uid } from '../ids'
-import { act, advance, audit, notify } from '../internals'
+import { act, audit, notify } from '../internals'
+import { applyEnrol } from './seq'
+import { nudgeEngine } from '../engineNudge'
 import { Q } from '../Q'
 import { commit } from '../commit'
 import { idx, removeRow, S } from '../store'
@@ -40,6 +41,8 @@ export function updateTask(id: string, p: Partial<Task>): void {
   const t = idx.tasks.get(id)
   if (!t) return
   const prev = t.assigneeId
+  // An email task is completed only by a recorded send; a status edit must not mark it done.
+  if (t.kind === 'email' && p.status === 'Completed') p = { ...p, status: t.status }
   Object.assign(t, p)
   if (p.assigneeId && p.assigneeId !== prev) {
     audit('Task reassigned', `${t.title} → ${Q.user(p.assigneeId)?.name ?? p.assigneeId}`)
@@ -51,6 +54,12 @@ export function updateTask(id: string, p: Partial<Task>): void {
 export function completeTask(id: string, o: CompleteOpts = {}): void {
   const t = idx.tasks.get(id)
   if (!t || Q.done(t)) return
+  if (t.kind === 'email') {
+    // An email task is done only by a recorded send (Act.markEmailSent) or an explicit skip; a bare completion
+    // would let the server advance the sequence with no message behind it.
+    console.warn('completeTask refused an email task; use markEmailSent or skipEmailTask', id)
+    return
+  }
   const now = F.nowIso()
   t.status = 'Completed'
   t.completedAt = now
@@ -73,19 +82,16 @@ export function completeTask(id: string, o: CompleteOpts = {}): void {
     const c = idx.contacts.get(t.contactId)
     if (c) c.phone = ''
   }
-  if (t.enrolmentId) {
+  if (t.enrolmentId && o.outcome === 'Meeting Booked') {
+    // The server advances the enrolment when the task completes; only the meeting exit is decided here.
     const e = idx.enrolments.get(t.enrolmentId)
-    if (e && e.status === 'awaiting_task' && e.taskId === t.id) {
-      e.status = 'active'
-      advance(e, now)
-      requestEngineTick()
-    }
-    if (e && o.outcome === 'Meeting Booked' && ['active', 'awaiting_task', 'awaiting_approval'].includes(e.status)) {
+    if (e && ['active', 'awaiting_task', 'awaiting_approval'].includes(e.status)) {
       e.status = 'completed'
       e.reason = 'Meeting booked'
       e.nextDue = null
     }
   }
+  if (t.enrolmentId) nudgeEngine()
   if (t.dealId) refreshNext(t.dealId)
   if (t.recId) {
     const r = idx.recs.get(t.recId)
@@ -113,4 +119,42 @@ export function deleteTask(id: string): void {
   removeRow('tasks', id)
   audit('Record deleted', 'Task')
   commit()
+}
+
+export type EmailTaskResult = { ok: true } | { ok: false; reason: 'no_task' }
+
+const openEmailTask = (id: string) => {
+  const t = idx.tasks.get(id)
+  return t && t.kind === 'email' && !Q.done(t) ? t : undefined
+}
+
+/** Skip one email step. The enrolment is left alone: the server sees the Cancelled task and moves on. */
+export function skipEmailTask(id: string): EmailTaskResult {
+  const t = openEmailTask(id)
+  if (!t) return { ok: false, reason: 'no_task' }
+  const now = F.nowIso()
+  t.status = 'Cancelled'
+  t.outcome = 'Skipped'
+  t.completedAt = now
+  act({
+    id: `ac_sk_${t.id}`, type: 'seq_paused', businessId: t.businessId, actorId: S.session.userId, companyId: t.companyId, contactId: t.contactId,
+    seqId: t.seqId, taskId: t.id, enrolmentId: t.enrolmentId, subject: 'Email step skipped', ts: now,
+  })
+  audit('Email step skipped', t.title)
+  nudgeEngine()
+  commit()
+  return { ok: true }
+}
+
+/** The rep decides not to email this contact: remove the enrolment and cancel the task, no suppression. */
+export function stopEmailing(id: string): EmailTaskResult {
+  const t = openEmailTask(id)
+  if (!t) return { ok: false, reason: 'no_task' }
+  if (t.enrolmentId) applyEnrol(t.enrolmentId, 'removed', 'Rep chose not to send')
+  t.status = 'Cancelled'
+  t.outcome = 'Enrolment removed'
+  t.completedAt = F.nowIso()
+  nudgeEngine()
+  commit()
+  return { ok: true }
 }

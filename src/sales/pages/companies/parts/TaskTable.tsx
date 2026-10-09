@@ -15,7 +15,7 @@ export const TaskTable: FC<TaskTableProps> = ({ rows, showAssignee = true }) => 
       k: 'd', l: '', nosort: true, w: 30,
       r: t => Q.done(t)
         ? <Icon n="check" s={14} style={{ color: 'var(--ok)' }} />
-        : <button type="button" className="btn xs icon" title="Complete" aria-label={'Complete task: ' + t.title} disabled={!Q.canEdit(t.businessId)} onClick={e => { e.stopPropagation(); completeFlow(t) }} style={{ width: 20, height: 20, borderRadius: 10 }} />,
+        : <button type="button" className="btn xs icon" title={t.kind === 'email' ? 'Open email' : 'Complete'} aria-label={(t.kind === 'email' ? 'Open email: ' : 'Complete task: ') + t.title} disabled={!Q.canEdit(t.businessId)} onClick={e => { e.stopPropagation(); completeFlow(t) }} style={{ width: 20, height: 20, borderRadius: 10 }} />,
     },
     {
       k: 'title', l: 'Task',
@@ -23,6 +23,7 @@ export const TaskTable: FC<TaskTableProps> = ({ rows, showAssignee = true }) => 
         <div style={{ opacity: Q.done(t) ? 0.55 : 1 }}>
           <div className="row" style={{ gap: 6 }}>
             <BizDot b={t.businessId} s={6} />
+            {t.kind === 'email' && <Icon n="mail" s={12} />}
             <span className="trunc" style={{ maxWidth: 340, textDecoration: t.status === 'Completed' ? 'line-through' : undefined }}>{t.title}</span>
           </div>
           <div className="faint xs">{t.type}{t.companyId ? ' · ' + (Q.company(t.companyId)?.name ?? '') : ''}{t.seqId ? ' · sequence' : ''}</div>

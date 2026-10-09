@@ -1,8 +1,8 @@
 import { salesFetch } from './http'
-import type { LeaseReleaseRequest, LeaseReleaseResponse, LeaseRequest, LeaseResponse } from './contract'
+import type { EngineRunResponse } from './contract'
 
-export const acquireLease = (req: LeaseRequest) =>
-  salesFetch<LeaseResponse>('/engine/lease', { method: 'POST', body: req })
-
-export const releaseLease = (req: LeaseReleaseRequest, keepalive = false) =>
-  salesFetch<LeaseReleaseResponse>('/engine/lease/release', { method: 'POST', body: req, keepalive })
+/**
+ * Ask the server to run its sequence engine now rather than at the next scheduled pass. Advisory only:
+ * the server runs on its own timer, so a failure here costs latency, never correctness.
+ */
+export const nudge = () => salesFetch<EngineRunResponse>('/engine/run', { method: 'POST', body: {} })

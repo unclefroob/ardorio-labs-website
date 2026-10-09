@@ -50,7 +50,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
   const sender = Q.senderOf(mb)
   const tok = Q.tokens(ct, sender, b)
   const pr = Q.render(f.subject + ' ' + F.plain(f.body), tok)
-  const sup = ct ? Q.suppression(ct.id, b) : undefined
+  const sup = ct ? Q.suppressed(ct, b) : null
   const tpls = S.templates.filter(x => x.businessId === b)
   const contacts = Q.contacts().filter(c => Q.contactBiz(c).includes(b)).sort((a, c) => a.name.localeCompare(c.name))
   const bizName = Q.biz(b)?.name ?? b
@@ -71,8 +71,8 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
       businessId: b, mailboxId: f.mailboxId, to: f.to, cc: f.cc, subject: Q.render(f.subject, tok).text, body: Q.render(f.body, tok).text,
       contactId: f.contactId || undefined, companyId: f.companyId || undefined, dealId: f.dealId || null, threadId: t?.id, draft: asDraft, draftId: p.draftId,
     })
+    if (!r.ok) return setErr(r.reason === 'suppressed' ? `${r.detail}. Outreach to a suppressed address is blocked.` : 'Choose a sender mailbox before sending')
     UI.close()
-    if (!r) return UI.toast('Email could not be saved', 'bad')
     UI.toast(asDraft ? 'Draft saved' : 'Email sent (simulated) from ' + mb.address, undefined, { label: 'View thread', fn: () => UI.nav('inbox', { id: r.thread.id }) })
   }
 

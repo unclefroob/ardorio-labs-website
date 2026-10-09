@@ -53,6 +53,14 @@ describe('salesFetch', () => {
     expect(err).toMatchObject({ status: 409, code: 'LEASE_LOST', message: 'Lease lost' })
   })
 
+  it('surfaces the SUPPRESSED code on a refused send', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(409, { error: 'Contact is suppressed', code: 'SUPPRESSED' })))
+    const { salesFetch, SalesHttpError } = await load()
+    const err = await salesFetch('/x').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(SalesHttpError)
+    expect(err).toMatchObject({ status: 409, code: 'SUPPRESSED', message: 'Contact is suppressed' })
+  })
+
   it('turns a fetch failure into a network error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
     const { salesFetch, SalesNetworkError } = await load()

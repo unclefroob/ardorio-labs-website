@@ -11,7 +11,7 @@ export function NewSeq() {
   const editable = Q.myBiz().filter(b => Q.canEdit(b))
   const def = Q.defaultBiz()
   const b0: BusinessId | undefined = def && Q.canEdit(def) ? def : editable[0]
-  const [f, set] = useF({ name: '', businessId: b0 ?? ('' as BusinessId | ''), description: '', ownerId: Q.me().id, mailboxId: '', mode: 'approval' })
+  const [f, set] = useF({ name: '', businessId: b0 ?? ('' as BusinessId | ''), description: '', ownerId: Q.me().id, mailboxId: '' })
   const me = Q.me()
   const mbs = S.mailboxes.filter(m => (f.businessId ? m.businessIds.includes(f.businessId) : false) && (m.type === 'shared' ? m.authorised.includes(me.id) || Q.isSuper() : m.ownerId === me.id))
   const mb = mbs.find(m => m.id === f.mailboxId)?.id ?? mbs[0]?.id
@@ -29,8 +29,8 @@ export function NewSeq() {
     if (!f.name.trim()) return UI.toast('Name the sequence', 'bad')
     if (!mb) return UI.toast('No sender mailbox available for this business', 'bad')
     const s = Act.saveSequence({
-      name: f.name.trim(), businessId: f.businessId, description: f.description, ownerId: f.ownerId, mailboxId: mb, mode: f.mode,
-      steps: [{ id: uid('st'), type: 'email', delay: 0, unit: 'days', subject: '', body: '', approval: 'inherit' }],
+      name: f.name.trim(), businessId: f.businessId, description: f.description, ownerId: f.ownerId, mailboxId: mb,
+      steps: [{ id: uid('st'), type: 'email', delay: 0, unit: 'days', subject: '', body: '' }],
     })
     UI.close()
     UI.nav('sequence', { id: s.id })
@@ -52,13 +52,7 @@ export function NewSeq() {
         <Fld label="Sender mailbox" err={!mb ? 'No sender mailbox is available to you for this business.' : undefined}>
           <Sel value={mb ?? ''} onChange={v => set('mailboxId', v)} placeholder={mb ? null : 'No mailbox available'} options={mbs.map(m => [m.id, m.address + (m.type === 'shared' ? ' (shared)' : ' (personal)') + (m.status !== 'connected' ? ' — disconnected' : '')] as const)} />
         </Fld>
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="sm b" style={{ padding: 0, marginBottom: 6 }}>Sending mode</legend>
-          <div className="col" style={{ gap: 6 }}>
-            <label className="ck"><input type="radio" name="seq-mode" checked={f.mode === 'auto'} onChange={() => set('mode', 'auto')} />Automatically send eligible email steps</label>
-            <label className="ck"><input type="radio" name="seq-mode" checked={f.mode === 'approval'} onChange={() => set('mode', 'approval')} />Require salesperson approval before each email</label>
-          </div>
-        </fieldset>
+        <Banner tone="info">Email steps become tasks for the owner to send by hand. SalesOS does not send email.</Banner>
       </div>
     </Modal>
   )

@@ -9,7 +9,7 @@ import { listMembers, readFilter } from './listMembers'
 import { RowBtn } from './RowBtn'
 
 function eligibility(c: Contact, l: ListRec) {
-  if (Q.suppression(c.id, l.businessId)) return <Chip tone="bad">Suppressed</Chip>
+  if (Q.suppressed(c, l.businessId)) return <Chip tone="bad">Suppressed</Chip>
   if (!c.email) return <Chip tone="warn">No email</Chip>
   if (!c.permission) return <Chip tone="warn">No basis</Chip>
   if (Q.activeEnrol(c.id).length) return <Chip tone="info">In sequence</Chip>

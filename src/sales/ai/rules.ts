@@ -1,5 +1,5 @@
 import { F } from '../data/F'
-import { uid } from '../data/ids'
+import { stableId } from '../data/ids'
 import { Q } from '../data/Q'
 import { S } from '../data/store'
 import type { BusinessId, Company, Deal, Rec, Research } from '../data/types'
@@ -65,7 +65,7 @@ type RecInput = Pick<Rec, 'key' | 'businessId' | 'type' | 'title' | 'explain' | 
 
 const DM = /Decision|Economic/
 
-/** Rule-based recommendations for the given businesses only (the lease holder generates them). */
+/** Rule-based recommendations for the given businesses only (any client may generate them; ids are derived from the key). */
 export function refreshRecs(scope: readonly BusinessId[]): void {
   const clock = F.nowIso()
   const inScope = (b: string): boolean => (scope as readonly string[]).includes(b)
@@ -75,7 +75,7 @@ export function refreshRecs(scope: readonly BusinessId[]): void {
     if (!inScope(r.businessId)) return
     live.add(r.key)
     if (have.has(r.key)) return
-    S.recs.push({ id: uid('rc'), createdAt: clock, status: 'New', ...r })
+    S.recs.push({ id: stableId('rc', r.key), createdAt: clock, status: 'New', ...r })
     have.add(r.key)
   }
 
@@ -144,7 +144,7 @@ export function refreshRecs(scope: readonly BusinessId[]): void {
     if (live.size > 200) break
     if (!inScope(r.businessId)) continue
     const c = Q.contact(r.contactId)
-    if (!c || !c.email || Q.suppression(c.id, r.businessId) || Q.activeEnrol(c.id).length) continue
+    if (!c || !c.email || Q.suppressed(c, r.businessId) || Q.activeEnrol(c.id).length) continue
     if (r.lastActivity && F.days(r.lastActivity, clock) < 21) continue
     if (S.deals.some(d => d.status === 'open' && d.contactIds.includes(c.id))) continue
     if (!/C-Level|Director|Head/.test(c.seniority)) continue

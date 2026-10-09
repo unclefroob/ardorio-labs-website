@@ -5,7 +5,7 @@ import { Q } from './data/Q'
 import { loadBootstrap } from './data/bootstrap'
 import { S, setLoadState, useLoadState, useStore } from './data/store'
 import { flushAll, startSync } from './data/sync'
-import { startEngine } from './engine/lease'
+import { Act } from './data/Act'
 import { Boundary } from './shell/Boundary'
 import { Shell } from './shell/Shell'
 import { LoadFailed, LoadingShell, NoAccess } from './shell/states'
@@ -32,9 +32,9 @@ export default function SalesApp() {
   useEffect(() => {
     if (!ready) return
     const stopSync = startSync()
-    const stopEngine = startEngine()
+    // Recommendations are generated in the browser; once per load is enough to keep them from going stale.
+    if (Q.anyEdit()) Act.refreshRecs()
     return () => {
-      stopEngine()
       stopSync()
       void flushAll()
     }

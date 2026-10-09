@@ -12,7 +12,8 @@ export interface SeqStats {
   meetings: number
   unsub: number
   bounced: number
-  pending: number
+  /** Open email tasks: drafted by the server, waiting for a rep to send them. */
+  emailsToSend: number
   opens: number
   tasksDone: number
   tasks: number
@@ -44,7 +45,7 @@ export function seqStats(s: Sequence): SeqStats {
     meetings: meet,
     unsub: en.filter(e => e.status === 'unsubscribed').length,
     bounced: en.filter(e => e.status === 'bounced').length,
-    pending: msgs.filter(m => m.status === 'pending').length,
+    emailsToSend: tasks.filter(t => t.kind === 'email' && t.status !== 'Completed' && t.status !== 'Cancelled').length,
     opens: S.activities.filter(a => a.type === 'email_open' && a.seqId === s.id).length,
     tasksDone: tasks.filter(t => t.status === 'Completed').length,
     tasks: tasks.length,

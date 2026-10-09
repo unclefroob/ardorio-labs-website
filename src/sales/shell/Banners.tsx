@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Banner, Btn } from '../kit'
+import { Act } from '../data/Act'
 import { F } from '../data/F'
+import { Q } from '../data/Q'
+import { now as clockNow } from '../data/clock'
+import { useStore } from '../data/store'
+import { formatInstant } from '../data/tz'
 import { formatOffset, getOffsetMinutes, useNow } from '../data/clock'
 import { usePrompts, userName, removePrompt, type ConflictPrompt } from '../data/conflicts'
 import { fieldLabel, formatFieldValue } from '../data/fieldLabels'
 import { deleteAnyway, keepMineFields, keepTheirs, keepTheirsFields, restoreDeleted } from '../data/resolve'
 import { flushAll, useSyncStatus } from '../data/sync'
-import { useLeaseStatus } from '../engine/lease'
 import { Icon } from '../kit'
 
 function plural(n: number, w: string): string {
@@ -16,7 +20,6 @@ function plural(n: number, w: string): string {
 /** Save and refresh problems. Hidden while everything is working. */
 export function SyncBanner() {
   const s = useSyncStatus()
-  const lease = useLeaseStatus()
   const out: ReactNode[] = []
   if (s.state === 'expired') {
     return (
@@ -46,26 +49,28 @@ export function SyncBanner() {
       </Banner>,
     )
   }
-  if (!lease.ok) {
-    out.push(
-      <Banner key="lease" tone="warn" icon="pause">
-        Automations paused. This tab can't confirm it should run sequences; they resume when the connection does.
-      </Banner>,
-    )
-  }
   if (!out.length) return null
   return <div className="col" style={{ gap: 8, padding: '8px 18px 0' }}>{out}</div>
 }
 
-/** The clock chip. With a non-zero offset it says so plainly. */
+/** The clock chip. With a non-zero offset it says the clock is simulated, by how much, and what time it is now. */
 export function ClockBanner() {
+  useStore()
   useNow()
   const off = getOffsetMinutes()
+  if (off === 0) {
+    return (
+      <span className="clock hide-m" title="Current time" style={{ cursor: 'default' }}>
+        <Icon n="clock" s={13} />
+        {F.dt(F.nowIso())}
+      </span>
+    )
+  }
   return (
-    <span className="clock hide-m" title={off ? 'The clock is shifted' : 'Current time'} style={{ cursor: 'default' }}>
+    <span className="clock hide-m" title="The clock is shifted for everyone" style={{ cursor: 'default' }}>
       <Icon n="clock" s={13} />
-      {F.dt(F.nowIso())}
-      {off !== 0 && <span className="b" style={{ color: 'var(--warn)' }}>· Demo clock {formatOffset(off)}</span>}
+      <span className="b" style={{ color: 'var(--warn)' }}>Simulated clock: {formatOffset(off)} (now {formatInstant(clockNow())})</span>
+      {Q.anyAdmin() && <Btn size="xs" kind="ghost" onClick={() => Act.resetClock()}>Reset</Btn>}
     </span>
   )
 }

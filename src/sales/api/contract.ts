@@ -137,6 +137,7 @@ export interface OpResult {
   error?: { code: SalesErrorCode; message: string; details?: Record<string, unknown> }  // only when status 'rejected'
 }
 
+/** @deprecated The browser can no longer hold an engine lease. New builds never send `engine`; old builds get LEASE_LOST. */
 export interface EngineTag { sessionId: string; businessIds: BusinessId[] }
 export interface BatchRequest { ops: Op[]; engine?: EngineTag }
 export interface BatchResponse { results: OpResult[]; serverNow: string }
@@ -164,16 +165,29 @@ export interface ChangesResponse {
   clockOffsetMinutes: number      // current settings/clock offset, for the D9 banner
 }
 
+/** @deprecated Tombstoned for one release: the server runs the engine. New builds never call the lease endpoints. */
 export interface LeaseRequest { sessionId: string; businessIds: BusinessId[] }   // sessionId: crypto.randomUUID() per tab
+/** @deprecated see LeaseRequest. */
 export interface LeaseInfo {
   businessId: BusinessId
   held: boolean                    // held by THIS session
   expiresAt: string | null         // of whoever holds it; null when nobody does
   holder?: { userId: string; name: string }   // present when another session holds it
 }
+/** @deprecated see LeaseRequest. */
 export interface LeaseResponse { ttlMs: number; renewEveryMs: number; serverNow: string; leases: LeaseInfo[] }  // ttl 45000, renew 15000
+/** @deprecated see LeaseRequest. */
 export interface LeaseReleaseRequest { sessionId: string }
+/** @deprecated see LeaseRequest. */
 export interface LeaseReleaseResponse { released: BusinessId[] }
+
+/** POST /sales/engine/run. Body is `{}`. Always 200; best-effort nudge of the server engine. */
+export interface EngineRunResponse {
+  ran: boolean
+  reason?: 'busy' | 'held_elsewhere' | 'disabled'
+  businessIds: BusinessId[]
+  serverNow: string // ISO instant incl. clock offset
+}
 
 export interface DemoWipeRequest { businessIds?: BusinessId[] }   // default: every business the caller admins
 export interface DemoWipeResponse { wiped: number }
@@ -242,7 +256,7 @@ export interface ResearchResponse extends AiMeta {
 export type SalesErrorCode =
   | 'VALIDATION' | 'UNKNOWN_COLLECTION' | 'READ_ONLY' | 'APPEND_ONLY' | 'IMMUTABLE_FIELD'
   | 'NOT_A_MEMBER' | 'MEMBER_INACTIVE' | 'ROLE_REQUIRED' | 'NOT_FOUND'
-  | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION'
+  | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION' | 'SUPPRESSED'
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'INTERNAL'
 

@@ -58,6 +58,7 @@ export function tryMove(dealId: string, stageId: string): void {
 
 export function completeFlow(t: Task): void {
   if (!UI.guard(t.businessId, 'Completing tasks')) return
+  if (t.kind === 'email') return UI.open('sendEmailTask', { taskId: t.id })
   if (t.type === 'Call') return UI.open('callOutcome', { taskId: t.id })
   if (t.type === 'LinkedIn Activity') return UI.open('linkedin', { contactId: t.contactId, taskId: t.id, businessId: t.businessId })
   Act.completeTask(t.id, {})

@@ -6,7 +6,6 @@ import type { Task } from '../../data/types'
 import {
   Av, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DataTable, Due, Empty, Icon, Kpi, Menu, Prog, TONE, type Col, type MenuItem,
 } from '../../kit'
-import { Approval } from '../../shared/Approval'
 import { completeFlow } from '../../shared/moves'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -54,6 +53,25 @@ function CallRow({ t }: { t: Task }) {
   )
 }
 
+function EmailRow({ t }: { t: Task }) {
+  const c = Q.contact(t.contactId)
+  const d = t.draft
+  return (
+    <div className="row wrap" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', gap: 10 }}>
+      <Icon n="mail" s={15} />
+      <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+        <div className="row" style={{ gap: 6 }}>
+          <b className="trunc">{c ? <CtLink id={c.id} /> : d?.to ?? t.title}</b>
+          {c && <span className="faint sm">· {c.title} · <CoLink id={c.companyId} /></span>}
+        </div>
+        <div className="sm muted trunc">{d?.subject ?? t.title}</div>
+      </div>
+      <Due t={t} />
+      <Btn size="sm" kind="pri" icon="mail" onClick={() => completeFlow(t)}>Open</Btn>
+    </div>
+  )
+}
+
 export function MyDay() {
   const me = Q.me()
   const sc = Q.scope()
@@ -63,14 +81,10 @@ export function MyDay() {
   const mine = S.tasks.filter(t => t.assigneeId === me.id && sc.includes(t.businessId))
   const due = mine.filter(t => !Q.done(t) && t.status !== 'Snoozed' && t.due.slice(0, 10) <= today)
   const doneToday = mine.filter(t => t.status === 'Completed' && t.completedAt?.slice(0, 10) === today)
+  const emails = due.filter(t => t.kind === 'email').sort((a, b) => a.due.localeCompare(b.due))
   const calls = due.filter(t => t.type === 'Call').sort((a, b) => a.due.localeCompare(b.due))
   const overdue = mine.filter(Q.overdue)
-  const od = overdue.filter(t => t.type !== 'Call').sort((a, b) => (PRIO[a.priority] ?? 3) - (PRIO[b.priority] ?? 3) || a.due.localeCompare(b.due))
-  const appr = S.messages.filter(m => {
-    if (m.status !== 'pending' || (m.snoozeUntil && m.snoozeUntil > clock)) return false
-    const e = Q.enrol(m.enrolmentId)
-    return !!e && sc.includes(e.businessId) && (e.ownerId === me.id || !!me.super)
-  })
+  const od = overdue.filter(t => t.type !== 'Call' && t.kind !== 'email').sort((a, b) => (PRIO[a.priority] ?? 3) - (PRIO[b.priority] ?? 3) || a.due.localeCompare(b.due))
   const meets = S.meetings.filter(m => sc.includes(m.businessId) && m.status === 'upcoming' && (m.ownerId === me.id || me.super) && m.start >= today).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 6)
   const recs = S.recs
     .filter(r => {
@@ -104,8 +118,8 @@ export function MyDay() {
       ),
     },
   ]
-  const scrollToAppr = (): void => {
-    const el = document.getElementById('appr')
+  const scrollToEmails = (): void => {
+    const el = document.getElementById('emails')
     const main = document.querySelector('.sos .main')
     if (el && main) main.scrollTop = el.offsetTop - 70
   }
@@ -122,7 +136,7 @@ export function MyDay() {
         <Kpi label="Completed today" value={doneToday.length} tone="ok" onClick={nav('completed')} />
         <Kpi label="Outstanding" value={mine.filter(t => !Q.done(t)).length} onClick={nav('open')} />
         <Kpi label="Overdue" value={overdue.length} tone={overdue.length ? 'bad2' : undefined} onClick={nav('overdue')} />
-        <Kpi label="Awaiting approval" value={appr.length} onClick={scrollToAppr} />
+        <Kpi label="Emails to send" value={emails.length} tone={emails.length ? 'warn' : undefined} onClick={scrollToEmails} />
         <Kpi label="Upcoming meetings" value={meets.length} onClick={() => UI.nav('activities', { q: { type: 'meeting_booked' } })} />
       </div>
       <div className="split">
@@ -137,9 +151,9 @@ export function MyDay() {
           <Card title={`Calls due (${calls.length})`} icon="phone" pad={false}>
             {calls.length ? calls.map(t => <CallRow key={t.id} t={t} />) : <Empty icon="phone" title="No calls due" body="Call tasks from sequences and follow-ups appear here." />}
           </Card>
-          <Card title={`Emails requiring approval (${appr.length})`} icon="send" pad={false}>
-            <div id="appr" />
-            {appr.length ? appr.map(m => <Approval key={m.id} m={m} />) : <Empty icon="send" title="Approval queue is empty" body="Emails from approval-mode sequences wait here before simulated sending." />}
+          <Card title={`Emails to send (${emails.length})`} icon="send" pad={false}>
+            <div id="emails" />
+            {emails.length ? emails.map(t => <EmailRow key={t.id} t={t} />) : <Empty icon="send" title="No emails waiting" body="Email steps from your sequences appear here. SalesOS does not send them: copy, send from your mail client, then mark as sent." />}
           </Card>
           <Card title="Overdue tasks" icon="alert" pad={false}>
             {od.length ? <DataTable rows={od} cols={overdueCols} onRow={t => UI.drawer('task', { id: t.id })} page={8} /> : <Empty icon="check" title="Nothing overdue" />}

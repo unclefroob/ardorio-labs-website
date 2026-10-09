@@ -103,7 +103,7 @@ function BizProfile({ b }: { b: BusinessId }) {
           <dt>Email</dt>
           <dd>{S.mailboxes.filter(m => m.businessIds.includes(b)).length} mailboxes · <Link to="integrations">Manage</Link></dd>
           <dt>Sequences</dt>
-          <dd>{S.sequences.filter(s => s.businessId === b).length} · default mode approval for new sequences</dd>
+          <dd>{S.sequences.filter(s => s.businessId === b).length} · email steps are sent by hand from tasks</dd>
           <dt>Templates</dt>
           <dd><Link to="templates">{S.templates.filter(t => t.businessId === b).length} templates</Link></dd>
         </dl>

@@ -1,11 +1,12 @@
-import { requestEngineTick } from '../../engine/lease'
 import { classify, type Classification } from '../../ai/local'
+import { now as clockNow } from '../clock'
+import { nudgeEngine } from '../engineNudge'
 import { F } from '../F'
-import { uid } from '../ids'
-import { act, advance, audit, notify, sendMsg } from '../internals'
+import { detId, uid } from '../ids'
+import { act, audit, notify, suppressContact, threadFor } from '../internals'
 import { Q } from '../Q'
 import { commit } from '../commit'
-import { idx, reindex, removeRow, S } from '../store'
+import { idx, reindex, S } from '../store'
 import type { BusinessId, Meeting, Message, Thread } from '../types'
 
 // ── calls & meetings ────────────────────────────────────────────────────────────────────────
@@ -80,12 +81,37 @@ export interface SendEmailForm {
   draft?: boolean
 }
 
-export function sendEmail(f: SendEmailForm): { thread: Thread; msg: Message } | undefined {
+export type SendResult =
+  | { ok: true; thread: Thread; msg: Message }
+  | { ok: false; reason: 'no_mailbox' }
+  | { ok: false; reason: 'suppressed'; detail: string }
+
+const splitAddrs = (v: string | undefined): string[] => (v || '').split(/[,;\s]+/).map(a => a.trim().toLowerCase()).filter(a => a.includes('@'))
+
+/** Every recipient that is suppressed for business `b`, as the lower-case address (or the contact's own address). */
+function suppressedRecipients(f: SendEmailForm, thread: Thread | undefined): string[] {
+  const hit = new Set<string>()
+  const ctIds = [f.contactId, thread?.contactId].filter((x): x is string => !!x)
+  for (const id of ctIds) {
+    const ct = idx.contacts.get(id)
+    if (ct && Q.suppressed(ct, f.businessId)) hit.add((ct.email || ct.name).toLowerCase())
+  }
+  for (const a of [...splitAddrs(f.to), ...splitAddrs(f.cc)]) if (Q.suppressedAddr(a, f.businessId)) hit.add(a)
+  return [...hit]
+}
+
+export function sendEmail(f: SendEmailForm): SendResult {
   const mb = idx.mailboxes.get(f.mailboxId)
-  if (!mb) return undefined
+  if (!mb) return { ok: false, reason: 'no_mailbox' }
+  const existing = f.threadId ? idx.threads.get(f.threadId) : undefined
+  if (!f.draft) {
+    // The server refuses to mark a message sent to a suppressed address (SUPPRESSED); refuse here first so nothing is written.
+    const blocked = suppressedRecipients(f, existing)
+    if (blocked.length) return { ok: false, reason: 'suppressed', detail: `Suppressed: ${blocked.join(', ')}` }
+  }
   const ct = f.contactId ? idx.contacts.get(f.contactId) : undefined
   const now = F.nowIso()
-  let t = f.threadId ? idx.threads.get(f.threadId) : undefined
+  let t = existing
   if (!t) {
     t = {
       id: uid('th'), businessId: f.businessId, mailboxId: mb.id, subject: f.subject, contactId: f.contactId, companyId: f.companyId || ct?.companyId,
@@ -112,54 +138,54 @@ export function sendEmail(f: SendEmailForm): { thread: Thread; msg: Message } | 
     audit('Email simulated as sent', `${f.subject} → ${f.to}`)
   }
   commit()
-  return { thread: t, msg: m }
+  return { ok: true, thread: t, msg: m }
 }
 
-/** User approval of a sequence email. The send is a user operation, never an engine one. */
-export function approveMsg(id: string, edits?: { subject?: string; body?: string }): 'blocked' | undefined {
-  const m = S.messages.find(x => x.id === id)
-  if (!m || !m.enrolmentId) return undefined
-  const e = idx.enrolments.get(m.enrolmentId)
+export type MarkSentResult = { ok: true } | { ok: false; reason: 'suppressed' | 'no_task' | 'duplicate' }
+
+/**
+ * The rep sent an engine-drafted email from their own mail client and says so. Records the message, the
+ * activity and the completed task in one batch; the server advances the enrolment (never done here).
+ * Ids are deterministic from the task id, so a retry or a second tab collapses into one record.
+ */
+export function markEmailSent(taskId: string): MarkSentResult {
+  const t = idx.tasks.get(taskId)
+  if (!t || t.kind !== 'email' || !t.draft || t.status === 'Cancelled') return { ok: false, reason: 'no_task' }
+  const msgId = detId(`ms_${t.id}`)
+  if (t.status === 'Completed' || idx.messages.has(msgId) || S.messages.some(m => m.id === msgId)) return { ok: false, reason: 'duplicate' }
+  const e = t.enrolmentId ? idx.enrolments.get(t.enrolmentId) : undefined
+  const ct = t.contactId ? idx.contacts.get(t.contactId) : undefined
+  const d = t.draft
+  const blocked = (ct && Q.suppressed(ct, t.businessId)) || [d.to, d.cc].flatMap(splitAddrs).some(a => Q.suppressedAddr(a, t.businessId))
+  if (blocked) return { ok: false, reason: 'suppressed' }
   const seq = e ? idx.sequences.get(e.seqId) : undefined
-  const step = seq?.steps.find(s => s.id === m.stepId)
-  if (!e || !seq || !step) return undefined
-  if (Q.suppression(e.contactId, seq.businessId)) {
-    m.status = 'discarded'
-    e.status = 'removed'
-    e.reason = 'Suppressed before approval'
-    commit()
-    return 'blocked'
+  const mb = idx.mailboxes.get(t.mailboxId || e?.mailboxId || seq?.mailboxId || '')
+  const subject = d.subject
+  let th = e?.threadId ? idx.threads.get(e.threadId) : undefined
+  if (!th && e && seq && mb) th = threadFor(e, seq, mb, subject)
+  if (!th) return { ok: false, reason: 'no_task' }
+  const now = F.nowIso()
+  const m: Message = {
+    id: msgId, threadId: th.id, dir: 'out', from: d.from || mb?.address || '', to: d.to, cc: d.cc || '',
+    subject: th.subject === subject ? subject : `Re: ${th.subject.replace(/^Re: /, '')}`, body: d.body, ts: now, status: 'sent',
+    enrolmentId: t.enrolmentId, stepId: t.stepId, mailboxId: mb?.id ?? t.mailboxId, manual: true, sentAt: new Date(clockNow()).toISOString(),
   }
-  removeRow('messages', id)
-  e.status = 'active'
-  e.pendingMsgId = null
-  sendMsg(e, seq, step, F.nowIso(), edits?.subject || m.subject, edits?.body || m.body)
-  audit('Sequence email approved', `${seq.name} → ${Q.contact(e.contactId)?.name ?? e.contactId}`)
-  requestEngineTick()
-  commit()
-  return undefined
-}
-
-export function rejectMsg(id: string): void {
-  const m = S.messages.find(x => x.id === id)
-  const e = m?.enrolmentId ? idx.enrolments.get(m.enrolmentId) : undefined
-  if (!e) return
-  removeRow('messages', id)
-  e.status = 'active'
-  advance(e, F.nowIso())
+  S.messages.push(m)
+  idx.messages.set(m.id, m)
+  th.updatedAt = now
+  th.needsReply = false
   act({
-    type: 'seq_paused', businessId: e.businessId, contactId: e.contactId, companyId: Q.contact(e.contactId)?.companyId, seqId: e.seqId,
-    subject: 'Email step skipped (rejected in approval)',
+    id: detId(`ac_ms_${t.id}`), type: 'email_out', businessId: t.businessId, actorId: S.session.userId, companyId: t.companyId ?? ct?.companyId, contactId: t.contactId,
+    dealId: th.dealId, seqId: t.seqId, enrolmentId: t.enrolmentId, taskId: t.id, messageId: m.id, subject: m.subject, manual: true,
+    desc: `Sent manually from ${m.from} (marked as sent)`, ts: now, visibility: th.visibility === 'private' ? 'private' : 'business', ownerId: th.ownerId,
   })
-  requestEngineTick()
+  t.status = 'Completed'
+  t.completedAt = now
+  t.outcome = 'Sent (manual)'
+  audit('Email marked as sent', `${subject} → ${d.to}`)
+  nudgeEngine()
   commit()
-}
-
-export function snoozeMsg(id: string, h: number): void {
-  const m = S.messages.find(x => x.id === id)
-  if (!m) return
-  m.snoozeUntil = F.addHours(F.nowIso(), h)
-  commit()
+  return { ok: true }
 }
 
 export function markThread(id: string, p: Partial<Thread>): void {
@@ -244,25 +270,10 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
   let impact = 'No active sequence'
   if (cl.cat === 'Unsubscribe') {
     const scope = o.global ? 'global' : 'business'
-    const others = o.global ? S.enrolments.filter(x => x.contactId === ct.id && x.businessId !== b && ['active', 'awaiting_approval', 'awaiting_task', 'paused'].includes(x.status)) : []
-    for (const x of [...live, ...others]) {
-      x.status = 'unsubscribed'
-      x.nextDue = null
-      x.reason = 'Unsubscribe request'
-    }
-    discardPending(live)
-    S.suppressions.push({
-      id: uid('sp'), contactId: ct.id, email: ct.email, scope, businessId: scope === 'global' ? null : b, reason: 'Unsubscribe',
-      source: `Reply detected: “${o.text.slice(0, 60)}”`, date: ts, by: 'system',
+    suppressContact(ct, {
+      reason: 'Unsubscribe', scope, businessId: b, source: `Reply detected: “${o.text.slice(0, 60)}”`, by: 'system', ts, enrolStatus: 'unsubscribed',
+      enrolReason: 'Unsubscribe request', doNotContact: true, subject: `Contact suppressed (${scope}) — unsubscribe`, auditAction: 'Contact suppression updated', actorId: owner,
     })
-    for (const r of S.contactRels) {
-      if (r.contactId === ct.id && (scope === 'global' || r.businessId === b)) {
-        r.eligible = false
-        r.leadStatus = 'Do Not Contact'
-      }
-    }
-    act({ type: 'suppressed', businessId: b, actorId: owner, contactId: ct.id, companyId: ct.companyId, subject: `Contact suppressed (${scope}) — unsubscribe`, ts })
-    audit('Contact suppression updated', `${ct.name} — unsubscribe (${scope})`, 'system')
     impact = 'Sequence stopped · suppression created'
     notify([owner], { type: 'Contact unsubscribe', title: `${ct.name} unsubscribed`, body: 'Outreach stopped and suppression recorded.', link: { page: 'contact', id: ct.id } })
   } else if (cl.cat === 'Out of Office') {
@@ -274,12 +285,16 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
     const first = live[0]
     if (first?.resumeAt) impact = `Paused until ${F.date(first.resumeAt)}`
   } else if (cl.cat === 'Delivery Failure') {
-    for (const x of live) {
-      x.status = 'bounced'
-      x.nextDue = null
-    }
+    // A hard bounce is a global suppression (Invalid address), same path as an unsubscribe.
+    suppressContact(ct, {
+      reason: 'Invalid address', scope: 'global', businessId: b, source: `Bounce detected on thread “${t.subject}”`, by: 'system', ts, enrolStatus: 'bounced',
+      enrolReason: 'Hard bounce', doNotContact: false, subject: `Contact suppressed (global) — invalid address`, auditAction: 'Suppression added (bounce)', actorId: owner,
+    })
     ct.deliverability = 'Bounced'
-    impact = 'Stopped — bounced'
+    ct.verification = 'Invalid'
+    act({ type: 'bounce', businessId: b, actorId: owner, contactId: ct.id, companyId: ct.companyId, subject: `Email bounced — ${ct.email}`, ts })
+    notify([owner], { type: 'Sequence failure', title: `Email to ${ct.name} bounced`, body: 'Address suppressed; outreach stopped.', link: { page: 'contact', id: ct.id } })
+    impact = 'Stopped — bounced · address suppressed'
   } else {
     for (const x of live) {
       x.status = 'replied'
@@ -319,16 +334,12 @@ export function correctClass(tid: string, cat: string): void {
   audit('Reply classification corrected', `${t.subject} → ${cat}`)
   const ct = t.contactId ? idx.contacts.get(t.contactId) : undefined
   if (cat === 'Unsubscribe' && ct) {
-    S.suppressions.push({
-      id: uid('sp'), contactId: ct.id, email: ct.email, scope: 'business', businessId: t.businessId, reason: 'Unsubscribe',
-      source: 'Manual classification correction', date: F.nowIso(), by: S.session.userId,
+    suppressContact(ct, {
+      reason: 'Unsubscribe', scope: 'business', businessId: t.businessId, source: 'Manual classification correction', by: S.session.userId, ts: F.nowIso(),
+      enrolStatus: 'unsubscribed', enrolReason: 'Unsubscribe request', doNotContact: true, subject: 'Contact suppressed (business) — unsubscribe',
+      auditAction: 'Contact suppression updated',
     })
-    for (const e of S.enrolments) {
-      if (e.contactId === ct.id && e.businessId === t.businessId && !['completed', 'removed', 'unsubscribed'].includes(e.status)) {
-        e.status = 'unsubscribed'
-        e.nextDue = null
-      }
-    }
+    notify([t.ownerId], { type: 'Contact unsubscribe', title: `${ct.name} unsubscribed`, body: 'Outreach stopped and suppression recorded.', link: { page: 'contact', id: ct.id } })
   }
   commit()
 }
