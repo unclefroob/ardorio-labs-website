@@ -209,7 +209,7 @@ export function Tasks({ route }: { route: Route }) {
                           style={{ height: 'auto', padding: '3px 6px', whiteSpace: 'normal', textAlign: 'left', cursor: 'pointer', justifyContent: 'flex-start', background: Q.done(t) ? 'var(--surf2)' : Q.overdue(t) ? 'var(--bad-bg)' : 'var(--acc-soft)', color: Q.done(t) ? 'var(--fg3)' : undefined }}
                           onClick={() => UI.drawer('task', { id: t.id })}
                         >
-                          <span className="mono" style={{ fontSize: 10 }}>{t.due.slice(11)}</span> {t.title.slice(0, 48)}
+                          <span className="mono" style={{ fontSize: 12 }}>{t.due.slice(11)}</span> {t.title.slice(0, 48)}
                         </button>
                       ))}
                       {ts.length > 8 && <span className="faint xs">+{ts.length - 8} more</span>}

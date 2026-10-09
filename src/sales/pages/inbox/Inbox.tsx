@@ -94,6 +94,7 @@ export function Inbox({ route }: { route: Route }) {
 
   return (
     <div className="inbox">
+      <h1 className="sr-only">Inbox</h1>
       <div className="ib-l">
         <Btn kind="pri" icon="edit" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} disabled={!canCompose} onClick={() => UI.open('compose')}>Compose</Btn>
         {FOLD.map(([k, l, ic]) => {

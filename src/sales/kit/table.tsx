@@ -72,11 +72,11 @@ export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, se
   return (
     <div>
       <div className="tw">
-        <table className="tbl">
+        <table className={sel && setSel ? 'tbl tbl-sel' : 'tbl'}>
           <thead>
             <tr>
               {sel && setSel && (
-                <th style={{ width: 34 }}>
+                <th>
                   <Ck checked={allOn} label="Select all" onChange={v => setSel(v ? rows.map(idOf) : [])} />
                 </th>
               )}

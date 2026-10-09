@@ -10,6 +10,8 @@ export function DealCard({ d }: { d: Deal }) {
   const co = Q.company(d.companyId)
   const rk = Q.risk(d)
   const nt = Q.nextTask(d)
+  const flagged = !!rk && !(rk.reasons.length === 1 && !nt)
+  const name = d.title || d.name
   const pl = Q.pipeline(d.businessId)
   const can = Q.canEdit(d.businessId)
   const start = (e: DragEvent<HTMLDivElement>): void => {
@@ -22,12 +24,12 @@ export function DealCard({ d }: { d: Deal }) {
       <div className="row" style={{ alignItems: 'flex-start', gap: 6 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="b sm" style={{ lineHeight: 1.3 }}>
-            <Link to="deal" id={d.id}>{d.title}</Link>
+            <Link to="deal" id={d.id}>{name}</Link>
           </div>
           <div className="faint xs trunc">{co?.name ?? '—'}</div>
         </div>
-        {rk && (
-          <span title={rk.reasons.join(' · ')}>
+        {rk && flagged && (
+          <span role="img" aria-label={'At risk: ' + rk.reasons.join(', ')} title={rk.reasons.join(' · ')}>
             <Icon n="alert" s={14} style={{ color: rk.level === 'high' ? 'var(--bad2)' : 'var(--warn)' }} />
           </span>
         )}
@@ -56,7 +58,7 @@ export function DealCard({ d }: { d: Deal }) {
       {can && (
         <div style={{ marginTop: 6 }}>
           <Menu
-            trigger={<Btn size="xs" kind="ghost" iconRight="down" aria-label={`Move ${d.title} to stage`}>Move</Btn>}
+            trigger={<Btn size="xs" kind="ghost" iconRight="down" aria-label={`Move ${name} to stage`}>Move</Btn>}
             items={pl.stages.filter(s => s.id !== d.stageId).map(s => ({ label: s.name, right: s.prob + '%', onClick: () => tryMove(d.id, s.id) }))}
           />
         </div>

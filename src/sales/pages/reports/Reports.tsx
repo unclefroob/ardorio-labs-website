@@ -166,13 +166,13 @@ export function Reports() {
           </div>
           <div className="grid g2" style={{ marginBottom: 14 }}>
             <Card title="Sales activity trend" right={<Legend items={[['Emails', 'var(--acc)'], ['Calls', '#0E8A7E'], ['Meetings', '#D9572B'], ['LinkedIn', '#8E8897']]} />}>
-              <Line labels={weeks.map(x => x.l)} series={[
+              <Line label="Sales activity trend by week" labels={weeks.map(x => x.l)} series={[
                 { n: 'Emails', c: 'var(--acc)', v: w('email_out') }, { n: 'Calls', c: '#0E8A7E', v: w('call') },
                 { n: 'Meetings', c: '#D9572B', v: w('meeting_booked') }, { n: 'LinkedIn', c: '#8E8897', v: w('linkedin_conn') },
               ]} />
             </Card>
             <Card title="Revenue forecast (weighted, by expected close)" right={<Legend items={[['Commit', 'var(--acc)'], ['Best case / pipeline', 'var(--acc-line)']]} />}>
-              <Bars stacked data={fm} colors={['var(--acc)', 'var(--acc-line)']} fmt={v => F.money(v, 1)} />
+              <Bars label="Revenue forecast by expected close" stacked data={fm} colors={['var(--acc)', 'var(--acc-line)']} fmt={v => F.money(v, 1)} />
             </Card>
             <Card title="Funnel">
               <Funnel steps={[{ l: 'Contacts emailed', v: emailed.size }, { l: 'Replied', v: replied.size }, { l: 'Positive', v: posC.size }, { l: 'Meetings', v: meetC.size }, { l: 'Deals won', v: won.length }]} />
@@ -202,7 +202,7 @@ export function Reports() {
                   </tbody>
                 </table>
               ) : (
-                <Bars data={bs.map(b => ({ l: Q.biz(b)?.name ?? b, v: sum(open.filter(d => d.businessId === b), d => d.value), c: Q.biz(b)?.accent }))} fmt={v => F.money(v, 1)} />
+                <Bars label="Open pipeline by business" data={bs.map(b => ({ l: Q.biz(b)?.name ?? b, v: sum(open.filter(d => d.businessId === b), d => d.value), c: Q.biz(b)?.accent }))} fmt={v => F.money(v, 1)} />
               )}
             </Card>
           </div>
