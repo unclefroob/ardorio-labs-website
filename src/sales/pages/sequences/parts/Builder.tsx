@@ -3,11 +3,11 @@ import { uid } from '../../../data/ids'
 import { Btn, Card, Chip, Empty, Icon, Menu } from '../../../kit'
 import { STEP } from '../../../shared/constants'
 import type { SeqStep } from '../../../data/types'
-import { condLabel, needsApproval, type Draft } from './conds'
+import { condLabel, type Draft } from './conds'
 import { StepEditor } from './StepEditor'
 
 const BASE: Record<SeqStep['type'], Partial<SeqStep>> = {
-  email: { subject: '', body: '', approval: 'inherit' },
+  email: { subject: '', body: '' },
   call: { title: 'Call — {{first_name}}', script: '', wait: false },
   linkedin: { title: 'LinkedIn — {{first_name}}', action: 'Send connection request', script: '' },
   task: { title: '', priority: 'Medium', desc: '' },
@@ -75,7 +75,6 @@ export function Builder({ dr, upd, sel, setSel, can }: { dr: Draft; upd: (p: Par
           {steps.map((x, i) => {
             const [ic, l] = STEP[x.type] ?? ['mail', x.type]
             const bad = x.type === 'email' && (!x.subject || !x.body)
-            const appr = x.type === 'email' && needsApproval(x.approval, dr.mode)
             const title = x.type === 'email' ? x.subject || 'Untitled email' : x.type === 'wait' ? `Wait ${x.delay ?? 0} ${x.unit ?? 'days'}` : x.type === 'branch' ? 'If ' + condLabel(x.cond) : x.title || l
             return (
               <Fragment key={x.id}>
@@ -94,7 +93,7 @@ export function Builder({ dr, upd, sel, setSel, can }: { dr: Draft; upd: (p: Par
                     <span className="row" style={{ display: 'flex' }}>
                       <span className="faint xs">Step {i + 1} · Day {days[i]}</span>
                       <span className="sp" />
-                      {x.type === 'email' && <Chip tone={appr ? 'warn' : 'info'}>{appr ? 'Approval' : 'Auto'}</Chip>}
+                      {x.type === 'email' && <Chip tone="info">Manual send</Chip>}
                       {bad && <Chip tone="bad">Incomplete</Chip>}
                     </span>
                     <span className="b sm trunc" style={{ display: 'block', marginTop: 2 }}>{title}</span>

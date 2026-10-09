@@ -1,9 +1,9 @@
 import { archiveCompany, archiveContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
 import { createDeal, markLost, markWon, moveStage, reopenDeal, updateDeal } from './act/deals'
-import { approveMsg, correctClass, logCall, markThread, rejectMsg, saveMeeting, sendEmail, shareThread, simEvent, simulateReply, snoozeMsg } from './act/mail'
-import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, saveResearch, wizaUse } from './act/recs'
+import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
+import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, refreshRecs, saveResearch, wizaUse } from './act/recs'
 import { dupSequence, enrol, saveSequence, setEnrol, setSeqStatus } from './act/seq'
-import { cancelTask, completeTask, createTask, deleteTask, snoozeTask, updateTask } from './act/tasks'
+import { cancelTask, completeTask, createTask, deleteTask, skipEmailTask, snoozeTask, stopEmailing, updateTask } from './act/tasks'
 import {
   advance, deleteGoal, deleteTeam, deleteView, readAll, readNotif, removeStage, resetClock, runSequences, sampleNotif, saveGoal, savePipeline, saveTeam,
   saveUser, saveView, setBiz, setClock, setDemo, setMailbox, setOrg, setSession, setTheme, setUserActive, setWiza,
@@ -11,10 +11,10 @@ import {
 
 export type { CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
 export type { DealForm, LostForm, WonForm } from './act/deals'
-export type { CallForm, MeetingInput, SendEmailForm, SimulateReplyOpts } from './act/mail'
+export type { CallForm, MeetingInput, MarkSentResult, SendEmailForm, SendResult, SimulateReplyOpts } from './act/mail'
 export type { EnrichFields } from './act/recs'
 export type { EnrolOpts, EnrolResult, SequenceInput } from './act/seq'
-export type { CompleteOpts, TaskInput } from './act/tasks'
+export type { CompleteOpts, EmailTaskResult, TaskInput } from './act/tasks'
 export type { GoalInput, TeamInput, UserForm } from './act/admin'
 
 /**
@@ -29,11 +29,11 @@ export const Act = {
   createDeal, updateDeal, moveStage, markWon, markLost, reopenDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   logCall, saveMeeting,
-  sendEmail, approveMsg, rejectMsg, snoozeMsg, markThread, shareThread,
+  sendEmail, markEmailSent, skipEmailTask, stopEmailing, markThread, shareThread,
   saveSequence, setSeqStatus, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,
   addSuppression, removeSuppression,
-  recTask, recStatus, introRequest, crossDismiss, saveResearch, applyEnrichment, wizaUse,
+  recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, applyEnrichment, wizaUse,
   importRows, saveList, listAdd, listRemove, deleteList,
   saveTemplate, deleteTemplate, saveGoal, deleteGoal,
   saveUser, setUserActive, saveTeam, deleteTeam, savePipeline, removeStage, setMailbox, setWiza, setOrg, setBiz, setDemo,

@@ -10,6 +10,7 @@ import { Settings } from '../pages/admin/Settings'
 import { Users } from '../pages/admin/Users'
 import { Integrations } from '../pages/admin/Integrations'
 import { Pipelines } from '../pages/admin/Pipelines'
+import { Clock } from '../pages/admin/Clock'
 import { CrossIntro } from '../modals/reports/CrossIntro'
 import { GoalModal } from '../modals/reports/GoalModal'
 import { CopilotDrawer } from '../modals/reports/CopilotDrawer'
@@ -22,7 +23,7 @@ export const u4: UnitModule = {
   pages: {
     dashboard: Dashboard, myday: MyDay, notifications: Notifications,
     copilot: Copilot, recs: Recs, reports: Reports, goals: Goals,
-    settings: Settings, users: Users, integrations: Integrations, pipelines: Pipelines,
+    settings: Settings, users: Users, integrations: Integrations, pipelines: Pipelines, clock: Clock,
   },
   modals: { crossIntro: CrossIntro, goal: GoalModal, userEdit: UserEdit, teamEdit: TeamEdit, migrate: Migrate },
   drawers: { copilot: CopilotDrawer, user: UserDrawer },

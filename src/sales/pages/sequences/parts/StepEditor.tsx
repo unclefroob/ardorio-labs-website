@@ -87,12 +87,6 @@ export function StepEditor({ x, i, n, set, mv, del, can, dr }: Props) {
         {x.type === 'email' && (
           <>
             <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
-              <Fld label="Approval" style={{ flex: 1 }}>
-                <Sel
-                  value={x.approval || 'inherit'} onChange={v => set({ approval: v })} disabled={!can}
-                  options={[['inherit', 'Use sequence default (' + (dr.mode === 'approval' ? 'approval' : 'auto') + ')'], ['auto', 'Automated email — send when due'], ['approval', 'Approval email — queue for review']]}
-                />
-              </Fld>
               <Menu
                 align="right"
                 trigger={<Btn icon="file" iconRight="down" disabled={!can}>Insert template</Btn>}

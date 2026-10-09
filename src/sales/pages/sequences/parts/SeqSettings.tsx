@@ -1,7 +1,7 @@
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
 import { S } from '../../../data/store'
-import { Card, Ck, Fld, Inp, Seg, Sel, TA, Toggle } from '../../../kit'
+import { Card, Ck, Fld, Inp, Sel, TA, Toggle } from '../../../kit'
 import type { Draft } from './conds'
 
 const ALL_EXITS = ['Human reply', 'Meeting booked', 'Unsubscribe', 'Invalid email', 'Manually removed', 'Eligibility revoked']
@@ -22,7 +22,6 @@ export function SeqSettings({ dr, upd, can, s }: { dr: Draft; upd: (p: Partial<D
           <Fld label="Sender mailbox">
             <Sel value={dr.mailboxId} onChange={v => upd({ mailboxId: v })} disabled={!can} placeholder={mbs.length ? 'Select mailbox…' : 'No mailbox for this business'} options={mbs.map(m => [m.id, m.address + (m.status !== 'connected' ? ' (disconnected)' : '')] as const)} />
           </Fld>
-          <Fld label="Default sending mode"><Seg value={dr.mode} onChange={v => { if (can) upd({ mode: v }) }} opts={[['auto', 'Automatic'], ['approval', 'Approval required']]} /></Fld>
           <Fld label="Daily sending limit"><Inp value={dr.dailyLimit} onChange={v => upd({ dailyLimit: +v || 0 })} disabled={!can} inputMode="numeric" /></Fld>
           <Fld label="Sending window">
             <div className="row" style={{ gap: 6 }}>

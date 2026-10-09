@@ -126,7 +126,6 @@ export interface Contact {
   createdAt: Iso
   notes: Note[]
   archived?: boolean
-  _bounce?: boolean
   [k: string]: unknown
 }
 
@@ -186,6 +185,8 @@ export interface Deal {
 }
 
 export type TaskStatus = 'Not Started' | 'In Progress' | 'Completed' | 'Cancelled' | 'Snoozed'
+export interface EmailDraft { from: string; to: string; cc: string; subject: string; body: string }
+
 export interface Task {
   id: string
   title: string
@@ -204,6 +205,13 @@ export interface Task {
   enrolmentId?: string
   stepId?: string
   recId?: string
+  /** Server-created email task (contract 3.1). Absent on every other task. */
+  kind?: 'email'
+  draft?: EmailDraft
+  mailboxId?: string
+  stepIdx?: number
+  /** Org-tz calendar day the server created the task for (cap accounting). */
+  day?: string
   source: string
   createdAt: Iso
   completedAt?: Iso
@@ -291,7 +299,8 @@ export interface Sequence {
   createdBy: string
   description: string
   mailboxId: string
-  mode: string
+  /** Legacy approval/auto flag. The server engine ignores it (every email step is a manual task). */
+  mode?: string
   status: string
   shared: boolean
   dailyLimit: number
@@ -321,6 +330,8 @@ export interface Enrolment {
   pendingMsgId?: string | null
   taskId?: string
   resumeAt?: Iso | null
+  /** Why the server held the enrolment, e.g. "Held: missing {{company_name}}". */
+  pauseReason?: string | null
 }
 
 export interface ThreadClassification {
@@ -366,7 +377,9 @@ export interface Message {
   enrolmentId?: string
   stepId?: string
   mailboxId?: string
-  snoozeUntil?: Iso
+  /** True for a message the rep sent by hand and marked as sent (SalesOS never sends email itself). */
+  manual?: boolean
+  sentAt?: string
   [k: string]: unknown
 }
 

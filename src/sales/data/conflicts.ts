@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { CollectionName, FieldConflict } from '../api/contract'
 import type { RecordData } from '../api/contract'
 import { idx } from './store'
+import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 
 /** What the user is asked after a batch result that did not simply apply (contract 5.2, D16). */
 export type ConflictPrompt =
@@ -67,7 +68,7 @@ export function usePrompts(): readonly ConflictPrompt[] {
 }
 
 export function userName(id: string): string {
-  return idx.users.get(id)?.name ?? 'a teammate'
+  return idx.users.get(id)?.name ?? (id === SYSTEM_USER_ID ? SYSTEM_USER.name : 'a teammate')
 }
 
 const NOUN: Partial<Record<CollectionName, string>> = {

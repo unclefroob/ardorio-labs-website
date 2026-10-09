@@ -3,13 +3,20 @@ import { Act } from '../../../data/Act'
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
 import type { Enrolment } from '../../../data/types'
-import { Btn, BizDot, CtLink, DataTable, Empty, EnrolChip, Link, Menu, Owner, type Col, type MenuItem } from '../../../kit'
+import { Btn, BizDot, Chip, CtLink, DataTable, Empty, EnrolChip, Link, Menu, Owner, type Col, type MenuItem } from '../../../kit'
 import { UI } from '../../../ui/store'
 
 export interface EnrolTableProps { rows: Enrolment[]; showSeq?: boolean; showContact?: boolean; onSim?: (e: Enrolment) => void }
 
 const PAUSABLE = ['active', 'awaiting_approval', 'awaiting_task']
 const FINISHED = ['removed', 'completed', 'unsubscribed', 'bounced']
+
+/** The open email task an awaiting_task enrolment is waiting on, if any. */
+function emailTask(e: Enrolment) {
+  if (e.status !== 'awaiting_task') return undefined
+  const t = Q.task(e.taskId)
+  return t && t.kind === 'email' && t.status !== 'Completed' && t.status !== 'Cancelled' ? t : undefined
+}
 
 function menuFor(e: Enrolment, onSim?: (e: Enrolment) => void): MenuItem[] {
   const sim = (fn: () => void): (() => void) => () => { fn(); onSim?.(e) }
@@ -20,7 +27,7 @@ function menuFor(e: Enrolment, onSim?: (e: Enrolment) => void): MenuItem[] {
       label: 'Resume after review', icon: 'play',
       onClick: () => UI.confirm({
         title: 'Resume outreach after reply?',
-        body: 'This contact replied. Resuming will continue automated steps. Only do this if the reply was reviewed and further outreach is appropriate.',
+        body: 'This contact replied. Resuming will continue the remaining steps. Only do this if the reply was reviewed and further outreach is appropriate.',
         confirm: 'Resume',
         onConfirm: () => Act.setEnrol(e.id, 'active', 'Resumed after review'),
       }),
@@ -59,7 +66,10 @@ export const EnrolTable: FC<EnrolTableProps> = ({ rows, showSeq, showContact, on
       k: 'status', l: 'Status',
       r: e => (
         <div>
-          <EnrolChip s={e.status} />
+          {emailTask(e) ? <Chip tone="warn">Email to send</Chip> : <EnrolChip s={e.status} />}
+          {emailTask(e) && (
+            <div><Btn size="xs" kind="ghost" icon="mail" onClick={() => UI.open('sendEmailTask', { taskId: e.taskId })}>Open email</Btn></div>
+          )}
           {e.reason && <div className="faint xs" style={{ marginTop: 2, maxWidth: 220, whiteSpace: 'normal' }}>{e.reason}</div>}
         </div>
       ),

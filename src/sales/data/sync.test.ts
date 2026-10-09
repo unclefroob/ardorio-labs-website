@@ -70,14 +70,6 @@ describe('flush scheduling', () => {
     m.stop()
   })
 
-  it('withoutFlush holds scheduled flushes back', async () => {
-    const m = await setup()
-    m.sync.withoutFlush(() => edit(m, 'held'))
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(m.post).not.toHaveBeenCalled()
-    m.stop()
-  })
-
   it('does not flush when nothing differs from the server copy', async () => {
     const m = await setup()
     m.sync.scheduleFlush()
@@ -228,41 +220,17 @@ describe('request size and refusals', () => {
   })
 })
 
-describe('engine batches and the lease', () => {
-  const tag = { sessionId: 's1', businessIds: ['ard' as const] }
-
-  it('posts only the engine writes, tagged, and keeps them on success', async () => {
+describe('a retired lease refusal', () => {
+  it('treats an unexpected LEASE_LOST like any refused op: rolled back, toasted, not retried', async () => {
     const m = await setup()
-    const out = await m.sync.runEngineLocked(() => m.store.S.tasks.push(row({ id: 'eng1', title: 'Auto' })), tag)
-    expect(out).toEqual({ state: 'sent', ok: true, leaseLost: false, ops: 1 })
-    expect(m.post.mock.calls[0][0].engine).toEqual(tag)
-    expect(m.store.S.tasks).toHaveLength(1)
-    m.stop()
-  })
-
-  it('on LEASE_LOST reports it and rolls the unacknowledged writes back', async () => {
-    const m = await setup()
-    m.post.mockRejectedValue(httpError(m, 409, 'LEASE_LOST'))
-    const out = await m.sync.runEngineLocked(() => m.store.S.tasks.push(row({ id: 'eng1', title: 'Auto' })), tag)
-    expect(out).toEqual({ state: 'sent', ok: false, leaseLost: true, ops: 1 })
-    expect(m.store.S.tasks).toHaveLength(0)
-    m.stop()
-  })
-
-  it('does nothing when the engine function wrote nothing', async () => {
-    const m = await setup()
-    expect(await m.sync.runEngineLocked(() => undefined, tag)).toEqual({ state: 'empty' })
-    expect(m.post).not.toHaveBeenCalled()
-    m.stop()
-  })
-
-  it('an engine function that throws leaves no half-written state behind', async () => {
-    const m = await setup()
-    await expect(m.sync.runEngineLocked(() => {
-      m.store.S.tasks.push(row({ id: 'eng1', title: 'Auto' }))
-      throw new Error('engine bug')
-    }, tag)).rejects.toThrow('engine bug')
-    expect(m.store.S.tasks).toHaveLength(0)
+    m.post.mockRejectedValue(httpError(m, 409, 'LEASE_LOST', 'lease gone'))
+    edit(m, 'nope')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(m.store.S.companies[0].name).toBe('Acme')
+    expect(m.toast).toHaveBeenCalledWith("Couldn't save: lease gone", 'bad')
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(m.post).toHaveBeenCalledTimes(1)
+    expect(m.sync.getSyncStatus().failures).toBe(0)
     m.stop()
   })
 })

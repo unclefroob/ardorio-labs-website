@@ -2,14 +2,11 @@ import { useState, type ReactNode } from 'react'
 import { wipeDemo } from '../../api/demo'
 import { SalesHttpError } from '../../api/http'
 import { Act } from '../../data/Act'
-import { formatOffset, getOffsetMinutes, useNow } from '../../data/clock'
-import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import { pollOnce } from '../../data/sync'
 import type { BusinessId } from '../../data/types'
-import { useLeaseStatus } from '../../engine/lease'
-import { Banner, BizDot, Btn, Card, Chip, Fld, Inp, Sel, Spinner } from '../../kit'
+import { Banner, BizDot, Btn, Card, Chip, Fld, Sel, Spinner } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
@@ -28,65 +25,6 @@ const errText = (e: unknown): string => (e instanceof SalesHttpError ? e.message
 
 function Action({ icon, children, onClick, kind, disabled }: { icon: string; children: ReactNode; onClick: () => void; kind?: string; disabled?: boolean }) {
   return <Btn icon={icon} kind={kind} disabled={disabled} onClick={onClick} style={{ justifyContent: 'flex-start' }}>{children}</Btn>
-}
-
-function ClockCard() {
-  useNow()
-  const offset = getOffsetMinutes()
-  const [date, setDate] = useState(() => F.nowIso().slice(0, 16))
-  const adv: ReadonlyArray<readonly [number, string]> = [[1, '+1 hour'], [4, '+4 hours'], [24, '+1 day'], [72, '+3 days'], [168, '+1 week']]
-  const now = F.nowIso()
-  return (
-    <Card title="Demo clock" icon="clock" right={offset ? <Chip tone="warn">{formatOffset(offset)}</Chip> : <Chip>Real time</Chip>}>
-      <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-.01em' }}>{F.long(now)}</div>
-      <div className="muted">{F.time(now)}</div>
-      <div className="row wrap" style={{ gap: 6, marginTop: 12 }}>
-        {adv.map(([h, l]) => (
-          <Btn key={h} size="sm" kind={h === 72 ? 'pri' : undefined} onClick={() => { Act.advance(h); UI.toast(`Advanced ${l}`) }}>{l}</Btn>
-        ))}
-      </div>
-      <div className="row" style={{ marginTop: 10 }}>
-        <Inp type="datetime-local" className="sm" value={date} onChange={setDate} aria-label="Set date and time" />
-        <Btn size="sm" disabled={!date} onClick={() => { Act.setClock(date); UI.toast('Clock set') }}>Set</Btn>
-        <Btn size="sm" kind="ghost" disabled={!offset} onClick={() => { Act.resetClock(); setDate(F.nowIso().slice(0, 16)); UI.toast('Clock back to real time') }}>Reset</Btn>
-      </div>
-      <div className="faint xs" style={{ marginTop: 8 }}>Moving the clock moves it for every user, and sequences run against the new time.</div>
-    </Card>
-  )
-}
-
-function EngineCard() {
-  const lease = useLeaseStatus()
-  const me = Q.me()
-  const bs = Q.myBiz().filter(b => Q.canEdit(b))
-  return (
-    <Card title="Engine & state" icon="zap">
-      {!lease.ok && <div style={{ marginBottom: 10 }}><Banner tone="warn">Automations are paused: this tab can't reach the scheduler.</Banner></div>}
-      <div className="col" style={{ gap: 6 }}>
-        <Action icon="play" onClick={() => { Act.runSequences(); UI.toast(lease.held.length ? 'Sequence execution triggered' : 'Asked to run, but another session holds the sequence lease', lease.held.length ? undefined : 'warn') }}>Run sequence execution now</Action>
-        <Action icon="bell" onClick={() => { Act.sampleNotif(); UI.toast('Notification generated') }}>Generate sample notification</Action>
-      </div>
-      <div className="b sm" style={{ marginTop: 14, marginBottom: 6 }}>Who runs sequences</div>
-      {bs.length === 0 && <div className="faint sm">You don't have edit access to a business, so this tab doesn't run sequences.</div>}
-      {bs.map(b => {
-        const l = lease.leases.find(x => x.businessId === b)
-        return (
-          <div key={b} className="row sm" style={{ padding: '2px 0' }}>
-            <BizDot b={b} />
-            <span style={{ width: 80 }}>{Q.biz(b)?.name}</span>
-            {l?.held || lease.held.includes(b)
-              ? <Chip tone="ok">This tab</Chip>
-              : l?.holder
-                ? <span>Sequences are being run by {l.holder.userId === me.id ? `${l.holder.name} (another tab)` : l.holder.name}</span>
-                : <span className="faint">{lease.ok ? 'Nobody yet, taking over shortly' : 'Paused'}</span>}
-          </div>
-        )
-      })}
-      <div className="faint xs" style={{ marginTop: 10 }}>
-        {S.enrolments.filter(e => e.status === 'active').length} active enrolments · {S.messages.filter(m => m.status === 'pending').length} pending approvals · {S.activities.length} activities
-      </div>
-    </Card>
-  )
 }
 
 function WorkspaceCard() {
@@ -110,7 +48,7 @@ function WorkspaceCard() {
 }
 
 function TriggerCard() {
-  const live = S.enrolments.filter(e => ['active', 'awaiting_approval', 'awaiting_task'].includes(e.status) && Q.inScope(e.businessId))
+  const live = S.enrolments.filter(e => ['active', 'awaiting_task'].includes(e.status) && Q.inScope(e.businessId))
   const first = live[0]?.contactId
   const need = (): string | undefined => {
     if (!first) UI.toast('No active enrolments in scope. Enrol a contact first.', 'bad')
@@ -119,19 +57,6 @@ function TriggerCard() {
   const trig = (scenario: string): void => {
     const c = need()
     if (c) UI.open('simReply', { contactId: c, scenario })
-  }
-  const bounce = (): void => {
-    const e = live.find(x => Q.seq(x.seqId)?.steps.slice(x.stepIdx).some(s => s.type === 'email'))
-    const c = e ? Q.contact(e.contactId) : undefined
-    if (!e || !c) {
-      UI.toast('No enrolment with an upcoming email step', 'bad')
-      return
-    }
-    c._bounce = true
-    e.nextDue = F.nowIso()
-    e.status = 'active'
-    Act.runSequences()
-    UI.toast(`Next email to ${c.name} will bounce: it is suppressed and removed`, undefined, { label: 'View', fn: () => UI.nav('contact', { id: c.id }) })
   }
   const evt = (kind: 'email_open' | 'link_click' | 'meeting_booked', msg: (n: string) => string) => (): void => {
     const c = need()
@@ -147,7 +72,8 @@ function TriggerCard() {
         <Action icon="star" onClick={() => trig('Interested')}>Trigger positive reply</Action>
         <Action icon="x" onClick={() => trig('Not interested')}>Trigger negative reply</Action>
         <Action icon="stop" onClick={() => trig('Unsubscribe request')}>Trigger unsubscribe</Action>
-        <Action icon="alert" onClick={bounce}>Trigger bounced email</Action>
+        <Action icon="alert" onClick={() => trig('Delivery failure')}>Trigger bounced email</Action>
+        <Action icon="bell" onClick={() => { Act.sampleNotif(); UI.toast('Notification generated') }}>Generate sample notification</Action>
         <Action icon="eye" onClick={evt('email_open', n => `Simulated open for ${n} (informational only)`)}>Trigger email open</Action>
         <Action icon="link" onClick={evt('link_click', n => `Link click for ${n}`)}>Trigger link click</Action>
         <Action icon="cal" onClick={evt('meeting_booked', n => `Meeting booked by ${n}: sequence exits`)}>Trigger meeting booked</Action>
@@ -261,9 +187,7 @@ export function Demo() {
     <div className="page" style={{ maxWidth: 1200 }}>
       <PageHead title="Demo Control Centre" sub="Administrator-only simulation controls for end-to-end testing" />
       <div className="grid g3" style={{ marginBottom: 14 }}>
-        <ClockCard />
         <WorkspaceCard />
-        <EngineCard />
       </div>
       <div className="grid g2" style={{ marginBottom: 14 }}>
         <TriggerCard />

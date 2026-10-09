@@ -105,7 +105,7 @@ function EnrolFlow({ p }: { p: Props }) {
           <div className="grid g3">
             <Fld label="Sequence">
               <div className="row"><BizDot b={seq.businessId} /><b>{seq.name}</b></div>
-              <div className="faint xs">{seq.steps.length} steps · {seq.mode === 'approval' ? 'Approval required' : 'Automatic sending'}</div>
+              <div className="faint xs">{seq.steps.length} steps · email steps become tasks to send</div>
             </Fld>
             <Fld label="Sender mailbox">
               {mbs.length ? (
@@ -150,7 +150,7 @@ function EnrolFlow({ p }: { p: Props }) {
               <div className="sm" style={{ marginTop: 6, maxHeight: 180, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: F.body(Q.render(first.body, tok).text) }} />
             </div>
           )}
-          {seq.mode === 'approval' && <Banner tone="info">Emails in this sequence enter the owner's approval queue before simulated sending.</Banner>}
+          <Banner tone="info">Each email step becomes a task for the owner to copy and send by hand. SalesOS does not send email.</Banner>
         </div>
       )}
     </Modal>

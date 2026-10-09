@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cross, type CrossItem } from '../../ai/rules'
 import { Act } from '../../data/Act'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
-import { useLeaseStatus } from '../../engine/lease'
-import { BizDot, Banner, Btn, Card, Chip, DataTable, Empty, Link, Owner, Sel, Seg, type Col } from '../../kit'
+import { BizDot, Btn, Card, Chip, DataTable, Empty, Link, Owner, Sel, Seg, type Col } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
 import { RecRow } from './RecRow'
@@ -71,7 +70,7 @@ function CrossTable() {
 const STATUS = [['New', 'New'], ['Accepted', 'Accepted'], ['Completed', 'Completed'], ['Dismissed', 'Dismissed'], ['Expired', 'Expired'], ['', 'All']] as const
 
 export function Recs({ route }: { route: Route }) {
-  const lease = useLeaseStatus()
+  useEffect(() => { if (Q.anyEdit()) Act.refreshRecs() }, [])
   const [st, setSt] = useState('New')
   const q = route.q?.type
   const [ty, setTy] = useState(typeof q === 'string' ? q : '')
@@ -85,11 +84,10 @@ export function Recs({ route }: { route: Route }) {
     <div className="page" style={{ maxWidth: 1100 }}>
       <PageHead title="Recommendations" sub="Explainable next-best actions with evidence from your records. Nothing changes until you act.">
         <Btn icon="refresh" disabled={!Q.anyEdit()} onClick={() => {
-          Act.runSequences()
-          UI.toast('Refresh requested. New recommendations appear within a few seconds.')
+          Act.refreshRecs()
+          UI.toast('Recommendations refreshed')
         }}>Refresh</Btn>
       </PageHead>
-      {!lease.ok && <div style={{ marginBottom: 12 }}><Banner tone="warn">Automations are paused, so recommendations are not being refreshed right now. Existing ones stay available.</Banner></div>}
       <div className="row wrap" style={{ marginBottom: 12 }}>
         {!isCross && <Seg value={st} onChange={setSt} opts={STATUS} />}
         <Sel className="sm" style={{ width: 240 }} value={ty} onChange={setTy} placeholder="All next-best actions" options={options} aria-label="Recommendation type" />

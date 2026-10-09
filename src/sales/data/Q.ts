@@ -1,5 +1,6 @@
 import { F } from './F'
 import { idx, S } from './store'
+import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 import type {
   Activity, Business, BusinessId, Company, CompanyRel, Contact, ContactRel, Deal, Enrolment, Goal, Mailbox,
   Message, Meeting, Notification, Pipeline, PipelineField, Rec, Role, SalesUser, Sequence, Stage, Suppression,
@@ -11,6 +12,8 @@ const GHOST: SalesUser = {
   id: '', name: 'Unknown user', title: '', email: '', super: false, m: {}, active: false, color: '#8E8897',
   meetingLink: '', createdAt: '', username: '',
 }
+
+const liveSuppression = (s: Suppression, b: string): boolean => !s.removed && (s.scope === 'global' || s.businessId === b)
 
 export type RoleName = Role | 'super' | null
 const EDIT_ROLES: readonly RoleName[] = ['super', 'admin', 'manager', 'sales']
@@ -41,7 +44,7 @@ const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v)
 export const Q = {
   me: (): SalesUser => idx.users.get(S.session.userId) ?? GHOST,
   biz: (id: string | null | undefined): Business | undefined => (id ? idx.businesses.get(id) : undefined),
-  user: (id: string | null | undefined): SalesUser | undefined => (id ? idx.users.get(id) : undefined),
+  user: (id: string | null | undefined): SalesUser | undefined => (id ? (idx.users.get(id) ?? (id === SYSTEM_USER_ID ? SYSTEM_USER : undefined)) : undefined),
   company: (id: string | null | undefined): Company | undefined => (id ? idx.companies.get(id) : undefined),
   contact: (id: string | null | undefined): Contact | undefined => (id ? idx.contacts.get(id) : undefined),
   deal: (id: string | null | undefined): Deal | undefined => (id ? idx.deals.get(id) : undefined),
@@ -158,13 +161,36 @@ export const Q = {
     return t.ownerId === u.id || (t.sharedWith || []).includes(u.id)
   },
   msgs: (tid: string): Message[] => S.messages.filter(m => m.threadId === tid).sort((a, b) => a.ts.localeCompare(b.ts)),
-  pending: (): Message[] => S.messages.filter(m => m.status === 'pending' && Q.inScope(idx.threads.get(m.threadId)?.businessId)),
   myMailboxes(b?: string): Mailbox[] {
     const u = Q.me()
     return S.mailboxes.filter(m => (!b || m.businessIds.includes(b as BusinessId)) && (m.type === 'personal' ? m.ownerId === u.id : m.authorised.includes(u.id) || u.super))
   },
-  suppression: (ctid: string, b: string): Suppression | undefined =>
-    S.suppressions.find(s => s.contactId === ctid && !s.removed && (s.scope === 'global' || s.businessId === b)),
+  /**
+   * The suppression covering this contact in business `b` (contract 3.7): a live record in global or
+   * business scope that names the contact id OR matches email / email2, ignoring case.
+   */
+  suppressed(ct: Pick<Contact, 'id' | 'email' | 'email2'>, b: string): Suppression | null {
+    const addrs = new Set([ct.email, ct.email2].map(a => (a || '').trim().toLowerCase()).filter(Boolean))
+    return S.suppressions.find(s => liveSuppression(s, b) && (s.contactId === ct.id || (!!s.email && addrs.has(s.email.trim().toLowerCase())))) ?? null
+  },
+  /**
+   * Compose-time check for a raw address: a record naming the address, the thread's contact by id, or any known
+   * contact whose email / email2 is this address (so a suppression recorded against a contact's other address
+   * still blocks).
+   */
+  suppressedAddr(addr: string, b: string, contactId?: string | null): Suppression | null {
+    const a = (addr || '').trim().toLowerCase()
+    const direct = S.suppressions.find(s => liveSuppression(s, b) && ((!!a && !!s.email && s.email.trim().toLowerCase() === a) || (!!contactId && s.contactId === contactId)))
+    if (direct) return direct
+    if (!a) return null
+    for (const c of S.contacts) {
+      if ([c.email, c.email2].some(x => (x || '').trim().toLowerCase() === a)) {
+        const sp = Q.suppressed(c, b)
+        if (sp) return sp
+      }
+    }
+    return null
+  },
   activeEnrol: (ctid: string): Enrolment[] => S.enrolments.filter(e => e.contactId === ctid && LIVE_ENROL.includes(e.status)),
 
   tokens(ct: Contact | undefined, sender: SalesUser | undefined, b: string): TokenMap {
@@ -205,7 +231,7 @@ export const Q = {
     if (!ct || !seq) return { blocks: ['Record not found'], warns }
     const b = seq.businessId
     const bn = Q.biz(b)?.name ?? b
-    const sp = Q.suppression(ctid, b)
+    const sp = Q.suppressed(ct, b)
     if (sp) blocks.push(`${sp.scope === 'global' ? 'Globally suppressed' : `Suppressed for ${bn}`} — ${sp.reason.toLowerCase()} (${F.date(sp.date)})`)
     if (!ct.email) blocks.push('No email address on record')
     else if (ct.deliverability === 'Bounced' || ct.verification === 'Invalid') blocks.push('Email address is invalid or has bounced')

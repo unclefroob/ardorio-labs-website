@@ -46,7 +46,7 @@ export function Contact({ route }: { route: Route }) {
   const co = Q.company(ct.companyId)
   const can = Q.canEdit(b)
   const s = Q.score(ct.id, b)
-  const sup = Q.suppression(ct.id, b)
+  const sup = Q.suppressed(ct, b)
   const li = safeHref(ct.linkedin)
   const acts = Q.activities().filter(a => a.contactId === ct.id).sort((a, x) => x.ts.localeCompare(a.ts))
   const ths = S.threads.filter(t => t.contactId === ct.id && Q.member(t.businessId)).sort((a, x) => x.updatedAt.localeCompare(a.updatedAt))

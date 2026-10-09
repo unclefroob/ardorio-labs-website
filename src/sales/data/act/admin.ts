@@ -1,13 +1,14 @@
-import { requestEngineTick } from '../../engine/lease'
 import { createMember, updateMember } from '../../api/members'
 import { SalesHttpError } from '../../api/http'
 import type { Role } from '../../api/contract'
 import { UI } from '../../ui/store'
 import { F } from '../F'
 import { getOffsetMinutes, now as clockNow, setOffsetMinutes } from '../clock'
+import { nudgeEngine } from '../engineNudge'
 import { uid } from '../ids'
 import { audit, notify } from '../internals'
 import { Q } from '../Q'
+import { msFromWall } from '../tz'
 import { commit } from '../commit'
 import { idx, S } from '../store'
 import { refreshMembers, setTheme as setSessionTheme, setUsers, setWorkspace } from '../session'
@@ -181,7 +182,7 @@ export function setMailbox(id: string, p: Partial<Mailbox>): void {
         e.reason = ''
       }
     }
-    requestEngineTick()
+    nudgeEngine()
   }
   commit()
 }
@@ -233,18 +234,21 @@ export function advance(hours: number): void {
   if (!Q.anyAdmin()) return
   setOffsetMinutes(getOffsetMinutes() + Math.round(hours * 60))
   audit('Demo clock advanced', `${hours >= 24 ? `+${hours / 24} day(s)` : `+${hours} hour(s)`} → ${F.dt(F.nowIso())}`)
-  requestEngineTick()
+  nudgeEngine()
   commit()
 }
 
+/** Set the simulated time. Zoneless input is organisation wall time; an explicit Z or offset is an instant. */
 export function setClock(iso: string): void {
   if (!Q.anyAdmin()) return
-  const target = new Date(iso).getTime()
+  // A zoneless string (what a datetime-local input gives) is a wall time in the organisation's zone, never the browser's.
+  const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso)
+  const target = zoned ? new Date(iso).getTime() : msFromWall(iso)
   if (Number.isNaN(target)) return
   const real = clockNow() - getOffsetMinutes() * 60000
   setOffsetMinutes(Math.round((target - real) / 60000))
   audit('Demo clock set', `${F.dt(F.nowIso())} (${describeOffset(getOffsetMinutes())})`)
-  requestEngineTick()
+  nudgeEngine()
   commit()
 }
 
@@ -252,11 +256,11 @@ export function resetClock(): void {
   if (!Q.anyAdmin()) return
   setOffsetMinutes(0)
   audit('Demo clock reset', 'real time')
-  requestEngineTick()
+  nudgeEngine()
   commit()
 }
 
 export function runSequences(): void {
-  requestEngineTick()
+  nudgeEngine()
   commit()
 }

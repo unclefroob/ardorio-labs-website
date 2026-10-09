@@ -19,8 +19,9 @@ const SCEN: ReadonlyArray<readonly [string, string]> = [
   ['Referral to colleague', "Please speak to my colleague in HR who looks after this. I have cc'd her here."],
   ['Out of office', 'I am out of the office on annual leave, returning on 20 Oct. For urgent matters contact reception.'],
   ['Unsubscribe request', 'Please unsubscribe me and do not contact me again.'],
+  ['Delivery failure', 'Delivery Status Notification (Failure): your message could not be delivered. The address was not found.'],
 ]
-const LIVE = ['active', 'awaiting_approval', 'awaiting_task', 'paused']
+const LIVE = ['active', 'awaiting_task', 'paused']
 const textFor = (name: string): string => (SCEN.find(x => x[0] === name) ?? SCEN[0])[1]
 
 interface Props { contactId?: string; scenario?: string; enrolmentId?: string; threadId?: string }

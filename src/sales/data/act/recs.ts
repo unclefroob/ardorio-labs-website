@@ -5,6 +5,7 @@ import { urlOrEmpty } from '../../shared/url'
 import { commit } from '../commit'
 import { idx, S } from '../store'
 import type { BusinessId, Contact, Research, Task } from '../types'
+import { refreshRecs as rules } from '../../ai/rules'
 import { createTask } from './tasks'
 
 export function recTask(id: string, force?: boolean): { dup: Task } | { task: Task } | undefined {
@@ -106,3 +107,14 @@ export function wizaUse(n: number, err?: string): void {
   commit()
 }
 
+
+/**
+ * Regenerate rule-based recommendations for the businesses I can edit. Runs in the browser (no lease): the
+ * ids come from each rec's natural key, so two tabs creating the same rec write the same record.
+ */
+export function refreshRecs(): void {
+  const sig = (): string => S.recs.map(r => r.id + r.status).join('|')
+  const before = sig()
+  rules(Q.editScope())
+  if (sig() !== before) commit()
+}

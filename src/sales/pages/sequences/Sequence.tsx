@@ -80,7 +80,7 @@ export function Sequence({ route }: { route: Route }) {
           <span className="row wrap" style={{ gap: 8 }}>
             <BizChip b={s.businessId} />
             <Chip tone={STATUS_TONE[s.status] ?? ''}>{s.status}</Chip>
-            <span>{s.mode === 'approval' ? 'Approval required before each email' : 'Auto-sends eligible emails'}</span>·<span>{Q.mailbox(s.mailboxId)?.address ?? 'No mailbox'}</span>·<Owner id={s.ownerId} s={18} />
+            <span>Emails are sent by hand from a task</span>·<span>{Q.mailbox(s.mailboxId)?.address ?? 'No mailbox'}</span>·<Owner id={s.ownerId} s={18} />
           </span>
         }
       >

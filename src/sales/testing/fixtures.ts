@@ -71,3 +71,50 @@ export function change(collection: ChangeEntry['collection'], id: string, rev: n
 export function row(r: { id: string; [k: string]: unknown }): never {
   return r as never
 }
+
+// ── SalesOS engine-era builders ──────────────────────────────────────────────────────────────
+export const CONTACT = {
+  firstName: 'Sam', lastName: 'Buyer', name: 'Sam Buyer', title: 'Director', companyId: 'co1', email: 'sam@example.com',
+  email2: 'sam.alt@example.com', permission: 'Legitimate interest', deliverability: 'Valid', verification: 'Verified', notes: [],
+}
+
+export function suppression(over: RecordData = {}): RecordData {
+  return { contactId: 'ct1', email: 'sam@example.com', scope: 'global', businessId: null, reason: 'Unsubscribe', source: 'test', date: '2026-10-01T09:00', by: 'u-me', ...over }
+}
+
+/** An engine-created email task (contract 3.1). */
+export function emailTask(over: RecordData = {}): RecordData {
+  return {
+    kind: 'email', type: 'Email', title: 'Send email: Intro (Step 1)', status: 'Not Started', priority: 'Normal', assigneeId: 'u-me',
+    due: '2026-10-09T09:30:00', createdAt: '2026-10-09T09:30:00', source: 'Sequence: Cold', businessId: 'ros',
+    seqId: 'sq1', enrolmentId: 'en1', stepId: 'st1', stepIdx: 0, companyId: 'co1', contactId: 'ct1', mailboxId: 'mb1', day: '2026-10-09',
+    draft: { from: 'me@example.com', to: 'sam@example.com', cc: '', subject: 'Quick question about Acme', body: 'Hi Sam,\nGot a minute?' },
+    ...over,
+  }
+}
+
+/** A hydrated world with one contact, mailbox, sequence, enrolment, thread and relationship in business `ros`. */
+export function salesWorld(over: Partial<BootstrapResponse['collections']> = {}): BootstrapResponse {
+  const b = bootstrap({
+    companies: [rec('co1', { name: 'Acme', tradingName: 'Acme', tags: [], notes: [] })],
+    contacts: [rec('ct1', CONTACT)],
+    mailboxes: [rec('mb1', { address: 'me@example.com', name: 'Me', type: 'personal', businessIds: ['ros'], ownerId: 'u-me', authorised: ['u-me'], status: 'connected', canSend: true })],
+    sequences: [rec('sq1', {
+      name: 'Cold', businessId: 'ros', ownerId: 'u-me', createdBy: 'u-me', description: '', mailboxId: 'mb1', mode: 'approval', status: 'active', shared: true,
+      dailyLimit: 50, window: [9, 17], businessDays: true, exits: [], steps: [{ id: 'st1', type: 'email', delay: 0, unit: 'days', subject: 'Quick question about {{company_name}}', body: 'Hi {{first_name}}' }],
+    })],
+    enrolments: [rec('en1', {
+      seqId: 'sq1', contactId: 'ct1', businessId: 'ros', ownerId: 'u-me', mailboxId: 'mb1', status: 'awaiting_task', stepIdx: 0, nextDue: null,
+      startedAt: '2026-10-09T09:00', threadId: null, history: [], reason: '', taskId: 'tk_en1_0',
+    })],
+    threads: [rec('th1', {
+      businessId: 'ros', mailboxId: 'mb1', subject: 'Hello', contactId: 'ct1', companyId: 'co1', dealId: null, visibility: 'private', ownerId: 'u-me',
+      assigneeId: 'u-me', unread: false, archived: false, classification: null, needsReply: false, sharedWith: [], updatedAt: '2026-10-09T09:00',
+    })],
+    contactRels: [rec('xr1', { contactId: 'ct1', businessId: 'ros', ownerId: 'u-me', leadStatus: 'Contacted', qualification: 'Unqualified', influence: '', priority: 'Medium', lastActivity: null, eligible: true, tags: [] })],
+    ...over,
+  })
+  // The signed-in user can edit every business, as an owner would.
+  b.users[0] = { ...b.users[0], super: true }
+  return b
+}

@@ -14,7 +14,6 @@ const FOLD = [
   ['unread', 'Unread', 'mail'],
   ['needs', 'Needs reply', 'reply'],
   ['positive', 'Positive responses', 'star'],
-  ['approval', 'Awaiting approval', 'clock'],
   ['sent', 'Sent', 'send'],
   ['shared', 'Shared inbox', 'users'],
   ['mine', 'Assigned to me', 'user'],
@@ -45,7 +44,6 @@ export function Inbox({ route }: { route: Route }) {
       case 'unread': return t.unread
       case 'needs': return t.needsReply
       case 'positive': return POSITIVE.includes(t.classification?.cat ?? '')
-      case 'approval': return ms.some(m => m.status === 'pending')
       case 'sent': return ms.some(m => m.dir === 'out' && m.status === 'sent')
       case 'shared': return t.visibility === 'shared'
       case 'mine': return t.assigneeId === me.id
@@ -64,7 +62,6 @@ export function Inbox({ route }: { route: Route }) {
   const counts: Partial<Record<Fold, number>> = {
     unread: all.filter(x => x.unread && !x.archived).length,
     needs: all.filter(x => x.needsReply && !x.archived).length,
-    approval: all.filter(x => S.messages.some(m => m.threadId === x.id && m.status === 'pending')).length,
   }
   const t = sel ? Q.thread(sel) : undefined
   const restricted = !!t && !Q.threadBody(t)
@@ -135,7 +132,7 @@ export function Inbox({ route }: { route: Route }) {
         {rows.length ? rows.map(x => {
           const last = msgsOf(x).filter(m => m.status !== 'discarded').sort((a, b) => a.ts.localeCompare(b.ts)).pop()
           const c = Q.contact(x.contactId)
-          const prefix = last ? (last.status === 'pending' ? '⏳ Awaiting approval — ' : last.status === 'draft' ? 'Draft — ' : last.dir === 'out' ? 'You: ' : '') : ''
+          const prefix = last ? (last.status === 'draft' ? 'Draft — ' : last.dir === 'out' ? 'You: ' : '') : ''
           return (
             <RowBtn key={x.id} on={sel === x.id} unread={x.unread} onClick={() => open(x)}>
               <span className="row" style={{ gap: 6, width: '100%' }}>

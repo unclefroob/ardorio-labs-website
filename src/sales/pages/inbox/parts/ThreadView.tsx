@@ -75,7 +75,8 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
 
   const saveDraft = (): void => {
     if (!reply || !ct) return
-    Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: ct.email ?? '', subject, body: reply.body, threadId: t.id, contactId: t.contactId, draft: true })
+    const r = Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: ct.email ?? '', subject, body: reply.body, threadId: t.id, contactId: t.contactId, draft: true })
+    if (!r.ok) return void UI.toast('Draft could not be saved', 'bad')
     setReply(null)
     UI.toast('Draft saved')
   }
@@ -84,10 +85,11 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
     if (!reply) return
     const m = Q.mailbox(reply.mailboxId)
     if (!m || m.status !== 'connected') return void UI.toast('Mailbox disconnected — reconnect in Integrations', 'bad')
-    if (ct && Q.suppression(ct.id, t.businessId)) return void UI.toast('Contact is suppressed — sending blocked', 'bad')
+    if (ct && Q.suppressed(ct, t.businessId)) return void UI.toast('Contact is suppressed — sending blocked', 'bad')
     if (!F.plain(reply.body).trim()) return void UI.toast('Write a reply first', 'bad')
     if (!ct) return void UI.toast('This conversation has no linked contact to reply to', 'bad')
-    Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: ct.email ?? '', subject, body: reply.body, threadId: t.id, contactId: t.contactId, dealId: t.dealId })
+    const r = Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: ct.email ?? '', subject, body: reply.body, threadId: t.id, contactId: t.contactId, dealId: t.dealId })
+    if (!r.ok) return void UI.toast(r.reason === 'suppressed' ? 'Contact is suppressed — sending blocked' : 'Reply could not be sent', 'bad')
     setReply(null)
     UI.toast('Reply sent (simulated)')
   }
@@ -110,7 +112,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
     Q.anyAdmin() && { label: 'Simulate reply on this thread', icon: 'zap', onClick: () => UI.open('simReply', { contactId: t.contactId, threadId: t.id }) },
   ]
 
-  const suppressed = ct ? Q.suppression(ct.id, t.businessId) : undefined
+  const suppressed = ct ? Q.suppressed(ct, t.businessId) : null
   const sc = ct ? Q.score(ct.id, t.businessId) : undefined
   const followUp = meta ? (meta.days === 0 ? 'Today' : F.date(F.addDays(F.nowIso(), meta.days))) : ''
 
@@ -140,7 +142,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
         <div className="col" style={{ gap: 10 }}>
           {ms.length === 0 && <div className="msg faint sm">No messages in this conversation yet.</div>}
           {ms.map(m => {
-            const border = m.status === 'pending' ? { borderStyle: 'dashed', borderColor: 'var(--warn)' } : m.status === 'bounced' ? { borderColor: 'var(--bad2)' } : m.dir === 'in' ? { borderLeft: '3px solid var(--acc)' } : undefined
+            const border = m.status === 'bounced' ? { borderColor: 'var(--bad2)' } : m.dir === 'in' ? { borderLeft: '3px solid var(--acc)' } : undefined
             const who = m.dir === 'in' ? (ct?.name ?? m.from) : (Q.senderOf(Q.mailbox(m.mailboxId ?? t.mailboxId))?.name ?? m.from)
             return (
               <div key={m.id} className="msg" style={border}>
@@ -151,18 +153,11 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
                     <div className="faint">to {m.to}{m.cc ? ' · cc ' + m.cc : ''}</div>
                   </div>
                   <span className="faint">{F.dt(m.ts)}</span>
-                  {m.status === 'pending' && <Chip tone="warn">Awaiting approval</Chip>}
                   {m.status === 'draft' && <Chip>Draft</Chip>}
                   {m.status === 'bounced' && <Chip tone="bad">Bounced</Chip>}
-                  {m.dir === 'out' && m.status === 'sent' && <Sim>Sent (simulated)</Sim>}
+                  {m.dir === 'out' && m.status === 'sent' && (m.manual ? <Chip tone="ok">Sent by hand</Chip> : <Sim>Sent (simulated)</Sim>)}
                 </div>
                 <div className="sm" style={{ lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: F.body(m.body) }} />
-                {m.status === 'pending' && can && (
-                  <div className="row" style={{ marginTop: 10 }}>
-                    <Btn size="sm" kind="pri" icon="send" onClick={() => { if (Act.approveMsg(m.id) === 'blocked') UI.toast('Sending blocked — the contact is suppressed or the mailbox is unavailable', 'bad'); else UI.toast('Approved and sent (simulated)') }}>Approve &amp; send</Btn>
-                    <Btn size="sm" onClick={() => { Act.rejectMsg(m.id); UI.toast('Step skipped') }}>Reject</Btn>
-                  </div>
-                )}
                 {m.status === 'draft' && can && <Btn size="sm" style={{ marginTop: 10 }} onClick={() => UI.open('compose', { threadId: t.id, subject: m.subject, body: m.body, draftId: m.id, contactId: t.contactId })}>Edit draft</Btn>}
               </div>
             )

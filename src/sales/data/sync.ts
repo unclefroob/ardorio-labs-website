@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { ChangeEntry, EngineTag } from '../api/contract'
+import type { ChangeEntry } from '../api/contract'
 import { SalesHttpError, setSessionExpiredHandler } from '../api/http'
 import { getChanges, postBatch } from '../api/records'
 import { getOffsetMinutes, setOffsetMinutes, setServerNow } from './clock'
@@ -54,7 +54,6 @@ const DEBOUNCE_MS = 300
 const CHUNK = 200
 
 let timer: ReturnType<typeof setTimeout> | null = null
-let suppress = 0
 let running = false
 let dirty = false
 let backoffMs = 0
@@ -97,7 +96,6 @@ export function expireSession(): void {
 export function scheduleFlush(delay = DEBOUNCE_MS): void {
   if (expired) return
   dirty = true
-  if (suppress > 0) return
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => {
     timer = null
@@ -105,26 +103,14 @@ export function scheduleFlush(delay = DEBOUNCE_MS): void {
   }, delay)
 }
 
-/** Run `fn` with scheduled flushes held back (engine batches post their own ops). */
-export function withoutFlush<T>(fn: () => T): T {
-  suppress++
-  try {
-    return fn()
-  } finally {
-    suppress--
-  }
-}
-
 export interface SendOutcome {
   ok: boolean
-  /** The whole request was refused because the engine lease is no longer held. */
-  leaseLost: boolean
   contention: boolean
-  /** Ops that never got a result (transport failure or lease loss). */
+  /** Ops that never got a result (transport failure). */
   unsent: Planned[]
 }
 
-export async function sendPlan(plan: Planned[], engine?: EngineTag): Promise<SendOutcome> {
+export async function sendPlan(plan: Planned[]): Promise<SendOutcome> {
   const atoms = toAtoms(plan)
   let size = CHUNK
   let i = 0
@@ -133,7 +119,7 @@ export async function sendPlan(plan: Planned[], engine?: EngineTag): Promise<Sen
   while (i < atoms.length) {
     const chunk = takeChunk(atoms, i, size)
     try {
-      const res = await postBatch({ ops: chunk.items.map(p => p.op), ...(engine ? { engine } : {}) })
+      const res = await postBatch({ ops: chunk.items.map(p => p.op) })
       setServerNow(res.serverNow)
       const done = new Set<number>()
       for (const r of res.results) {
@@ -144,17 +130,14 @@ export async function sendPlan(plan: Planned[], engine?: EngineTag): Promise<Sen
       }
       publish()
       if (done.size < chunk.items.length) {
-        return { ok: false, leaseLost: false, contention, unsent: [...chunk.items.filter((_, k) => !done.has(k)), ...unsentFrom(chunk.next)] }
+        return { ok: false, contention, unsent: [...chunk.items.filter((_, k) => !done.has(k)), ...unsentFrom(chunk.next)] }
       }
       i = chunk.next
     } catch (e) {
       if (e instanceof SalesHttpError) {
         if (e.status === 401) {
           expireSession()
-          return { ok: false, leaseLost: false, contention, unsent: [] }
-        }
-        if (e.status === 409 && e.code === 'LEASE_LOST') {
-          return { ok: false, leaseLost: true, contention, unsent: unsentFrom(i) }
+          return { ok: false, contention, unsent: [] }
         }
         if (e.status === 413) {
           if (chunk.items.length > 1) {
@@ -170,7 +153,7 @@ export async function sendPlan(plan: Planned[], engine?: EngineTag): Promise<Sen
         }
         if (e.status >= 500) {
           setStatus({ message: e.message })
-          return { ok: false, leaseLost: false, contention, unsent: unsentFrom(i) }
+          return { ok: false, contention, unsent: unsentFrom(i) }
         }
         rollbackPlan(chunk.items)
         publish()
@@ -180,10 +163,10 @@ export async function sendPlan(plan: Planned[], engine?: EngineTag): Promise<Sen
         continue
       }
       setStatus({ message: e instanceof Error ? e.message : 'Network error' })
-      return { ok: false, leaseLost: false, contention, unsent: unsentFrom(i) }
+      return { ok: false, contention, unsent: unsentFrom(i) }
     }
   }
-  return { ok: true, leaseLost: false, contention, unsent: [] }
+  return { ok: true, contention, unsent: [] }
 }
 
 export async function flush(): Promise<boolean> {
@@ -245,43 +228,6 @@ export async function flushAll(): Promise<boolean> {
 
 export function isFlushing(): boolean {
   return running
-}
-
-export type EngineRun =
-  | { state: 'skipped' }
-  | { state: 'empty' }
-  | { state: 'sent'; ok: boolean; leaseLost: boolean; ops: number }
-
-/**
- * Run an engine function and post only its writes, tagged with the lease. User edits are flushed
- * first and the flush lock is held for the whole round trip, so the two never share a request.
- * Any failure rolls the unacknowledged engine writes back locally.
- */
-export async function runEngineLocked(fn: () => void, engine: EngineTag): Promise<EngineRun> {
-  if (!(await flushAll())) return { state: 'skipped' }
-  if (running || collectPlan().length) return { state: 'skipped' }
-  running = true
-  try {
-    try {
-      withoutFlush(fn)
-    } catch (e) {
-      rollbackPlan(collectPlan())
-      publish()
-      throw e
-    }
-    const plan = collectPlan()
-    publish()
-    if (!plan.length) return { state: 'empty' }
-    const out = await sendPlan(plan, engine)
-    if (out.unsent.length) {
-      rollbackPlan(out.unsent)
-      publish()
-    }
-    return { state: 'sent', ok: out.ok, leaseLost: out.leaseLost, ops: plan.length }
-  } finally {
-    running = false
-    if (dirty) scheduleFlush(0)
-  }
 }
 
 // ── polling ─────────────────────────────────────────────────────────────────────────────────

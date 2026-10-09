@@ -10,7 +10,7 @@ const SEGMENT: Record<string, string> = {
   templates: 'templates', inbox: 'inbox', tasks: 'tasks', activities: 'activities',
   prospecting: 'prospecting', lists: 'lists', reports: 'reports', recs: 'recs', goals: 'goals',
   copilot: 'copilot', notifications: 'notifications', myday: 'myday', settings: 'settings',
-  users: 'users', integrations: 'integrations', pipelines: 'pipelines',
+  users: 'users', integrations: 'integrations', pipelines: 'pipelines', clock: 'clock',
 }
 
 const DETAIL: Record<string, string> = { company: 'companies', contact: 'contacts', deal: 'deals', sequence: 'sequences' }

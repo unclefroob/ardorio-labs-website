@@ -12,13 +12,14 @@ import { AddToList } from '../modals/comms/AddToList'
 import { PickContacts } from '../modals/comms/PickContacts'
 import { Reassign } from '../modals/comms/Reassign'
 import { AddSuppression } from '../modals/comms/AddSuppression'
+import { SendEmailTask } from '../modals/comms/SendEmailTask'
 
 export const u2: UnitModule = {
   pages: { deals: Deals, deal: Deal },
   modals: {
     logMeeting: LogMeeting, meetingBrief: MeetingBrief, compose: Compose, enrol: Enrol, enrich: Enrich,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
-    reassign: Reassign, addSuppression: AddSuppression,
+    reassign: Reassign, addSuppression: AddSuppression, sendEmailTask: SendEmailTask,
   },
   drawers: {},
 }

@@ -6,8 +6,6 @@ import { bootstrap, rec, user } from '../testing/fixtures'
 import { loadSales } from '../testing/load'
 
 vi.mock('../api/records', () => ({ postBatch: vi.fn(), getChanges: vi.fn(), getBootstrap: vi.fn() }))
-vi.mock('../api/engine', () => ({ acquireLease: vi.fn(), releaseLease: vi.fn() }))
-vi.mock('../engine/engine', () => ({ tick: vi.fn() }))
 
 const CO = { name: 'Acme', tradingName: 'Acme', hq: 'Sydney', tags: [], notes: [] }
 
@@ -154,5 +152,54 @@ describe('session expiry banner', () => {
     const m = await setup()
     m.show(<m.banners.SyncBanner />)
     expect(host.textContent).toBe('')
+  })
+})
+
+describe('ClockBanner', () => {
+  const ROS = rec('ros', { name: 'Rosterio', short: 'ROS', accent: '#123456', desc: '', currency: 'AUD', tz: 'Australia/Melbourne', pipelineId: '', industries: [], roles: [] })
+
+  function admin(m: Awaited<ReturnType<typeof setup>>, on: boolean): void {
+    m.store.S.users.forEach(u => { u.super = on })
+    m.store.reindex()
+  }
+
+  it('shows plain time at real time, without a Reset link', async () => {
+    const m = await setup()
+    m.show(<m.banners.ClockBanner />)
+    expect(host.textContent).not.toContain('Simulated clock')
+    expect(buttons()).toEqual([])
+  })
+
+  it('says the clock is simulated, how far, and what time it now is in the organisation zone', async () => {
+    const m = await setup()
+    m.bootstrap.hydrate(bootstrap({ businesses: [ROS] }))
+    admin(m, true)
+    const clock = await import('../data/clock')
+    act(() => clock.setOffsetMinutes(3 * 1440 + 4 * 60))
+    m.show(<m.banners.ClockBanner />)
+    // 10:00Z + 3d 4h is 14:00Z on 12 Oct, which is 01:00 on 13 Oct in Melbourne (AEDT)
+    expect(host.textContent).toContain('Simulated clock: +3d 4h (now Tue 13 Oct, 01:00 AEDT)')
+  })
+
+  it('offers an admin a Reset link that puts the clock back', async () => {
+    const m = await setup()
+    m.bootstrap.hydrate(bootstrap({ businesses: [ROS] }))
+    admin(m, true)
+    const clock = await import('../data/clock')
+    act(() => clock.setOffsetMinutes(240))
+    m.show(<m.banners.ClockBanner />)
+    press('Reset')
+    expect(clock.getOffsetMinutes()).toBe(0)
+  })
+
+  it('hides Reset from a non-admin', async () => {
+    const m = await setup()
+    m.bootstrap.hydrate(bootstrap({ businesses: [ROS] }))
+    admin(m, false)
+    const clock = await import('../data/clock')
+    act(() => clock.setOffsetMinutes(240))
+    m.show(<m.banners.ClockBanner />)
+    expect(host.textContent).toContain('Simulated clock: +4h')
+    expect(buttons()).toEqual([])
   })
 })
