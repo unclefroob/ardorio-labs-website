@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Navbar from './components/Navbar'
@@ -40,6 +40,8 @@ import { AuthProvider } from './context/AuthContext'
 import { ClientAuthProvider } from './context/ClientAuthContext'
 import ClientLogin from './pages/ClientLogin'
 import ClientPortal from './pages/ClientPortal'
+
+const SalesApp = lazy(() => import('./sales'))
 
 // index.html ships build-time SEO defaults so non-JS crawlers (social scrapers,
 // which never run our JavaScript) still get a valid title, description and share
@@ -126,6 +128,17 @@ function App() {
         <Route path="/admin/invoices/new" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
         <Route path="/admin/invoices/:id" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClientNew /></ProtectedRoute>} />
+        {/* Before /admin/:slug so "sales" is never read as a client slug. */}
+        <Route
+          path="/admin/sales/*"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<div className="min-h-screen grid place-items-center font-mono text-xs text-stone-400">Loading SalesOS</div>}>
+                <SalesApp />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         <Route path="/admin/:slug" element={<ProtectedRoute><AdminClient /></ProtectedRoute>} />
 
         {/* Hosted invoice — unauthenticated, token-gated, and deliberately
