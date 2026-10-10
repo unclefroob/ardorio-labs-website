@@ -1,11 +1,13 @@
 import { F } from './F'
 import { idx, S } from './store'
+import { applySignalAdjust, computeSignalAdjust, NO_ADJUST, type SignalAdjust } from './signalAdjust'
 import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 import type {
   Activity, Business, BusinessId, Company, CompanyRel, Contact, ContactRel, Deal, Enrolment, Goal, Mailbox,
   Message, Meeting, Notification, Pipeline, PipelineField, Rec, Role, SalesUser, Sequence, Stage, Suppression,
-  Task, Team, Template, Thread, ListRec,
+  Task, Team, Template, Thread, ListRec, Intel,
 } from './types'
+import type { IntelKind } from '../api/contract'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -28,6 +30,8 @@ export interface ScoreResult {
   pos: string[]
   missing: string[]
   next?: string
+  /** Movement from saved web signals, already included in `total`. Absent when nothing moved it. */
+  adjust?: SignalAdjust
 }
 export interface RiskResult { level: 'high' | 'med'; reasons: string[] }
 export interface Eligibility { blocks: string[]; warns: string[] }
@@ -59,6 +63,16 @@ export const Q = {
   template: (id: string | null | undefined): Template | undefined => (id ? idx.templates.get(id) : undefined),
   team: (id: string | null | undefined): Team | undefined => (id ? idx.teams.get(id) : undefined),
   rec: (id: string | null | undefined): Rec | undefined => (id ? idx.recs.get(id) : undefined),
+  /** Saved web-intelligence record for a company. Without a business: the newest one across the businesses the caller can see. */
+  intel(companyId: string, kind: IntelKind, b?: string): Intel | undefined {
+    const rows = S.intel.filter(i => i.companyId === companyId && i.kind === kind && (b ? i.businessId === b : Q.inScope(i.businessId)))
+    return rows.sort((x, y) => y.ts.localeCompare(x.ts))[0]
+  },
+  /** How saved signals and tech findings move a company's score for one business. Deterministic; nothing here calls the web. */
+  signalAdjust(companyId: string, b: string, now: number = Date.now()): SignalAdjust {
+    const rows = S.intel.filter(i => i.companyId === companyId && i.businessId === b)
+    return rows.length ? computeSignalAdjust(rows, now) : NO_ADJUST
+  },
   /** One pipeline per business. An empty one is returned while it loads so callers never dereference undefined. */
   pipeline: (b: string): Pipeline => S.pipelines.find(p => p.businessId === b) ?? emptyPipeline(b as BusinessId),
 
@@ -361,7 +375,8 @@ export const Q = {
     else missing.push('Email verification')
     if (ct.title) comp += 1
 
-    const total = fit + dm + eng + sig + comp
+    const adj = Q.signalAdjust(co.id, b)
+    const total = applySignalAdjust(fit + dm + eng + sig + comp, adj.delta)
     const label = comp < 5 && total < 40 ? 'Insufficient Data' : total >= 75 ? 'High Priority' : total >= 55 ? 'Qualified' : total >= 35 ? 'Developing' : 'Low Priority'
     const next =
       missing.length > 1 ? `Enrich contact to fill ${missing.slice(0, 2).join(' and ').toLowerCase()}`
@@ -370,7 +385,7 @@ export const Q = {
       : dl ? `Advance “${dl.title}”`
       : 'Book a discovery conversation'
     return {
-      total, label, pos, missing, next,
+      total, label, pos, missing, next, ...(adj.parts.length ? { adjust: adj } : {}),
       parts: [['Company fit', fit, 30], ['Decision-maker relevance', dm, 20], ['Engagement activity', eng, 20], ['Buying signals', sig, 20], ['Data completeness', comp, 10]],
     }
   },

@@ -14,8 +14,8 @@ export type Role = 'viewer' | 'sales' | 'manager' | 'admin'          // per busi
 export const DOMAIN_COLLECTIONS = [
   'businesses','users','teams','pipelines','companies','contacts','deals','tasks','meetings',
   'mailboxes','templates','sequences','enrolments','threads','messages','lists','goals','recs',
-  'research','suppressions','activities','notifications','companyRels','contactRels',
-] as const                                                              // the 24 (D7)
+  'research','suppressions','activities','notifications','companyRels','contactRels','intel',
+] as const                                                              // the 24 (D7) plus intel
 export const AUX_COLLECTIONS = ['audit', 'importJobs', 'savedViews', 'settings'] as const
 export type CollectionName = typeof DOMAIN_COLLECTIONS[number] | typeof AUX_COLLECTIONS[number]
 export type WritableCollection = Exclude<CollectionName, 'users'>

@@ -2,6 +2,7 @@ import { archiveCompany, archiveContact, addNote, addSuppression, assignContacts
 import { createDeal, markLost, markWon, moveStage, reopenDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
 import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, refreshRecs, saveResearch, enrichLog } from './act/recs'
+import { addKnownTech, saveIntel } from './act/intel'
 import { dupSequence, enrol, saveSequence, setEnrol, setSeqStatus } from './act/seq'
 import { cancelTask, completeTask, createTask, deleteTask, skipEmailTask, snoozeTask, stopEmailing, updateTask } from './act/tasks'
 import {
@@ -32,7 +33,7 @@ export const Act = {
   saveSequence, setSeqStatus, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,
   addSuppression, removeSuppression,
-  recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, applyEnrichment, enrichLog, markVerified,
+  recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, saveIntel, addKnownTech, applyEnrichment, enrichLog, markVerified,
   importRows, saveList, listAdd, listRemove, deleteList,
   saveTemplate, deleteTemplate, saveGoal, deleteGoal,
   saveUser, setUserActive, saveTeam, deleteTeam, savePipeline, removeStage, setMailbox, setOrg, setBiz, setDemo,
