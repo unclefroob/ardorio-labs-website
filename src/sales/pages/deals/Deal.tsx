@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
-import { S, useStore } from '../../data/store'
+import { isRevoked, S, useStore } from '../../data/store'
 import type { Deal as DealRec, Thread } from '../../data/types'
 import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Icon, Kpi, Menu, Owner, Tabs, TONE } from '../../kit'
 import { DealFieldInput } from '../../shared/forms'
@@ -56,9 +56,10 @@ export function Deal({ route }: { route: Route }) {
   const [ef, setEf] = useState<Fields | null>(null)
 
   if (!d) {
+    const revoked = isRevoked('deals', route.id)
     return (
       <div className="page">
-        <Empty icon="kanban" title="Deal not found" body="This deal may have been deleted, or the link is out of date." action={<Btn onClick={() => UI.nav('deals')}>Back to deals</Btn>} />
+        <Empty icon={revoked ? 'lock' : 'kanban'} title={revoked ? 'You no longer have access to this record' : 'Deal not found'} body={revoked ? 'Your access changed, so it has been removed from your view. Ask an administrator if you think that is a mistake.' : 'This deal may have been deleted, or the link is out of date.'} action={<Btn onClick={() => UI.nav('deals')}>Back to deals</Btn>} />
       </div>
     )
   }

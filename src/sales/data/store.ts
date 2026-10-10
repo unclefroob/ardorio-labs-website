@@ -176,6 +176,20 @@ export function metaMap(c: SyncedCollection): Map<string, RecMeta> {
 
 export function clearAllMeta(): void {
   for (const m of metas.values()) m.clear()
+  revoked.clear()
+}
+
+// Records the server told us we can no longer read. Kept only so a page for one can say "no access"
+// rather than "not found"; it is never persisted and is cleared on a fresh load.
+const revoked = new Set<string>()
+export function markRevoked(c: SyncedCollection, id: string): void {
+  revoked.add(`${c}:${id}`)
+}
+export function clearRevoked(c: SyncedCollection, id: string): void {
+  revoked.delete(`${c}:${id}`)
+}
+export function isRevoked(c: SyncedCollection, id: string | undefined): boolean {
+  return !!id && revoked.has(`${c}:${id}`)
 }
 
 // ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus|clock` ──────

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
-import { useStore } from '../../data/store'
+import { isRevoked, useStore } from '../../data/store'
 import { Banner, BizChip, Btn, Chip, Empty, Link, Owner, Tabs } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { seqStats } from '../../shared/seqStats'
@@ -37,9 +37,10 @@ export function Sequence({ route }: { route: Route }) {
     <Btn onClick={() => UI.nav('sequences')}>Back to sequences</Btn>
   )
   if (!s || !Q.member(s.businessId)) {
+    const revoked = !s && isRevoked('sequences', route.id)
     return (
       <div className="page">
-        <Empty icon="send" title="Sequence not found or restricted" body="It may have been removed, or it belongs to a business you are not a member of." action={back} />
+        <Empty icon={revoked ? 'lock' : 'send'} title={revoked ? 'You no longer have access to this record' : 'Sequence not found or restricted'} body={revoked ? 'Your access changed, so it has been removed from your view. Ask an administrator if you think that is a mistake.' : 'It may have been removed, or it belongs to a business you are not a member of.'} action={back} />
       </div>
     )
   }

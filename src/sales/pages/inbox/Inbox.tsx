@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
@@ -71,6 +71,12 @@ export function Inbox({ route }: { route: Route }) {
   const canCompose = Q.anyEdit()
   const clear = (): void => { setQ(''); setMb('') }
 
+  // On a narrow screen the open conversation replaces the list, so start it at the top of the screen.
+  const top = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (sel && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches) top.current?.scrollIntoView?.({ block: 'start' })
+  }, [sel])
+
   const open = (x: Thread): void => {
     setSel(x.id)
     if (x.unread && Q.canEdit(x.businessId)) Act.markThread(x.id, { unread: false })
@@ -93,7 +99,8 @@ export function Inbox({ route }: { route: Route }) {
   })()
 
   return (
-    <div className="inbox">
+    <div className={'inbox' + (t ? ' has-sel' : '')} ref={top}>
+      <h1 className="sr-only">Inbox</h1>
       <div className="ib-l">
         <Btn kind="pri" icon="edit" style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }} disabled={!canCompose} onClick={() => UI.open('compose')}>Compose</Btn>
         {FOLD.map(([k, l, ic]) => {
@@ -157,6 +164,7 @@ export function Inbox({ route }: { route: Route }) {
         {t ? (
           restricted ? (
             <div style={{ padding: 30 }}>
+              <Btn kind="ghost" size="sm" icon="left" className="hamb" style={{ marginBottom: 10 }} onClick={() => setSel(null)}>Back to conversations</Btn>
               <Empty icon="lock" title="Private conversation" body={`This email belongs to ${Q.user(t.ownerId)?.name ?? 'another user'}’s personal mailbox and has not been shared with you. Only limited metadata is visible.`} />
             </div>
           ) : <ThreadView key={t.id} t={t} onClose={() => setSel(null)} />

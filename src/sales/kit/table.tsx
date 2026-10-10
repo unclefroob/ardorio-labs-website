@@ -72,11 +72,11 @@ export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, se
   return (
     <div>
       <div className="tw">
-        <table className="tbl">
+        <table className={sel && setSel ? 'tbl tbl-sel' : 'tbl'}>
           <thead>
             <tr>
               {sel && setSel && (
-                <th style={{ width: 34 }}>
+                <th>
                   <Ck checked={allOn} label="Select all" onChange={v => setSel(v ? rows.map(idOf) : [])} />
                 </th>
               )}
@@ -143,7 +143,7 @@ export function BulkBar({ n, clear, children }: { n: number; clear: () => void; 
 
 export function FilterBar({ children }: { children?: ReactNode }) {
   return (
-    <div className="row wrap" style={{ padding: '10px 12px', borderBottom: '1px solid var(--line)', gap: 8 }}>
+    <div className="row wrap fbar">
       {children}
     </div>
   )
@@ -151,8 +151,8 @@ export function FilterBar({ children }: { children?: ReactNode }) {
 
 export function SearchInp({ value, onChange, placeholder, w = 240 }: { value: string; onChange: (v: string) => void; placeholder?: string; w?: number }) {
   return (
-    <div style={{ position: 'relative', width: w, maxWidth: '100%' }}>
-      <Icon n="search" s={13} style={{ position: 'absolute', left: 9, top: 8, color: 'var(--fg3)' }} />
+    <div className="sbox" style={{ width: w }}>
+      <Icon n="search" s={13} />
       <input className="inp sm" style={{ paddingLeft: 28 }} value={value} placeholder={placeholder || 'Search'} onChange={e => onChange(e.target.value)} aria-label={placeholder || 'Search'} />
     </div>
   )

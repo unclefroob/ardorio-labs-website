@@ -68,7 +68,7 @@ export function Topbar() {
         align="right"
         width={260}
         trigger={
-          <button type="button" aria-label="Account menu" style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" className="acct" aria-label="Account menu" style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Av u={me} s={28} />
           </button>
         }

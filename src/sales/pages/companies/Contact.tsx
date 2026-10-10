@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
-import { S, useStore } from '../../data/store'
+import { isRevoked, S, useStore } from '../../data/store'
 import type { EnrichField } from '../../api/contract'
 import type { BusinessId, Contact as ContactT } from '../../data/types'
 import { Av, Banner, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, Empty, Icon, Link, Menu, Owner, ScoreRing, Seg, Sel, Tabs, Timeline } from '../../kit'
@@ -42,9 +42,10 @@ export function Contact({ route }: { route: Route }) {
   const [bSel, setB] = useState('')
 
   if (!ct) {
+    const revoked = isRevoked('contacts', route.id)
     return (
       <div className="page">
-        <Empty icon="user" title="Contact not found" body="It may have been deleted, or the link is out of date." action={<Btn onClick={() => UI.nav('contacts')}>Back to contacts</Btn>} />
+        <Empty icon={revoked ? 'lock' : 'user'} title={revoked ? 'You no longer have access to this record' : 'Contact not found'} body={revoked ? 'Your access changed, so it has been removed from your view. Ask an administrator if you think that is a mistake.' : 'It may have been deleted, or the link is out of date.'} action={<Btn onClick={() => UI.nav('contacts')}>Back to contacts</Btn>} />
       </div>
     )
   }

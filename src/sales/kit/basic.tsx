@@ -31,11 +31,14 @@ export function Chip({ tone, children, icon, title, style }: { tone?: string; ch
   )
 }
 
+/** Nothing in SalesOS is set smaller than this many pixels. */
+const MIN_TEXT = 12
+
 export function Av({ u, name, s = 24, color }: { u?: Pick<SalesUser, 'name' | 'color'> | null; name?: string; s?: number; color?: string }) {
   const nm = u ? u.name : name
   return (
-    <span className="av" title={nm} style={{ width: s, height: s, fontSize: s * 0.4, background: u ? u.color : color || '#8E8897' }}>
-      {F.ini(nm)}
+    <span className="av" title={nm} style={{ width: s, height: s, fontSize: Math.max(MIN_TEXT, s * 0.4), background: u ? u.color : color || '#8E8897' }}>
+      {s < 30 ? F.ini(nm).slice(0, 1) : F.ini(nm)}
     </span>
   )
 }
@@ -227,7 +230,7 @@ export function Skel({ rows = 3 }: { rows?: number }) {
 export function ScoreRing({ v, s = 46 }: { v: number; s?: number }) {
   const c = v >= 75 ? 'var(--ok)' : v >= 55 ? 'var(--info)' : v >= 35 ? 'var(--warn)' : 'var(--fg3)'
   return (
-    <div className="scr" role="img" aria-label={`Score ${v}`} style={{ width: s, height: s, background: `conic-gradient(${c} ${v * 3.6}deg, var(--line) 0)`, fontSize: s * 0.3 }}>
+    <div className="scr" role="img" aria-label={`Score ${v}`} style={{ width: s, height: s, background: `conic-gradient(${c} ${v * 3.6}deg, var(--line) 0)`, fontSize: Math.max(MIN_TEXT, s * 0.3) }}>
       <div style={{ width: s - 8, height: s - 8, borderRadius: '50%', background: 'var(--surf)', display: 'grid', placeItems: 'center' }}>{v}</div>
     </div>
   )

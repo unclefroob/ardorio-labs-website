@@ -1,14 +1,17 @@
 import { useRef, useState } from 'react'
+import { SalesHttpError } from '../../../api/http'
 import { research as aiResearch, type AiTag } from '../../../ai/client'
 import { Act } from '../../../data/Act'
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
+import { flushAll } from '../../../data/sync'
 import { S, useStore } from '../../../data/store'
 import type { BusinessId, Research as ResearchRec } from '../../../data/types'
 import { AiBadge, AiNotConfigured, Banner, BizDot, Btn, Card, Chip, Empty, Fld, Inp, Sel, Skel, Spinner } from '../../../kit'
 import { BizSel } from '../../../shared/forms'
 import { INDUSTRIES, domOf, norm } from '../../../shared/constants'
 import { useF } from '../../../shared/useF'
+import { normaliseUrl, WEBSITE_URL_MESSAGE } from '../../../shared/url'
 import { UI } from '../../../ui/store'
 import { ResearchView } from '../../companies/parts/ResearchView'
 import { str } from './util'
@@ -24,6 +27,7 @@ export function Research() {
   const [res, setRes] = useState<{ r: ResearchRec; ai: AiTag } | null>(null)
   const [savedCid, setSavedCid] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  const [webErr, setWebErr] = useState('')
   const seq = useRef(0)
 
   const name = f.name.trim()
@@ -35,30 +39,42 @@ export function Research() {
 
   const go = async (): Promise<void> => {
     setErr('')
+    setWebErr('')
     if (name.length < 3) return setErr('Enter a company name (3+ characters)')
+    const web = normaliseUrl(f.website)
+    if (!web.ok) return setWebErr(WEBSITE_URL_MESSAGE)
     if (!bid) return
     const n = ++seq.current
     setSavedCid(null)
     setRes(null)
     setBusy(true)
     try {
-      const out = await aiResearch(match?.id, bid, { name: f.name, website: f.website, industry: f.industry })
+      const out = await aiResearch(match?.id, bid, { name: f.name, website: web.value, industry: f.industry })
       if (n !== seq.current) return
       const val = out.value
       if (isErr(val)) setErr(val.error)
       else setRes({ r: val, ai: out.ai })
     } catch (e) {
-      if (n === seq.current) setErr(e instanceof Error ? e.message : 'Research failed')
+      if (n !== seq.current) return
+      if (e instanceof SalesHttpError && e.code === 'INVALID_URL') setWebErr(WEBSITE_URL_MESSAGE)
+      else setErr(e instanceof Error ? e.message : 'Research failed')
     } finally {
       if (n === seq.current) setBusy(false)
     }
   }
 
-  const save = (): void => {
+  const save = async (): Promise<void> => {
     if (!res || !bid || !UI.guard(bid, 'Saving research')) return
     let cid = match?.id
-    if (!cid) cid = Act.createCompany({ name: f.name, website: f.website, industry: f.industry, businessId: bid, ownerId: Q.me().id, source: 'Prospecting research' }).id
-    else if (!Q.rel(cid, bid)) Act.linkCompany(cid, bid)
+    if (!cid) {
+      const web = normaliseUrl(f.website)
+      if (!web.ok) return setWebErr(WEBSITE_URL_MESSAGE)
+      setWebErr('')
+      cid = Act.createCompany({ name: f.name, website: web.value, industry: f.industry, businessId: bid, ownerId: Q.me().id, source: 'Prospecting research' }).id
+      // The server has the final say on a web address. If it refuses the new company the save is
+      // rolled back, so say so on the field rather than leaving a blank website and a "saved" banner.
+      if (web.value && (await flushAll()) && !Q.company(cid)) return setWebErr(WEBSITE_URL_MESSAGE)
+    } else if (!Q.rel(cid, bid)) Act.linkCompany(cid, bid)
     const cname = Q.company(cid)?.name ?? f.name
     Act.saveResearch({ ...res.r, companyId: cid, companyName: cname })
     setSavedCid(cid)
@@ -76,7 +92,7 @@ export function Research() {
           <form onSubmit={e => { e.preventDefault(); void go() }}>
             <div className="grid g2">
               <Fld label="Company name" req err={err}><Inp value={f.name} onChange={v => set('name', v)} placeholder="e.g. Harbour Retail Group" /></Fld>
-              <Fld label="Website"><Inp value={f.website} onChange={v => set('website', v)} placeholder="company.com.au" /></Fld>
+              <Fld label="Website" err={webErr}><Inp value={f.website} onChange={v => { set('website', v); setWebErr('') }} placeholder="company.com.au" aria-invalid={webErr ? true : undefined} /></Fld>
               <Fld label="Industry"><Sel value={f.industry} onChange={v => set('industry', v)} placeholder="Auto / unknown" options={INDUSTRIES} /></Fld>
               <Fld label="Target business"><BizSel value={f.businessId} onChange={v => set('businessId', Q.myBiz().find(b => b === v) ?? f.businessId)} /></Fld>
             </div>
@@ -100,7 +116,7 @@ export function Research() {
             onSave={
               <>
                 {match && <Btn onClick={() => UI.nav('company', { id: match.id })}>Open company</Btn>}
-                <Btn kind="pri" icon="check" disabled={!!savedCid || !bid || !Q.canEdit(bid)} onClick={save}>{match ? 'Save research to company' : 'Create company & save research'}</Btn>
+                <Btn kind="pri" icon="check" disabled={!!savedCid || !bid || !Q.canEdit(bid)} onClick={() => void save()}>{match ? 'Save research to company' : 'Create company & save research'}</Btn>
               </>
             }
           />

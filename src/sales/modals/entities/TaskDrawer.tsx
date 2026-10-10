@@ -1,6 +1,7 @@
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { isRevoked } from '../../data/store'
 import type { Task } from '../../data/types'
 import { Banner, Btn, Empty, Fld, Inp, Sel, TA } from '../../kit/basic'
 import { CoLink, CtLink, DlLink, Link } from '../../kit/links'
@@ -27,9 +28,10 @@ const SNOOZES: ReadonlyArray<readonly [hours: number, label: string]> = [[3, '3 
 export function TaskDrawer({ id }: { id: string }) {
   const t = Q.task(id)
   if (!t) {
+    const revoked = isRevoked('tasks', id)
     return (
       <Drawer title="Task" onClose={() => UI.drawer(null)}>
-        <Empty icon="search" title="Task not found" body="It may have been deleted, or you may not have access to it." />
+        <Empty icon={revoked ? 'lock' : 'search'} title={revoked ? 'You no longer have access to this record' : 'Task not found'} body={revoked ? 'Your access changed, so it has been removed from your view. Ask an administrator if you think that is a mistake.' : 'It may have been deleted, or you may not have access to it.'} />
       </Drawer>
     )
   }
