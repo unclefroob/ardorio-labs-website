@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
-import { S, useStore } from '../../data/store'
+import { isRevoked, S, useStore } from '../../data/store'
 import type { Contact } from '../../data/types'
 import { Av, BizDot, Btn, Card, Chip, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, Icon, Link, Menu, Owner, Tabs, Timeline, type Col } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
@@ -25,9 +25,10 @@ export function Company({ route }: { route: Route }) {
   const [tab, setTab] = useState(qStr(route.q, 'tab') || 'overview')
 
   if (!c) {
+    const revoked = isRevoked('companies', route.id)
     return (
       <div className="page">
-        <Empty icon="building" title="Company not found" body="It may have been deleted, or the link is out of date." action={<Btn onClick={() => UI.nav('companies')}>Back to companies</Btn>} />
+        <Empty icon={revoked ? 'lock' : 'building'} title={revoked ? 'You no longer have access to this record' : 'Company not found'} body={revoked ? 'Your access changed, so it has been removed from your view. Ask an administrator if you think that is a mistake.' : 'It may have been deleted, or the link is out of date.'} action={<Btn onClick={() => UI.nav('companies')}>Back to companies</Btn>} />
       </div>
     )
   }

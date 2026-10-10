@@ -22,13 +22,13 @@
 .sos .ws{margin:12px 10px 6px;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surf);cursor:pointer;width:calc(100% - 20px);text-align:left}
 .sos .ws:hover{border-color:var(--line2)}
 .sos .ws-mark{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none}
-.sos .ng{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3);padding:14px 10px 4px}
+.sos .ng{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3);padding:14px 10px 4px}
 .sos .ni{display:flex;align-items:center;gap:9px;padding:6px 10px;border-radius:7px;color:var(--fg2);cursor:pointer;border:0;background:none;width:100%;text-align:left;font-weight:500}
 .sos .ni:hover{background:var(--hover);color:var(--fg)}
 .sos .ni.on{background:var(--acc-soft);color:var(--acc-ink)}
 .sos .ni .cnt{margin-left:auto;font-size:12px;color:var(--fg3);font-variant-numeric:tabular-nums}
 .sos .ni.on .cnt{color:var(--acc-ink)}
-.sos .ni .badge{margin-left:auto;background:var(--acc);color:#fff;border-radius:9px;font-size:11.5px;padding:0 6px;font-weight:600}
+.sos .ni .badge{margin-left:auto;background:var(--acc);color:#fff;border-radius:9px;font-size:12px;padding:0 6px;font-weight:600}
 .sos .side-foot{border-top:1px solid var(--line);padding:10px}
 .sos .mainwrap{display:flex;flex-direction:column;min-width:0;min-height:0}
 .sos .top>*{flex-shrink:0}
@@ -36,7 +36,7 @@
 .sos .top{height:52px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surf);flex:none}
 .sos .search{min-width:0;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surf2);color:var(--fg3);width:min(380px,40vw);cursor:text}
 .sos .search>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sos .search kbd{margin-left:auto;font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--surf)}
+.sos .search kbd{margin-left:auto;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--surf)}
 .sos .clock{white-space:nowrap;display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;background:var(--surf2);border:1px dashed var(--line2);color:var(--fg2);font-size:12px;cursor:pointer}
 .sos .main{flex:1;overflow:auto;min-height:0}
 .sos .page{padding:22px 26px 60px;max-width:1600px;margin-inline:auto;width:100%}
@@ -152,7 +152,7 @@
 .sos .ai{background:var(--ai);border:1px solid var(--ai-line);border-radius:var(--r)}
 .sos .ai-h{display:flex;align-items:center;gap:7px;font-weight:600;font-size:12.5px;color:#6D28D9}
 .sos[data-theme=dark] .ai-h{color:#C4B5FD}
-.sos .sim{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg3);border:1px dashed var(--line2);border-radius:4px;padding:1px 5px}
+.sos .sim{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg3);border:1px dashed var(--line2);border-radius:4px;padding:1px 5px}
 .sos .mbg{position:fixed;inset:0;background:rgba(20,14,24,.42);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;z-index:50;overflow:auto;animation:sos-fade .12s}
 .sos .modal{background:var(--surf);border-radius:12px;box-shadow:var(--sh2);width:100%;max-width:560px;display:flex;flex-direction:column;max-height:88vh}
 .sos .modal-h{display:flex;align-items:center;gap:10px;padding:16px 18px 12px}
@@ -172,7 +172,7 @@
 .sos .mi:hover{background:var(--hover)}
 .sos .mi:disabled{opacity:.7;cursor:not-allowed}
 .sos .msep{height:1px;background:var(--line);margin:4px 0}
-.sos .mlab{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg3);padding:6px 9px 2px;font-weight:600}
+.sos .mlab{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg3);padding:6px 9px 2px;font-weight:600}
 .sos .toasts{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:80}
 .sos .toast{background:#1E1A22;color:#fff;border-radius:9px;padding:10px 14px;box-shadow:var(--sh2);display:flex;gap:10px;align-items:center;min-width:260px;max-width:400px;animation:sos-slide .18s;font-size:12.5px}
 .sos .toast.bad{background:#7F1D1D}
@@ -222,6 +222,9 @@
 .sos .stagebar button.cur{background:var(--acc);color:#fff}
 .sos .scr{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
 .sos .hamb{display:none}
+.sos .fbar{padding:10px 12px;border-bottom:1px solid var(--line);gap:8px}
+.sos .sbox{position:relative;max-width:100%}
+.sos .sbox>svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--fg3);pointer-events:none}
 .sos .chart text{fill:var(--fg3);font-size:12px;font-family:var(--sans)}
 .sos .pal{position:fixed;inset:0;z-index:70;background:rgba(20,14,24,.35);display:flex;justify-content:center;padding-top:12vh}
 .sos .pal-b{width:min(640px,94vw);background:var(--surf);border-radius:12px;box-shadow:var(--sh2);overflow:hidden;align-self:flex-start}
@@ -242,6 +245,9 @@
 .sos .inbox{grid-template-columns:minmax(0,1fr);height:auto}
 .sos .inbox>div{overflow:visible}
 .sos .ib-l{display:none}
+.sos .inbox .ib-r{display:none}
+.sos .inbox.has-sel .ib-m{display:none}
+.sos .inbox.has-sel .ib-r{display:block;min-height:calc(100vh - 52px)}
 .sos .dl{grid-template-columns:110px minmax(0,1fr)}
 .sos .cal{grid-template-columns:minmax(0,1fr)}
 .sos .cal-d{min-height:0}}
@@ -332,6 +338,11 @@
 .sos .tbl-sel td:first-child .ck,.sos .tbl-sel th:first-child .ck{justify-content:center;min-height:40px}
 .sos .tg{position:relative}
 .sos .tg::before{content:'';position:absolute;inset:-13px -6px}
+.sos .fbar{padding:12px;gap:10px}
+.sos .fbar .inp,.sos .fbar select.inp,.sos .fbar .btn,.sos .fbar .seg button{min-height:40px}
+.sos .fbar .inp,.sos .fbar select.inp{flex:1 1 140px;min-width:0;max-width:100%}
+.sos .fbar .sbox{flex:1 1 100%}
+.sos .fbar .seg{flex-wrap:wrap}
 }
 @media (prefers-reduced-motion:reduce){
 .sos *,.sos *::before,.sos *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}

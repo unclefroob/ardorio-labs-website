@@ -1,5 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { F } from '../data/F'
+import { LINE_DASH } from './util'
 
 export interface BarDatum {
   l: string
@@ -53,7 +54,12 @@ function YAxis({ W, h, max, fmt, empty }: { W: number; h: number; max: number; f
 
 const sum = (v: number | number[]): number => (Array.isArray(v) ? v.reduce((s, x) => s + x, 0) : v)
 
-export function Bars({ data, h = 180, fmt, stacked, onBar, colors, label = 'Bar chart' }: { data: readonly BarDatum[]; h?: number; fmt?: (v: number) => string; stacked?: boolean; onBar?: (d: BarDatum, i: number) => void; colors?: readonly string[]; label?: string }) {
+
+/**
+ * `series` names the parts of a stacked bar, in the same order as `colors`. They go into the bar's
+ * spoken label and the text table, so the split is not carried by colour alone.
+ */
+export function Bars({ data, h = 180, fmt, stacked, onBar, colors, series, label = 'Bar chart' }: { data: readonly BarDatum[]; h?: number; fmt?: (v: number) => string; stacked?: boolean; onBar?: (d: BarDatum, i: number) => void; colors?: readonly string[]; series?: readonly string[]; label?: string }) {
   const [ref, W] = useWidth()
   const max = Math.max(1, ...data.map(d => (stacked ? sum(d.v) : Array.isArray(d.v) ? Math.max(...d.v) : d.v)))
   const empty = data.every(d => sum(d.v) === 0)
@@ -64,19 +70,25 @@ export function Bars({ data, h = 180, fmt, stacked, onBar, colors, label = 'Bar 
   const step = labelStep(data.map(d => d.l), slot)
   const widestVal = Math.max(1, ...data.map(d => f(sum(d.v)).length)) * CH + 6
   const showVals = slot >= widestVal
+  const parts = stacked && series ? series : null
+  const spoken = (d: BarDatum): string => {
+    const total = f(sum(d.v))
+    if (!parts || !Array.isArray(d.v)) return `${d.l}: ${total}`
+    return `${d.l}: ${total} (${d.v.map((v, j) => `${parts[j] ?? `Part ${j + 1}`} ${f(v)}`).join(', ')})`
+  }
   return (
-    <div ref={ref}>
-      <svg className="chart" viewBox={`0 0 ${W} ${h + 24}`} width={W} height={h + 24} style={{ display: 'block', maxWidth: '100%' }} role={onBar ? 'group' : undefined} aria-label={onBar ? label : undefined} aria-hidden={onBar ? undefined : true}>
+    <div ref={ref} role="group" aria-label={label}>
+      <svg className="chart" viewBox={`0 0 ${W} ${h + 24}`} width={W} height={h + 24} style={{ display: 'block', maxWidth: '100%' }} role={onBar ? 'group' : undefined} aria-label={onBar ? `${label}. Select a bar to open it.` : undefined} aria-hidden={onBar ? undefined : true}>
         <YAxis W={W} h={h} max={max} fmt={fmt} empty={empty} />
         {data.map((d, i) => {
           const x = PL + i * slot + (slot - bw) / 2
           let y = h
           const vals = stacked && Array.isArray(d.v) ? d.v : [sum(d.v)]
           const total = sum(d.v)
-          const act = onBar ? { role: 'button', tabIndex: 0, 'aria-label': `${d.l}: ${f(total)}`, onClick: () => onBar(d, i), onKeyDown: (e: KeyboardEvent<SVGGElement>) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBar(d, i) } } } : {}
+          const act = onBar ? { role: 'button', tabIndex: 0, 'aria-label': spoken(d), onClick: () => onBar(d, i), onKeyDown: (e: KeyboardEvent<SVGGElement>) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBar(d, i) } } } : {}
           return (
             <g key={i} style={{ cursor: onBar ? 'pointer' : undefined }} {...act}>
-              <title>{`${d.l}: ${f(total)}`}</title>
+              <title>{spoken(d)}</title>
               <rect x={PL + i * slot} y={0} width={slot} height={h + 24} fill="transparent" />
               {vals.map((v, j) => {
                 const bh = (v / max) * ph
@@ -97,17 +109,25 @@ export function Bars({ data, h = 180, fmt, stacked, onBar, colors, label = 'Bar 
           )
         })}
       </svg>
-      {!onBar && (
-        <table className="sr-only">
-          <caption>{label}</caption>
-          <thead><tr><th scope="col">Item</th><th scope="col">Value</th></tr></thead>
-          <tbody>
-            {data.map((d, i) => (
-              <tr key={i}><th scope="row">{d.l}</th><td>{f(sum(d.v))}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <table className="sr-only">
+        <caption>{label}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Item</th>
+            {parts ? parts.map(n => <th key={n} scope="col">{n}</th>) : null}
+            <th scope="col">{parts ? 'Total' : 'Value'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((d, i) => (
+            <tr key={i}>
+              <th scope="row">{d.l}</th>
+              {parts ? parts.map((n, j) => <td key={n}>{f(Array.isArray(d.v) ? d.v[j] ?? 0 : j === 0 ? d.v : 0)}</td>) : null}
+              <td>{f(sum(d.v))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -130,12 +150,12 @@ export function Line({ series, labels, h = 170, fmt, label = 'Line chart' }: { s
   const f = (v: number): string => (fmt ? fmt(v) : String(v))
   const step = labelStep(labels, (x1 - x0) / Math.max(1, n - 1))
   return (
-    <div ref={ref}>
+    <div ref={ref} role="group" aria-label={label}>
       <svg className="chart" viewBox={`0 0 ${W} ${h + 24}`} width={W} height={h + 24} style={{ display: 'block', maxWidth: '100%' }} aria-hidden="true">
         <YAxis W={W} h={h} max={max} fmt={fmt} empty={empty} />
         {series.map((s, j) => (
           <g key={j}>
-            <polyline fill="none" stroke={s.c} strokeWidth="2" strokeLinejoin="round" points={s.v.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} />
+            <polyline fill="none" stroke={s.c} strokeWidth="2" strokeLinejoin="round" strokeDasharray={LINE_DASH[j % LINE_DASH.length] || undefined} points={s.v.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} />
             {s.v.map((v, i) => (
               <circle key={i} cx={X(i)} cy={Y(v)} r="3" fill={s.c}>
                 <title>{`${s.n} · ${labels[i]}: ${f(v)}`}</title>
@@ -172,12 +192,17 @@ export function Line({ series, labels, h = 170, fmt, label = 'Line chart' }: { s
   )
 }
 
-export function Legend({ items }: { items: ReadonlyArray<readonly [string, string]> }) {
+/** Each item is [label, colour, optional dash pattern]. A dash shows the line style as well as the colour. */
+export function Legend({ items }: { items: ReadonlyArray<readonly [label: string, colour: string, dash?: string]> }) {
   return (
     <div className="row wrap" style={{ gap: 12 }}>
-      {items.map(([l, c]) => (
+      {items.map(([l, c, dash]) => (
         <span key={l} className="row xs muted" style={{ gap: 5 }}>
-          <span className="dot" style={{ background: c }} />
+          {dash !== undefined ? (
+            <svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true" style={{ flex: 'none' }}>
+              <line x1="0" y1="4" x2="22" y2="4" stroke={c} strokeWidth="2" strokeDasharray={dash || undefined} />
+            </svg>
+          ) : <span className="dot" style={{ background: c }} />}
           {l}
         </span>
       ))}
@@ -191,10 +216,10 @@ export interface FunnelStep {
   [extra: string]: unknown
 }
 
-export function Funnel({ steps, onStep }: { steps: readonly FunnelStep[]; onStep?: (s: FunnelStep) => void }) {
+export function Funnel({ steps, onStep, label = 'Funnel' }: { steps: readonly FunnelStep[]; onStep?: (s: FunnelStep) => void; label?: string }) {
   const max = Math.max(1, steps[0]?.v || 1)
   return (
-    <div className="col" style={{ gap: 6 }}>
+    <div className="col" style={{ gap: 6 }} role="group" aria-label={label}>
       {steps.map((s, i) => (
         <button key={s.l} type="button" disabled={!onStep} onClick={() => onStep?.(s)} style={{ border: 0, background: 'none', padding: 0, textAlign: 'left', cursor: onStep ? 'pointer' : 'default' }}>
           <div className="row sm" style={{ marginBottom: 3 }}>
@@ -207,7 +232,7 @@ export function Funnel({ steps, onStep }: { steps: readonly FunnelStep[]; onStep
               </span>
             )}
           </div>
-          <div style={{ height: 14, borderRadius: 3, background: 'var(--line)' }}>
+          <div aria-hidden="true" style={{ height: 14, borderRadius: 3, background: 'var(--line)' }}>
             <div style={{ height: '100%', width: Math.max(2, (s.v / max) * 100) + '%', background: 'var(--acc)', opacity: 1 - i * 0.13, borderRadius: 3 }} />
           </div>
         </button>

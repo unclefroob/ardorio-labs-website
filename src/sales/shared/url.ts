@@ -1,5 +1,8 @@
 export type UrlCheck = { ok: true; value: string } | { ok: false; error: string }
 
+/** Shown under a website field that failed the check above, or that the server refused (INVALID_URL). */
+export const WEBSITE_URL_MESSAGE = "That website doesn't look right. Use a full address like https://example.com."
+
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:(?!\d)/i
 
 /** Mirrors the server rule: http(s) with a host, no credentials, no whitespace/control/backslash, at most 2048 chars. */

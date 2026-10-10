@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
+/** Line styles that tell series apart without relying on colour. Index matches the series order. */
+export const LINE_DASH: readonly string[] = ['', '7 4', '2 4', '9 3 2 3']
+
 export const TONE: Record<string, string> = { High: 'bad', Medium: 'warn', Low: '' }
 
 export const EST: Record<string, [string, string]> = {

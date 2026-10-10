@@ -4,7 +4,7 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import type { BusinessId, Deal, SalesUser } from '../../data/types'
-import { Bars, BizDot, Btn, Card, Chip, DataTable, Empty, Funnel, Kpi, Legend, Line, Owner, Sel, Seg, type Col } from '../../kit'
+import { Bars, BizDot, Btn, Card, Chip, DataTable, Empty, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, Seg, type Col } from '../../kit'
 import { PER, type PeriodKey } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -209,13 +209,13 @@ export function Dashboard() {
               )}
             </Card>
             <Card title="Won revenue by month" right={<Legend items={bizs.map(b => [b.name, b.accent] as const)} />}>
-              <Bars label="Won revenue by month" stacked data={months} colors={bizs.map(b => b.accent)} fmt={v => F.money(v, 1)} />
+              <Bars label="Won revenue by month" stacked series={bizs.map(b => b.name)} data={months} colors={bizs.map(b => b.accent)} fmt={v => F.money(v, 1)} />
             </Card>
-            <Card title="Sales activity — last 8 weeks" right={<Legend items={[['Emails', 'var(--acc)'], ['Calls', '#0E8A7E'], ['Meetings booked', '#D9572B']]} />}>
+            <Card title="Sales activity — last 8 weeks" right={<Legend items={[['Emails', 'var(--acc)', LINE_DASH[0]], ['Calls', '#0E8A7E', LINE_DASH[1]], ['Meetings booked', '#D9572B', LINE_DASH[2]]]} />}>
               <Line label="Sales activity by week" labels={weeks.map(w => w.l)} series={[{ n: 'Emails', c: 'var(--acc)', v: wc('email_out') }, { n: 'Calls', c: '#0E8A7E', v: wc('call') }, { n: 'Meetings', c: '#D9572B', v: wc('meeting_booked') }]} />
             </Card>
             <Card title="Conversion" right={<span className="faint xs">Lead → meeting → opportunity</span>}>
-              <Funnel steps={fun} onStep={s => (s.l === 'Opportunities' || s.l === 'Won' ? go('deals', { view: 'list', status: s.l === 'Won' ? 'won' : '' }) : go('contacts'))} />
+              <Funnel label="Conversion funnel" steps={fun} onStep={s => (s.l === 'Opportunities' || s.l === 'Won' ? go('deals', { view: 'list', status: s.l === 'Won' ? 'won' : '' }) : go('contacts'))} />
               <div className="faint xs" style={{ marginTop: 8 }}>Meetings booked counted per company; conversion % relative to previous step.</div>
             </Card>
           </div>

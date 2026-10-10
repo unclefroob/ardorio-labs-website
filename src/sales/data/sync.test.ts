@@ -385,13 +385,91 @@ describe('polling and applyChange', () => {
     m.stop()
   })
 
-  it('treats a record that became invisible like a delete', async () => {
-    const m = await polled()
-    const hidden = { ...change('companies', 'co1', 5, { ...CO }), hidden: true as const }
-    m.poll.mockResolvedValueOnce(changes([hidden]))
-    await m.sync.pollOnce()
-    expect(m.store.S.companies).toHaveLength(0)
-    m.stop()
+  describe('hidden entries (the caller lost access)', () => {
+    // The server sends only {id, collection, hidden:true}: no data, and the record's rev is unchanged.
+    const hiddenEntry = (id: string, rev = 4, collection: 'companies' | 'deals' = 'companies') =>
+      ({ ...change(collection, id, rev, null), deleted: false, hidden: true as const })
+
+    it('removes the record even though its rev is not newer than ours', async () => {
+      const m = await polled()
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('co1', 4)]))
+      await m.sync.pollOnce()
+      expect(m.store.S.companies).toHaveLength(0)
+      expect(m.store.metaMap('companies').has('co1')).toBe(false)
+      expect(m.store.isRevoked('companies', 'co1')).toBe(true)
+      expect(m.toast).not.toHaveBeenCalled()
+      m.stop()
+    })
+
+    it('copes with an entry that has no rev at all', async () => {
+      const m = await polled()
+      const bare = { collection: 'companies', id: 'co1', hidden: true, deleted: false, data: null } as unknown as ReturnType<typeof change>
+      m.poll.mockResolvedValueOnce(changes([bare]))
+      await m.sync.pollOnce()
+      expect(m.store.S.companies).toHaveLength(0)
+      m.stop()
+    })
+
+    it('tells the user when it throws away unsaved edits', async () => {
+      const m = await polled()
+      m.store.S.companies[0].name = 'Mine'
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('co1')]))
+      await m.sync.pollOnce()
+      expect(m.toast).toHaveBeenCalledWith('You no longer have access to a record you were editing. Your unsaved changes to it were discarded.', 'warn')
+      expect(m.sync.hasUnsaved()).toBe(false)
+      expect(m.plan.collectPlan()).toEqual([])
+      m.stop()
+    })
+
+    it('does not send a save for the record afterwards', async () => {
+      const m = await polled()
+      m.store.S.companies[0].name = 'Mine'
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('co1')]))
+      await m.sync.pollOnce()
+      await m.sync.flush()
+      expect(m.post).not.toHaveBeenCalled()
+      m.stop()
+    })
+
+    it('leaves other records alone', async () => {
+      const m = await setup({ companies: [rec('co1', CO, 4), rec('co2', { ...CO, name: 'Other' }, 2)] })
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('co2', 2)]))
+      await m.sync.pollOnce()
+      expect(m.store.S.companies.map(c => c.id)).toEqual(['co1'])
+      expect(m.store.isRevoked('companies', 'co1')).toBe(false)
+      m.stop()
+    })
+
+    it('ignores a hidden entry for a record that was never loaded', async () => {
+      const m = await polled()
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('nope')]))
+      await m.sync.pollOnce()
+      expect(m.store.S.companies).toHaveLength(1)
+      expect(m.toast).not.toHaveBeenCalled()
+      m.stop()
+    })
+
+    it('keeps a record that is only an unsent local create', async () => {
+      const m = await polled()
+      m.store.S.companies.push(row({ id: 'new1', name: 'Draft', tradingName: '', tags: [], notes: [] }))
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('new1', 0)]))
+      await m.sync.pollOnce()
+      expect(m.store.S.companies.map(c => c.id)).toEqual(['co1', 'new1'])
+      expect(m.store.isRevoked('companies', 'new1')).toBe(false)
+      m.stop()
+    })
+
+    it('shows the record again when access is later restored', async () => {
+      const m = await polled()
+      m.poll.mockResolvedValueOnce(changes([hiddenEntry('co1')]))
+      await m.sync.pollOnce()
+      expect(m.store.isRevoked('companies', 'co1')).toBe(true)
+      m.poll.mockResolvedValueOnce(changes([change('companies', 'co1', 6, { ...CO })]))
+      await m.sync.pollOnce()
+      expect(m.store.S.companies.map(c => c.id)).toEqual(['co1'])
+      expect(m.store.isRevoked('companies', 'co1')).toBe(false)
+      m.stop()
+    })
   })
 
   it('ignores collections it does not sync', async () => {

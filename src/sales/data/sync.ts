@@ -11,7 +11,7 @@ import { collectPlan, localData, removeLocal, takeChunk, toAtoms, writeLocal, ty
 import { applyResult, rollbackPlan } from './results'
 import { getMembersVersion, refreshMembers } from './session'
 import {
-  isArrayCollection, isSettingsId, metaMap, normalise, publish, SYNCED_COLLECTIONS, upsertRow,
+  clearRevoked, isArrayCollection, isSettingsId, markRevoked, metaMap, normalise, publish, SYNCED_COLLECTIONS, upsertRow,
   type SyncedCollection,
 } from './store'
 
@@ -241,10 +241,24 @@ function applyChange(ch: ChangeEntry): void {
   const sc = c as SyncedCollection
   const mm = metaMap(sc)
   const m = mm.get(ch.id)
-  if (m && ch.rev <= m.rev) return
   const local = localData(sc, ch.id)
 
-  if (ch.deleted || ch.hidden || !ch.data) {
+  // Losing access does not change the record, so the server's `rev` for a hidden entry is not newer
+  // than ours (and the entry may carry no rev at all). It must be applied before the rev check.
+  if (ch.hidden) {
+    if (sc === 'settings') return
+    if (!m && local) return // our own unsent create; the server cannot be talking about it
+    markRevoked(sc, ch.id)
+    if (m && local && stable(local) !== m.snapStr) {
+      UI.toast('You no longer have access to a record you were editing. Your unsaved changes to it were discarded.', 'warn')
+    }
+    removeLocal(sc, ch.id)
+    mm.delete(ch.id)
+    return
+  }
+  if (m && ch.rev <= m.rev) return
+
+  if (ch.deleted || !ch.data) {
     if (sc === 'settings') return
     if (m && local && stable(local) !== m.snapStr) {
       UI.toast(`A record you were editing was removed by ${userName(ch.updatedBy)}`, 'warn')
@@ -253,6 +267,7 @@ function applyChange(ch: ChangeEntry): void {
     mm.delete(ch.id)
     return
   }
+  clearRevoked(sc, ch.id)
   if (!m && local) return
   if (m && m.snap === null) return
 
