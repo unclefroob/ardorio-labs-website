@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { adjustSummary } from '../../data/signalAdjust'
 import { S } from '../../data/store'
 import type { BusinessId, Contact } from '../../data/types'
 import { Btn, Card, Chip, Prog, ScoreRing, useSim } from '../../kit'
@@ -54,6 +55,15 @@ export function ScorePanel({ ct, b }: { ct: Contact; b: BusinessId }) {
           </div>
         ))}
       </div>
+      {s.adjust && (
+        <div className="sm" style={{ marginBottom: 10 }} data-testid="score-signal-adjust">
+          <div className="b xs">From saved web signals</div>
+          <div className="muted">{adjustSummary(s.adjust)}. Already included in the score above.</div>
+          {s.adjust.parts.map(p => (
+            <div key={p.label} className="row xs"><span className="muted">{p.label}</span><span className="sp" /><span className="num" style={{ color: p.points < 0 ? 'var(--bad)' : 'var(--ok)' }}>{p.points > 0 ? '+' : '−'}{Math.abs(p.points)}</span></div>
+          ))}
+        </div>
+      )}
       {s.pos.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <div className="b xs">Positive signals</div>

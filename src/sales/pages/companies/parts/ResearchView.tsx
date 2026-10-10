@@ -1,6 +1,7 @@
 import { Fragment, type FC, type ReactNode } from 'react'
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
+import { adjustSummary, applySignalAdjust } from '../../../data/signalAdjust'
 import type { Research } from '../../../data/types'
 import { providerName } from '../../../ai/client'
 import type { AiProvider } from '../../../api/contract'
@@ -54,7 +55,10 @@ function Bullets({ items }: { items: readonly string[] }) {
 export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
   const bn = Q.biz(r.businessId)?.name ?? ''
   const by = text(r.by) ? Q.user(text(r.by))?.name : undefined
-  const score = typeof r.score === 'number' ? r.score : 0
+  const base = typeof r.score === 'number' ? r.score : 0
+  // Only a result tied to a CRM company can be moved by saved signals; an unmatched result keeps its own score.
+  const adj = typeof r.score === 'number' && r.companyId ? Q.signalAdjust(r.companyId, r.businessId) : null
+  const score = adj?.parts.length ? applySignalAdjust(base, adj.delta) : base
   const facts = pairs(r.facts)
   const srcs = sources(r.sources)
   const caveats = list(r.inferred)
@@ -87,6 +91,7 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
         <div className="col" style={{ alignItems: 'center' }}>
           <ScoreRing v={score} s={64} />
           <span className="xs faint">Opportunity score</span>
+          {adj?.parts.length ? <span className="xs faint" style={{ textAlign: 'center' }} data-testid="research-signal-adjust">{adjustSummary(adj)} from saved web signals</span> : null}
         </div>
       </div>
       <div className="grid g3" style={{ marginTop: 14 }}>
