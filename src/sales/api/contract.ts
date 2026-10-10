@@ -265,9 +265,13 @@ export type SalesErrorCode =
 export interface EnrichUsage { used: number; limit: number; resetsOn: string }
 export type EnrichField = 'email' | 'email2' | 'phone' | 'mobile' | 'title' | 'linkedin'
 export type EmailPattern = 'first.last' | 'firstlast' | 'flast' | 'f.last' | 'first' | 'first_last' | 'last.first'
+/** Server-side check of a cited page. confirmed: the page was fetched and shows the value. unconfirmed: it could not be fetched or read (timeout, blocked, non-HTML, JS-only, linkedin.com), so the value is kept but flagged. */
+export type SourceCheck = 'confirmed' | 'unconfirmed'
 export interface EnrichSuggestion { field: EnrichField; value: string; kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern
   /** Set by the server for mobile numbers: may be a personal number rather than a business line. */
-  personal?: boolean }
+  personal?: boolean
+  /** Only on kind 'published' email/phone suggestions. */
+  sourceCheck?: SourceCheck }
 export interface EnrichContactRequest { businessId: BusinessId; contactId: string; linkedinHint?: string }
 export interface EnrichContactResponse extends AiMeta {
   mode: 'llm' | 'stub'; usage: EnrichUsage                                // stub: no key, no result, no call reserved
@@ -280,3 +284,23 @@ export interface FindPeopleResponse extends AiMeta {
   result?: { people: FoundPerson[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
 }
 export interface EnrichUsageResponse { enabled: boolean; usage: EnrichUsage }   // GET /ai/enrich/usage?businessId=
+
+export type EnrichLogOutcome = 'ok' | 'provider_error' | 'bad_output' | 'cap'   // stub calls are not logged
+export interface EnrichLogEntry {
+  id: string
+  at: string                       // ISO
+  userId: string
+  userName: string
+  tool: 'enrich' | 'find'
+  contactId?: string               // enrich only
+  companyId?: string
+  outcome: EnrichLogOutcome
+  counts: { published: number; inferred: number; withheld: number; unconfirmed: number; found: number }  // found = find-people result count
+  model?: string
+}
+/** GET /ai/enrich/log?businessId=&contactId=&limit= , newest first, limit default 20 max 100. Without contactId: admin / super-admin only. */
+export interface EnrichLogResponse { entries: EnrichLogEntry[] }
+/** POST /ai/enrich/check-email. 'no_mx' only on a definitive no-mail-server answer; timeouts and SERVFAIL are 'unknown'. */
+export interface CheckEmailRequest { businessId: BusinessId; email: string }
+export type EmailCheckStatus = 'ok' | 'no_mx' | 'unknown'
+export interface CheckEmailResponse { domain: string; status: EmailCheckStatus }

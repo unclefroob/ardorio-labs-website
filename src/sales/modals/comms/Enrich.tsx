@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { aiNotConfigured, checkLinkedinHint, enrichContact, enrichUsage, isFailure, type EnrichDone, type EnrichFailure, type EnrichOutcome } from '../../ai/client'
+import { aiNotConfigured, checkEmail, checkLinkedinHint, daysSince, enrichContact, enrichUsage, fetchEnrichLog, isFailure, lastSuccessfulEnrich, RE_ENRICH_DAYS, type EnrichDone, type EnrichFailure, type EnrichOutcome } from '../../ai/client'
 import { ageLabel, dropEnrich, fmtReset, getEnrich, remaining, useEnrichUsage } from '../../ai/enrichCache'
 import type { EnrichField, EnrichSuggestion, ResearchSource } from '../../api/contract'
 import { Act } from '../../data/Act'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { Contact } from '../../data/types'
-import { AiNotConfigured, Banner, Btn, Chip, Ck, Empty, Fld, Inp, Modal, Skel, Spinner } from '../../kit'
+import { AiNotConfigured, Banner, Btn, Chip, Ck, Empty, Fld, Icon, Inp, Modal, Skel, Spinner } from '../../kit'
 import { isHttpUrl } from '../../shared/url'
 import { UI } from '../../ui/store'
 import { MissingModal, NoEditModal } from '../entities/guards'
@@ -33,6 +33,25 @@ export function SourceLink({ url, label }: { url: string | undefined; label?: st
   if (!url || !isHttpUrl(url)) return <span className="faint">No usable source</span>
   return <a href={url} target="_blank" rel="noreferrer noopener">{label ?? hostOf(url)}</a>
 }
+
+/** Whether the server found the value on the page it cited. Text and an icon, never colour alone. */
+export function SourceCheckNote({ s }: { s: EnrichSuggestion }) {
+  if (s.kind !== 'published' || !s.sourceCheck) return null
+  const ok = s.sourceCheck === 'confirmed'
+  return (
+    <span className="row xs" style={{ gap: 3, display: 'inline-flex' }}>
+      <Icon n={ok ? 'check' : 'alert'} s={12} style={{ color: ok ? 'var(--ok)' : 'var(--warn)' }} />
+      {ok ? 'Found on page' : "Couldn't confirm on the page, check the source yourself"}
+    </span>
+  )
+}
+
+/** What the server's log says about earlier lookups of this contact. 'unknown' (log unavailable) never blocks a lookup. */
+export type Prior = { s: 'loading' } | { s: 'unknown' } | { s: 'none' } | { s: 'known'; days: number; by: string }
+
+const PRIOR_WAIT_MS = 8000
+
+export const whenLabel = (days: number): string => (days <= 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`)
 
 export function Sources({ sources }: { sources: ResearchSource[] }) {
   const ok = sources.filter(s => isHttpUrl(s.url))
@@ -97,10 +116,17 @@ function EnrichFlow({ ct }: { ct: Contact }) {
     const c = getEnrich(ct.id)
     return c ? Object.fromEntries(c.res.suggestions.map((s, i) => [i, defaultPick(ct, s)])) : {}
   })
+  const [prior, setPrior] = useState<Prior>({ s: 'loading' })
+  const [checking, setChecking] = useState(false)
+  // Rows whose email domain cannot receive mail (row index to domain). They were not applied.
+  const [blocked, setBlocked] = useState<Record<number, string>>({})
   const live = useRef<AbortController | null>(null)
+  const alive = useRef(true)
   const verified = ct.verification === 'Verified'
   const notConfigured = aiNotConfigured('xai')
   const capped = left === 0
+  const priorLoading = prior.s === 'loading' && !!b && !notConfigured
+  const recent = prior.s === 'known' && prior.days < RE_ENRICH_DAYS
 
   // Allowance only; this never starts a lookup (the usage endpoint is free). Refreshed on every open so a stale
   // "0 left" or a month rollover never sticks; skipped only when the server has no key.
@@ -111,14 +137,34 @@ function EnrichFlow({ ct }: { ct: Contact }) {
     return () => ac.abort()
   }, [b, notConfigured])
 
+  // Has this contact been enriched before? Free, and never blocks: a slow or failed log means "unknown".
+  useEffect(() => {
+    if (!b || notConfigured) return
+    const ac = new AbortController()
+    let timedOut = false
+    const timer = window.setTimeout(() => { timedOut = true; ac.abort() }, PRIOR_WAIT_MS)
+    void fetchEnrichLog(b, { contactId: ct.id, limit: 20, signal: ac.signal }).then(r => {
+      window.clearTimeout(timer)
+      if (ac.signal.aborted && !timedOut) return
+      if (r.status !== 'ok') return setPrior({ s: 'unknown' })
+      const last = lastSuccessfulEnrich(r.entries)
+      setPrior(last ? { s: 'known', days: daysSince(last.at), by: last.userName } : { s: 'none' })
+    })
+    return () => { window.clearTimeout(timer); ac.abort() }
+  }, [b, notConfigured, ct.id])
+
   // Leaving the modal stops waiting. It cannot recall a request the server has already started.
-  useEffect(() => () => live.current?.abort(), [])
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false; live.current?.abort() }
+  }, [])
 
   const run = async (): Promise<void> => {
     if (!b || busy) return
     const h = checkLinkedinHint(hint)
     if (!h.ok) return setHintErr(h.error)
     setHintErr('')
+    setBlocked({})
     const ac = new AbortController()
     live.current = ac
     setBusy(true)
@@ -153,13 +199,35 @@ function EnrichFlow({ ct }: { ct: Contact }) {
     if (on) rows.forEach((r, j) => { if (r.field === f) next[j] = false })
     next[i] = on
     setPick(next)
+    if (blocked[i] !== undefined) setBlocked(Object.fromEntries(Object.entries(blocked).filter(([k]) => Number(k) !== i)))
   }
 
-  const apply = (): void => {
-    if (!b || !chosen.length) return
+  // Emails are checked for a mail server first. Only a definite "no mail server" stops a row; an unknown answer or a
+  // failed check applies as normal (the toast says the domain was not checked). Verification is set by Act, unchanged.
+  const apply = async (): Promise<void> => {
+    if (!b || !chosen.length || checking) return
+    const emailRows = rows.map((r, i) => ({ r, i })).filter(({ r, i }) => pick[i] && (r.field === 'email' || r.field === 'email2'))
+    const unchecked: string[] = []
+    if (emailRows.length) {
+      setChecking(true)
+      setBlocked({})
+      const results = await Promise.all(emailRows.map(({ r }) => checkEmail(b, r.value)))
+      if (!alive.current) return
+      setChecking(false)
+      const bad: Record<number, string> = {}
+      emailRows.forEach(({ i }, k) => {
+        if (results[k].status === 'no_mx') bad[i] = results[k].domain
+        else if (results[k].status === 'unknown' && !unchecked.includes(results[k].domain)) unchecked.push(results[k].domain)
+      })
+      if (Object.keys(bad).length) {
+        setBlocked(bad)
+        setPick(p => ({ ...p, ...Object.fromEntries(Object.keys(bad).map(k => [k, false])) }))
+        return
+      }
+    }
     Act.applyEnrichment(ct.id, chosen, b)
     UI.close()
-    UI.toast('Enriched ' + ct.name + ': ' + chosen.length + ' field(s) updated')
+    UI.toast('Enriched ' + ct.name + ': ' + chosen.length + ' field(s) updated' + (unchecked.length ? `. Couldn't check ${unchecked.join(', ')}.` : ''))
   }
 
   // The result was for someone else. Nothing is applied and the cached answer is dropped so it is not reused.
@@ -182,11 +250,20 @@ function EnrichFlow({ ct }: { ct: Contact }) {
       <Fld label="LinkedIn URL (optional)" hint="A hint to help match the right person. It is not fetched on its own." err={hintErr}>
         <Inp value={hint} onChange={v => { setHint(v); setHintErr('') }} placeholder="linkedin.com/in/first-last" />
       </Fld>
+      {prior.s === 'known' && recent && (
+        <Banner tone="warn">
+          <b>Enriched {whenLabel(prior.days)}{prior.by ? ' by ' + prior.by : ''}.</b> Looking them up again uses another of the business's monthly lookups. Click Enrich again only if you want a fresh search.
+        </Banner>
+      )}
+      {prior.s === 'known' && !recent && (
+        <div className="faint xs">Last enriched {whenLabel(prior.days)}{prior.by ? ' by ' + prior.by : ''}.</div>
+      )}
       <div className="row">
-        <Btn kind="pri" icon="zap" disabled={!b || notConfigured || capped || busy} onClick={() => void run()}>
-          Find contact details
+        <Btn kind="pri" icon="zap" disabled={!b || notConfigured || capped || busy || priorLoading} onClick={() => void run()}>
+          {recent ? 'Enrich again' : 'Find contact details'}
         </Btn>
         {allowance && <span className="sm muted">{allowance}</span>}
+        {priorLoading && <span className="faint xs">Checking earlier lookups…</span>}
       </div>
     </div>
   )
@@ -199,7 +276,7 @@ function EnrichFlow({ ct }: { ct: Contact }) {
       sub={<span className="row" style={{ gap: 6 }}><AiNotConfigured provider="xai" />{!notConfigured && allowance && <Chip>{allowance}</Chip>}</span>}
       footer={
         busy ? <Btn onClick={cancel}>Cancel search</Btn>
-          : chosen.length || rows.length ? <><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" disabled={!chosen.length} onClick={apply}>Apply selected{chosen.length ? ` (${chosen.length})` : ''}</Btn></>
+          : chosen.length || rows.length ? <><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" disabled={!chosen.length || checking} onClick={() => void apply()}>{checking ? 'Checking email…' : 'Apply selected' + (chosen.length ? ` (${chosen.length})` : '')}</Btn></>
           : <Btn onClick={UI.close}>Close</Btn>
       }
     >
@@ -250,20 +327,27 @@ function EnrichFlow({ ct }: { ct: Contact }) {
                           <td>
                             <div>{s.value}</div>
                             <div className="row wrap xs" style={{ gap: 6, marginTop: 2 }}>
-                              <Chip tone={s.kind === 'published' ? 'ok' : 'warn'}>{s.kind === 'published' ? 'Published' : 'Inferred'}</Chip>
+                              <Chip tone={s.kind === 'published' ? 'ok' : 'warn'}>{s.kind === 'published' ? 'Published' : 'Guessed'}</Chip>
                               {unchanged && <span className="faint">Already set</span>}
                               {s.personal && <span className="faint">may be a personal number — check</span>}
                               {s.kind === 'inferred' && <span className="faint">guessed from the {s.pattern ?? 'company'} address pattern</span>}
                               {s.sourceUrl !== undefined && <SourceLink url={s.sourceUrl} />}
+                              <SourceCheckNote s={s} />
                             </div>
+                            {blocked[i] !== undefined && (
+                              <div className="xs" role="alert" style={{ color: 'var(--bad2)', marginTop: 2 }}>{blocked[i]} doesn't accept email. This address was not applied.</div>
+                            )}
                           </td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
+                {Object.keys(blocked).length > 0 && (
+                  <Banner tone="warn">Nothing has been applied yet. Skip the address that can't receive mail, then apply the rest.</Banner>
+                )}
                 {rows.some(r => r.kind === 'inferred') && (
-                  <Banner tone="warn">Inferred emails are guesses, so they start unticked. Applying one marks the contact <b>Inferred</b>, and it is not used for outreach until a person verifies it.</Banner>
+                  <Banner tone="warn">Guessed emails were not found online. They are worked out from the company's usual address format, so they may bounce. They start unticked, and a contact with a guessed email is not used for outreach until a person verifies it.</Banner>
                 )}
                 {rows.some(r => cur(ct, r.field)) && <Banner tone="info">Fields that already have a value start unticked so they aren't overwritten. Tick one to replace it.</Banner>}
               </>

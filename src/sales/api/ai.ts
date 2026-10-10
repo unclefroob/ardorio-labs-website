@@ -1,7 +1,7 @@
 import { salesFetch } from './http'
 import type {
-  BusinessId, ClassifyRequest, ClassifyResponse, CopilotRequest, CopilotResponse, DraftRequest, DraftResponse, EnrichContactRequest,
-  EnrichContactResponse, EnrichUsageResponse, FindPeopleRequest, FindPeopleResponse, MeetingRecapRequest,
+  BusinessId, CheckEmailRequest, CheckEmailResponse, ClassifyRequest, ClassifyResponse, CopilotRequest, CopilotResponse, DraftRequest, DraftResponse, EnrichContactRequest,
+  EnrichContactResponse, EnrichLogResponse, EnrichUsageResponse, FindPeopleRequest, FindPeopleResponse, MeetingRecapRequest,
   MeetingRecapResponse, ReplySuggestRequest, ReplySuggestResponse, ResearchRequest, ResearchResponse,
 } from './contract'
 
@@ -20,3 +20,11 @@ export const aiFindPeople = (req: FindPeopleRequest, signal?: AbortSignal) =>
   salesFetch<FindPeopleResponse>('/ai/find-people', { method: 'POST', body: req, signal })
 export const aiEnrichUsage = (businessId: BusinessId, signal?: AbortSignal) =>
   salesFetch<EnrichUsageResponse>(`/ai/enrich/usage?businessId=${encodeURIComponent(businessId)}`, { signal })
+export const aiEnrichLog = (businessId: BusinessId, opts: { contactId?: string; limit?: number } = {}, signal?: AbortSignal) => {
+  const q = new URLSearchParams({ businessId })
+  if (opts.contactId) q.set('contactId', opts.contactId)
+  if (opts.limit !== undefined) q.set('limit', String(opts.limit))
+  return salesFetch<EnrichLogResponse>(`/ai/enrich/log?${q.toString()}`, { signal })
+}
+export const aiCheckEmail = (req: CheckEmailRequest, signal?: AbortSignal) =>
+  salesFetch<CheckEmailResponse>('/ai/enrich/check-email', { method: 'POST', body: req, signal })

@@ -1,5 +1,5 @@
-import { aiClassify, aiCopilot, aiDraft, aiEnrichContact, aiEnrichUsage, aiFindPeople, aiMeetingRecap, aiReplySuggest, aiResearch } from '../api/ai'
-import type { AiMeta, AiProvider, EnrichSuggestion, EnrichUsage, FoundPerson, ResearchSource } from '../api/contract'
+import { aiCheckEmail, aiClassify, aiCopilot, aiDraft, aiEnrichContact, aiEnrichLog, aiEnrichUsage, aiFindPeople, aiMeetingRecap, aiReplySuggest, aiResearch } from '../api/ai'
+import type { AiMeta, AiProvider, EmailCheckStatus, EnrichLogEntry, EnrichSuggestion, EnrichUsage, FoundPerson, ResearchSource } from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
 import { F } from '../data/F'
 import { isAiEnabled, isProviderEnabled } from '../data/session'
@@ -293,6 +293,62 @@ export async function enrichUsage(b: BusinessId, signal?: AbortSignal): Promise<
   } catch (e) {
     const f = failure(e, b)
     return f.status === 'cancelled' ? f : { status: 'error', message: 'message' in f ? f.message : 'Could not load usage.' }
+  }
+}
+
+// ── Enrichment hardening: activity log and email check ───────────────────────────────────────────
+// Neither costs a lookup, and neither may block the user: a failure is reported to the caller, who treats it as "unknown".
+
+export type EnrichLogOutcomeResult = { status: 'ok'; entries: EnrichLogEntry[] } | Failed['cancelled'] | Failed['error']
+
+/** Newest first. With a contactId: that contact's calls (any member who can edit). Without: the business's calls (admins only). */
+export async function fetchEnrichLog(b: BusinessId, opts: { contactId?: string; limit?: number; signal?: AbortSignal } = {}): Promise<EnrichLogOutcomeResult> {
+  try {
+    const r = await aiEnrichLog(b, { contactId: opts.contactId, limit: opts.limit }, opts.signal)
+    if (!r || !Array.isArray(r.entries)) return { status: 'error', message: 'The activity log came back in an unexpected form.' }
+    return { status: 'ok', entries: r.entries }
+  } catch (e) {
+    const f = failure(e, b)
+    return f.status === 'cancelled' ? f : { status: 'error', message: 'message' in f ? f.message : 'Could not load the activity log.' }
+  }
+}
+
+/** The newest call that returned a usable answer, or undefined. Does not trust the order the server sent. */
+export function lastSuccessfulEnrich(entries: EnrichLogEntry[]): EnrichLogEntry | undefined {
+  let best: EnrichLogEntry | undefined
+  let bestT = -Infinity
+  for (const e of entries) {
+    if (e.outcome !== 'ok') continue
+    const t = Date.parse(e.at)
+    if (Number.isNaN(t) || t <= bestT) continue
+    best = e
+    bestT = t
+  }
+  return best
+}
+
+/** Whole days since an ISO time (0 = today, under 24 h). Unparseable or future times are 0. */
+export function daysSince(iso: string, now: number = Date.now()): number {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return 0
+  return Math.max(0, Math.floor((now - t) / 86_400_000))
+}
+
+/** A contact enriched within this many days gets a deliberate "Enrich again" step. */
+export const RE_ENRICH_DAYS = 30
+
+export interface EmailCheck { status: EmailCheckStatus; domain: string }
+
+const domainOf = (email: string): string => email.trim().split('@').pop()?.toLowerCase() ?? ''
+
+/** Whether the email's domain can receive mail. Any failure (offline, 4xx/5xx, odd answer) is 'unknown': it never blocks. */
+export async function checkEmail(b: BusinessId, email: string, signal?: AbortSignal): Promise<EmailCheck> {
+  try {
+    const r = await aiCheckEmail({ businessId: b, email: email.trim() }, signal)
+    const status: EmailCheckStatus = r.status === 'ok' || r.status === 'no_mx' ? r.status : 'unknown'
+    return { status, domain: typeof r.domain === 'string' && r.domain ? r.domain : domainOf(email) }
+  } catch {
+    return { status: 'unknown', domain: domainOf(email) }
   }
 }
 

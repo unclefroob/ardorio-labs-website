@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EnrichContactResponse, EnrichUsage, EnrichUsageResponse, FindPeopleResponse, ResearchResponse } from '../api/contract'
+import type { CheckEmailResponse, EnrichContactResponse, EnrichLogEntry, EnrichLogResponse, EnrichUsage, EnrichUsageResponse, FindPeopleResponse, ResearchResponse } from '../api/contract'
 import { bootstrap } from '../testing/fixtures'
 
 const aiResearch = vi.fn<(req: unknown) => Promise<ResearchResponse>>()
 const aiEnrichContact = vi.fn<(req: unknown, signal?: AbortSignal) => Promise<EnrichContactResponse>>()
 const aiFindPeople = vi.fn<(req: unknown, signal?: AbortSignal) => Promise<FindPeopleResponse>>()
 const aiEnrichUsage = vi.fn<(b: string, signal?: AbortSignal) => Promise<EnrichUsageResponse>>()
+const aiEnrichLog = vi.fn<(b: string, opts?: { contactId?: string; limit?: number }, signal?: AbortSignal) => Promise<EnrichLogResponse>>()
+const aiCheckEmail = vi.fn<(req: unknown, signal?: AbortSignal) => Promise<CheckEmailResponse>>()
 vi.mock('../api/ai', () => ({
   aiClassify: vi.fn(), aiCopilot: vi.fn(), aiDraft: vi.fn(), aiMeetingRecap: vi.fn(), aiReplySuggest: vi.fn(),
   aiResearch: (req: unknown) => aiResearch(req),
   aiEnrichContact: (req: unknown, signal?: AbortSignal) => aiEnrichContact(req, signal),
   aiFindPeople: (req: unknown, signal?: AbortSignal) => aiFindPeople(req, signal),
   aiEnrichUsage: (b: string, signal?: AbortSignal) => aiEnrichUsage(b, signal),
+  aiEnrichLog: (b: string, opts?: { contactId?: string; limit?: number }, signal?: AbortSignal) => aiEnrichLog(b, opts, signal),
+  aiCheckEmail: (req: unknown, signal?: AbortSignal) => aiCheckEmail(req, signal),
 }))
 
 async function load(providers: { anthropic: boolean; xai: boolean }) {
@@ -31,7 +35,7 @@ const llm: ResearchResponse = {
   },
 }
 
-beforeEach(() => { aiResearch.mockReset(); aiEnrichContact.mockReset(); aiFindPeople.mockReset(); aiEnrichUsage.mockReset() })
+beforeEach(() => { aiResearch.mockReset(); aiEnrichContact.mockReset(); aiFindPeople.mockReset(); aiEnrichUsage.mockReset(); aiEnrichLog.mockReset(); aiCheckEmail.mockReset() })
 
 describe('per-provider "not configured"', () => {
   it('reports each provider from its own flag', async () => {
@@ -251,5 +255,76 @@ describe('checkLinkedinHint', () => {
     for (const v of ['https://example.com/in/sam', 'linkedin.com/company/acme', 'https://linkedin.com.evil.test/in/sam', 'sam']) {
       expect(client.checkLinkedinHint(v).ok).toBe(false)
     }
+  })
+})
+
+const logEntry = (o: Partial<EnrichLogEntry> = {}): EnrichLogEntry => ({
+  id: 'l1', at: '2026-10-01T00:00:00.000Z', userId: 'u1', userName: 'Priya', tool: 'enrich', contactId: 'ct1', outcome: 'ok',
+  counts: { published: 1, inferred: 0, withheld: 0, unconfirmed: 0, found: 0 }, ...o,
+})
+
+describe('fetchEnrichLog', () => {
+  it('passes the business, contact and limit through and returns the entries', async () => {
+    const { client } = await loadEnrich()
+    aiEnrichLog.mockResolvedValueOnce({ entries: [logEntry()] })
+    const out = await client.fetchEnrichLog('ros', { contactId: 'ct1', limit: 20 })
+    expect(aiEnrichLog).toHaveBeenCalledWith('ros', { contactId: 'ct1', limit: 20 }, undefined)
+    expect(out).toEqual({ status: 'ok', entries: [logEntry()] })
+  })
+
+  it('reports an error for a 403, a dropped connection or a malformed answer, and cancelled for an abort', async () => {
+    const { client, http } = await loadEnrich()
+    aiEnrichLog.mockRejectedValueOnce(httpError(http, 403, 'ROLE_REQUIRED'))
+    expect(await client.fetchEnrichLog('ros')).toEqual({ status: 'error', message: 'ROLE_REQUIRED message' })
+    aiEnrichLog.mockRejectedValueOnce(new http.SalesNetworkError('offline'))
+    expect((await client.fetchEnrichLog('ros')).status).toBe('error')
+    aiEnrichLog.mockResolvedValueOnce({} as EnrichLogResponse)
+    expect((await client.fetchEnrichLog('ros')).status).toBe('error')
+    aiEnrichLog.mockRejectedValueOnce(new DOMException('x', 'AbortError'))
+    expect((await client.fetchEnrichLog('ros')).status).toBe('cancelled')
+  })
+})
+
+describe('lastSuccessfulEnrich / daysSince', () => {
+  it('picks the newest ok entry whatever order the server sent, ignoring failures and bad dates', async () => {
+    const { client } = await loadEnrich()
+    const out = client.lastSuccessfulEnrich([
+      logEntry({ id: 'old', at: '2026-09-01T00:00:00.000Z' }),
+      logEntry({ id: 'new-fail', at: '2026-10-05T00:00:00.000Z', outcome: 'provider_error' }),
+      logEntry({ id: 'bad', at: 'nonsense' }),
+      logEntry({ id: 'best', at: '2026-10-02T00:00:00.000Z' }),
+    ])
+    expect(out?.id).toBe('best')
+    expect(client.lastSuccessfulEnrich([])).toBeUndefined()
+    expect(client.lastSuccessfulEnrich([logEntry({ outcome: 'cap' })])).toBeUndefined()
+  })
+
+  it('counts whole days, with 0 for today', async () => {
+    const { client } = await loadEnrich()
+    const now = Date.parse('2026-10-10T12:00:00.000Z')
+    expect(client.daysSince('2026-10-10T01:00:00.000Z', now)).toBe(0)
+    expect(client.daysSince('2026-10-09T11:00:00.000Z', now)).toBe(1)
+    expect(client.daysSince('2026-09-10T12:00:00.000Z', now)).toBe(30)
+    expect(client.daysSince('2026-10-11T00:00:00.000Z', now)).toBe(0)
+    expect(client.daysSince('x', now)).toBe(0)
+  })
+})
+
+describe('checkEmail', () => {
+  it('returns the server status and domain', async () => {
+    const { client } = await loadEnrich()
+    aiCheckEmail.mockResolvedValueOnce({ domain: 'acme.test', status: 'no_mx' })
+    expect(await client.checkEmail('ros', ' sam@acme.test ')).toEqual({ status: 'no_mx', domain: 'acme.test' })
+    expect(aiCheckEmail).toHaveBeenCalledWith({ businessId: 'ros', email: 'sam@acme.test' }, undefined)
+  })
+
+  it('any failure or odd answer is "unknown" with the domain taken from the address', async () => {
+    const { client, http } = await loadEnrich()
+    aiCheckEmail.mockRejectedValueOnce(new http.SalesNetworkError('offline'))
+    expect(await client.checkEmail('ros', 'Sam@Acme.test')).toEqual({ status: 'unknown', domain: 'acme.test' })
+    aiCheckEmail.mockRejectedValueOnce(httpError(http, 400, 'VALIDATION'))
+    expect((await client.checkEmail('ros', 'sam@acme.test')).status).toBe('unknown')
+    aiCheckEmail.mockResolvedValueOnce({ domain: 'acme.test', status: 'maybe' as never })
+    expect((await client.checkEmail('ros', 'sam@acme.test')).status).toBe('unknown')
   })
 })

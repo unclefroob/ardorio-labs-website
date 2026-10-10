@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EnrichContactResponse, EnrichSuggestion, EnrichUsage, EnrichUsageResponse } from '../../api/contract'
+import type { CheckEmailResponse, EnrichContactResponse, EnrichLogEntry, EnrichLogResponse, EnrichSuggestion, EnrichUsage, EnrichUsageResponse } from '../../api/contract'
 import { salesWorld } from '../../testing/fixtures'
 import { loadSales } from '../../testing/load'
 
@@ -11,10 +11,14 @@ vi.mock('../../api/me', () => ({ getMe: vi.fn() }))
 vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
 const aiEnrichContact = vi.fn<(req: unknown, signal?: AbortSignal) => Promise<EnrichContactResponse>>()
 const aiEnrichUsage = vi.fn<(b: string, signal?: AbortSignal) => Promise<EnrichUsageResponse>>()
+const aiEnrichLog = vi.fn<(b: string, opts?: { contactId?: string; limit?: number }, signal?: AbortSignal) => Promise<EnrichLogResponse>>()
+const aiCheckEmail = vi.fn<(req: { businessId: string; email: string }, signal?: AbortSignal) => Promise<CheckEmailResponse>>()
 vi.mock('../../api/ai', () => ({
   aiClassify: vi.fn(), aiCopilot: vi.fn(), aiDraft: vi.fn(), aiMeetingRecap: vi.fn(), aiReplySuggest: vi.fn(), aiResearch: vi.fn(), aiFindPeople: vi.fn(),
   aiEnrichContact: (req: unknown, signal?: AbortSignal) => aiEnrichContact(req, signal),
   aiEnrichUsage: (b: string, signal?: AbortSignal) => aiEnrichUsage(b, signal),
+  aiEnrichLog: (b: string, opts?: { contactId?: string; limit?: number }, signal?: AbortSignal) => aiEnrichLog(b, opts, signal),
+  aiCheckEmail: (req: { businessId: string; email: string }, signal?: AbortSignal) => aiCheckEmail(req, signal),
 }))
 
 let host: HTMLDivElement
@@ -30,6 +34,10 @@ beforeEach(() => {
   aiEnrichContact.mockReset()
   aiEnrichUsage.mockReset()
   aiEnrichUsage.mockResolvedValue({ enabled: true, usage: usage(12) })
+  aiEnrichLog.mockReset()
+  aiEnrichLog.mockResolvedValue({ entries: [] })
+  aiCheckEmail.mockReset()
+  aiCheckEmail.mockImplementation(async req => ({ domain: req.email.split('@')[1], status: 'ok' }))
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -130,7 +138,7 @@ describe('Enrich modal', () => {
     ])) })
     const text = host.textContent ?? ''
     expect(text).toContain('Published')
-    expect(text).toContain('Inferred')
+    expect(text).toContain('Guessed')
     expect(text).toMatch(/matched on name \+ company; verify identity/i)
     const a = [...host.querySelectorAll('a')].find(x => x.getAttribute('href') === 'https://acme.test/contact')
     expect(a?.getAttribute('rel')).toBe('noreferrer noopener')
@@ -241,5 +249,199 @@ describe('Enrich modal', () => {
     expect(host.textContent).toMatch(/Grok is not configured/)
     expect(btn('Find contact details')).toBeUndefined()
     expect(aiEnrichContact).not.toHaveBeenCalled()
+  })
+})
+
+const daysAgo = (n: number): string => new Date(Date.now() - n * 86_400_000 - 60_000).toISOString()
+const entry = (o: Partial<EnrichLogEntry> = {}): EnrichLogEntry => ({
+  id: 'l1', at: daysAgo(3), userId: 'u2', userName: 'Priya Shah', tool: 'enrich', contactId: 'ct1', outcome: 'ok',
+  counts: { published: 1, inferred: 0, withheld: 0, unconfirmed: 0, found: 0 }, ...o,
+})
+const tickBox = async (i: number): Promise<void> => {
+  const boxes = [...host.querySelectorAll<HTMLInputElement>('tbody input[type=checkbox]')]
+  await act(async () => { boxes[i].click() })
+}
+
+describe('Enrich modal: re-enrich warning', () => {
+  it('asks for the log of this contact, newest successful entry wins', async () => {
+    aiEnrichLog.mockResolvedValue({ entries: [entry({ id: 'a', at: daysAgo(1), outcome: 'provider_error', userName: 'Failed Fred' }), entry({ id: 'b', at: daysAgo(3) })] })
+    await setup()
+    expect(aiEnrichLog).toHaveBeenCalledWith('ros', { contactId: 'ct1', limit: 20 }, expect.anything())
+    expect(host.textContent).toContain('Enriched 3 days ago by Priya Shah')
+    expect(host.textContent).not.toContain('Failed Fred')
+  })
+
+  it('within 30 days: shows the notice and makes no call until "Enrich again" is clicked', async () => {
+    aiEnrichLog.mockResolvedValue({ entries: [entry()] })
+    await setup()
+    expect(btn('Find contact details')).toBeUndefined()
+    expect(btn('Enrich again')).toBeDefined()
+    expect(aiEnrichContact).not.toHaveBeenCalled()
+    aiEnrichContact.mockResolvedValueOnce(found([]))
+    await press('Enrich again')
+    expect(aiEnrichContact).toHaveBeenCalledTimes(1)
+  })
+
+  it('says "today" for a lookup earlier today', async () => {
+    aiEnrichLog.mockResolvedValue({ entries: [entry({ at: new Date(Date.now() - 3_600_000).toISOString() })] })
+    await setup()
+    expect(host.textContent).toContain('Enriched today by Priya Shah')
+  })
+
+  it('treats 29 days as recent and 30 days as old', async () => {
+    aiEnrichLog.mockResolvedValue({ entries: [entry({ at: daysAgo(29) })] })
+    await setup()
+    expect(btn('Enrich again')).toBeDefined()
+    act(() => root.unmount())
+    root = createRoot(host)
+    aiEnrichLog.mockResolvedValue({ entries: [entry({ at: daysAgo(30) })] })
+    await setup()
+    expect(btn('Enrich again')).toBeUndefined()
+    expect(btn('Find contact details')).toBeDefined()
+  })
+
+  it('older than 30 days runs as before, with a quiet note and no warning', async () => {
+    aiEnrichLog.mockResolvedValue({ entries: [entry({ at: daysAgo(45) })] })
+    await setup()
+    expect(btn('Find contact details')).toBeDefined()
+    expect(btn('Enrich again')).toBeUndefined()
+    expect(host.textContent).toContain('Last enriched 45 days ago by Priya Shah')
+    aiEnrichContact.mockResolvedValueOnce(found([]))
+    await press('Find contact details')
+    expect(aiEnrichContact).toHaveBeenCalledTimes(1)
+  })
+
+  it('never enriched, or only failed calls: runs as before with no notice', async () => {
+    aiEnrichLog.mockResolvedValue({ entries: [entry({ outcome: 'cap' }), entry({ id: 'x', outcome: 'bad_output' })] })
+    await setup()
+    expect(btn('Find contact details')).toBeDefined()
+    expect(host.textContent).not.toMatch(/Enriched .* ago|Last enriched/)
+  })
+
+  it('does not block when the log call fails', async () => {
+    aiEnrichLog.mockRejectedValue(new Error('boom'))
+    await setup()
+    expect(btn('Find contact details')).toBeDefined()
+    expect(host.textContent).not.toMatch(/Enriched .* ago|Last enriched/)
+    aiEnrichContact.mockResolvedValueOnce(found([]))
+    await press('Find contact details')
+    expect(aiEnrichContact).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the button only while the log is loading, and gives up waiting after 8 s', async () => {
+    vi.useFakeTimers()
+    try {
+      aiEnrichLog.mockImplementation((_b, _o, signal) => new Promise((_, rej) => signal?.addEventListener('abort', () => rej(new DOMException('x', 'AbortError')))))
+      await setup()
+      expect(btn('Find contact details')?.disabled).toBe(true)
+      expect(host.textContent).toContain('Checking earlier lookups')
+      await act(async () => { await vi.advanceTimersByTimeAsync(8100) })
+      expect(btn('Find contact details')?.disabled).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('makes no log call when Grok is not configured', async () => {
+    await setup(false)
+    expect(aiEnrichLog).not.toHaveBeenCalled()
+  })
+})
+
+describe('Enrich modal: email check on apply', () => {
+  const email = (o: Partial<EnrichSuggestion> = {}): EnrichSuggestion => ({ field: 'email', value: 'sam@acme.test', kind: 'published', sourceUrl: 'https://acme.test/team', ...o })
+
+  it('ok: applies silently and keeps published = Unverified', async () => {
+    const m = await setup()
+    aiEnrichContact.mockResolvedValueOnce(found([email()]))
+    await press('Find contact details')
+    await tickBox(0)
+    await press('Apply selected')
+    expect(aiCheckEmail).toHaveBeenCalledWith({ businessId: 'ros', email: 'sam@acme.test' }, undefined)
+    expect(m.store.S.contacts[0].email).toBe('sam@acme.test')
+    expect(m.store.S.contacts[0].verification).toBe('Unverified')
+    expect(m.UI.get().toasts.at(-1)?.msg).not.toMatch(/check/i)
+  })
+
+  it('ok: an inferred address stays Inferred', async () => {
+    const m = await setup()
+    aiEnrichContact.mockResolvedValueOnce(found([email({ kind: 'inferred', sourceUrl: undefined, pattern: 'first.last' })]))
+    await press('Find contact details')
+    await tickBox(0)
+    await press('Apply selected')
+    expect(m.store.S.contacts[0].verification).toBe('Inferred')
+  })
+
+  it('no_mx: applies nothing, shows the reason inline, unticks the row', async () => {
+    const m = await setup()
+    aiCheckEmail.mockResolvedValue({ domain: 'acme.test', status: 'no_mx' })
+    aiEnrichContact.mockResolvedValueOnce(found([email(), { field: 'phone', value: '+61 3 9000 0000', kind: 'published', sourceUrl: 'https://acme.test/c' }]))
+    await press('Find contact details')
+    await tickBox(0)
+    await press('Apply selected')
+    expect(host.textContent).toContain("acme.test doesn't accept email")
+    expect(m.store.S.contacts[0].email).toBe('sam@example.com')
+    expect(m.store.S.contacts[0].phone ?? '').toBe('')
+    const boxes = [...host.querySelectorAll<HTMLInputElement>('tbody input[type=checkbox]')]
+    expect(boxes.map(x => x.checked)).toEqual([false, true])
+    // continuing with the other field applies it without asking again about the unticked email
+    aiCheckEmail.mockClear()
+    await press('Apply selected')
+    expect(aiCheckEmail).not.toHaveBeenCalled()
+    expect(m.store.S.contacts[0].phone).toBe('+61 3 9000 0000')
+    expect(m.store.S.contacts[0].email).toBe('sam@example.com')
+  })
+
+  it('unknown: applies and notes that the domain could not be checked', async () => {
+    const m = await setup()
+    aiCheckEmail.mockResolvedValue({ domain: 'acme.test', status: 'unknown' })
+    aiEnrichContact.mockResolvedValueOnce(found([email()]))
+    await press('Find contact details')
+    await tickBox(0)
+    await press('Apply selected')
+    expect(m.store.S.contacts[0].email).toBe('sam@acme.test')
+    expect(m.UI.get().toasts.at(-1)?.msg).toContain("Couldn't check acme.test")
+  })
+
+  it('a failed check call applies as normal with the same note', async () => {
+    const m = await setup()
+    aiCheckEmail.mockRejectedValue(new m.http.SalesNetworkError('offline'))
+    aiEnrichContact.mockResolvedValueOnce(found([email()]))
+    await press('Find contact details')
+    await tickBox(0)
+    await press('Apply selected')
+    expect(m.store.S.contacts[0].email).toBe('sam@acme.test')
+    expect(m.UI.get().toasts.at(-1)?.msg).toContain("Couldn't check acme.test")
+  })
+
+  it('does not call check-email when no email row is ticked', async () => {
+    const m = await setup()
+    aiEnrichContact.mockResolvedValueOnce(found([email(), { field: 'phone', value: '+61 3 9000 0000', kind: 'published' }]))
+    await press('Find contact details')
+    await press('Apply selected')
+    expect(aiCheckEmail).not.toHaveBeenCalled()
+    expect(m.store.S.contacts[0].phone).toBe('+61 3 9000 0000')
+  })
+})
+
+describe('Enrich modal: source check', () => {
+  it('shows "Found on page" for confirmed and a plain-text warning for unconfirmed', async () => {
+    await setup()
+    aiEnrichContact.mockResolvedValueOnce(found([
+      { field: 'phone', value: '+61 3 9000 0000', kind: 'published', sourceUrl: 'https://acme.test/c', sourceCheck: 'confirmed' },
+      { field: 'mobile', value: '0400 000 000', kind: 'published', sourceUrl: 'https://acme.test/d', sourceCheck: 'unconfirmed' },
+      { field: 'title', value: 'Head of Ops', kind: 'published', sourceUrl: 'https://acme.test/e' },
+    ]))
+    await press('Find contact details')
+    const text = host.textContent ?? ''
+    expect(text.match(/Found on page/g)).toHaveLength(1)
+    expect(text.match(/Couldn't confirm on the page, check the source yourself/g)).toHaveLength(1)
+  })
+
+  it('never labels an inferred suggestion', async () => {
+    await setup()
+    aiEnrichContact.mockResolvedValueOnce(found([{ field: 'email', value: 'sam@acme.test', kind: 'inferred', sourceCheck: 'confirmed' }]))
+    await press('Find contact details')
+    expect(host.textContent).not.toContain('Found on page')
   })
 })

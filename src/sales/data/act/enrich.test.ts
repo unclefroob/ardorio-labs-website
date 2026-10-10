@@ -111,15 +111,15 @@ describe('Q.eligibility with verification', () => {
   it('hard-blocks an Inferred email and does not also warn', async () => {
     const m = await setup({ verification: 'Inferred' }, { enrolments: [] })
     const el = m.Q.eligibility('ct1', 'sq1')
-    expect(el.blocks).toContain('Email is inferred, not verified — mark it verified first')
+    expect(el.blocks).toContain('Email is a guess (not found online), not verified — mark it verified first')
     expect(el.warns).not.toContain('Email not verified')
-    expect(m.Act.enrol(['ct1'], 'sq1').skipped).toMatchObject([{ id: 'ct1', why: 'Email is inferred, not verified — mark it verified first' }])
+    expect(m.Act.enrol(['ct1'], 'sq1').skipped).toMatchObject([{ id: 'ct1', why: 'Email is a guess (not found online), not verified — mark it verified first' }])
   })
 
   it('only warns for a plain Unverified email', async () => {
     const m = await setup({ verification: 'Unverified' })
     const el = m.Q.eligibility('ct1', 'sq1')
-    expect(el.blocks.filter(b => /inferred/i.test(b))).toHaveLength(0)
+    expect(el.blocks.filter(b => /a guess/i.test(b))).toHaveLength(0)
     expect(el.warns).toContain('Email not verified')
   })
 
@@ -138,7 +138,7 @@ describe('Act.markVerified', () => {
     expect(c.verifiedBy).toBe('u-me')
     expect(c.verifiedAt).toMatch(/^2026-10-09T/)
     expect(m.store.S.activities.some(a => a.type === 'verified' && a.contactId === 'ct1')).toBe(true)
-    expect(m.Q.eligibility('ct1', 'sq1').blocks.filter(b => /inferred/i.test(b))).toHaveLength(0)
+    expect(m.Q.eligibility('ct1', 'sq1').blocks.filter(b => /a guess/i.test(b))).toHaveLength(0)
   })
 
   it('audits when the email came from a pattern', async () => {
