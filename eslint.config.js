@@ -20,4 +20,14 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Ported prototype UI. These files carry `// @ts-nocheck` until each is typed.
+    files: ['src/sales/pages/**/*.{ts,tsx}', 'src/sales/modals/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
