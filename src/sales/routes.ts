@@ -1,4 +1,4 @@
-export const BASE = '/admin/sales'
+export const BASE = '/sales'
 
 /** Prototype page key -> route segment. Detail pages carry an `:id` after the segment. */
 const SEGMENT: Record<string, string> = {

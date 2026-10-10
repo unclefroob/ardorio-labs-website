@@ -1,4 +1,5 @@
 import { API_BASE } from '../../lib/apiClient'
+import { loginPath } from '../../lib/nextPath'
 import type { SalesErrorBody } from './contract'
 
 // Same key as src/context/AuthContext.tsx and src/lib/apiClient.ts (neither exports it).
@@ -70,7 +71,7 @@ export async function salesFetch<T>(path: string, opts: Opts = {}): Promise<T> {
   if (res.status === 401 && (token || onExpired)) {
     localStorage.removeItem(TOKEN_KEY)
     if (onExpired) onExpired()
-    else window.location.assign('/admin/login?reason=expired')
+    else window.location.assign(loginPath({ reason: 'expired', next: window.location.pathname + window.location.search }))
     throw new SalesHttpError(401, null, 'Session expired')
   }
 
