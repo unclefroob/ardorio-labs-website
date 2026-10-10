@@ -9,6 +9,7 @@ import type { Mailbox } from '../../data/types'
 import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, Sim, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
 import { EnrichActivity } from './EnrichActivity'
+import { RosterioLinkCard } from './RosterioLinkCard'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
@@ -98,6 +99,7 @@ export function Integrations() {
         <div className="grid g2">
           <EnrichCard />
           <div className="col" style={{ gap: 14 }}>
+            <RosterioLinkCard />
             <Card title="LinkedIn" icon="li">
               <div className="sm">Supported:</div>
               <div className="col sm" style={{ gap: 4, marginTop: 6 }}>

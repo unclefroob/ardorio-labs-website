@@ -304,3 +304,43 @@ export interface EnrichLogResponse { entries: EnrichLogEntry[] }
 export interface CheckEmailRequest { businessId: BusinessId; email: string }
 export type EmailCheckStatus = 'ok' | 'no_mx' | 'unknown'
 export interface CheckEmailResponse { domain: string; status: EmailCheckStatus }
+
+// ── Rosterio CRM link. The server holds the Rosterio URL and key; neither ever reaches the browser. ──
+/** Rosterio's real plans. The Rosterio deal field `plan` uses the same three values. */
+export const ROSTERIO_PLANS = ['starter', 'pro', 'enterprise'] as const
+export type RosterioPlan = typeof ROSTERIO_PLANS[number]
+export type RosterioLinkState = 'provisioning' | 'provisioned' | 'unknown'
+/** Lives on the company record as `rosterio`. Written by the server only; the browser never edits it. */
+export interface RosterioLink {
+  state: RosterioLinkState
+  accountId?: string
+  accountName?: string
+  plan?: RosterioPlan
+  isTrial?: boolean
+  trialEndDate?: string               // ISO date
+  by?: string                         // member userId of whoever clicked Provision
+  at?: string                         // ISO
+}
+export type RosterioPushOutcome = 'ok' | 'failed' | 'skipped'
+export interface RosterioPushEntry { at: string; dealId: string; outcome: RosterioPushOutcome; reason?: string }
+/** GET /sales/rosterio/status. Any sales member may read it. No URL or key in the body. */
+export interface RosterioStatusResponse { configured: boolean; pendingFailures: number; recent: RosterioPushEntry[] }   // recent: last 20
+/** POST /sales/rosterio/sync/retry (business admins). Body `{}`. The response body is not relied on: the status is read again afterwards. */
+export interface RosterioRetryResponse { retried?: number; failed?: number }
+/** POST /sales/rosterio/provision. Needs edit rights in business `ros`. */
+export interface RosterioProvisionRequest {
+  dealId: string
+  accountName: string
+  adminFirstName: string
+  adminLastName: string
+  adminEmail: string
+  adminPhone?: string
+  plan: RosterioPlan
+  isTrial?: boolean
+  trialEndDate?: string               // ISO date; must be in the future when isTrial
+}
+/** 201, `Cache-Control: no-store`. `tempPassword` arrives once, only here, and is never stored by SalesOS. */
+export interface RosterioProvisionResponse {
+  link: RosterioLink
+  adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
+}

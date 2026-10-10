@@ -8,6 +8,7 @@ import { Icon } from '../../kit/Icon'
 import { Modal } from '../../kit/overlay'
 import { useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
+import { RosterioWinPrompt } from '../../pages/deals/RosterioCard'
 import { MissingModal } from './guards'
 
 interface WonDraft { value: string; close: string; term: string; revenueType: string; notes: string }
@@ -67,6 +68,7 @@ function WonForm({ d }: { d: Deal }) {
         }
       >
         <Banner tone="ok">Won revenue of <b>{F.money(d.value)}</b> recorded. Dashboards, forecasts and goals have been recalculated.</Banner>
+        <RosterioWinPrompt dealId={d.id} />
         <div className="ai card-b" style={{ marginTop: 14 }}>
           <div className="ai-h"><Icon n="spark" s={14} />Suggested post-sale follow-up</div>
           <div className="col" style={{ marginTop: 10 }}>

@@ -13,6 +13,7 @@ import { BizRels } from './BizRels'
 import { CompanyIntel } from './CompanyIntel'
 import { ActFilter } from './parts/ActFilter'
 import { Notes } from './parts/Notes'
+import { RosterioCard } from '../deals/RosterioCard'
 import { qStr, safeHref } from './query'
 import { Coord, DealTable } from './tables'
 
@@ -185,6 +186,7 @@ export function Company({ route }: { route: Route }) {
                 : <div className="faint sm">No open deals</div>}
               {hiddenDeals > 0 && <div className="faint xs" style={{ marginTop: 6 }}><Icon n="lock" s={11} /> {hiddenDeals} deal{hiddenDeals > 1 ? 's' : ''} in other businesses (restricted)</div>}
             </Card>
+            <RosterioCard companyId={c.id} />
             <Card title="Next activity">
               {nt.length
                 ? nt.slice(0, 4).map(t => (
