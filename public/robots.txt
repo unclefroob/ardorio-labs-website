@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /sales
 
 Sitemap: https://ardorio.co/sitemap.xml

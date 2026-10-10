@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Banner, Btn } from '../kit'
+import { loginPath } from '../../lib/nextPath'
 import { Act } from '../data/Act'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
@@ -24,7 +25,7 @@ export function SyncBanner() {
   if (s.state === 'expired') {
     return (
       <div className="col" style={{ gap: 8, padding: '8px 18px 0' }}>
-        <Banner tone="bad" action={<Btn size="sm" kind="pri" onClick={() => window.location.assign('/admin/login')}>Sign in</Btn>}>
+        <Banner tone="bad" action={<Btn size="sm" kind="pri" onClick={() => window.location.assign(loginPath({ next: window.location.pathname + window.location.search }))}>Sign in</Btn>}>
           Your session expired. Unsaved changes were discarded. Sign in again.
         </Banner>
       </div>
