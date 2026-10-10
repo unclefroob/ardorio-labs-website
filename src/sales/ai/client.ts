@@ -1,10 +1,11 @@
-import { aiClassify, aiCopilot, aiDraft, aiMeetingRecap, aiReplySuggest, aiResearch } from '../api/ai'
-import type { AiMeta, AiProvider } from '../api/contract'
+import { aiClassify, aiCopilot, aiDraft, aiEnrichContact, aiEnrichUsage, aiFindPeople, aiMeetingRecap, aiReplySuggest, aiResearch } from '../api/ai'
+import type { AiMeta, AiProvider, EnrichSuggestion, EnrichUsage, FoundPerson, ResearchSource } from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
 import { F } from '../data/F'
 import { isAiEnabled, isProviderEnabled } from '../data/session'
 import { Q } from '../data/Q'
 import type { BusinessId, Contact, Deal, Meeting, Research, Thread } from '../data/types'
+import { getUsage, putEnrich, setUsage } from './enrichCache'
 import * as local from './local'
 
 export type AiSource = 'llm' | 'stub' | 'fallback' | 'refused'
@@ -154,6 +155,144 @@ export async function research(cid: string | null | undefined, b: BusinessId, in
   } catch (e) {
     if (degradable(e)) return { value: base, ai: FALLBACK }
     throw e
+  }
+}
+
+// ── Contact enrichment (Grok) ─────────────────────────────────────────────────────────────────────
+// A real lookup costs one of the business's monthly calls and takes tens of seconds, so none of this
+// degrades to a template: every failure is its own state for the UI to explain.
+
+interface Failed {
+  /** The server has no xAI key. Nothing was reserved and nothing is shown. */
+  notConfigured: { status: 'notConfigured'; usage?: EnrichUsage }
+  cap: { status: 'cap'; usage: EnrichUsage }
+  /** 502 AI_PROVIDER_ERROR. The call was refunded. */
+  providerError: { status: 'providerError'; message: string }
+  /** 502 AI_BAD_OUTPUT. The model answered but the answer was unusable; the call counted. */
+  badOutput: { status: 'badOutput'; message: string }
+  cancelled: { status: 'cancelled' }
+  /** Anything else: offline, 400/403/404, expired session. */
+  error: { status: 'error'; message: string }
+}
+export type EnrichFailure = Failed[keyof Failed]
+
+export interface EnrichDone {
+  status: 'found' | 'none' | 'withheld'
+  suggestions: EnrichSuggestion[]
+  sources: ResearchSource[]
+  /** How many values the server dropped because it could not verify a source. */
+  withheld: number
+  disclaimer: string
+  usage: EnrichUsage
+  model: string | null
+}
+export type EnrichOutcome = EnrichFailure | EnrichDone
+
+const FAILURES: readonly string[] = ['notConfigured', 'cap', 'providerError', 'badOutput', 'cancelled', 'error']
+export const isFailure = (o: { status: string }): o is EnrichFailure => FAILURES.includes(o.status)
+
+export interface FindDone {
+  status: 'found' | 'none' | 'withheld'
+  people: FoundPerson[]
+  sources: ResearchSource[]
+  withheld: number
+  disclaimer: string
+  usage: EnrichUsage
+  model: string | null
+}
+export type FindOutcome = EnrichFailure | FindDone
+
+export type UsageOutcome = { status: 'ok'; enabled: boolean; usage: EnrichUsage } | Failed['cancelled'] | Failed['error']
+
+export const ENRICH_LIMIT = 300
+
+const isUsage = (v: unknown): v is EnrichUsage => {
+  const u = v as Partial<EnrichUsage> | null
+  return !!u && typeof u.used === 'number' && typeof u.limit === 'number' && typeof u.resetsOn === 'string'
+}
+
+function isAbort(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError'
+}
+
+/** No local fallback for any of these: a 502 or a dropped connection is reported, never papered over. */
+function failure(e: unknown, b: BusinessId): EnrichFailure {
+  if (isAbort(e)) return { status: 'cancelled' }
+  if (e instanceof SalesHttpError) {
+    if (e.code === 'AI_CAP_REACHED') {
+      const usage = isUsage(e.body?.details) ? e.body.details : (getUsage(b) ?? { used: ENRICH_LIMIT, limit: ENRICH_LIMIT, resetsOn: '' })
+      setUsage(b, usage)
+      return { status: 'cap', usage }
+    }
+    if (e.code === 'AI_PROVIDER_ERROR') return { status: 'providerError', message: e.message }
+    if (e.code === 'AI_BAD_OUTPUT') return { status: 'badOutput', message: e.message }
+    return { status: 'error', message: e.message }
+  }
+  if (e instanceof SalesNetworkError) return { status: 'error', message: "Can't reach the server. Check your connection and try again." }
+  return { status: 'error', message: e instanceof Error ? e.message : 'Something went wrong.' }
+}
+
+/**
+ * The server accepts only a linkedin.com/in/<slug> profile address as a hint, so check it here rather than
+ * spend a round trip on a 400. Accepts what people paste: no scheme, http, a query string, a trailing slash.
+ */
+export function checkLinkedinHint(input: string): { ok: true; value: string } | { ok: false; error: string } {
+  const t = input.trim()
+  if (!t) return { ok: true, value: '' }
+  const m = t.match(/^(?:https?:\/\/)?(?:(?:www|[a-z]{2,3})\.)?linkedin\.com\/in\/([\w-]+)\/?(?:[?#].*)?$/i)
+  if (!m) return { ok: false, error: 'Use a LinkedIn profile address like linkedin.com/in/first-last' }
+  return { ok: true, value: `https://www.linkedin.com/in/${m[1]}` }
+}
+
+export interface EnrichOpts { linkedinHint?: string; signal?: AbortSignal }
+
+/** Look up one contact. A found / none / withheld answer is also kept in the session cache for "Review & apply". */
+export async function enrichContact(contactId: string, b: BusinessId, opts: EnrichOpts = {}): Promise<EnrichOutcome> {
+  try {
+    const hint = opts.linkedinHint?.trim()
+    const r = await aiEnrichContact({ businessId: b, contactId, ...(hint ? { linkedinHint: hint } : {}) }, opts.signal)
+    if (isUsage(r.usage)) setUsage(b, r.usage)
+    if (r.mode === 'stub') return { status: 'notConfigured', usage: isUsage(r.usage) ? r.usage : undefined }
+    if (!r.result) return { status: 'badOutput', message: 'The lookup returned no result.' }
+    const out: EnrichDone = {
+      status: r.result.status, suggestions: r.result.suggestions, sources: r.result.sources,
+      withheld: r.result.withheld, disclaimer: r.result.disclaimer, usage: r.usage, model: r.model,
+    }
+    putEnrich(contactId, out)
+    return out
+  } catch (e) {
+    return failure(e, b)
+  }
+}
+
+/** Find people at a company (saved, or just a name and website) in a given role. Returns no emails or phones. */
+export async function findPeople(
+  target: { companyId: string } | { input: { name: string; website?: string } },
+  b: BusinessId,
+  opts: { role?: string; signal?: AbortSignal } = {},
+): Promise<FindOutcome> {
+  try {
+    const role = opts.role?.trim()
+    const r = await aiFindPeople({ businessId: b, ...target, ...(role ? { role } : {}) }, opts.signal)
+    if (isUsage(r.usage)) setUsage(b, r.usage)
+    if (r.mode === 'stub') return { status: 'notConfigured', usage: isUsage(r.usage) ? r.usage : undefined }
+    if (!r.result) return { status: 'badOutput', message: 'The search returned no result.' }
+    const { people, sources, withheld, disclaimer } = r.result
+    return { status: people.length ? 'found' : withheld > 0 ? 'withheld' : 'none', people, sources, withheld, disclaimer, usage: r.usage, model: r.model }
+  } catch (e) {
+    return failure(e, b)
+  }
+}
+
+/** Calls used this month for a business. Does not itself cost a call. */
+export async function enrichUsage(b: BusinessId, signal?: AbortSignal): Promise<UsageOutcome> {
+  try {
+    const r = await aiEnrichUsage(b, signal)
+    if (isUsage(r.usage)) setUsage(b, r.usage)
+    return { status: 'ok', enabled: r.enabled, usage: r.usage }
+  } catch (e) {
+    const f = failure(e, b)
+    return f.status === 'cancelled' ? f : { status: 'error', message: 'message' in f ? f.message : 'Could not load usage.' }
   }
 }
 

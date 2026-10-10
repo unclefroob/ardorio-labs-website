@@ -6,6 +6,7 @@ import { MeetingBrief } from '../modals/comms/MeetingBrief'
 import { Compose } from '../modals/comms/Compose'
 import { Enrol } from '../modals/comms/Enrol'
 import { Enrich } from '../modals/comms/Enrich'
+import { FindPeople } from '../modals/comms/FindPeople'
 import { SimReply } from '../modals/comms/SimReply'
 import { LinkedIn } from '../modals/comms/LinkedIn'
 import { AddToList } from '../modals/comms/AddToList'
@@ -17,7 +18,7 @@ import { SendEmailTask } from '../modals/comms/SendEmailTask'
 export const u2: UnitModule = {
   pages: { deals: Deals, deal: Deal },
   modals: {
-    logMeeting: LogMeeting, meetingBrief: MeetingBrief, compose: Compose, enrol: Enrol, enrich: Enrich,
+    logMeeting: LogMeeting, meetingBrief: MeetingBrief, compose: Compose, enrol: Enrol, enrich: Enrich, findPeople: FindPeople,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
     reassign: Reassign, addSuppression: AddSuppression, sendEmailTask: SendEmailTask,
   },

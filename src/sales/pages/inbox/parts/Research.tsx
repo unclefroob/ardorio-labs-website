@@ -106,8 +106,13 @@ export function Research() {
           />
         )}
         {res && savedCid && (
-          <Banner tone="ok" action={<Btn size="sm" icon="user" onClick={() => UI.open('newContact', { companyId: savedCid, businessId: bid })}>Add a contact</Btn>}>
-            Saved.{stakeholder ? ` Next: add a relevant stakeholder (${stakeholder}) and enrich with Wiza.` : ' Next: add a relevant stakeholder.'}
+          <Banner tone="ok" action={<span className="row" style={{ gap: 6 }}><Btn size="sm" icon="search" onClick={() => UI.open('findPeople', { companyId: savedCid, businessId: bid })}>Find people</Btn><Btn size="sm" icon="user" onClick={() => UI.open('newContact', { companyId: savedCid, businessId: bid })}>Add a contact</Btn></span>}>
+            Saved.{stakeholder ? ` Next: find or add a relevant stakeholder (${stakeholder}).` : ' Next: find or add a relevant stakeholder.'}
+          </Banner>
+        )}
+        {res && !savedCid && !busy && name.length >= 3 && (
+          <Banner action={<Btn size="sm" icon="search" onClick={() => UI.open('findPeople', { name: f.name.trim(), website: f.website.trim() || undefined, businessId: bid || undefined })}>Find people</Btn>}>
+            Next: find people at this company. Save the research first to add them as contacts.
           </Banner>
         )}
       </div>

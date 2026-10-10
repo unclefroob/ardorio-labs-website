@@ -258,5 +258,25 @@ export type SalesErrorCode =
   | 'NOT_A_MEMBER' | 'MEMBER_INACTIVE' | 'ROLE_REQUIRED' | 'NOT_FOUND'
   | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION' | 'SUPPRESSED'
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
-  | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'INTERNAL'
+  | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'INTERNAL'
 
+// ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
+/** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
+export interface EnrichUsage { used: number; limit: number; resetsOn: string }
+export type EnrichField = 'email' | 'email2' | 'phone' | 'mobile' | 'title' | 'linkedin'
+export type EmailPattern = 'first.last' | 'firstlast' | 'flast' | 'f.last' | 'first' | 'first_last' | 'last.first'
+export interface EnrichSuggestion { field: EnrichField; value: string; kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern
+  /** Set by the server for mobile numbers: may be a personal number rather than a business line. */
+  personal?: boolean }
+export interface EnrichContactRequest { businessId: BusinessId; contactId: string; linkedinHint?: string }
+export interface EnrichContactResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage                                // stub: no key, no result, no call reserved
+  result?: { status: 'found' | 'none' | 'withheld'; suggestions: EnrichSuggestion[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+export interface FindPeopleRequest { businessId: BusinessId; companyId?: string; input?: { name: string; website?: string }; role?: string }
+export interface FoundPerson { firstName: string; lastName: string; title: string; sourceUrl: string; linkedin?: string }   // no emails or phones
+export interface FindPeopleResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { people: FoundPerson[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+export interface EnrichUsageResponse { enabled: boolean; usage: EnrichUsage }   // GET /ai/enrich/usage?businessId=

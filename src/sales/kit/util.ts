@@ -40,6 +40,7 @@ export const AIC: Record<string, [string, string]> = {
   stage: ['kanban', 'Stage change'],
   task_done: ['checksq', 'Task completed'],
   enriched: ['zap', 'Enrichment'],
+  verified: ['check', 'Email verified'],
   seq_enrolled: ['send', 'Sequence enrolled'],
   seq_paused: ['pause', 'Sequence update'],
   seq_done: ['check', 'Sequence completed'],

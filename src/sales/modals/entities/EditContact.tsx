@@ -62,7 +62,7 @@ function EditContactForm({ c }: { c: Contact }) {
       <div className="grid g2">
         {TEXT.map(([k, l]) => <Fld key={k} label={l} err={k === 'linkedin' ? linkedinErr : undefined}><Inp value={f[k]} onChange={v => set(k, v)} /></Fld>)}
         <Fld label="Company" hint={moving ? 'Contact will move to this company; history stays linked.' : null}><CoSel value={f.companyId} onChange={v => set('companyId', v)} /></Fld>
-        <Fld label="Verification"><Sel value={f.verification} onChange={v => set('verification', v)} options={['Verified', 'Unverified', 'Invalid']} /></Fld>
+        <Fld label="Verification"><Sel value={f.verification} onChange={v => set('verification', v)} options={['Verified', 'Unverified', 'Inferred', 'Invalid']} /></Fld>
         <Fld label="Seniority"><Sel value={f.seniority} onChange={v => set('seniority', v)} options={SENIORITY} /></Fld>
         <Fld label="Buying role"><Sel value={f.buyingRole} onChange={v => set('buyingRole', v)} options={BUYING_ROLES} /></Fld>
       </div>

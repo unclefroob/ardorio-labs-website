@@ -4,7 +4,8 @@ import { Q } from '../Q'
 import { urlOrEmpty } from '../../shared/url'
 import { commit } from '../commit'
 import { idx, S } from '../store'
-import type { BusinessId, Contact, Research, Task } from '../types'
+import type { EnrichSuggestion } from '../../api/contract'
+import type { BusinessId, Research, Task } from '../types'
 import { refreshRecs as rules } from '../../ai/rules'
 import { createTask } from './tasks'
 
@@ -74,39 +75,64 @@ export function saveResearch(snap: Research): void {
   commit()
 }
 
-export type EnrichFields = Partial<Pick<Contact, 'email' | 'email2' | 'phone' | 'mobile' | 'title' | 'linkedin'>>
+const HISTORY_CAP = 100
 
-export function applyEnrichment(ctid: string, fields: EnrichFields, res: { verification?: string }, b?: BusinessId): void {
+/** Append to the applied-results log (newest first, capped). Whole-object sync means the cap must hold here. */
+function pushHistory(action: string, result: string): void {
+  const entry = { ts: F.nowIso(), action, by: S.session.userId, result }
+  S.wiza.history = [entry, ...(Array.isArray(S.wiza.history) ? S.wiza.history : [])].slice(0, HISTORY_CAP)
+}
+
+/** Log a lookup that produced no applied result (provider error, cap reached, withheld). */
+export function enrichLog(action: string, result: string): void {
+  pushHistory(action, result)
+  commit()
+}
+
+const httpUrl = (u: string | undefined): string | undefined => (u && /^https?:\/\//i.test(u.trim()) ? u.trim() : undefined)
+
+/**
+ * Apply the ticked Grok suggestions to a contact. Verification only moves when the primary email is applied:
+ * a published email lands Unverified, an inferred one lands Inferred (blocked from sequences until someone marks
+ * it verified). Applying any other field never touches an existing Verified email. Contact.source is never
+ * changed: the cited pages live in per-field `enrichment.sourceUrl` and in the activity text.
+ */
+export function applyEnrichment(ctid: string, fields: EnrichSuggestion[], b: string): void {
   const c = idx.contacts.get(ctid)
   if (!c) return
+  const now = F.nowIso()
+  const by = S.session.userId
   const changed: string[] = []
-  for (const [k, v] of Object.entries(fields)) {
-    const val = k === 'linkedin' && typeof v === 'string' && v ? urlOrEmpty(v) : v
-    if (val != null && !(k === 'linkedin' && v && !val)) {
-      Reflect.set(c, k, val)
-      changed.push(k)
+  const cited: string[] = []
+  for (const f of fields) {
+    const raw = typeof f.value === 'string' ? f.value.trim() : ''
+    const val = f.field === 'linkedin' ? urlOrEmpty(raw) : f.field === 'email' || f.field === 'email2' ? raw.toLowerCase() : raw
+    if (!val) continue
+    if (String(c[f.field] ?? '') === val) continue
+    Reflect.set(c, f.field, val)
+    changed.push(f.field)
+    const sourceUrl = httpUrl(f.sourceUrl)
+    c.enrichment = {
+      ...c.enrichment,
+      [f.field]: { kind: f.kind, ...(sourceUrl ? { sourceUrl } : {}), ...(f.pattern ? { pattern: f.pattern } : {}), at: now, by },
+    }
+    if (sourceUrl && !cited.includes(sourceUrl)) cited.push(sourceUrl)
+    if (f.field === 'email') {
+      c.verification = f.kind === 'inferred' ? 'Inferred' : 'Unverified'
+      delete c.verifiedBy
+      delete c.verifiedAt
     }
   }
-  const now = F.nowIso()
   c.lastEnriched = now
-  if (fields.email) c.verification = res.verification || c.verification
-  if (res.verification === 'Verified' && (fields.email || c.email)) c.verification = 'Verified'
-  S.wiza.used++
-  S.wiza.credits = Math.max(0, S.wiza.credits - 1)
-  S.wiza.history.unshift({ ts: now, action: `Enriched ${c.name}`, by: S.session.userId, result: changed.length ? `Updated ${changed.join(', ')}` : 'Reviewed, no changes' })
-  const biz = b ?? Q.primaryBiz(c)
+  pushHistory(`Enriched ${c.name}`, changed.length ? `Updated ${changed.join(', ')}` : 'Reviewed, no changes')
+  const biz = (b || Q.primaryBiz(c)) as BusinessId | undefined
   if (biz) {
-    act({ type: 'enriched', businessId: biz, contactId: ctid, companyId: c.companyId, subject: 'Contact enriched via Wiza (simulated)', desc: changed.length ? `Updated: ${changed.join(', ')}` : 'No fields applied' })
+    const desc = changed.length ? `Updated: ${changed.join(', ')}` : 'No fields applied'
+    act({ type: 'enriched', businessId: biz, contactId: ctid, companyId: c.companyId, subject: 'Contact enriched (Grok)', desc: cited.length ? `${desc}\nSources: ${cited.join(' ')}` : desc })
   }
   audit('Contact enriched', `${c.name} — ${changed.join(', ') || 'no changes'}`)
   commit()
 }
-
-export function wizaUse(n: number, err?: string): void {
-  S.wiza.history.unshift({ ts: F.nowIso(), action: err ? 'Enrichment failed' : 'Lookup', by: S.session.userId, result: err || `${n} lookup(s)` })
-  commit()
-}
-
 
 /**
  * Regenerate rule-based recommendations for the businesses I can edit. Runs in the browser (no lease): the

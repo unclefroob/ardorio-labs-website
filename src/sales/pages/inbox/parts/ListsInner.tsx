@@ -11,6 +11,7 @@ import { RowBtn } from './RowBtn'
 function eligibility(c: Contact, l: ListRec) {
   if (Q.suppressed(c, l.businessId)) return <Chip tone="bad">Suppressed</Chip>
   if (!c.email) return <Chip tone="warn">No email</Chip>
+  if (c.verification === 'Inferred') return <Chip tone="warn" title="Blocked from sequences until the email is marked verified">Inferred email</Chip>
   if (!c.permission) return <Chip tone="warn">No basis</Chip>
   if (Q.activeEnrol(c.id).length) return <Chip tone="info">In sequence</Chip>
   return <Chip tone="ok">Eligible</Chip>

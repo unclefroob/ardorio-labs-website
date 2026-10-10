@@ -223,6 +223,15 @@ export const Q = {
     return mb.type === 'personal' ? Q.user(mb.ownerId) : Q.me()
   },
 
+  /**
+   * Display only. Older builds stamped contacts Verified from a simulated lookup. Those have no `verifiedAt`
+   * and an 'enriched' activity from the simulation, so the UI asks a person to confirm them.
+   */
+  mockVerified(ct: Contact): boolean {
+    return ct.verification === 'Verified' && !ct.verifiedAt
+      && S.activities.some(a => a.contactId === ct.id && a.type === 'enriched' && (a.subject ?? '').includes('Wiza (simulated)'))
+  },
+
   eligibility(ctid: string, seqId: string, mbId?: string): Eligibility {
     const ct = Q.contact(ctid)
     const seq = Q.seq(seqId)
@@ -242,7 +251,8 @@ export const Q = {
     else if (mb.status !== 'connected') blocks.push(`Sender mailbox ${mb.address} is disconnected`)
     if (!ct.permission) blocks.push('No outreach permission basis recorded')
     if (!Q.crel(ctid, b)) warns.push(`No ${bn} relationship yet — one will be created`)
-    if (ct.verification !== 'Verified' && ct.email) warns.push('Email not verified')
+    if (ct.verification === 'Inferred' && ct.email) blocks.push('Email is inferred, not verified — mark it verified first')
+    else if (ct.verification !== 'Verified' && ct.email) warns.push('Email not verified')
     for (const e of Q.activeEnrol(ctid).filter(x => x.seqId !== seqId)) {
       const s2 = Q.seq(e.seqId)
       if (e.businessId === b) warns.push(`Also active in “${s2?.name ?? 'another sequence'}”`)
@@ -354,7 +364,7 @@ export const Q = {
     const total = fit + dm + eng + sig + comp
     const label = comp < 5 && total < 40 ? 'Insufficient Data' : total >= 75 ? 'High Priority' : total >= 55 ? 'Qualified' : total >= 35 ? 'Developing' : 'Low Priority'
     const next =
-      missing.length > 1 ? `Enrich with Wiza to fill ${missing.slice(0, 2).join(' and ').toLowerCase()}`
+      missing.length > 1 ? `Enrich contact to fill ${missing.slice(0, 2).join(' and ').toLowerCase()}`
       : pr && !dl ? 'Respond to reply and qualify an opportunity'
       : eng < 5 ? 'Start outreach — no recent engagement'
       : dl ? `Advance “${dl.title}”`

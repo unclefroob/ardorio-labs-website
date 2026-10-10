@@ -3,7 +3,8 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
-import type { BusinessId } from '../../data/types'
+import type { EnrichField } from '../../api/contract'
+import type { BusinessId, Contact as ContactT } from '../../data/types'
 import { Av, Banner, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, Empty, Icon, Link, Menu, Owner, ScoreRing, Seg, Sel, Tabs, Timeline } from '../../kit'
 import { LEAD_STATUSES } from '../../modals/entities/options'
 import { PERM } from '../../shared/constants'
@@ -18,6 +19,21 @@ import { TaskTable } from './parts/TaskTable'
 import { qStr, safeHref } from './query'
 import { Coord, DealTable } from './tables'
 import { ScorePanel } from './ScorePanel'
+
+const VERIFY_TONE: Record<string, string> = { Verified: 'ok', Invalid: 'bad', Inferred: 'warn' }
+
+/** Badge and cited link for a field that Grok filled. Only http(s) links are rendered as links. */
+function Prov({ ct, k }: { ct: ContactT; k: EnrichField }) {
+  const e = ct.enrichment?.[k]
+  if (!e) return null
+  const href = safeHref(e.sourceUrl ?? '')
+  return (
+    <span className="row" style={{ gap: 6, display: 'inline-flex', marginLeft: 8 }}>
+      <Chip tone={e.kind === 'inferred' ? 'warn' : 'info'} title={`Added ${F.dt(e.at)} by ${Q.user(e.by)?.name ?? 'a user'}${e.pattern ? `, pattern ${e.pattern}` : ''}`}>{e.kind === 'inferred' ? 'Inferred' : 'Published'}</Chip>
+      {href && <a className="xs" href={href} target="_blank" rel="noopener noreferrer">source</a>}
+    </span>
+  )
+}
 
 export function Contact({ route }: { route: Route }) {
   useStore()
@@ -48,6 +64,11 @@ export function Contact({ route }: { route: Route }) {
   const s = Q.score(ct.id, b)
   const sup = Q.suppressed(ct, b)
   const li = safeHref(ct.linkedin)
+  const mock = Q.mockVerified(ct)
+  const markVerified = (): void => {
+    Act.markVerified(ct.id)
+    UI.toast('Email marked verified')
+  }
   const acts = Q.activities().filter(a => a.contactId === ct.id).sort((a, x) => x.ts.localeCompare(a.ts))
   const ths = S.threads.filter(t => t.contactId === ct.id && Q.member(t.businessId)).sort((a, x) => x.updatedAt.localeCompare(a.updatedAt))
   const ens = S.enrolments.filter(e => e.contactId === ct.id && Q.member(e.businessId))
@@ -66,7 +87,10 @@ export function Contact({ route }: { route: Route }) {
             <span>{ct.title || 'No title'}{co && <> at <CoLink id={co.id} /></>}</span>
             {ct.email && <span><Icon n="mail" s={12} /> {ct.email}</span>}
             {(ct.phone || ct.mobile) && <span className="mono"><Icon n="phone" s={12} /> {ct.phone || ct.mobile}</span>}
-            <Chip tone={ct.verification === 'Verified' ? 'ok' : ct.verification === 'Invalid' ? 'bad' : ''}>{ct.verification}</Chip>
+            <Chip tone={VERIFY_TONE[ct.verification] ?? ''} title={ct.verification === 'Verified' && ct.verifiedAt ? `Verified by ${Q.user(ct.verifiedBy)?.name ?? 'a former user'}, ${F.dt(ct.verifiedAt)}` : undefined}>{ct.verification}</Chip>
+            {mock && <Chip tone="warn">Verified by the old simulation, please confirm</Chip>}
+            {can && ct.email && ct.verification !== 'Verified' && ct.verification !== 'Invalid' && <Btn size="xs" icon="check" onClick={markVerified}>Mark verified</Btn>}
+            {can && mock && <Btn size="xs" icon="check" onClick={markVerified}>Mark verified</Btn>}
           </span>
         }
       >
@@ -94,7 +118,7 @@ export function Contact({ route }: { route: Route }) {
             <Btn size="sm" icon="phone" onClick={() => UI.open('logCall', { contactId: ct.id, businessId: b })}>Log call</Btn>
             <Btn size="sm" icon="checksq" onClick={() => UI.open('newTask', tCtx)}>Create task</Btn>
             <Btn size="sm" icon="send" onClick={() => UI.open('enrol', { contactIds: [ct.id] })}>Enrol in sequence</Btn>
-            <Btn size="sm" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich with Wiza</Btn>
+            <Btn size="sm" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich contact</Btn>
             <Btn size="sm" icon="spark" onClick={() => setTab('intel')}>Research contact</Btn>
             <Btn size="sm" icon="kanban" onClick={() => UI.open('newDeal', { companyId: ct.companyId, contactIds: [ct.id], businessId: b })}>Create deal</Btn>
             <Menu
@@ -119,15 +143,15 @@ export function Contact({ route }: { route: Route }) {
           <div className="col" style={{ gap: 14 }}>
             <Card title="Details">
               <dl className="dl">
-                <dt>Job title</dt><dd>{ct.title || '—'}</dd>
+                <dt>Job title</dt><dd>{ct.title || '—'}<Prov ct={ct} k="title" /></dd>
                 <dt>Department</dt><dd>{ct.department || '—'}</dd>
                 <dt>Seniority</dt><dd>{ct.seniority}</dd>
                 <dt>Buying role</dt><dd>{ct.buyingRole}</dd>
-                <dt>Work email</dt><dd>{ct.email || <Chip tone="warn">Missing</Chip>}</dd>
-                <dt>Secondary email</dt><dd>{ct.email2 || '—'}</dd>
-                <dt>Work phone</dt><dd>{ct.phone || '—'}</dd>
-                <dt>Mobile</dt><dd>{ct.mobile || '—'}</dd>
-                <dt>LinkedIn</dt><dd>{li ? <a href={li} target="_blank" rel="noopener noreferrer">{li.replace(/^https?:\/\/(www\.)?/, '')}</a> : '—'}</dd>
+                <dt>Work email</dt><dd>{ct.email || <Chip tone="warn">Missing</Chip>}<Prov ct={ct} k="email" /></dd>
+                <dt>Secondary email</dt><dd>{ct.email2 || '—'}<Prov ct={ct} k="email2" /></dd>
+                <dt>Work phone</dt><dd>{ct.phone || '—'}<Prov ct={ct} k="phone" /></dd>
+                <dt>Mobile</dt><dd>{ct.mobile || '—'}<Prov ct={ct} k="mobile" /></dd>
+                <dt>LinkedIn</dt><dd>{li ? <a href={li} target="_blank" rel="noopener noreferrer">{li.replace(/^https?:\/\/(www\.)?/, '')}</a> : '—'}<Prov ct={ct} k="linkedin" /></dd>
                 <dt>Location</dt><dd>{ct.location || '—'}</dd>
                 <dt>Deliverability</dt><dd>{ct.deliverability}</dd>
                 <dt>Data source</dt><dd>{ct.source}</dd>

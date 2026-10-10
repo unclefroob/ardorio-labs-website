@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ResearchResponse } from '../api/contract'
+import type { EnrichContactResponse, EnrichUsage, EnrichUsageResponse, FindPeopleResponse, ResearchResponse } from '../api/contract'
 import { bootstrap } from '../testing/fixtures'
 
 const aiResearch = vi.fn<(req: unknown) => Promise<ResearchResponse>>()
+const aiEnrichContact = vi.fn<(req: unknown, signal?: AbortSignal) => Promise<EnrichContactResponse>>()
+const aiFindPeople = vi.fn<(req: unknown, signal?: AbortSignal) => Promise<FindPeopleResponse>>()
+const aiEnrichUsage = vi.fn<(b: string, signal?: AbortSignal) => Promise<EnrichUsageResponse>>()
 vi.mock('../api/ai', () => ({
   aiClassify: vi.fn(), aiCopilot: vi.fn(), aiDraft: vi.fn(), aiMeetingRecap: vi.fn(), aiReplySuggest: vi.fn(),
   aiResearch: (req: unknown) => aiResearch(req),
+  aiEnrichContact: (req: unknown, signal?: AbortSignal) => aiEnrichContact(req, signal),
+  aiFindPeople: (req: unknown, signal?: AbortSignal) => aiFindPeople(req, signal),
+  aiEnrichUsage: (b: string, signal?: AbortSignal) => aiEnrichUsage(b, signal),
 }))
 
 async function load(providers: { anthropic: boolean; xai: boolean }) {
@@ -25,7 +31,7 @@ const llm: ResearchResponse = {
   },
 }
 
-beforeEach(() => { aiResearch.mockReset() })
+beforeEach(() => { aiResearch.mockReset(); aiEnrichContact.mockReset(); aiFindPeople.mockReset(); aiEnrichUsage.mockReset() })
 
 describe('per-provider "not configured"', () => {
   it('reports each provider from its own flag', async () => {
@@ -66,5 +72,184 @@ describe('research', () => {
     const out = await c.research(null, 'ard', { name: 'Newco' })
     expect(out.ai).toMatchObject({ source: 'stub', provider: 'xai', label: 'Grok is not configured' })
     expect(out.value).toMatchObject({ simulated: true })
+  })
+})
+
+// ── contact enrichment ──────────────────────────────────────────────────────────────────────────
+
+const usage = (used: number): EnrichUsage => ({ used, limit: 300, resetsOn: '2026-11-01' })
+const found: EnrichContactResponse = {
+  mode: 'llm', provider: 'xai', model: 'grok-4.7', generated: true, usage: usage(5),
+  result: {
+    status: 'found', withheld: 1, disclaimer: 'Matched on name and company.', sources: [{ title: 'Acme', url: 'https://acme.test/team' }],
+    suggestions: [{ field: 'email', value: 'sam@acme.test', kind: 'published', sourceUrl: 'https://acme.test/team' }],
+  },
+}
+
+async function loadEnrich() {
+  const client = await load({ anthropic: true, xai: true })
+  const http = await import('../api/http')
+  const cache = await import('./enrichCache')
+  return { client, http, cache }
+}
+const httpError = (http: typeof import('../api/http'), status: number, code: string, details?: Record<string, unknown>) =>
+  new http.SalesHttpError(status, { error: `${code} message`, code: code as never, details })
+
+describe('enrichContact', () => {
+  it('returns the suggestions and keeps them, with the usage, for Review & apply', async () => {
+    const { client, cache } = await loadEnrich()
+    aiEnrichContact.mockResolvedValueOnce(found)
+    const out = await client.enrichContact('ct1', 'ros', { linkedinHint: ' https://www.linkedin.com/in/sam ' })
+    expect(aiEnrichContact).toHaveBeenCalledWith({ businessId: 'ros', contactId: 'ct1', linkedinHint: 'https://www.linkedin.com/in/sam' }, undefined)
+    expect(out).toMatchObject({ status: 'found', withheld: 1, usage: usage(5), suggestions: [{ field: 'email', kind: 'published' }] })
+    expect(cache.getEnrich('ct1')?.res).toEqual(out)
+    expect(cache.getUsage('ros')).toEqual(usage(5))
+  })
+
+  it('leaves the hint out when there is none', async () => {
+    const { client } = await loadEnrich()
+    aiEnrichContact.mockResolvedValueOnce(found)
+    await client.enrichContact('ct1', 'ros', { linkedinHint: '  ' })
+    expect(aiEnrichContact).toHaveBeenCalledWith({ businessId: 'ros', contactId: 'ct1' }, undefined)
+  })
+
+  it('caches none and withheld too, because those calls were counted', async () => {
+    const { client, cache } = await loadEnrich()
+    aiEnrichContact.mockResolvedValueOnce({ ...found, result: { ...found.result!, status: 'withheld', suggestions: [], withheld: 3 } })
+    const out = await client.enrichContact('ct1', 'ros')
+    expect(out).toMatchObject({ status: 'withheld', withheld: 3 })
+    expect(cache.getEnrich('ct1')).toBeDefined()
+  })
+
+  it('reports notConfigured for a stub answer and records nothing', async () => {
+    const { client, cache } = await loadEnrich()
+    aiEnrichContact.mockResolvedValueOnce({ mode: 'stub', provider: 'xai', model: null, generated: false, label: 'Grok is not configured', usage: usage(0) })
+    const out = await client.enrichContact('ct1', 'ros')
+    expect(out.status).toBe('notConfigured')
+    expect(cache.getEnrich('ct1')).toBeUndefined()
+  })
+
+  it('does not fall back to anything on a 502: one call, a providerError, nothing cached', async () => {
+    const { client, http, cache } = await loadEnrich()
+    aiEnrichContact.mockRejectedValue(httpError(http, 502, 'AI_PROVIDER_ERROR'))
+    const out = await client.enrichContact('ct1', 'ros')
+    expect(out).toMatchObject({ status: 'providerError', message: 'AI_PROVIDER_ERROR message' })
+    expect(aiEnrichContact).toHaveBeenCalledTimes(1)
+    expect(cache.getEnrich('ct1')).toBeUndefined()
+    expect(out).not.toHaveProperty('suggestions')
+  })
+
+  it('maps a bad-output 502 to badOutput', async () => {
+    const { client, http } = await loadEnrich()
+    aiEnrichContact.mockRejectedValueOnce(httpError(http, 502, 'AI_BAD_OUTPUT'))
+    expect((await client.enrichContact('ct1', 'ros')).status).toBe('badOutput')
+  })
+
+  it('maps AI_CAP_REACHED to cap with the server usage, and remembers it', async () => {
+    const { client, http, cache } = await loadEnrich()
+    aiEnrichContact.mockRejectedValueOnce(httpError(http, 429, 'AI_CAP_REACHED', { ...usage(300) }))
+    const out = await client.enrichContact('ct1', 'ros')
+    expect(out).toEqual({ status: 'cap', usage: usage(300) })
+    expect(cache.remaining(cache.getUsage('ros'))).toBe(0)
+  })
+
+  it('still reports cap when the 429 has no usable details', async () => {
+    const { client, http } = await loadEnrich()
+    aiEnrichContact.mockRejectedValueOnce(httpError(http, 429, 'AI_CAP_REACHED'))
+    const out = await client.enrichContact('ct1', 'ros')
+    expect(out).toMatchObject({ status: 'cap', usage: { used: 300, limit: 300 } })
+  })
+
+  it('maps an aborted request to cancelled', async () => {
+    const { client } = await loadEnrich()
+    const ac = new AbortController()
+    aiEnrichContact.mockImplementationOnce((_req, signal) => new Promise((_, rej) => {
+      signal?.addEventListener('abort', () => rej(new DOMException('Aborted', 'AbortError')))
+    }))
+    const p = client.enrichContact('ct1', 'ros', { signal: ac.signal })
+    ac.abort()
+    expect(await p).toEqual({ status: 'cancelled' })
+  })
+
+  it('reports an unreachable server as an error, never a template', async () => {
+    const { client, http } = await loadEnrich()
+    aiEnrichContact.mockRejectedValueOnce(new http.SalesNetworkError('offline'))
+    expect(await client.enrichContact('ct1', 'ros')).toMatchObject({ status: 'error' })
+  })
+
+  it('passes other server errors through as an error with the server message', async () => {
+    const { client, http } = await loadEnrich()
+    aiEnrichContact.mockRejectedValueOnce(httpError(http, 403, 'ROLE_REQUIRED'))
+    expect(await client.enrichContact('ct1', 'ros')).toEqual({ status: 'error', message: 'ROLE_REQUIRED message' })
+  })
+})
+
+describe('findPeople', () => {
+  const people: FindPeopleResponse = {
+    mode: 'llm', provider: 'xai', model: 'grok-4.7', generated: true, usage: usage(6),
+    result: { people: [{ firstName: 'Ada', lastName: 'Lee', title: 'Head of Ops', sourceUrl: 'https://acme.test/team' }], sources: [], withheld: 0, disclaimer: 'd' },
+  }
+
+  it('sends a saved company id or a name and website, with the role', async () => {
+    const { client } = await loadEnrich()
+    aiFindPeople.mockResolvedValue(people)
+    await client.findPeople({ companyId: 'co1' }, 'ros', { role: ' Head of Ops ' })
+    expect(aiFindPeople).toHaveBeenLastCalledWith({ businessId: 'ros', companyId: 'co1', role: 'Head of Ops' }, undefined)
+    await client.findPeople({ input: { name: 'Newco', website: 'newco.com' } }, 'ros')
+    expect(aiFindPeople).toHaveBeenLastCalledWith({ businessId: 'ros', input: { name: 'Newco', website: 'newco.com' } }, undefined)
+  })
+
+  it('classifies the answer as found, withheld or none', async () => {
+    const { client } = await loadEnrich()
+    aiFindPeople.mockResolvedValueOnce(people)
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('found')
+    aiFindPeople.mockResolvedValueOnce({ ...people, result: { ...people.result!, people: [], withheld: 2 } })
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('withheld')
+    aiFindPeople.mockResolvedValueOnce({ ...people, result: { ...people.result!, people: [], withheld: 0 } })
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('none')
+  })
+
+  it('shares the failure mapping: notConfigured, cap, 502 and cancel', async () => {
+    const { client, http } = await loadEnrich()
+    aiFindPeople.mockResolvedValueOnce({ mode: 'stub', provider: 'xai', model: null, generated: false, usage: usage(0) })
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('notConfigured')
+    aiFindPeople.mockRejectedValueOnce(httpError(http, 429, 'AI_CAP_REACHED', { ...usage(300) }))
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('cap')
+    aiFindPeople.mockRejectedValueOnce(httpError(http, 502, 'AI_PROVIDER_ERROR'))
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('providerError')
+    aiFindPeople.mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'))
+    expect((await client.findPeople({ companyId: 'co1' }, 'ros')).status).toBe('cancelled')
+  })
+})
+
+describe('enrichUsage', () => {
+  it('records the usage it reads', async () => {
+    const { client, cache } = await loadEnrich()
+    aiEnrichUsage.mockResolvedValueOnce({ enabled: true, usage: usage(42) })
+    expect(await client.enrichUsage('ros')).toEqual({ status: 'ok', enabled: true, usage: usage(42) })
+    expect(cache.remaining(cache.getUsage('ros'))).toBe(258)
+  })
+
+  it('reports an error rather than guessing', async () => {
+    const { client, http } = await loadEnrich()
+    aiEnrichUsage.mockRejectedValueOnce(new http.SalesNetworkError())
+    expect((await client.enrichUsage('ros')).status).toBe('error')
+  })
+})
+
+describe('checkLinkedinHint', () => {
+  it('accepts what people paste and returns the form the server accepts', async () => {
+    const { client } = await loadEnrich()
+    for (const v of ['linkedin.com/in/sam-buyer', 'https://www.linkedin.com/in/sam-buyer/', 'http://au.linkedin.com/in/sam-buyer?trk=x', 'LinkedIn.com/in/sam-buyer#top']) {
+      expect(client.checkLinkedinHint(v)).toEqual({ ok: true, value: 'https://www.linkedin.com/in/sam-buyer' })
+    }
+    expect(client.checkLinkedinHint('  ')).toEqual({ ok: true, value: '' })
+  })
+
+  it('rejects anything that is not a profile address', async () => {
+    const { client } = await loadEnrich()
+    for (const v of ['https://example.com/in/sam', 'linkedin.com/company/acme', 'https://linkedin.com.evil.test/in/sam', 'sam']) {
+      expect(client.checkLinkedinHint(v).ok).toBe(false)
+    }
   })
 })

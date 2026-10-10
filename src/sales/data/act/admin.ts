@@ -13,7 +13,7 @@ import { commit } from '../commit'
 import { idx, S } from '../store'
 import { refreshMembers, setTheme as setSessionTheme, setUsers, setWorkspace } from '../session'
 import type {
-  BusinessId, Goal, Mailbox, OrgSettings, Pipeline, SalesUser, Team, WizaSettings, Business,
+  BusinessId, Goal, Mailbox, OrgSettings, Pipeline, SalesUser, Team, Business,
 } from '../types'
 
 // ── goals / teams / views / notifications ───────────────────────────────────────────────────
@@ -184,12 +184,6 @@ export function setMailbox(id: string, p: Partial<Mailbox>): void {
     }
     nudgeEngine()
   }
-  commit()
-}
-
-export function setWiza(p: Partial<WizaSettings>): void {
-  Object.assign(S.wiza, p)
-  audit('Wiza integration updated', JSON.stringify(p))
   commit()
 }
 
