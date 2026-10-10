@@ -4,7 +4,7 @@ import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import type { BusinessId, Deal } from '../../data/types'
 import {
-  Bars, BizDot, Btn, Card, DataTable, Empty, FilterBar, Funnel, Kpi, Legend, Line, Owner, Sel, download, toCSV, type Col,
+  Bars, BizDot, Btn, Card, DataTable, Empty, FilterBar, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, download, toCSV, type Col,
 } from '../../kit'
 import { INDUSTRIES, PER, type PeriodKey } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
@@ -165,17 +165,17 @@ export function Reports() {
             <Kpi label="Recurring (won ARR)" value={F.money(sum(deals.filter(d => d.status === 'won' && d.recurring), d => d.value), 1)} />
           </div>
           <div className="grid g2" style={{ marginBottom: 14 }}>
-            <Card title="Sales activity trend" right={<Legend items={[['Emails', 'var(--acc)'], ['Calls', '#0E8A7E'], ['Meetings', '#D9572B'], ['LinkedIn', '#8E8897']]} />}>
+            <Card title="Sales activity trend" right={<Legend items={[['Emails', 'var(--acc)', LINE_DASH[0]], ['Calls', '#0E8A7E', LINE_DASH[1]], ['Meetings', '#D9572B', LINE_DASH[2]], ['LinkedIn', '#8E8897', LINE_DASH[3]]]} />}>
               <Line label="Sales activity trend by week" labels={weeks.map(x => x.l)} series={[
                 { n: 'Emails', c: 'var(--acc)', v: w('email_out') }, { n: 'Calls', c: '#0E8A7E', v: w('call') },
                 { n: 'Meetings', c: '#D9572B', v: w('meeting_booked') }, { n: 'LinkedIn', c: '#8E8897', v: w('linkedin_conn') },
               ]} />
             </Card>
             <Card title="Revenue forecast (weighted, by expected close)" right={<Legend items={[['Commit', 'var(--acc)'], ['Best case / pipeline', 'var(--acc-line)']]} />}>
-              <Bars label="Revenue forecast by expected close" stacked data={fm} colors={['var(--acc)', 'var(--acc-line)']} fmt={v => F.money(v, 1)} />
+              <Bars label="Revenue forecast by expected close" stacked series={['Commit', 'Best case / pipeline']} data={fm} colors={['var(--acc)', 'var(--acc-line)']} fmt={v => F.money(v, 1)} />
             </Card>
             <Card title="Funnel">
-              <Funnel steps={[{ l: 'Contacts emailed', v: emailed.size }, { l: 'Replied', v: replied.size }, { l: 'Positive', v: posC.size }, { l: 'Meetings', v: meetC.size }, { l: 'Deals won', v: won.length }]} />
+              <Funnel label="Outreach funnel" steps={[{ l: 'Contacts emailed', v: emailed.size }, { l: 'Replied', v: replied.size }, { l: 'Positive', v: posC.size }, { l: 'Meetings', v: meetC.size }, { l: 'Deals won', v: won.length }]} />
             </Card>
             <Card title={pl?.stages.length ? `${pl.name} — stage conversion` : 'Pipeline breakdown by business'} pad={!pl?.stages.length}>
               {pl?.stages.length ? (
