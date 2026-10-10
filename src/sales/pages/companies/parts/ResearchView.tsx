@@ -60,6 +60,7 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
   const caveats = list(r.inferred)
   const provider = providerOf(r.provider)
   const web = webSources(r.webSources)
+  const limited = r.limited === true
   return (
     <div className="ai card-b">
       <div className="row wrap">
@@ -74,7 +75,15 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
         {r.simulated === true && <Sim />}
       </div>
       {provider && <div className="xs faint" style={{ marginTop: 6 }}>The overview, challenges, offerings, roles and angle below are AI inference. Only “Facts from CRM” comes from your records.</div>}
-      {r.limited === true && <Banner tone="warn">Limited result: no CRM record matched. Generic sector content only.</Banner>}
+      {limited && (
+        <div style={{ marginTop: 10 }}>
+          <Banner tone="warn">
+            {provider === 'xai'
+              ? 'No CRM record matched, so there are no CRM facts or score. Everything here is public web research.'
+              : 'Limited result: no CRM record matched. Generic sector content only.'}
+          </Banner>
+        </div>
+      )}
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 150px', gap: 14, marginTop: 12 }}>
         <div>
           <div className="sm" style={{ lineHeight: 1.6 }}>{text(r.overview)}</div>
@@ -84,9 +93,19 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
             <span><span className="faint">Model:</span> {text(r.model) || '—'}</span>
           </div>
         </div>
-        <div className="col" style={{ alignItems: 'center' }}>
-          <ScoreRing v={score} s={64} />
-          <span className="xs faint">Opportunity score</span>
+        <div className="col" style={{ alignItems: 'center', textAlign: 'center' }}>
+          {limited ? (
+            <>
+              <span className="b" style={{ fontSize: 18 }} aria-hidden="true">—</span>
+              <span className="xs faint">Not scored</span>
+              <span className="xs faint">Scoring needs a CRM record</span>
+            </>
+          ) : (
+            <>
+              <ScoreRing v={score} s={64} />
+              <span className="xs faint">Opportunity score</span>
+            </>
+          )}
         </div>
       </div>
       <div className="grid g3" style={{ marginTop: 14 }}>
