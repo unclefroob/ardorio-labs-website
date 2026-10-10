@@ -294,7 +294,6 @@ export async function findPeople(
 // Same rules as enrichment: a search-backed call spends one monthly lookup, nothing degrades to a made-up answer.
 
 export type IntelItem = CompanySignal | TechItem | CompanyContactItem
-export interface IntelItems { signals: CompanySignal[]; tech: TechItem[]; contact: CompanyContactItem[] }
 
 export interface WebDone<T> {
   status: 'found' | 'none' | 'withheld'
@@ -321,7 +320,6 @@ function webDone<T>(r: Wire, items: T[], b: BusinessId): WebOutcome<T> {
 const arr = <T>(v: T[] | undefined): T[] => (Array.isArray(v) ? v : [])
 
 /** Run one of the three per-company lookups. Saving the answer is the caller's job (Act.saveIntel). */
-export async function runIntel<K extends IntelKind>(kind: K, subject: IntelSubject, opts?: { signal?: AbortSignal }): Promise<WebOutcome<IntelItems[K]>>
 export async function runIntel(kind: IntelKind, subject: IntelSubject, opts: { signal?: AbortSignal } = {}): Promise<WebOutcome<IntelItem>> {
   const b = subject.businessId
   try {

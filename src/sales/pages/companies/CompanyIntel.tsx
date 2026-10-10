@@ -9,6 +9,7 @@ import type { BusinessId, Company, Research } from '../../data/types'
 import { AiBadge, AiNotConfigured, Banner, BizDot, Btn, Card, Empty, Seg, Skel } from '../../kit'
 import { UI } from '../../ui/store'
 import { ResearchView } from './parts/ResearchView'
+import { WebIntel } from './parts/WebIntel'
 
 const failed = (v: Research | ResearchError): v is ResearchError => typeof v.error === 'string' && !('companyId' in v)
 
@@ -79,6 +80,7 @@ export function CompanyIntel({ c, b: b0 }: { c: Company; b: BusinessId }) {
           </Card>
         )
       )}
+      <WebIntel key={c.id + b} c={c} b={b} />
       <div className="grid g3">
         <Card title="Buying signals" icon="zap">
           {ins.signals.length ? ins.signals.map(s => <div key={s} className="sm">• {s}</div>) : <div className="faint sm">None detected</div>}
