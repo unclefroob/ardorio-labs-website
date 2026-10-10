@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -97,6 +97,11 @@ function SeoHeadCleanup() {
   return null
 }
 
+function LegacySalesRedirect() {
+  const { pathname, search, hash } = useLocation()
+  return <Navigate to={pathname.replace(/^\/admin\/sales/, '/sales') + search + hash} replace />
+}
+
 function App() {
   return (
     <HelmetProvider>
@@ -128,9 +133,11 @@ function App() {
         <Route path="/admin/invoices/new" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
         <Route path="/admin/invoices/:id" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClientNew /></ProtectedRoute>} />
-        {/* Before /admin/:slug so "sales" is never read as a client slug. */}
+        {/* Old entry point, kept so bookmarks and shared links keep working. */}
+        <Route path="/admin/sales/*" element={<LegacySalesRedirect />} />
+        {/* Above the public /:slug catch-all so "sales" is never read as a client slug. */}
         <Route
-          path="/admin/sales/*"
+          path="/sales/*"
           element={
             <ProtectedRoute>
               <Suspense fallback={<div className="min-h-screen grid place-items-center font-mono text-xs text-stone-400">Loading SalesOS</div>}>

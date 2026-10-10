@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import Logo from '../../components/Logo'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { safeNext } from '../../lib/nextPath'
 
 export default function AdminLogin() {
   const { login } = useAuth()
@@ -26,7 +27,7 @@ export default function AdminLogin() {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Login failed'); return }
       login(data.token)
-      navigate('/admin')
+      navigate(safeNext(searchParams.get('next')) ?? '/admin', { replace: true })
     } catch {
       setError('Could not reach the server. Try again.')
     } finally {

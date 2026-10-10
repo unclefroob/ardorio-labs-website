@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/apiClient'
 import AdminNav from '../../components/admin/AdminNav'
+import { SalesAccessModal } from '../../components/admin/SalesAccess'
+import { accessSummary, useSalesAccess } from '../../components/admin/salesAccessState'
 
 interface AdminUser {
   _id: string
@@ -30,6 +32,8 @@ export default function AdminStaff() {
   const [resettingPw, setResettingPw] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [modal, setModal] = useState<ModalState>(emptyModal)
+  const salesAccess = useSalesAccess()
+  const [accessFor, setAccessFor] = useState<AdminUser | null>(null)
 
   useEffect(() => {
     apiFetch<AdminUser[]>('/admin-users')
@@ -148,6 +152,9 @@ export default function AdminStaff() {
                     )}
                   </div>
                   <p className="font-mono text-xs text-stone-400">{user.username}{user.email ? ` · ${user.email}` : ''}</p>
+                  {salesAccess.status === 'ready' && (
+                    <p className="font-mono text-[11px] text-stone-500 mt-1">{accessSummary(salesAccess.members.get(user._id))}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   {user.invitePending && user.email && (
@@ -168,6 +175,9 @@ export default function AdminStaff() {
                       {resettingPw === user._id ? 'Sending…' : 'Reset password'}
                     </button>
                   )}
+                  {salesAccess.status === 'ready' && (
+                    <button onClick={() => setAccessFor(user)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Sales access</button>
+                  )}
                   <button onClick={() => openEdit(user)} className="font-mono text-xs text-stone-400 hover:text-ink transition-colors">Edit</button>
                   <button onClick={() => deleteUser(user._id)} className="font-mono text-xs text-red-400 hover:text-red-600 transition-colors">Delete</button>
                 </div>
@@ -176,6 +186,16 @@ export default function AdminStaff() {
           </div>
         )}
       </div>
+
+      {accessFor && (
+        <SalesAccessModal
+          userId={accessFor._id}
+          name={accessFor.displayName || accessFor.username}
+          access={salesAccess}
+          onClose={() => setAccessFor(null)}
+          onSaved={flash}
+        />
+      )}
 
       {/* Modal */}
       {modal.open && (
