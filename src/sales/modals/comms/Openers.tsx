@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { aiNotConfigured, isFailure, openingLines, type OpenerOutcome } from '../../ai/client'
 import { checkCompany } from '../../ai/intelRun'
-import type { BusinessId } from '../../api/contract'
+import type { BusinessId, CompanySignal } from '../../api/contract'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { openerUsable } from '../../data/signalAdjust'
 import { flushAll } from '../../data/sync'
 import { Banner, Btn, Spinner } from '../../kit'
 import { Src } from '../../shared/IntelBits'
@@ -29,6 +30,7 @@ export function Openers({ b, companyId, contactId, onInsert }: { b: BusinessId; 
   const [checking, setChecking] = useState(false)
   const [out, setOut] = useState<OpenerOutcome | null>(null)
   const [note, setNote] = useState('')
+  const [sync, setSync] = useState<'local' | 'server' | null>(null)
   const live = useRef<AbortController | null>(null)
   const lk = useLookups(open ? b : undefined)
   useEffect(() => () => live.current?.abort(), [])
@@ -41,16 +43,34 @@ export function Openers({ b, companyId, contactId, onInsert }: { b: BusinessId; 
     const o = await openingLines({ businessId: b, ...(companyId ? { companyId } : { contactId }) }, { signal: ac.signal })
     return live.current === ac ? o : { status: 'cancelled' }
   }
-  const show = async (): Promise<void> => {
-    if (busy) return
-    setOpen(true)
+  const signalsHere = (): boolean => !!companyId && ((Q.intel(companyId, 'signals', b)?.items ?? []) as CompanySignal[]).some(x => openerUsable(x))
+  // Signals saved in this browser reach the server through sync. Flush first, and never send them from here:
+  // the server only ever writes lines from what it has stored.
+  const load = async (): Promise<void> => {
     setBusy(true)
-    setNote('')
+    setSync(null)
     setOut(null)
+    const here = signalsHere()
+    if (here && !(await flushAll())) {
+      setBusy(false)
+      setSync('local')
+      return
+    }
     const o = await fetchLines()
     live.current = null
     setBusy(false)
-    if (o.status !== 'cancelled') setOut(o)
+    if (o.status === 'cancelled') return
+    if (o.status === 'noSignals' && here) {
+      setSync('server')
+      return
+    }
+    setOut(o)
+  }
+  const show = async (): Promise<void> => {
+    if (busy || checking) return
+    setOpen(true)
+    setNote('')
+    await load()
   }
   const checkThenShow = async (): Promise<void> => {
     if (!companyId || checking) return
@@ -70,12 +90,11 @@ export function Openers({ b, companyId, contactId, onInsert }: { b: BusinessId; 
       setNote('No signals were found on the web for this company either.')
       return
     }
-    setBusy(true)
-    await flushAll()
-    const o = await fetchLines()
-    live.current = null
-    setOut(o)
-    setBusy(false)
+    if (!signalsHere()) {
+      setNote(`Found ${c.items.length} ${c.items.length === 1 ? 'signal' : 'signals'}, but none with a date in the last 6 months to open with. They are saved on the company page.`)
+      return
+    }
+    await load()
   }
 
   const co = companyId ? Q.company(companyId) : undefined
@@ -85,7 +104,7 @@ export function Openers({ b, companyId, contactId, onInsert }: { b: BusinessId; 
     <div className="col" style={{ gap: 6 }}>
       <div className="row" style={{ gap: 6 }}>
         <Btn size="xs" kind="ghost" icon="bulb" disabled={busy || checking} onClick={() => void show()}>Opening lines</Btn>
-        {open && <Btn size="xs" kind="ghost" onClick={() => { live.current?.abort(); live.current = null; setBusy(false); setChecking(false); setOpen(false); setOut(null); setNote('') }}>Hide</Btn>}
+        {open && <Btn size="xs" kind="ghost" onClick={() => { live.current?.abort(); live.current = null; setBusy(false); setChecking(false); setOpen(false); setOut(null); setNote(''); setSync(null) }}>Hide</Btn>}
       </div>
       {open && (
         <div className="card card-b col" style={{ gap: 8, background: 'var(--surf2)' }} aria-live="polite">
@@ -104,13 +123,20 @@ export function Openers({ b, companyId, contactId, onInsert }: { b: BusinessId; 
               ))}
             </>
           )}
-          {!busy && !checking && out?.status === 'noSignals' && (
+          {!busy && !checking && sync && (
+            <div className="row sm" style={{ gap: 8 }} role="status">
+              {sync === 'local' ? 'Saved here, not synced yet.' : "Saved here, but the server doesn't have them yet."}
+              <Btn size="xs" onClick={() => void load()}>{sync === 'local' ? 'Retry' : 'Retry sync'}</Btn>
+            </div>
+          )}
+          {!busy && !checking && !sync && out?.status === 'noSignals' && (
             <div className="col" style={{ gap: 6 }}>
               <div className="sm"><b>No saved signals for this company yet.</b> There is nothing true to open with.</div>
+              {lk.capped && lk.pausedLabel && <div className="sm muted" role="status">{lk.pausedLabel}.</div>}
               {canCheck && <div className="row" style={{ gap: 8 }}><Btn size="sm" icon="search" onClick={() => void checkThenShow()}>Check signals first · 1 lookup</Btn>{lk.label && <span className="sm muted">{lk.label}</span>}</div>}
             </div>
           )}
-          {!busy && !checking && out && isFailure(out) && out.status !== 'cancelled' && (
+          {!busy && !checking && !sync && out && isFailure(out) && out.status !== 'cancelled' && (
             <div className="row sm muted" style={{ gap: 8 }}>Opening lines are not available right now. You can keep writing.<Btn size="xs" onClick={() => void show()}>Try again</Btn></div>
           )}
           {note && <Banner tone="info">{note}</Banner>}
