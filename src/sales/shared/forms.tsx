@@ -3,6 +3,7 @@ import { Icon } from '../kit/Icon'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
 import { S } from '../data/store'
+import { planLabel } from '../data/rosterio'
 import type { PipelineField } from '../data/types'
 
 // Stays exported from here (the planned path); the hook lives in useF.ts because this file exports components.
@@ -47,7 +48,11 @@ export function MultiCt({ companyId, value, onChange }: { companyId: string; val
 }
 
 export function DealFieldInput({ fd, value, onChange, companyId }: { fd: PipelineField; value: unknown; onChange: (v: unknown) => void; companyId: string }) {
-  if (fd.type === 'select') return <Sel value={str(value)} onChange={onChange} placeholder="—" options={fd.options ?? []} />
+  if (fd.type === 'select') {
+    // The Rosterio plan is stored as starter | pro | enterprise and shown as Starter | Pro | Enterprise.
+    const opts = fd.key === 'plan' ? (fd.options ?? []).map(o => [o, planLabel(o)] as const) : (fd.options ?? [])
+    return <Sel value={str(value)} onChange={onChange} placeholder="—" options={opts} />
+  }
   if (fd.type === 'boolean') {
     return (
       <div className="row">

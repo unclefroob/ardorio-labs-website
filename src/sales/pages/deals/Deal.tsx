@@ -12,6 +12,8 @@ import type { Route } from '../../ui/store'
 import { UI } from '../../ui/store'
 import { ActFilter } from '../companies/parts/ActFilter'
 import { Notes } from '../companies/parts/Notes'
+import { planLabel } from '../../data/rosterio'
+import { RosterioCard } from './RosterioCard'
 import { TaskTable } from '../companies/parts/TaskTable'
 import { Commercials } from './Commercials'
 import { DealAI } from './DealAI'
@@ -215,7 +217,7 @@ export function Deal({ route }: { route: Route }) {
                           <DealFieldInput fd={fd} value={v} onChange={nv => setFld(fd.key, nv)} companyId={d.companyId} />
                         ) : (
                           <div className="sm">
-                            {fd.type === 'contact' ? Q.contact(typeof v === 'string' ? v : '')?.name ?? '—' : fd.type === 'boolean' ? (v ? 'Yes' : 'No') : fd.type === 'currency' && v ? F.money(Number(v)) : fieldText(v)}
+                            {fd.type === 'contact' ? Q.contact(typeof v === 'string' ? v : '')?.name ?? '—' : fd.type === 'boolean' ? (v ? 'Yes' : 'No') : fd.type === 'currency' && v ? F.money(Number(v)) : fd.key === 'plan' ? planLabel(v) || '—' : fieldText(v)}
                           </div>
                         )}
                       </Fld>
@@ -238,6 +240,7 @@ export function Deal({ route }: { route: Route }) {
                 <Banner tone="warn" action={can && <Btn size="sm" onClick={newTask}>Add</Btn>}>No next step scheduled.</Banner>
               )}
             </Card>
+            {d.businessId === 'ros' && <RosterioCard companyId={d.companyId} dealId={d.id} />}
             <Card title="Details">
               <dl className="dl" style={{ gridTemplateColumns: '110px 1fr' }}>
                 <dt>Deal type</dt><dd>{d.type}</dd>

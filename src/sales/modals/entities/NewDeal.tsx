@@ -55,7 +55,8 @@ function NewDealForm({ b0, companyId, contactIds, title }: { b0: BusinessId; com
   const firstStage = open[0] ?? pl.stages[0]
   const setField = (k: string, v: unknown): void => set('fields', { ...f.fields, [k]: v })
   const pthVal = f.businessId === 'pth' && Number(f.fields.eligible) && Number(f.fields.price) ? Math.round(Number(f.fields.eligible) * Number(f.fields.price)) : null
-  const keyFields = pl.fields.filter(x => x.active && !CALC_KEYS.includes(x.key)).slice(0, 4)
+  // The Rosterio plan is always offered first so it is never cut off by the four-field limit.
+  const keyFields = pl.fields.filter(x => x.active && !CALC_KEYS.includes(x.key)).sort((a, b) => Number(b.key === 'plan') - Number(a.key === 'plan')).slice(0, 4)
 
   const save = (): void => {
     const e: Errors = {}
