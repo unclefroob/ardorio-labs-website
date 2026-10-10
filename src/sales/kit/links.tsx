@@ -49,7 +49,7 @@ export function DlLink({ id, full }: { id: string | null | undefined; full?: boo
       </span>
     )
   }
-  return <Link to="deal" id={id}>{full ? d.name : d.title}</Link>
+  return <Link to="deal" id={id}>{full ? d.name : d.title || d.name}</Link>
 }
 
 export function Owner({ id, s = 20 }: { id: string | null | undefined; s?: number }) {

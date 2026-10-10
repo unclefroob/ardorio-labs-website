@@ -185,6 +185,7 @@ export function Dashboard() {
               {ws ? (
                 stages.length ? (
                   <Bars
+                    label="Pipeline value by stage"
                     data={stages.map(s => ({ l: s.name.split(' ')[0], v: sum(open.filter(d => d.stageId === s.id), d => d.value) }))}
                     fmt={v => F.money(v, 1)}
                     onBar={(_, i) => go('deals', { stage: stages[i].id, view: 'board' })}
@@ -193,6 +194,7 @@ export function Dashboard() {
               ) : (
                 <>
                   <Bars
+                    label="Open pipeline by business"
                     data={bizs.map(b => ({ l: b.name, v: sum(open.filter(d => d.businessId === b.id), d => d.value), c: b.accent }))}
                     fmt={v => F.money(v, 1)}
                     onBar={(_, i) => { Act.setSession({ ws: bizs[i].id }); UI.nav('deals') }}
@@ -207,10 +209,10 @@ export function Dashboard() {
               )}
             </Card>
             <Card title="Won revenue by month" right={<Legend items={bizs.map(b => [b.name, b.accent] as const)} />}>
-              <Bars stacked data={months} colors={bizs.map(b => b.accent)} fmt={v => F.money(v, 1)} />
+              <Bars label="Won revenue by month" stacked data={months} colors={bizs.map(b => b.accent)} fmt={v => F.money(v, 1)} />
             </Card>
             <Card title="Sales activity — last 8 weeks" right={<Legend items={[['Emails', 'var(--acc)'], ['Calls', '#0E8A7E'], ['Meetings booked', '#D9572B']]} />}>
-              <Line labels={weeks.map(w => w.l)} series={[{ n: 'Emails', c: 'var(--acc)', v: wc('email_out') }, { n: 'Calls', c: '#0E8A7E', v: wc('call') }, { n: 'Meetings', c: '#D9572B', v: wc('meeting_booked') }]} />
+              <Line label="Sales activity by week" labels={weeks.map(w => w.l)} series={[{ n: 'Emails', c: 'var(--acc)', v: wc('email_out') }, { n: 'Calls', c: '#0E8A7E', v: wc('call') }, { n: 'Meetings', c: '#D9572B', v: wc('meeting_booked') }]} />
             </Card>
             <Card title="Conversion" right={<span className="faint xs">Lead → meeting → opportunity</span>}>
               <Funnel steps={fun} onStep={s => (s.l === 'Opportunities' || s.l === 'Won' ? go('deals', { view: 'list', status: s.l === 'Won' ? 'won' : '' }) : go('contacts'))} />

@@ -12,24 +12,24 @@ export { useF } from './useF'
 
 const str = (v: unknown): string => (v == null ? '' : String(v))
 
-export function BizSel({ value, onChange, all }: { value: string; onChange: (v: string) => void; all?: boolean }) {
+export function BizSel({ value, onChange, all, id }: { value: string; onChange: (v: string) => void; all?: boolean; id?: string }) {
   const ids = all ? Q.myBiz() : Q.myBiz().filter(Q.canEdit)
-  return <Sel value={value} onChange={onChange} options={ids.map(b => [b, Q.biz(b)?.name ?? b] as const)} />
+  return <Sel id={id} value={value} onChange={onChange} options={ids.map(b => [b, Q.biz(b)?.name ?? b] as const)} />
 }
 
-export function OwnerSel({ b, value, onChange, selfOnly, placeholder }: { b: string; value: string; onChange: (v: string) => void; selfOnly?: boolean; placeholder?: string }) {
+export function OwnerSel({ b, value, onChange, selfOnly, placeholder, id }: { b: string; value: string; onChange: (v: string) => void; selfOnly?: boolean; placeholder?: string; id?: string }) {
   const us = selfOnly ? [Q.me()] : Q.usersIn(b)
-  return <Sel value={value} onChange={onChange} placeholder={placeholder} options={us.map(u => [u.id, u.name + (u.id === Q.me().id ? ' (you)' : '')] as const)} />
+  return <Sel id={id} value={value} onChange={onChange} placeholder={placeholder} options={us.map(u => [u.id, u.name + (u.id === Q.me().id ? ' (you)' : '')] as const)} />
 }
 
-export function CoSel({ value, onChange, b }: { value: string; onChange: (v: string) => void; b?: unknown }) {
+export function CoSel({ value, onChange, b, id }: { value: string; onChange: (v: string) => void; b?: unknown; id?: string }) {
   const cs = (b ? S.companies.filter(c => !c.archived && Q.relsOf(c.id).some(r => Q.member(r.businessId))) : Q.companies()).slice().sort((a, c) => a.name.localeCompare(c.name))
-  return <Sel value={value} onChange={onChange} placeholder="Select company…" options={cs.map(c => [c.id, c.name] as const)} />
+  return <Sel id={id} value={value} onChange={onChange} placeholder="Select company…" options={cs.map(c => [c.id, c.name] as const)} />
 }
 
-export function CtSel({ companyId, value, onChange, placeholder }: { companyId: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+export function CtSel({ companyId, value, onChange, placeholder, id }: { companyId: string; value: string; onChange: (v: string) => void; placeholder?: string; id?: string }) {
   const cs = S.contacts.filter(c => c.companyId === companyId && !c.archived)
-  return <Sel value={value} onChange={onChange} placeholder={placeholder || 'Select contact…'} options={cs.map(c => [c.id, c.name + ' — ' + c.title] as const)} />
+  return <Sel id={id} value={value} onChange={onChange} placeholder={placeholder || 'Select contact…'} options={cs.map(c => [c.id, c.name + ' — ' + c.title] as const)} />
 }
 
 export function MultiCt({ companyId, value, onChange }: { companyId: string; value: string[]; onChange: (v: string[]) => void }) {

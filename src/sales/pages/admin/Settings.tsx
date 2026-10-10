@@ -53,7 +53,7 @@ function OrgSettingsTab() {
         <div className="grid g4">
           {S.businesses.map(b => (
             <div key={b.id} className="card card-b">
-              <div className="row"><span className="ws-mark" style={{ background: b.accent, width: 24, height: 24, fontSize: 11 }}>{b.name[0]}</span><b>{b.name}</b></div>
+              <div className="row"><span className="ws-mark" style={{ background: b.accent, width: 24, height: 24, fontSize: 12 }}>{b.name[0]}</span><b>{b.name}</b></div>
               <div className="faint xs" style={{ marginTop: 6 }}>{b.currency} · {b.tz}</div>
               <div className="faint xs">{Q.usersIn(b.id).length} users · {S.teams.filter(t => t.businessId === b.id).length} teams</div>
             </div>
