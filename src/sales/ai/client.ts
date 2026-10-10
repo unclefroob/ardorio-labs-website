@@ -314,7 +314,7 @@ function webDone<T>(r: Wire, items: T[], b: BusinessId): WebOutcome<T> {
   if (r.mode === 'stub') return { status: 'notConfigured', usage: isUsage(r.usage) ? r.usage : undefined }
   if (!r.result) return { status: 'badOutput', message: 'The search returned no result.' }
   const { sources, withheld, disclaimer } = r.result
-  return { status: items.length ? 'found' : withheld > 0 ? 'withheld' : 'none', items, sources, withheld, disclaimer, usage: r.usage, provider: r.provider, model: r.model }
+  return { status: items.length ? 'found' : withheld > 0 ? 'withheld' : 'none', items, sources: arr(sources), withheld: withheld ?? 0, disclaimer, usage: r.usage, provider: r.provider, model: r.model }
 }
 
 const arr = <T>(v: T[] | undefined): T[] => (Array.isArray(v) ? v : [])
