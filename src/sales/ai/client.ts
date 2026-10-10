@@ -11,7 +11,7 @@ import { F } from '../data/F'
 import { isAiEnabled, isProviderEnabled } from '../data/session'
 import { Q } from '../data/Q'
 import type { BusinessId, Contact, Deal, Meeting, Research, Thread } from '../data/types'
-import { getUsage, putEnrich, setUsage } from './enrichCache'
+import { getUsage, putEnrich, setCompetitorRule, setUsage } from './enrichCache'
 import * as local from './local'
 
 export type AiSource = 'llm' | 'stub' | 'fallback' | 'refused'
@@ -392,6 +392,7 @@ export async function enrichUsage(b: BusinessId, signal?: AbortSignal): Promise<
   try {
     const r = await aiEnrichUsage(b, signal)
     if (isUsage(r.usage)) setUsage(b, r.usage)
+    if (typeof r.competitorRule === 'boolean') setCompetitorRule(b, r.competitorRule)
     return { status: 'ok', enabled: r.enabled, usage: r.usage }
   } catch (e) {
     const f = failure(e, b)
