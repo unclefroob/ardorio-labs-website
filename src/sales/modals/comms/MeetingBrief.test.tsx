@@ -6,6 +6,7 @@ import { button, click, settle } from '../../testing/dom'
 import { loadSales, type Sales } from '../../testing/load'
 import { rosterioWorld, setRole } from '../../testing/rosterioWorld'
 
+vi.mock('../../shared/features', () => ({ INTEL_LEADS_UI: false, INTEL_PREP_UI: true }))
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: vi.fn(async () => changes([])), getBootstrap: vi.fn() }))
 vi.mock('../../api/members', () => ({ getMembers: vi.fn() }))
