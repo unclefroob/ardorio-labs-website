@@ -283,7 +283,7 @@ export interface FindPeopleResponse extends AiMeta {
   mode: 'llm' | 'stub'; usage: EnrichUsage
   result?: { people: FoundPerson[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
 }
-export interface EnrichUsageResponse { enabled: boolean; usage: EnrichUsage }   // GET /ai/enrich/usage?businessId=
+export interface EnrichUsageResponse { enabled: boolean; usage: EnrichUsage; /** The business has a competitor list, so a competitor's tool adds to the score. */ competitorRule?: boolean }   // GET /ai/enrich/usage?businessId=
 
 // ---- Web intelligence (Grok with live search) ----------------------------------------------------
 // Every tool below except openers is a search-backed xAI call that spends one slot of the same monthly
@@ -294,7 +294,11 @@ export interface IntelSubject { businessId: BusinessId; companyId?: string; inpu
 
 export type SignalKind = 'expansion' | 'funding' | 'hiring' | 'leadership' | 'closure' | 'award' | 'news'
 /** hrOps: a hiring signal for an HR, payroll, people-and-culture, rostering or operations role (the roles Rosterio sells into). */
-export interface CompanySignal { kind: SignalKind; headline: string; date?: string; sourceUrl: string; hrOps?: boolean }
+export interface CompanySignal {
+  kind: SignalKind; headline: string; date?: string; sourceUrl: string; hrOps?: boolean
+  /** Closure signals only: a person confirmed or dismissed the report. Never set by the server or the model. */
+  review?: 'confirmed' | 'dismissed'; reviewedBy?: string; reviewedAt?: string
+}
 export interface SignalsResponse extends AiMeta {
   mode: 'llm' | 'stub'; usage: EnrichUsage
   result?: { signals: CompanySignal[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
@@ -349,6 +353,8 @@ export interface IntelRecord {
   ts: string; by: string; provider: AiProvider; model: string | null
   items: Array<CompanySignal | TechItem | CompanyContactItem>
   sources: ResearchSource[]; disclaimer: string
+  /** The last time a lookup ran. ts is the time of the last non-empty result. Older records have neither: use ts. */
+  checkedAt?: string
 }
 
 export type EnrichLogOutcome = 'ok' | 'provider_error' | 'bad_output' | 'cap'   // stub calls are not logged

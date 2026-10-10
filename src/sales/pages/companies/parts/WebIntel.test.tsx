@@ -47,7 +47,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function render(opts: { configured?: boolean; role?: 'sales' | 'viewer' } = {}) {
+async function render(opts: { configured?: boolean; role?: 'sales' | 'viewer'; competitorRule?: boolean; used?: number } = {}) {
+  aiEnrichUsage.mockResolvedValue({ enabled: true, usage: { ...USAGE, used: opts.used ?? USAGE.used }, ...(opts.competitorRule !== undefined ? { competitorRule: opts.competitorRule } : {}) })
   m = await loadSales()
   const w = rosterioWorld()
   w.ai = { enabled: true, providers: { anthropic: true, xai: opts.configured ?? true } }
@@ -180,5 +181,53 @@ describe('company web intelligence cards', () => {
     await run('Company signals')
     expect(m.store.S.intel).toHaveLength(1)
     expect(text()).toContain('Nothing found; 2 value(s) were withheld')
+  })
+
+  describe('hardening', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const sig = (over: Record<string, unknown> = {}) => ({ kind: 'closure', headline: 'Acme to close its stores', sourceUrl: 'https://news.test/closing', date: today, ...over })
+    const saved = async (items: unknown[]): Promise<void> => {
+      const { Act } = await import('../../../data/Act')
+      Act.saveIntel({ companyId: 'co1', businessId: 'ros', kind: 'signals', items: items as never, sources: [], provider: 'xai', model: 'grok', disclaimer: '' })
+      const { WebIntel } = await import('./WebIntel')
+      await act(async () => { root.render(<WebIntel c={m.store.S.companies[0]} b="ros" />) })
+      await settle(2)
+    }
+
+    it('shows the competitor +10 rule only when the server says the business has a competitor list', async () => {
+      await render({ competitorRule: true })
+      expect(text()).toContain("competitor list add 10 to the lead score")
+      act(() => root.unmount())
+      root = createRoot(host)
+      await render({ competitorRule: false })
+      expect(text()).not.toContain('competitor list add 10')
+    })
+
+    it('shows nothing about the rule until the server has answered', async () => {
+      await render()
+      expect(text()).not.toContain('competitor list add 10')
+    })
+
+    it('shows a reported closure as Possible closure with Confirm and Dismiss, and confirming marks it', async () => {
+      await render()
+      await saved([sig()])
+      expect(text()).toContain('Possible closure, confirm or dismiss')
+      await click(button(host, 'Confirm closure'))
+      expect(text()).toContain('Closure confirmed')
+      expect(text()).not.toContain('Possible closure, confirm or dismiss')
+    })
+
+    it('marks an undated signal as not counted', async () => {
+      await render()
+      await saved([sig({ kind: 'expansion', headline: 'Opens a site', date: undefined })])
+      expect(text()).toContain('undated, not counted')
+    })
+
+    it('at the limit shows when research resumes and keeps the saved results visible', async () => {
+      await render({ used: 300 })
+      await saved([sig({ kind: 'expansion', headline: 'Opens a site' })])
+      expect(text()).toContain('Research paused until 1 Nov 2026')
+      expect(text()).toContain('Opens a site')
+    })
   })
 })

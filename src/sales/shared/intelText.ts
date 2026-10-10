@@ -20,9 +20,9 @@ export function daysAgo(iso: string | undefined, now: number = Date.now()): stri
 }
 
 /** "Checked 3 days ago by Sam". */
-export function checkedLine(r: Pick<Intel, 'ts' | 'by'>, now: number = Date.now()): string {
+export function checkedLine(r: Pick<Intel, 'ts' | 'by' | 'checkedAt'>, now: number = Date.now()): string {
   const who = Q.user(r.by)?.name
-  return `Checked ${daysAgo(r.ts, now)}${who ? ` by ${who}` : ''}`
+  return `Checked ${daysAgo(r.checkedAt ?? r.ts, now)}${who ? ` by ${who}` : ''}`
 }
 
 export function copyText(text: string, done: (msg: string, tone?: 'warn') => void, what = 'Copied'): void {

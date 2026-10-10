@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CompanySignal, TechItem } from '../api/contract'
-import { adjustSummary, ageDays, applySignalAdjust, computeSignalAdjust, mergeTech } from './signalAdjust'
+import { adjustSummary, ageDays, applySignalAdjust, computeSignalAdjust, mergeTech, openerUsable, sameClosure, scoringSignal, signalTime, urlKey } from './signalAdjust'
 import type { Intel } from './types'
 
 const NOW = Date.parse('2026-10-10T00:00:00Z')
@@ -13,7 +13,7 @@ const tool = (name: string, competitor?: boolean): TechItem => ({ name, category
 
 describe('computeSignalAdjust', () => {
   it('is zero with nothing saved', () => {
-    expect(computeSignalAdjust([], NOW)).toEqual({ delta: 0, parts: [] })
+    expect(computeSignalAdjust([], NOW)).toEqual({ delta: 0, parts: [], pending: [] })
   })
 
   it('scores hr/ops hiring, expansion, funding and a competitor tool', () => {
@@ -22,6 +22,7 @@ describe('computeSignalAdjust', () => {
       rec('tech', [tool('Deputy', true)]),
     ], NOW)
     expect(a.parts.map(p => p.points)).toEqual([8, 8, 8, 10])
+    expect(a.parts[0]).toMatchObject({ sourceUrl: 'https://a.test/x', date: '2026-09-20' })
     expect(a.delta).toBe(30)
   })
 
@@ -46,18 +47,43 @@ describe('computeSignalAdjust', () => {
     expect(computeSignalAdjust([rec('signals', [edge])], NOW).delta).toBe(8)
   })
 
-  it('falls back to the day the lookup ran when a signal has no usable date', () => {
+  it('never uses the day the lookup ran: an undated signal is display-only', () => {
     const undated = sig({ kind: 'expansion', date: undefined })
-    expect(computeSignalAdjust([rec('signals', [undated], '2026-10-01T00:00:00Z')], NOW).delta).toBe(8)
-    expect(computeSignalAdjust([rec('signals', [undated], '2025-10-01T00:00:00Z')], NOW).delta).toBe(0)
-    expect(computeSignalAdjust([rec('signals', [sig({ kind: 'expansion', date: 'last spring' })], '2025-10-01T00:00:00Z')], NOW).delta).toBe(0)
+    expect(computeSignalAdjust([rec('signals', [undated], '2026-10-09T00:00:00Z')], NOW).delta).toBe(0)
+    expect(computeSignalAdjust([rec('signals', [sig({ kind: 'expansion', date: 'last spring' })], '2026-10-09T00:00:00Z')], NOW).delta).toBe(0)
+    expect(computeSignalAdjust([rec('signals', [sig({ kind: 'funding', date: '2026-02-30' })], '2026-10-09T00:00:00Z')], NOW).delta).toBe(0)
   })
 
-  it('a reported closure takes 30 off and the total never goes below -30', () => {
-    const a = computeSignalAdjust([rec('signals', [sig({ kind: 'closure' }), sig({ kind: 'expansion' })])], NOW)
+  it('needs a usable source address as well as a date', () => {
+    for (const sourceUrl of ['', 'not a url', 'javascript:alert(1)', 'ftp://a.test/x']) {
+      expect(computeSignalAdjust([rec('signals', [sig({ kind: 'expansion', sourceUrl })])], NOW).delta).toBe(0)
+    }
+  })
+
+  it('a reported closure nobody has confirmed moves nothing and is listed as pending', () => {
+    const a = computeSignalAdjust([rec('signals', [sig({ kind: 'closure', headline: 'Acme to close' }), sig({ kind: 'expansion' })])], NOW)
+    expect(a.parts.map(p => p.points)).toEqual([8])
+    expect(a.delta).toBe(8)
+    expect(a.pending).toEqual([{ headline: 'Acme to close', sourceUrl: 'https://a.test/x', date: '2026-09-20' }])
+  })
+
+  it('a confirmed closure takes 30 off and the total never goes below -30', () => {
+    const closure = sig({ kind: 'closure', review: 'confirmed' })
+    const a = computeSignalAdjust([rec('signals', [closure, sig({ kind: 'expansion' })])], NOW)
     expect(a.parts.map(p => p.points).sort((x, y) => x - y)).toEqual([-30, 8])
     expect(a.delta).toBe(-22)
-    expect(computeSignalAdjust([rec('signals', [sig({ kind: 'closure' })])], NOW).delta).toBe(-30)
+    expect(a.pending).toEqual([])
+    expect(computeSignalAdjust([rec('signals', [closure])], NOW).delta).toBe(-30)
+  })
+
+  it('a dismissed closure moves nothing and is not pending', () => {
+    const a = computeSignalAdjust([rec('signals', [sig({ kind: 'closure', review: 'dismissed' })])], NOW)
+    expect(a).toEqual({ delta: 0, parts: [], pending: [] })
+  })
+
+  it('an undated or stale closure is neither scored nor pending, even if confirmed', () => {
+    const a = computeSignalAdjust([rec('signals', [sig({ kind: 'closure', date: undefined, review: 'confirmed' }), sig({ kind: 'closure', date: '2025-01-01', review: 'confirmed' })])], NOW)
+    expect(a).toEqual({ delta: 0, parts: [], pending: [] })
   })
 
   it('clamps the total to +30', () => {
@@ -99,9 +125,9 @@ describe('applySignalAdjust', () => {
 
 describe('adjustSummary', () => {
   it('names the movement and its reasons', () => {
-    expect(adjustSummary({ delta: 16, parts: [{ label: 'HR/ops hiring', points: 8 }, { label: 'expansion', points: 8 }] })).toBe('Signals +16: HR/ops hiring, expansion')
-    expect(adjustSummary({ delta: -30, parts: [{ label: 'closure reported', points: -30 }] })).toBe('Signals −30: closure reported')
-    expect(adjustSummary({ delta: 0, parts: [] })).toBe('')
+    expect(adjustSummary({ delta: 16, parts: [{ label: 'HR/ops hiring', points: 8 }, { label: 'expansion', points: 8 }], pending: [] })).toBe('Signals +16: HR/ops hiring, expansion')
+    expect(adjustSummary({ delta: -30, parts: [{ label: 'closure confirmed', points: -30 }], pending: [] })).toBe('Signals −30: closure confirmed')
+    expect(adjustSummary({ delta: 0, parts: [], pending: [] })).toBe('')
   })
 })
 
@@ -117,5 +143,40 @@ describe('ageDays', () => {
 describe('mergeTech', () => {
   it('adds new names, skips duplicates ignoring case and blanks', () => {
     expect(mergeTech(['Xero'], ['xero', 'Deputy', ' deputy ', '', 'Tanda'])).toEqual(['Xero', 'Deputy', 'Tanda'])
+  })
+})
+
+describe('signalTime and scoringSignal', () => {
+  it('reads only a real own date', () => {
+    expect(signalTime({ date: '2026-09-20' })).toBe(Date.parse('2026-09-20T00:00:00Z'))
+    for (const date of [undefined, '', '20 Sep 2026', '2026-13-01', '2026-02-30']) expect(Number.isNaN(signalTime({ date }))).toBe(true)
+  })
+  it('needs an address and a date inside 180 days', () => {
+    expect(scoringSignal(sig({ kind: 'news' }), NOW)).toBe(true)
+    expect(scoringSignal(sig({ kind: 'news', date: undefined }), NOW)).toBe(false)
+    expect(scoringSignal(sig({ kind: 'news', date: '2026-04-01' }), NOW)).toBe(false)
+    expect(scoringSignal(sig({ kind: 'news', sourceUrl: 'x' }), NOW)).toBe(false)
+  })
+})
+
+describe('openerUsable (mirrors the server)', () => {
+  it('accepts a dated, sourced, non-closure signal', () => {
+    expect(openerUsable(sig({ kind: 'expansion' }), NOW)).toBe(true)
+  })
+  it('rejects closures, undated, stale, unsourced and blank-headline signals', () => {
+    expect(openerUsable(sig({ kind: 'closure', review: 'confirmed' }), NOW)).toBe(false)
+    expect(openerUsable(sig({ kind: 'expansion', date: undefined }), NOW)).toBe(false)
+    expect(openerUsable(sig({ kind: 'expansion', date: '2026-01-01' }), NOW)).toBe(false)
+    expect(openerUsable(sig({ kind: 'expansion', sourceUrl: 'nope' }), NOW)).toBe(false)
+    expect(openerUsable(sig({ kind: 'expansion', headline: '  ' }), NOW)).toBe(false)
+  })
+})
+
+describe('sameClosure', () => {
+  it('matches the same page spelled differently, or the same headline in another case', () => {
+    expect(urlKey('https://www.A.test/news/?x=1#top')).toBe('a.test/news?x=1')
+    expect(sameClosure({ headline: 'a', sourceUrl: 'https://www.a.test/n/' }, { headline: 'b', sourceUrl: 'http://a.test/n' })).toBe(true)
+    expect(sameClosure({ headline: 'Acme CLOSES', sourceUrl: 'https://a.test/1' }, { headline: 'acme closes', sourceUrl: 'https://b.test/2' })).toBe(true)
+    expect(sameClosure({ headline: 'Acme closes', sourceUrl: 'https://a.test/1' }, { headline: 'Acme opens', sourceUrl: 'https://b.test/2' })).toBe(false)
   })
 })

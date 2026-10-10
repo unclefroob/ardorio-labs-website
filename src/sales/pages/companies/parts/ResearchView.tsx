@@ -1,11 +1,11 @@
 import { Fragment, type FC, type ReactNode } from 'react'
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
-import { adjustSummary, applySignalAdjust } from '../../../data/signalAdjust'
 import type { Research } from '../../../data/types'
 import { providerName } from '../../../ai/client'
 import type { AiProvider } from '../../../api/contract'
 import { Banner, Chip, Icon, ScoreRing, Sim } from '../../../kit'
+import { ScoreWhy } from '../../../shared/IntelBits'
 import { safeHref } from '../query'
 
 export interface ResearchViewProps { r: Research; onSave?: ReactNode; saved?: boolean }
@@ -57,8 +57,8 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
   const by = text(r.by) ? Q.user(text(r.by))?.name : undefined
   const base = typeof r.score === 'number' ? r.score : 0
   // Only a result tied to a CRM company can be moved by saved signals; an unmatched result keeps its own score.
-  const adj = typeof r.score === 'number' && r.companyId ? Q.signalAdjust(r.companyId, r.businessId) : null
-  const score = adj?.parts.length ? applySignalAdjust(base, adj.delta) : base
+  const bd = typeof r.score === 'number' && r.companyId ? Q.scoreBreakdown(r.companyId, r.businessId, base) : null
+  const score = bd ? bd.total : base
   const facts = pairs(r.facts)
   const srcs = sources(r.sources)
   const caveats = list(r.inferred)
@@ -91,9 +91,13 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
         <div className="col" style={{ alignItems: 'center' }}>
           <ScoreRing v={score} s={64} />
           <span className="xs faint">Opportunity score</span>
-          {adj?.parts.length ? <span className="xs faint" style={{ textAlign: 'center' }} data-testid="research-signal-adjust">{adjustSummary(adj)} from saved web signals</span> : null}
         </div>
       </div>
+      {bd && r.companyId && (bd.parts.length > 0 || bd.pending.length > 0) && (
+        <div className="card card-b" style={{ marginTop: 12 }} data-testid="research-signal-adjust">
+          <ScoreWhy bd={bd} companyId={r.companyId} b={r.businessId} />
+        </div>
+      )}
       <div className="grid g3" style={{ marginTop: 14 }}>
         <div><div className="b sm">Potential challenges <span className="faint xs">(inferred)</span></div><Bullets items={list(r.challenges)} /></div>
         <div><div className="b sm">Relevant {bn} offerings</div><Bullets items={list(r.offerings)} /></div>

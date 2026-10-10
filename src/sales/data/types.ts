@@ -460,6 +460,7 @@ export interface Intel {
   items: Array<CompanySignal | TechItem | CompanyContactItem>
   sources: ResearchSource[]
   disclaimer: string
+  checkedAt?: Iso
 }
 
 export interface Suppression {

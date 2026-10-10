@@ -9,11 +9,10 @@ import { useStore } from '../../../data/store'
 import type { BusinessId, Company, Intel } from '../../../data/types'
 import { AiNotConfigured, Btn, Card, Chip, Empty, Icon, Skel, Spinner } from '../../../kit'
 import { FailureBanner } from '../../../modals/comms/Enrich'
-import { CheckNote, Src } from '../../../shared/IntelBits'
+import { CheckNote, ClosureReview, Src } from '../../../shared/IntelBits'
 import { checkedLine, copyText } from '../../../shared/intelText'
 import { useLookups, type Lookups } from '../../../shared/useLookups'
 import { UI } from '../../../ui/store'
-import { fmtReset } from '../../../ai/enrichCache'
 
 const SIGNAL_LABEL: Record<SignalKind, string> = {
   expansion: 'Expansion', funding: 'Funding', hiring: 'Hiring', leadership: 'Leadership', closure: 'Closure', award: 'Award', news: 'News',
@@ -129,7 +128,7 @@ function IntelShell({ title, icon, kind, c, b, rec, lk, what, children, extra }:
           </>
         )}
         {lk.capped && lk.usage && (
-          <div className="xs" style={{ color: 'var(--warn)' }}>Monthly limit reached ({lk.usage.used} of {lk.usage.limit}). Resets {lk.usage.resetsOn ? fmtReset(lk.usage.resetsOn) : 'on the 1st (UTC)'}.</div>
+          <div className="xs" style={{ color: 'var(--warn)' }} role="status">{lk.pausedLabel}. Monthly limit reached ({lk.usage.used} of {lk.usage.limit}). What is already saved still counts in scores and opening lines.</div>
         )}
       </div>
     </Card>
@@ -145,6 +144,7 @@ function SignalsCard(p: { c: Company; b: BusinessId; lk: Lookups }) {
         <ul className="col" style={{ gap: 8, margin: 0, padding: 0, listStyle: 'none' }}>
           {items.map(s => {
             const old = s.date ? ageDays(s.date) > SIGNAL_MAX_AGE_DAYS : false
+            const open = s.kind === 'closure' && !s.review
             return (
               <li key={s.kind + s.headline + s.sourceUrl}>
                 <div className="row wrap" style={{ gap: 6 }}>
@@ -152,9 +152,12 @@ function SignalsCard(p: { c: Company; b: BusinessId; lk: Lookups }) {
                   {s.hrOps && <Chip tone="info" title="A hiring signal for an HR, payroll, people or operations role">HR/ops hiring</Chip>}
                   {s.date && <span className="xs faint">{s.date}</span>}
                   {old && <span className="xs faint" title={`Signals older than ${SIGNAL_MAX_AGE_DAYS} days do not change the score`}>older than 6 months</span>}
+                  {!s.date && <span className="xs faint" title="A signal needs its own date to count towards the score or an opening line">undated, not counted</span>}
+                  {s.kind === 'closure' && s.review && <Chip tone={s.review === 'confirmed' ? 'bad' : ''}>{s.review === 'confirmed' ? 'Closure confirmed' : 'Closure dismissed'}</Chip>}
                 </div>
                 <div className="sm" style={{ marginTop: 2 }}>{s.headline}</div>
                 <div className="xs"><Src url={s.sourceUrl} /></div>
+                {open && <div style={{ marginTop: 4 }}><ClosureReview companyId={p.c.id} b={p.b} closure={s} /></div>}
               </li>
             )
           })}
@@ -253,6 +256,9 @@ export function WebIntel({ c, b }: { c: Company; b: BusinessId }) {
         <span className="sp" />
         <span className="xs faint">Each check searches the public web and uses 1 lookup from the monthly allowance.</span>
       </div>
+      {lk.competitorRule === true && (
+        <div className="xs faint">Tools on {Q.biz(b)?.name ?? 'this business'}'s competitor list add 10 to the lead score.</div>
+      )}
       <div className="grid g3">
         <SignalsCard c={c} b={b} lk={lk} />
         <TechCard c={c} b={b} lk={lk} />
