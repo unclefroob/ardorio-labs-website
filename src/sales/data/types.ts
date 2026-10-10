@@ -1,4 +1,4 @@
-import type { BusinessId, Role, SalesUserDTO } from '../api/contract'
+import type { BusinessId, EmailPattern, EnrichField, Role, SalesUserDTO } from '../api/contract'
 
 export type { BusinessId, Role }
 
@@ -100,6 +100,8 @@ export interface CompanyRel {
   [k: string]: unknown
 }
 
+export type ContactEnrichment = Partial<Record<EnrichField, { kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern; at: Iso; by: string }>>
+
 export interface Contact {
   id: string
   firstName: string
@@ -116,7 +118,13 @@ export interface Contact {
   location: string
   seniority: string
   buyingRole: string
+  /** 'Verified' | 'Unverified' | 'Inferred' (pattern-guessed, never sent to) | 'Invalid'. */
   verification: string
+  /** Who confirmed the email and when; set by Mark verified or an edit to Verified. */
+  verifiedBy?: string
+  verifiedAt?: Iso
+  /** Where each enriched field came from. Written by Act.applyEnrichment. */
+  enrichment?: ContactEnrichment
   deliverability: string
   permission: string | null
   permissionSource?: string
@@ -493,14 +501,16 @@ export interface ImportJob {
 }
 export interface SavedView { id: string; page: string; name: string; q: Record<string, unknown>; ownerId: string }
 
+/**
+ * Settings id `wiza` is kept for sync compatibility. It now only holds the log of applied enrichment results;
+ * the usage counter lives on the server. The remaining fields are legacy, still present on old records.
+ */
 export interface WizaSettings {
-  status: string
-  credits: number
-  used: number
-  lastSync: Iso | null
+  status?: string
+  credits?: number
+  used?: number
+  lastSync?: Iso | null
   history: Array<{ ts: Iso; action: string; by: string; result: string }>
-  autoUpdate: boolean
-  requireReview: boolean
 }
 export interface OrgSettings {
   name: string
@@ -510,7 +520,7 @@ export interface OrgSettings {
   notif: { email: boolean; inApp: boolean }
   sendingLimit: number
 }
-export interface DemoSettings { wizaFail: boolean; researchFail: boolean }
+export interface DemoSettings { researchFail: boolean }
 
 export interface Session {
   userId: string

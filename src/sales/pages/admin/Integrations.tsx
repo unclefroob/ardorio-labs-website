@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
+import { isProviderEnabled } from '../../data/session'
+import type { BusinessId, EnrichUsage } from '../../api/contract'
 import type { Mailbox } from '../../data/types'
-import { Av, Banner, BizChip, Btn, Card, Chip, Ck, DataTable, Empty, Icon, Kpi, Menu, Sim, Spinner, Toggle, type Col } from '../../kit'
+import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, Sim, Spinner, Toggle, type Col } from '../../kit'
+import { enrichUsage } from '../../ai/client'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
@@ -25,7 +28,6 @@ export function Integrations() {
   }
   const personal = S.mailboxes.filter(m => m.type === 'personal' && (m.ownerId === me.id || (adm && m.businessIds.some(b => Q.canAdmin(b)))))
   const shared = S.mailboxes.filter(m => m.type === 'shared' && m.businessIds.some(b => Q.member(b)))
-  const w = S.wiza
 
   const personalCols: Col<Mailbox>[] = [
     { k: 'address', l: 'Account', r: m => <div><b>{m.address}</b><div className="faint xs">{Q.user(m.ownerId)?.name}</div></div> },
@@ -93,52 +95,7 @@ export function Integrations() {
           <div className="faint xs" style={{ padding: 10 }}>Production design: delegated or authorised shared-mailbox access. Knowing an address never grants access.</div>
         </Card>
         <div className="grid g2">
-          <Card title="Wiza" icon="zap" right={<Sim>Mock API</Sim>}>
-            <div className="row" style={{ marginBottom: 12 }}>
-              <Chip tone={w.status === 'connected' ? 'ok' : 'bad'}>{w.status === 'connected' ? 'Connected' : 'Disconnected'}</Chip>
-              <Chip>API access: placeholder (no key stored)</Chip>
-            </div>
-            <div className="grid g3">
-              <Kpi label="Credits remaining" value={w.credits} tone={w.credits <= 0 ? 'bad2' : undefined} />
-              <Kpi label="Used" value={w.used} />
-              <Kpi label="Last sync" value={w.lastSync ? F.rel(w.lastSync) : 'Never'} />
-            </div>
-            <div className="col" style={{ gap: 6, marginTop: 12 }}>
-              <Ck checked={w.requireReview} onChange={v => Act.setWiza({ requireReview: v })} disabled={!adm}>Require review before applying enrichment</Ck>
-              <Ck checked={w.autoUpdate} onChange={v => Act.setWiza({ autoUpdate: v })} disabled={!adm}>Allow filling empty fields without overwriting verified data</Ck>
-            </div>
-            {adm && (
-              <div className="row wrap" style={{ gap: 6, marginTop: 12 }}>
-                {w.status === 'connected'
-                  ? <Btn size="sm" onClick={() => Act.setWiza({ status: 'disconnected' })}>Disconnect</Btn>
-                  : (
-                    <Btn size="sm" kind="pri" disabled={busy === 'wiza'} onClick={() => {
-                      setBusy('wiza')
-                      window.setTimeout(() => {
-                        setBusy(null)
-                        Act.setWiza({ status: 'connected', lastSync: F.nowIso() })
-                        UI.toast('Wiza connected (mock)')
-                      }, 800)
-                    }}>{busy === 'wiza' ? 'Connecting…' : 'Connect mock Wiza'}</Btn>
-                  )}
-                <Btn size="sm" onClick={() => { Act.setWiza({ credits: w.credits + 500 }); UI.toast('500 mock credits added') }}>Add 500 credits</Btn>
-                <Btn size="sm" kind="ghost" onClick={() => { Act.setWiza({ credits: 0 }); UI.toast('Credits set to 0: test quota state') }}>Simulate quota exhausted</Btn>
-              </div>
-            )}
-            <div className="b sm" style={{ marginTop: 14 }}>History & errors</div>
-            {w.history.length
-              ? w.history.slice(0, 6).map((h, i) => {
-                const bad = /fail/i.test(h.action)
-                return (
-                  <div key={i} className="row sm" style={{ padding: '3px 0' }}>
-                    <Icon n={bad ? 'alert' : 'check'} s={12} style={{ color: bad ? 'var(--bad2)' : 'var(--ok)' }} />
-                    {h.action}
-                    <span className="faint xs">· {h.result} · {F.rel(h.ts)}</span>
-                  </div>
-                )
-              })
-              : <div className="faint sm" style={{ padding: '4px 0' }}>No enrichment has been run yet.</div>}
-          </Card>
+          <EnrichCard />
           <div className="col" style={{ gap: 14 }}>
             <Card title="LinkedIn" icon="li">
               <div className="sm">Supported:</div>
@@ -155,5 +112,67 @@ export function Integrations() {
         </div>
       </div>
     </div>
+  )
+}
+
+type UsageRow = { s: 'loading' } | { s: 'error' } | { s: 'ok'; usage: EnrichUsage }
+
+/** Grok contact enrichment. The server counter is the source of truth for usage; the log below is what people applied. */
+function EnrichCard() {
+  const configured = isProviderEnabled('xai')
+  const bs = Q.myBiz()
+  const key = bs.join(',')
+  const [rows, setRows] = useState<Partial<Record<BusinessId, UsageRow>>>({})
+  useEffect(() => {
+    if (!configured) return
+    const ac = new AbortController()
+    for (const b of key.split(',').filter((x): x is BusinessId => !!x)) {
+      enrichUsage(b, ac.signal).then(r => {
+        if (ac.signal.aborted || r.status === 'cancelled') return
+        setRows(o => ({ ...o, [b]: r.status === 'ok' ? { s: 'ok', usage: r.usage } : { s: 'error' } }))
+      })
+    }
+    return () => ac.abort()
+  }, [configured, key])
+  const history = S.wiza.history
+  return (
+    <Card title="Contact enrichment (Grok)" icon="zap">
+      <div className="row" style={{ marginBottom: 12 }}>
+        <Chip tone={configured ? 'ok' : 'warn'}>{configured ? 'Configured' : 'Not configured'}</Chip>
+        <span className="faint xs">Looks up published contact details on the web. Results are applied only when someone ticks them.</span>
+      </div>
+      {!configured && <Banner tone="info">Grok is not configured on the server, so lookups are unavailable. Ask an administrator to set the xAI key.</Banner>}
+      {configured && (
+        <div className="col" style={{ gap: 4 }}>
+          <div className="b sm">Lookups this month</div>
+          {bs.map(b => {
+            const r = rows[b]
+            const u = r?.s === 'ok' ? r.usage : undefined
+            return (
+              <div key={b} className="row sm" style={{ padding: '3px 0' }}>
+                <BizChip b={b} />
+                {!r || r.s === 'loading' ? <span className="faint">Loading…</span>
+                  : r.s === 'error' || !u ? <span className="faint">Usage unavailable</span>
+                  : <><b>{u.used}/{u.limit}</b><span className="faint xs">· resets {F.date(u.resetsOn)} (UTC month)</span></>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <div className="b sm" style={{ marginTop: 14 }}>Applied results</div>
+      <div className="faint xs">Applied results only. Lookups that were not applied are counted by the server, not listed here.</div>
+      {history.length
+        ? history.slice(0, 6).map((h, i) => {
+          const bad = /fail/i.test(h.action)
+          return (
+            <div key={i} className="row sm" style={{ padding: '3px 0' }}>
+              <Icon n={bad ? 'alert' : 'check'} s={12} style={{ color: bad ? 'var(--bad2)' : 'var(--ok)' }} />
+              {h.action}
+              <span className="faint xs">· {h.result} · {F.rel(h.ts)}</span>
+            </div>
+          )
+        })
+        : <div className="faint sm" style={{ padding: '4px 0' }}>No enrichment has been applied yet.</div>}
+    </Card>
   )
 }

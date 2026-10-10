@@ -68,7 +68,8 @@ export function Company({ route }: { route: Route }) {
     ['Email', 'mail', () => (cts.length ? UI.open('compose', { contactId: cts[0].id, businessId: b }) : UI.toast('Add a contact to email first', 'bad'))],
     ['Task', 'checksq', () => UI.open('newTask', { companyId: c.id, businessId: b })],
     ['Research', 'spark', () => setTab('intel')],
-    ['Enrich', 'zap', enrich],
+    ['Enrich contact', 'zap', enrich],
+    ['Find contacts', 'search', () => UI.open('findPeople', { companyId: c.id, businessId: b })],
     ['Add to list', 'list', () => (cts.length ? UI.open('addToList', { contactIds: cts.map(x => x.id) }) : UI.toast('No contacts to add', 'bad'))],
   ]
 
@@ -209,8 +210,8 @@ export function Company({ route }: { route: Route }) {
         </div>
       )}
       {tab === 'contacts' && (
-        <Card pad={false} title={'Contacts at ' + c.name} right={can && <Btn size="sm" icon="plus" onClick={() => UI.open('newContact', { companyId: c.id, businessId: b })}>Add contact</Btn>}>
-          <DataTable rows={cts} cols={ctCols} onRow={x => UI.nav('contact', { id: x.id })} empty={<Empty icon="user" title="No contacts" body="Add a contact or enrich with Wiza." action={can && <Btn kind="pri" icon="plus" onClick={() => UI.open('newContact', { companyId: c.id, businessId: b })}>Add contact</Btn>} />} />
+        <Card pad={false} title={'Contacts at ' + c.name} right={can && <span className="row" style={{ gap: 6 }}><Btn size="sm" icon="search" onClick={() => UI.open('findPeople', { companyId: c.id, businessId: b })}>Find people</Btn><Btn size="sm" icon="plus" onClick={() => UI.open('newContact', { companyId: c.id, businessId: b })}>Add contact</Btn></span>}>
+          <DataTable rows={cts} cols={ctCols} onRow={x => UI.nav('contact', { id: x.id })} empty={<Empty icon="user" title="No contacts" body="Add a contact, or find people who work here." action={can && <span className="row" style={{ gap: 6 }}><Btn kind="pri" icon="search" onClick={() => UI.open('findPeople', { companyId: c.id, businessId: b })}>Find people</Btn><Btn icon="plus" onClick={() => UI.open('newContact', { companyId: c.id, businessId: b })}>Add contact</Btn></span>} />} />
         </Card>
       )}
       {tab === 'deals' && (

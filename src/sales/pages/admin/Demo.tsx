@@ -83,7 +83,6 @@ function TriggerCard() {
 }
 
 function EnrichCard() {
-  const wizaFail = S.demo.wizaFail
   const researchFail = S.demo.researchFail
   const enrich = (): void => {
     const c = Q.contacts()[0]
@@ -91,8 +90,6 @@ function EnrichCard() {
       UI.toast('No contacts in this workspace to enrich', 'bad')
       return
     }
-    Act.setDemo({ wizaFail: false })
-    if (S.wiza.status !== 'connected') Act.setWiza({ status: 'connected' })
     UI.open('enrich', { contactId: c.id })
   }
   const research = (): void => {
@@ -107,8 +104,7 @@ function EnrichCard() {
   return (
     <Card title="Enrichment & research triggers" icon="spark">
       <div className="grid g2" style={{ gap: 6 }}>
-        <Action icon="zap" onClick={enrich}>Wiza enrichment success</Action>
-        <Action icon="alert" kind={wizaFail ? 'pri' : undefined} onClick={() => { Act.setDemo({ wizaFail: !wizaFail }); UI.toast(`Wiza failure mode ${!wizaFail ? 'ON' : 'OFF'}`) }}>{wizaFail ? 'Turn off Wiza failure' : 'Wiza enrichment failure mode'}</Action>
+        <Action icon="zap" onClick={enrich}>Open contact enrichment</Action>
         <Action icon="spark" onClick={research}>Company research result</Action>
         <Action icon="alert" kind={researchFail ? 'pri' : undefined} onClick={() => { Act.setDemo({ researchFail: !researchFail }); UI.toast(`Research failure mode ${!researchFail ? 'ON' : 'OFF'}`) }}>{researchFail ? 'Turn off research failure' : 'Research unavailable mode'}</Action>
       </div>

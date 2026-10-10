@@ -27,8 +27,8 @@ function emptyState(): State {
     notifications: [], companyRels: [], contactRels: [], audit: [], importJobs: [], savedViews: [],
     session: { userId: '', ws: 'all', theme: 'light' },
     org: { name: '', tz: 'Australia/Melbourne', currency: 'AUD', dateFormat: 'D MMM YYYY', notif: { email: true, inApp: true }, sendingLimit: 50 },
-    wiza: { status: 'disconnected', credits: 0, used: 0, lastSync: null, history: [], autoUpdate: false, requireReview: true },
-    demo: { wizaFail: false, researchFail: false },
+    wiza: { history: [] },
+    demo: { researchFail: false },
     crossStatus: {},
   }
 }

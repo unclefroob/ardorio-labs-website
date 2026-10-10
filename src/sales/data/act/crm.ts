@@ -181,6 +181,8 @@ export interface ContactForm {
   buyingRole?: string
   permission?: string | null
   source?: string
+  /** Per-field provenance, when the contact is created from a cited lookup (Find people). */
+  enrichment?: Contact['enrichment']
 }
 
 export function createContact(f: ContactForm): Contact {
@@ -192,6 +194,7 @@ export function createContact(f: ContactForm): Contact {
     seniority: f.seniority || 'Manager', buyingRole: f.buyingRole || 'Influencer', verification: 'Unverified', deliverability: 'Unknown',
     permission: f.permission || null, permissionSource: f.permission ? 'Recorded at creation' : '', permissionDate: f.permission ? now : null,
     source: f.source || 'Manual', lastEnriched: null, createdAt: now, notes: [],
+    ...(f.enrichment ? { enrichment: f.enrichment } : {}),
   }
   S.contacts.push(c)
   reindex()
@@ -202,12 +205,53 @@ export function createContact(f: ContactForm): Contact {
   return c
 }
 
+/** Fields whose Grok provenance (Contact.enrichment) is dropped as soon as a person changes the value by hand. */
+const ENRICHED_FIELDS = ['email', 'email2', 'phone', 'mobile', 'title', 'linkedin'] as const
+
 export function updateContact(id: string, p: Partial<Contact>): void {
   const c = idx.contacts.get(id)
   if (!c) return
-  Object.assign(c, cleanLinkPatch(p))
+  const wasVerified = c.verification === 'Verified'
+  const patch = cleanLinkPatch(p)
+  // A hand-typed value must not keep showing "found by Grok" provenance (or a verification stamp) from the old one.
+  const changed = ENRICHED_FIELDS.filter(f => f in patch && String(patch[f] ?? '') !== String(c[f] ?? ''))
+  Object.assign(c, patch)
   if (p.firstName || p.lastName) c.name = `${c.firstName} ${c.lastName}`
+  if (c.enrichment && changed.length) {
+    const rest = { ...c.enrichment }
+    for (const f of changed) delete rest[f]
+    if (Object.keys(rest).length) c.enrichment = rest
+    else delete c.enrichment
+  }
+  const emailChanged = changed.includes('email')
+  if (emailChanged) {
+    delete c.verifiedBy
+    delete c.verifiedAt
+    if (p.verification === undefined) c.verification = 'Unverified'
+  }
+  if (p.verification === 'Verified' && (!wasVerified || emailChanged)) {
+    c.verifiedBy = S.session.userId
+    c.verifiedAt = F.nowIso()
+  } else if (p.verification && p.verification !== 'Verified' && wasVerified) {
+    delete c.verifiedBy
+    delete c.verifiedAt
+  }
   audit('Record edited', `Contact: ${c.name}`)
+  commit()
+}
+
+/** Someone has confirmed the email is real: records who and when, and lifts the Inferred send block. */
+export function markVerified(ctid: string): void {
+  const c = idx.contacts.get(ctid)
+  if (!c) return
+  const was = c.verification
+  c.verification = 'Verified'
+  c.verifiedBy = S.session.userId
+  c.verifiedAt = F.nowIso()
+  const biz = Q.primaryBiz(c)
+  if (biz) act({ type: 'verified', businessId: biz, contactId: ctid, companyId: c.companyId, subject: 'Email marked verified', desc: `${c.email} (was ${was})` })
+  const pattern = c.enrichment?.email?.pattern
+  if (pattern) audit('Inferred email verified', `${c.name} — ${c.email} (pattern ${pattern})`)
   commit()
 }
 

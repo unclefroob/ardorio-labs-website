@@ -75,7 +75,7 @@ export function ScorePanel({ ct, b }: { ct: Contact; b: BusinessId }) {
       {r?.scoreFlag && <div className="xs" style={{ marginTop: 8, color: 'var(--warn)' }}>Flagged: {r.scoreFlag}</div>}
       {Q.canEdit(b) && (
         <div className="row wrap" style={{ gap: 4, marginTop: 10 }}>
-          {s.missing.length > 0 && <Btn size="xs" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Fill gaps with Wiza</Btn>}
+          {s.missing.length > 0 && <Btn size="xs" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich contact</Btn>}
           <Btn size="xs" kind="ghost" icon="flag" disabled={!r} onClick={flag}>Flag inaccurate</Btn>
           <Btn size="xs" kind="ghost" onClick={review}>Request manager review</Btn>
         </div>

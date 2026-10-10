@@ -10,7 +10,8 @@ import { companyInsights, cross, dealInsights } from './rules'
 
 /**
  * Deterministic, offline helpers. They are the fallback for the server AI endpoints
- * (stub, 502, network error) and the only implementation for the Wiza simulation.
+ * (stub, 502, network error). Contact enrichment has no local
+ * implementation: it either comes from the server or says it is unavailable.
  */
 
 const MON: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 }
@@ -183,69 +184,6 @@ export function research(cid: string | null | undefined, b: BusinessId, input: R
     facts,
     inferred: ['Pain points are inferred from sector patterns, not confirmed by the customer', 'Stakeholder roles are typical buying roles, not verified individuals'],
     sources, cross: rels,
-  }
-}
-
-function hash(s: string): number {
-  let h = 0
-  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0
-  return Math.abs(h)
-}
-
-export interface WizaSuggestions { email?: string; mobile?: string; phone?: string; email2?: string; title?: string; linkedin?: string }
-export type WizaResult =
-  | { status: 'disconnected' }
-  | { status: 'failed' | 'quota' | 'none'; msg: string }
-  | { status: 'partial' | 'found'; confidence: string; sug: WizaSuggestions; verification: string; source: string; note?: string }
-
-export function wiza(ctid: string): WizaResult {
-  if (S.wiza.status !== 'connected') return { status: 'disconnected' }
-  if (S.demo.wizaFail) return { status: 'failed', msg: 'Wiza returned an error for this request (simulated). No credits were used.' }
-  if (S.wiza.credits <= 0) return { status: 'quota', msg: 'No enrichment credits remaining.' }
-  const c = Q.contact(ctid)
-  const co = Q.company(c?.companyId)
-  if (!c || !co) return { status: 'none', msg: 'No matching profile found for this name and company.' }
-  const h = hash(c.id)
-  const dom = co.domain
-  const sug: WizaSuggestions = {}
-  if (!c.linkedin && h % 3 === 0) return { status: 'none', msg: 'No matching profile found for this name and company.' }
-  if (!c.email) sug.email = `${c.firstName}.${c.lastName}`.toLowerCase().replace(/[^a-z.]/g, '') + '@' + dom
-  if (!c.mobile) sug.mobile = `+61 4${10 + (h % 89)} ${100 + (h % 899)} ${100 + ((h >> 3) % 899)}`
-  if (!c.phone) sug.phone = `+61 3 9${100 + (h % 899)} ${1000 + (h % 8999)}`
-  if (h % 4 === 0) sug.email2 = `${c.firstName.toLowerCase()}@${dom}`
-  if (h % 5 === 0 && c.verification !== 'Verified') sug.title = c.title.replace('Manager', 'Senior Manager')
-  if (!c.linkedin) sug.linkedin = `https://www.linkedin.com/in/${`${c.firstName}-${c.lastName}`.toLowerCase()}-${(h % 900) + 100}`
-  if (!Object.keys(sug).length) return { status: 'found', confidence: 'High', sug: {}, verification: 'Verified', source: 'Wiza (simulated)', note: 'Profile matched — existing details already up to date.' }
-  return { status: 'found', confidence: h % 3 ? 'High' : 'Medium', sug, verification: 'Verified', source: 'Wiza (simulated) · LinkedIn profile match' }
-}
-
-export interface WizaPerson { firstName: string; lastName: string; title: string; companyHint: string; email: string; mobile: string; linkedin: string }
-export type WizaUrlResult =
-  | { status: 'invalid' | 'failed' | 'none'; msg: string }
-  | { status: 'duplicate'; contactId: string; msg: string }
-  | { status: 'found' | 'partial'; person: WizaPerson; confidence: string; source: string }
-
-export function wizaUrl(url: string): WizaUrlResult {
-  const m = (url || '').match(/linkedin\.com\/in\/([a-z0-9-]+)/i)
-  if (!m) return { status: 'invalid', msg: 'Enter a LinkedIn profile URL like linkedin.com/in/first-last' }
-  const slug = m[1]
-  const ex = S.contacts.find(c => c.linkedin && c.linkedin.toLowerCase().includes(slug.toLowerCase()))
-  if (ex) return { status: 'duplicate', contactId: ex.id, msg: `This profile already belongs to ${ex.name}.` }
-  if (S.demo.wizaFail) return { status: 'failed', msg: 'Enrichment failed (simulated provider error).' }
-  const parts = slug.split('-').filter(x => !/^\d+$/.test(x) && x !== 'example')
-  if (parts.length < 2) return { status: 'none', msg: 'No profile found for that URL.' }
-  const cap = (s: string): string => s[0].toUpperCase() + s.slice(1)
-  const h = hash(slug)
-  const titles = ['Operations Manager', 'Head of People & Culture', 'Chief Operating Officer', 'Head of Careers', 'IT Manager']
-  return {
-    status: h % 4 === 0 ? 'partial' : 'found',
-    person: {
-      firstName: cap(parts[0]), lastName: cap(parts[1]), title: titles[h % 5], companyHint: '',
-      email: h % 4 === 0 ? '' : `${parts[0]}.${parts[1]}@company.example`,
-      mobile: h % 2 ? `+61 4${10 + (h % 89)} 555 ${100 + (h % 899)}` : '',
-      linkedin: `https://www.linkedin.com/in/${slug}`,
-    },
-    confidence: h % 4 === 0 ? 'Medium' : 'High', source: 'Wiza (simulated)',
   }
 }
 
