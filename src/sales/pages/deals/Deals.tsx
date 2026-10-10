@@ -81,6 +81,7 @@ export function Deals({ route }: { route: Route }) {
     <div className="page" style={{ maxWidth: 'none' }}>
       <PageHead title="Deals & Pipeline" sub={sub}>
         <Seg value={view} onChange={setView} opts={[['board', 'Board', 'kanban'], ['list', 'List', 'list']]} />
+        <Btn icon="spark" disabled={!Q.canEdit(pb)} onClick={() => UI.open('checkSignals', { businessId: pb })} title="Search the web for hiring, expansion and funding news on companies with open deals">Check signals</Btn>
         {newDeal}
       </PageHead>
       <div className="row wrap" style={{ marginBottom: 12, gap: 8 }}>
