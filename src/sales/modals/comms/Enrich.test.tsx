@@ -138,7 +138,7 @@ describe('Enrich modal', () => {
     ])) })
     const text = host.textContent ?? ''
     expect(text).toContain('Published')
-    expect(text).toContain('Inferred')
+    expect(text).toContain('Guessed')
     expect(text).toMatch(/matched on name \+ company; verify identity/i)
     const a = [...host.querySelectorAll('a')].find(x => x.getAttribute('href') === 'https://acme.test/contact')
     expect(a?.getAttribute('rel')).toBe('noreferrer noopener')
@@ -435,7 +435,7 @@ describe('Enrich modal: source check', () => {
     await press('Find contact details')
     const text = host.textContent ?? ''
     expect(text.match(/Found on page/g)).toHaveLength(1)
-    expect(text.match(/Couldn't open page, check the source yourself/g)).toHaveLength(1)
+    expect(text.match(/Couldn't confirm on the page, check the source yourself/g)).toHaveLength(1)
   })
 
   it('never labels an inferred suggestion', async () => {

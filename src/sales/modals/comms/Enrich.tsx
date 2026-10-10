@@ -41,7 +41,7 @@ export function SourceCheckNote({ s }: { s: EnrichSuggestion }) {
   return (
     <span className="row xs" style={{ gap: 3, display: 'inline-flex' }}>
       <Icon n={ok ? 'check' : 'alert'} s={12} style={{ color: ok ? 'var(--ok)' : 'var(--warn)' }} />
-      {ok ? 'Found on page' : "Couldn't open page, check the source yourself"}
+      {ok ? 'Found on page' : "Couldn't confirm on the page, check the source yourself"}
     </span>
   )
 }
@@ -327,7 +327,7 @@ function EnrichFlow({ ct }: { ct: Contact }) {
                           <td>
                             <div>{s.value}</div>
                             <div className="row wrap xs" style={{ gap: 6, marginTop: 2 }}>
-                              <Chip tone={s.kind === 'published' ? 'ok' : 'warn'}>{s.kind === 'published' ? 'Published' : 'Inferred'}</Chip>
+                              <Chip tone={s.kind === 'published' ? 'ok' : 'warn'}>{s.kind === 'published' ? 'Published' : 'Guessed'}</Chip>
                               {unchanged && <span className="faint">Already set</span>}
                               {s.personal && <span className="faint">may be a personal number — check</span>}
                               {s.kind === 'inferred' && <span className="faint">guessed from the {s.pattern ?? 'company'} address pattern</span>}
@@ -347,7 +347,7 @@ function EnrichFlow({ ct }: { ct: Contact }) {
                   <Banner tone="warn">Nothing has been applied yet. Skip the address that can't receive mail, then apply the rest.</Banner>
                 )}
                 {rows.some(r => r.kind === 'inferred') && (
-                  <Banner tone="warn">Inferred emails are guesses, so they start unticked. Applying one marks the contact <b>Inferred</b>, and it is not used for outreach until a person verifies it.</Banner>
+                  <Banner tone="warn">Guessed emails were not found online. They are worked out from the company's usual address format, so they may bounce. They start unticked, and a contact with a guessed email is not used for outreach until a person verifies it.</Banner>
                 )}
                 {rows.some(r => cur(ct, r.field)) && <Banner tone="info">Fields that already have a value start unticked so they aren't overwritten. Tick one to replace it.</Banner>}
               </>

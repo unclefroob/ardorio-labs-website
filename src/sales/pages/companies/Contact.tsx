@@ -29,7 +29,7 @@ function Prov({ ct, k }: { ct: ContactT; k: EnrichField }) {
   const href = safeHref(e.sourceUrl ?? '')
   return (
     <span className="row" style={{ gap: 6, display: 'inline-flex', marginLeft: 8 }}>
-      <Chip tone={e.kind === 'inferred' ? 'warn' : 'info'} title={`Added ${F.dt(e.at)} by ${Q.user(e.by)?.name ?? 'a user'}${e.pattern ? `, pattern ${e.pattern}` : ''}`}>{e.kind === 'inferred' ? 'Inferred' : 'Published'}</Chip>
+      <Chip tone={e.kind === 'inferred' ? 'warn' : 'info'} title={`Added ${F.dt(e.at)} by ${Q.user(e.by)?.name ?? 'a user'}${e.pattern ? `, pattern ${e.pattern}` : ''}`}>{e.kind === 'inferred' ? 'Guessed' : 'Published'}</Chip>
       {href && <a className="xs" href={href} target="_blank" rel="noopener noreferrer">source</a>}
     </span>
   )
@@ -87,7 +87,7 @@ export function Contact({ route }: { route: Route }) {
             <span>{ct.title || 'No title'}{co && <> at <CoLink id={co.id} /></>}</span>
             {ct.email && <span><Icon n="mail" s={12} /> {ct.email}</span>}
             {(ct.phone || ct.mobile) && <span className="mono"><Icon n="phone" s={12} /> {ct.phone || ct.mobile}</span>}
-            <Chip tone={VERIFY_TONE[ct.verification] ?? ''} title={ct.verification === 'Verified' && ct.verifiedAt ? `Verified by ${Q.user(ct.verifiedBy)?.name ?? 'a former user'}, ${F.dt(ct.verifiedAt)}` : undefined}>{ct.verification}</Chip>
+            <Chip tone={VERIFY_TONE[ct.verification] ?? ''} title={ct.verification === 'Verified' && ct.verifiedAt ? `Verified by ${Q.user(ct.verifiedBy)?.name ?? 'a former user'}, ${F.dt(ct.verifiedAt)}` : undefined}>{ct.verification === 'Inferred' ? 'Guessed' : ct.verification}</Chip>
             {mock && <Chip tone="warn">Verified by the old simulation, please confirm</Chip>}
             {can && ct.email && ct.verification !== 'Verified' && ct.verification !== 'Invalid' && <Btn size="xs" icon="check" onClick={markVerified}>Mark verified</Btn>}
             {can && mock && <Btn size="xs" icon="check" onClick={markVerified}>Mark verified</Btn>}

@@ -251,7 +251,7 @@ export const Q = {
     else if (mb.status !== 'connected') blocks.push(`Sender mailbox ${mb.address} is disconnected`)
     if (!ct.permission) blocks.push('No outreach permission basis recorded')
     if (!Q.crel(ctid, b)) warns.push(`No ${bn} relationship yet — one will be created`)
-    if (ct.verification === 'Inferred' && ct.email) blocks.push('Email is inferred, not verified — mark it verified first')
+    if (ct.verification === 'Inferred' && ct.email) blocks.push('Email is a guess (not found online), not verified — mark it verified first')
     else if (ct.verification !== 'Verified' && ct.email) warns.push('Email not verified')
     for (const e of Q.activeEnrol(ctid).filter(x => x.seqId !== seqId)) {
       const s2 = Q.seq(e.seqId)
