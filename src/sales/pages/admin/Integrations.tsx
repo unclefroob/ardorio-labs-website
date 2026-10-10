@@ -8,6 +8,7 @@ import type { BusinessId, EnrichUsage } from '../../api/contract'
 import type { Mailbox } from '../../data/types'
 import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, Sim, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
+import { EnrichActivity } from './EnrichActivity'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
@@ -135,6 +136,7 @@ function EnrichCard() {
     return () => ac.abort()
   }, [configured, key])
   const history = S.wiza.history
+  const adminBiz = bs.filter(b => Q.canAdmin(b))
   return (
     <Card title="Contact enrichment (Grok)" icon="zap">
       <div className="row" style={{ marginBottom: 12 }}>
@@ -173,6 +175,13 @@ function EnrichCard() {
           )
         })
         : <div className="faint sm" style={{ padding: '4px 0' }}>No enrichment has been applied yet.</div>}
+      {adminBiz.length > 0 && (
+        <>
+          <div className="b sm" style={{ marginTop: 14 }}>Enrichment activity</div>
+          <div className="faint xs">The last 20 lookups the server ran, whether or not anyone applied them.</div>
+          {adminBiz.map(b => <EnrichActivity key={b} b={b} showBiz={adminBiz.length > 1} />)}
+        </>
+      )}
     </Card>
   )
 }
