@@ -11,7 +11,7 @@ const SEGMENT: Record<string, string> = {
   prospecting: 'prospecting', lists: 'lists', reports: 'reports', recs: 'recs', goals: 'goals',
   copilot: 'copilot', notifications: 'notifications', myday: 'myday', settings: 'settings',
   customers: 'customers', rosterioCustomers: 'customers',
-  users: 'users', integrations: 'integrations', pipelines: 'pipelines', clock: 'clock',
+  users: 'users', integrations: 'integrations', pipelines: 'pipelines',
 }
 
 const DETAIL: Record<string, string> = { company: 'companies', contact: 'contacts', deal: 'deals', sequence: 'sequences' }

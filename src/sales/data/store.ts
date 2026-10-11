@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from 'react'
-import { getOffsetMinutes, setOffsetMinutes } from './clock'
 import type { RecordData, SettingsId } from '../api/contract'
 import { SETTINGS_IDS } from '../api/contract'
 import type { Collections, CollKey, State } from './types'
@@ -192,7 +191,7 @@ export function isRevoked(c: SyncedCollection, id: string | undefined): boolean 
   return !!id && revoked.has(`${c}:${id}`)
 }
 
-// ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus|clock` ──────
+// ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus` ──────
 export function isSettingsId(id: string): id is SettingsId {
   return (SETTINGS_IDS as readonly string[]).includes(id)
 }
@@ -203,7 +202,6 @@ export function settingsRecord(id: SettingsId): RecordData & Row {
     case 'wiza': return { ...S.wiza, id }
     case 'demo': return { ...S.demo, id }
     case 'crossStatus': return { ...S.crossStatus, id }
-    case 'clock': return { id, offsetMinutes: getOffsetMinutes() }
   }
 }
 
@@ -222,7 +220,6 @@ export function applySettings(id: SettingsId, data: RecordData): void {
     case 'wiza': assignContents(S.wiza, data); break
     case 'demo': assignContents(S.demo, data); break
     case 'crossStatus': assignContents(S.crossStatus, data); break
-    case 'clock': setOffsetMinutes(typeof data.offsetMinutes === 'number' ? data.offsetMinutes : 0); break
   }
 }
 
