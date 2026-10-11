@@ -8,6 +8,7 @@ import type { BusinessId, EnrichUsage } from '../../api/contract'
 import type { Mailbox } from '../../data/types'
 import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, Sim, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
+import { fmtResets, phoneLeft, usePhoneStatus } from '../../phone/client'
 import { EnrichActivity } from './EnrichActivity'
 import { RosterioLinkCard } from './RosterioLinkCard'
 import { PageHead } from '../../shared/PageHead'
@@ -99,6 +100,7 @@ export function Integrations() {
         <div className="grid g2">
           <EnrichCard />
           <div className="col" style={{ gap: 14 }}>
+            {adm && <PhoneCard />}
             <RosterioLinkCard />
             <Card title="LinkedIn" icon="li">
               <div className="sm">Supported:</div>
@@ -183,6 +185,33 @@ function EnrichCard() {
           <div className="faint xs">The last 20 lookups the server ran, whether or not anyone applied them.</div>
           {adminBiz.map(b => <EnrichActivity key={b} b={b} showBiz={adminBiz.length > 1} />)}
         </>
+      )}
+    </Card>
+  )
+}
+
+const VENDOR: Record<string, string> = { leadmagic: 'LeadMagic', signalhire: 'SignalHire', wiza: 'Wiza' }
+
+/** Mobile phone lookup. Which vendor is set up on the server and what is used this month. The browser never sees a key. */
+export function PhoneCard() {
+  const status = usePhoneStatus()
+  const st = status.s === 'ok' ? status.status : undefined
+  const label = st?.label ?? (st?.provider ? VENDOR[st.provider] : undefined)
+  return (
+    <Card title="Phone lookup" icon="phone">
+      {status.s === 'loading' && <div className="row sm" aria-busy="true"><Spinner />Checking…</div>}
+      {status.s === 'error' && <div className="faint sm">Status unavailable right now.</div>}
+      {st && (
+        <div className="col" style={{ gap: 6 }}>
+          <div className="row">
+            <Chip tone={st.configured ? 'ok' : 'warn'}>{st.configured ? 'Configured' : 'Not configured'}</Chip>
+            {st.configured && label && <span className="sm">Provider: <b>{label}</b></span>}
+          </div>
+          {st.configured
+            ? <div className="sm"><b>{st.usage.used}/{st.usage.limit}</b> lookups used this month <span className="faint xs">· {phoneLeft(st.usage)} left, resets {fmtResets(st.usage.resetsOn)} (UTC month)</span></div>
+            : <Banner tone="info">Phone lookup isn't set up. An admin needs to choose a provider on the server.</Banner>}
+          <div className="faint xs">Looks up a mobile number from a contact's page when someone clicks Find mobile. Numbers are added only when someone chooses to.</div>
+        </div>
       )}
     </Card>
   )
