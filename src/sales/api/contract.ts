@@ -20,7 +20,7 @@ export const AUX_COLLECTIONS = ['audit', 'importJobs', 'savedViews', 'settings']
 export type CollectionName = typeof DOMAIN_COLLECTIONS[number] | typeof AUX_COLLECTIONS[number]
 export type WritableCollection = Exclude<CollectionName, 'users'>
 
-export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus', 'clock'] as const
+export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus'] as const
 export type SettingsId = typeof SETTINGS_IDS[number]
 
 export type RecordData = Record<string, unknown>
@@ -162,7 +162,8 @@ export interface ChangesResponse {
   more: boolean                   // true ⇒ call again immediately with the new cursor
   serverNow: string
   membersVersion: string
-  clockOffsetMinutes: number      // current settings/clock offset, for the D9 banner
+  /** @deprecated The server always sends 0: SalesOS runs on real time and no longer reads a clock offset. */
+  clockOffsetMinutes?: number
 }
 
 /** @deprecated Tombstoned for one release: the server runs the engine. New builds never call the lease endpoints. */
@@ -186,7 +187,7 @@ export interface EngineRunResponse {
   ran: boolean
   reason?: 'busy' | 'held_elsewhere' | 'disabled'
   businessIds: BusinessId[]
-  serverNow: string // ISO instant incl. clock offset
+  serverNow: string // ISO instant
 }
 
 export interface DemoWipeRequest { businessIds?: BusinessId[] }   // default: every business the caller admins

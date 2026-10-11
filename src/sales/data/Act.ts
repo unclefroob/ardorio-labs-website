@@ -6,8 +6,8 @@ import { addKnownTech, reviewClosure, saveIntel } from './act/intel'
 import { dupSequence, enrol, saveSequence, setEnrol, setSeqStatus } from './act/seq'
 import { cancelTask, completeTask, createTask, deleteTask, skipEmailTask, snoozeTask, stopEmailing, updateTask } from './act/tasks'
 import {
-  advance, deleteGoal, deleteTeam, deleteView, readAll, readNotif, removeStage, resetClock, runSequences, sampleNotif, saveGoal, savePipeline, saveTeam,
-  saveUser, saveView, setBiz, setClock, setDemo, setMailbox, setOrg, setSession, setTheme, setUserActive,
+  deleteGoal, deleteTeam, deleteView, readAll, readNotif, removeStage, runSequences, sampleNotif, saveGoal, savePipeline, saveTeam,
+  saveUser, saveView, setBiz, setDemo, setMailbox, setOrg, setSession, setTheme, setUserActive,
 } from './act/admin'
 
 export type { CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
@@ -22,7 +22,7 @@ export type { GoalInput, TeamInput, UserForm } from './act/admin'
  * is the sync layer's job. Engine-initiated changes do not go through here.
  */
 export const Act = {
-  setSession, setTheme, advance, setClock, resetClock, runSequences,
+  setSession, setTheme, runSequences,
   createCompany, updateCompany, linkCompany, updateRel, bulkCompanies, archiveCompany,
   addNote, editNote, deleteNote,
   createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, assignContacts,

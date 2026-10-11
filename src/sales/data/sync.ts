@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { ChangeEntry } from '../api/contract'
 import { SalesHttpError, setSessionExpiredHandler } from '../api/http'
 import { getChanges, postBatch } from '../api/records'
-import { getOffsetMinutes, setOffsetMinutes, setServerNow } from './clock'
+import { setServerNow } from './clock'
 import { logSales } from '../log'
 import { UI } from '../ui/store'
 import { userName } from './conflicts'
@@ -302,10 +302,6 @@ export async function pollOnce(): Promise<void> {
       cursor = res.cursor
       setServerNow(res.serverNow)
       for (const ch of res.changes) applyChange(ch)
-      const clock = metaMap('settings').get('clock')
-      if (clock && stable(localData('settings', 'clock')) === clock.snapStr && getOffsetMinutes() !== res.clockOffsetMinutes) {
-        setOffsetMinutes(res.clockOffsetMinutes)
-      }
       publish()
       if (res.membersVersion !== getMembersVersion()) await refreshMembers()
       more = res.more

@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Banner, Btn } from '../kit'
 import { loginPath } from '../../lib/nextPath'
-import { Act } from '../data/Act'
-import { F } from '../data/F'
-import { Q } from '../data/Q'
-import { now as clockNow } from '../data/clock'
-import { useStore } from '../data/store'
-import { formatInstant } from '../data/tz'
-import { formatOffset, getOffsetMinutes, useNow } from '../data/clock'
 import { usePrompts, userName, removePrompt, type ConflictPrompt } from '../data/conflicts'
 import { fieldLabel, formatFieldValue } from '../data/fieldLabels'
 import { deleteAnyway, keepMineFields, keepTheirs, keepTheirsFields, restoreDeleted } from '../data/resolve'
@@ -52,28 +45,6 @@ export function SyncBanner() {
   }
   if (!out.length) return null
   return <div className="col" style={{ gap: 8, padding: '8px 18px 0' }}>{out}</div>
-}
-
-/** The clock chip. With a non-zero offset it says the clock is simulated, by how much, and what time it is now. */
-export function ClockBanner() {
-  useStore()
-  useNow()
-  const off = getOffsetMinutes()
-  if (off === 0) {
-    return (
-      <span className="clock hide-m" title="Current time" style={{ cursor: 'default' }}>
-        <Icon n="clock" s={13} />
-        {F.dt(F.nowIso())}
-      </span>
-    )
-  }
-  return (
-    <span className="clock hide-m" title="The clock is shifted for everyone" style={{ cursor: 'default' }}>
-      <Icon n="clock" s={13} />
-      <span className="b" style={{ color: 'var(--warn)' }}>Simulated clock: {formatOffset(off)} (now {formatInstant(clockNow())})</span>
-      {Q.anyAdmin() && <Btn size="xs" kind="ghost" onClick={() => Act.resetClock()}>Reset</Btn>}
-    </span>
-  )
 }
 
 type FieldPrompt = Extract<ConflictPrompt, { kind: 'field' }>
