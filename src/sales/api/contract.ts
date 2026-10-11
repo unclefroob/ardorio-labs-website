@@ -445,3 +445,46 @@ export interface RosterioProvisionResponse {
   link: RosterioLink
   adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
 }
+
+// ── Invoicing (business `ard`, admins only). Additive. ────────────────────────────────────────────
+export type InvoiceStatus = 'draft' | 'sent' | 'paid'
+export type InvoicePaymentMethod = 'bank-transfer' | 'payid' | 'card' | 'other'
+export interface InvoiceLine { description: string; detail?: string; qty: number; unitPriceCents: number; amountCents: number }
+export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
+export interface InvoiceDto {
+  id: string; invoiceNumber: string; clientSlug: string; clientName: string
+  companyId: string | null; dealId: string | null; milestoneId: string | null
+  lineItems: InvoiceLine[]; gstRate: number; notes: string
+  issueDate: string; paymentTermsDays: number; dueDate: string
+  status: InvoiceStatus; overdue: boolean; payment: InvoicePayment | null
+  offerCardPayment: boolean; paymentLinkUrl: string; paymentLinkIsAutomatic: boolean
+  publicToken: string; hostedUrl: string; sentAt: string | null; issuedCount: number
+  subtotalCents: number; gstCents: number; totalCents: number; createdAt: string
+}
+export interface InvoiceInput {
+  clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
+  lineItems: Array<{ description: string; detail?: string; qty: number; unitPriceCents: number }>
+  gstRate?: number; notes?: string; issueDate: string; paymentTermsDays: number; dueDate?: string
+  offerCardPayment?: boolean; paymentLinkUrl?: string
+}
+export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; reference?: string; amountCents?: number }
+export interface InvoiceListResponse { invoices: InvoiceDto[] }
+export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
+export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number }; byCompany: InvoiceCompanyTotals[] }
+export interface BillingClientDetails { email?: string; contactName?: string; abn?: string; address?: string }
+export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
+export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
+export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string }
+export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string }
+// sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
+export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
+// Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid.
+
+/** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
+export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }
+export interface InvoiceSettings {
+  name: string; abn: string; address: string; email: string
+  gstRegistered: boolean; offerCardPayments: boolean
+  bank: InvoiceBankDetails
+  stripeConfigured?: boolean
+}
