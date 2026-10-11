@@ -4,7 +4,7 @@ import { Btn } from './basic'
 import { Icon } from './Icon'
 import { useFocusTrap } from './util'
 
-export function Modal({ title, sub, onClose, children, footer, width, icon }: { title: string; sub?: ReactNode; onClose?: () => void; children?: ReactNode; footer?: ReactNode; width?: number | string; icon?: string }) {
+export function Modal({ title, sub, onClose, children, footer, width, icon, role = 'dialog', describedBy, closeLabel = 'Close' }: { title: string; sub?: ReactNode; onClose?: () => void; children?: ReactNode; footer?: ReactNode; width?: number | string; icon?: string; role?: 'dialog' | 'alertdialog'; describedBy?: string; closeLabel?: string }) {
   const close = onClose ?? UI.close
   const ref = useRef<HTMLDivElement>(null)
   useFocusTrap(ref, close)
@@ -13,7 +13,7 @@ export function Modal({ title, sub, onClose, children, footer, width, icon }: { 
   }
   return (
     <div className="mbg" onMouseDown={onBg}>
-      <div ref={ref} className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} style={width ? { maxWidth: width } : undefined}>
+      <div ref={ref} className="modal" role={role} aria-modal="true" aria-label={title} aria-describedby={describedBy} tabIndex={-1} style={width ? { maxWidth: width } : undefined}>
         <div className="modal-h">
           {icon && (
             <div style={{ width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', background: 'var(--acc-soft)', color: 'var(--acc-ink)' }}>
@@ -28,7 +28,7 @@ export function Modal({ title, sub, onClose, children, footer, width, icon }: { 
               </div>
             )}
           </div>
-          <Btn kind="ghost" size="sm" icon="x" onClick={close} aria-label="Close" />
+          <Btn kind="ghost" size="sm" icon="x" onClick={close} aria-label={closeLabel} />
         </div>
         <div className="modal-b">{children}</div>
         {footer && <div className="modal-f">{footer}</div>}

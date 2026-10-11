@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
 import type { SalesUser } from '../data/types'
@@ -10,6 +10,7 @@ type BtnProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   icon?: string
   iconRight?: string
   children?: ReactNode
+  ref?: Ref<HTMLButtonElement>
 }
 
 export function Btn({ kind, size, icon, children, className, iconRight, type = 'button', ...r }: BtnProps) {

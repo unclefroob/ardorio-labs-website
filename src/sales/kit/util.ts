@@ -114,7 +114,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => 
     trapStack.push(id)
     const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!el.contains(document.activeElement)) {
-      const first = el.querySelector<HTMLElement>('.modal-b ' + FOCUSABLE.split(',').join(',.modal-b ')) ?? el.querySelector<HTMLElement>(FOCUSABLE)
+      // A dialog can name the safe control to start on (a destructive confirmation starts on Keep, not on the form).
+      const first = el.querySelector<HTMLElement>('[data-autofocus]') ?? el.querySelector<HTMLElement>('.modal-b ' + FOCUSABLE.split(',').join(',.modal-b ')) ?? el.querySelector<HTMLElement>(FOCUSABLE)
       ;(first ?? el).focus()
     }
     const onKey = (e: KeyboardEvent): void => {
