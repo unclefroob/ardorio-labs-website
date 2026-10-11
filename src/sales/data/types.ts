@@ -1,4 +1,4 @@
-import type { AiProvider, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, SalesUserDTO, TechItem } from '../api/contract'
+import type { AiProvider, BillingPlan, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, SalesUserDTO, TechItem } from '../api/contract'
 
 export type { BusinessId, Role }
 
@@ -577,6 +577,7 @@ export interface Collections {
   companyRels: CompanyRel[]
   contactRels: ContactRel[]
   intel: Intel[]
+  billingPlans: BillingPlan[]
   audit: AuditEntry[]
   importJobs: ImportJob[]
   savedViews: SavedView[]

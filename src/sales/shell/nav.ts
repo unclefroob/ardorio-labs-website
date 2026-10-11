@@ -8,6 +8,8 @@ export interface NavItem {
   admin?: boolean
   /** Hidden unless the viewer is a member of this business. */
   business?: BusinessId
+  /** Hidden unless the viewer is an admin (or super admin) of this business. */
+  adminOf?: BusinessId
 }
 export interface NavGroup {
   group: string
@@ -34,6 +36,7 @@ export const NAV: NavGroup[] = [
   { group: 'Revenue', items: [
     { page: 'deals', label: 'Deals & Pipeline', icon: 'kanban' },
     { page: 'customers', label: 'Customers', icon: 'dollar' },
+    { page: 'invoices', label: 'Invoices', icon: 'file', adminOf: 'ard' },
     { page: 'reports', label: 'Reports', icon: 'chart' },
     { page: 'goals', label: 'Sales Goals', icon: 'target' },
   ] },
@@ -56,3 +59,20 @@ export const ADMIN_PAGES: readonly string[] = NAV.flatMap(g => g.items).filter(i
 export const BUSINESS_PAGES: Readonly<Record<string, BusinessId>> = Object.fromEntries(
   NAV.flatMap(g => g.items).filter(i => i.business).map(i => [i.page, i.business as BusinessId]),
 )
+
+/** Pages only admins of one business may open. The invoice editor is a detail page, so it is listed beside its nav entry. */
+export const ADMIN_OF_PAGES: Readonly<Record<string, BusinessId>> = {
+  ...Object.fromEntries(NAV.flatMap(g => g.items).filter(i => i.adminOf).map(i => [i.page, i.adminOf as BusinessId])),
+  invoice: 'ard',
+}
+
+export interface NavViewer {
+  anyAdmin: boolean
+  member: (b: BusinessId) => boolean
+  canAdmin: (b: BusinessId) => boolean
+}
+
+/** Whether the sidebar shows an item to this viewer. */
+export function navItemVisible(i: NavItem, v: NavViewer): boolean {
+  return (!i.admin || v.anyAdmin) && (!i.business || v.member(i.business)) && (!i.adminOf || v.canAdmin(i.adminOf))
+}

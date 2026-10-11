@@ -7,7 +7,8 @@ import type {
   Message, Meeting, Notification, Pipeline, PipelineField, Rec, Role, SalesUser, Sequence, Stage, Suppression,
   Task, Team, Template, Thread, ListRec, Intel,
 } from './types'
-import type { IntelKind } from '../api/contract'
+import type { BillingPlan, IntelKind, InvoiceDto } from '../api/contract'
+import { milestoneStatus, type MilestoneStatus } from '../shared/invoices'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -112,6 +113,13 @@ export const Q = {
   },
   /** One pipeline per business. An empty one is returned while it loads so callers never dereference undefined. */
   pipeline: (b: string): Pipeline => S.pipelines.find(p => p.businessId === b) ?? emptyPipeline(b as BusinessId),
+
+  /** The billing plan of an Ardorio deal (id bp_<dealId>), if one has been saved. */
+  billingPlan: (dealId: string | null | undefined): BillingPlan | undefined => (dealId ? S.billingPlans.find(p => p.dealId === dealId) : undefined),
+  /** Planned, Draft invoice, Invoiced or Paid, from the invoices loaded for that deal. */
+  milestoneStatus: (milestoneId: string, invoices: ReadonlyArray<Pick<InvoiceDto, 'milestoneId' | 'status'>>): MilestoneStatus => milestoneStatus(milestoneId, invoices),
+  /** Ardorio billing is visible to, and editable by, admins of that business only. */
+  canBill: (): boolean => Q.canAdmin('ard'),
 
   isSuper: (): boolean => !!Q.me().super,
   role(b: string): RoleName {

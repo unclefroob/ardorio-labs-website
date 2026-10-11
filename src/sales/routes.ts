@@ -11,11 +11,12 @@ const SEGMENT: Record<string, string> = {
   prospecting: 'prospecting', lists: 'lists', reports: 'reports', recs: 'recs', goals: 'goals',
   copilot: 'copilot', notifications: 'notifications', myday: 'myday', settings: 'settings',
   customers: 'customers', rosterioCustomers: 'customers',
+  invoices: 'invoices', invoice: 'invoices',
   users: 'users', integrations: 'integrations', pipelines: 'pipelines',
 }
 
-const DETAIL: Record<string, string> = { company: 'companies', contact: 'contacts', deal: 'deals', sequence: 'sequences' }
-const LIST_PAGE: Record<string, string> = { companies: 'company', contacts: 'contact', deals: 'deal', sequences: 'sequence' }
+const DETAIL: Record<string, string> = { company: 'companies', contact: 'contacts', deal: 'deals', sequence: 'sequences', invoice: 'invoices' }
+const LIST_PAGE: Record<string, string> = { companies: 'company', contacts: 'contact', deals: 'deal', sequences: 'sequence', invoices: 'invoice' }
 
 export type RouteQuery = Record<string, unknown>
 

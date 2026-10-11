@@ -22,10 +22,9 @@ import AdminClient from './pages/admin/AdminClient'
 import AdminClientNew from './pages/admin/AdminClientNew'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminStaff from './pages/admin/AdminStaff'
-import AdminInvoices from './pages/admin/AdminInvoices'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminClients from './pages/admin/AdminClients'
-import AdminInvoiceEdit from './pages/admin/AdminInvoiceEdit'
+import { salesInvoicePath } from './lib/invoiceRedirect'
 import PublicInvoice from './pages/PublicInvoice'
 import AdminNewsroom from './pages/admin/AdminNewsroom'
 import AdminNewsroomEdit from './pages/admin/AdminNewsroomEdit'
@@ -102,6 +101,11 @@ function LegacySalesRedirect() {
   return <Navigate to={pathname.replace(/^\/admin\/sales/, '/sales') + search + hash} replace />
 }
 
+function LegacyInvoiceRedirect() {
+  const { pathname, search, hash } = useLocation()
+  return <Navigate to={salesInvoicePath(pathname, search, hash)} replace />
+}
+
 function App() {
   return (
     <HelmetProvider>
@@ -129,9 +133,10 @@ function App() {
             order, the same way /admin/new already does. */}
         <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
         <Route path="/admin/clients" element={<ProtectedRoute><AdminClients /></ProtectedRoute>} />
-        <Route path="/admin/invoices" element={<ProtectedRoute><AdminInvoices /></ProtectedRoute>} />
-        <Route path="/admin/invoices/new" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
-        <Route path="/admin/invoices/:id" element={<ProtectedRoute><AdminInvoiceEdit /></ProtectedRoute>} />
+        {/* Invoicing now lives in SalesOS. The old addresses redirect so bookmarks keep working. */}
+        <Route path="/admin/invoices" element={<LegacyInvoiceRedirect />} />
+        <Route path="/admin/invoices/new" element={<LegacyInvoiceRedirect />} />
+        <Route path="/admin/invoices/:id" element={<LegacyInvoiceRedirect />} />
         <Route path="/admin/new" element={<ProtectedRoute><AdminClientNew /></ProtectedRoute>} />
         {/* Old entry point, kept so bookmarks and shared links keep working. */}
         <Route path="/admin/sales/*" element={<LegacySalesRedirect />} />

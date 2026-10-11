@@ -7,7 +7,7 @@ import type { Collections, CollKey, State } from './types'
 export const ARRAY_COLLECTIONS = [
   'businesses', 'teams', 'pipelines', 'companies', 'contacts', 'deals', 'tasks', 'meetings',
   'mailboxes', 'templates', 'sequences', 'enrolments', 'threads', 'messages', 'lists', 'goals',
-  'recs', 'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels', 'intel',
+  'recs', 'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels', 'intel', 'billingPlans',
   'audit', 'importJobs', 'savedViews',
 ] as const satisfies readonly CollKey[]
 export type ArrayCollection = typeof ARRAY_COLLECTIONS[number]
@@ -23,7 +23,7 @@ function emptyState(): State {
     businesses: [], users: [], teams: [], pipelines: [], companies: [], contacts: [], deals: [],
     tasks: [], meetings: [], mailboxes: [], templates: [], sequences: [], enrolments: [], threads: [],
     messages: [], lists: [], goals: [], recs: [], research: [], suppressions: [], activities: [],
-    notifications: [], companyRels: [], contactRels: [], intel: [], audit: [], importJobs: [], savedViews: [],
+    notifications: [], companyRels: [], contactRels: [], intel: [], billingPlans: [], audit: [], importJobs: [], savedViews: [],
     session: { userId: '', ws: 'all', theme: 'light' },
     org: { name: '', tz: 'Australia/Melbourne', currency: 'AUD', dateFormat: 'D MMM YYYY', notif: { email: true, inApp: true }, sendingLimit: 50 },
     wiza: { history: [] },
@@ -35,7 +35,7 @@ function emptyState(): State {
 /** The single mutable application state. Mutated in place by Act, then `commit()` publishes it. */
 export const S: State = emptyState()
 
-type IndexedKey = Exclude<keyof Collections, 'audit' | 'importJobs' | 'savedViews'>
+type IndexedKey = Exclude<keyof Collections, 'audit' | 'importJobs' | 'savedViews' | 'billingPlans'>
 type Idx = { [K in IndexedKey]: Map<string, Collections[K][number]> }
 
 const INDEXED: readonly IndexedKey[] = [
@@ -240,6 +240,7 @@ const ARRAY_DEFAULTS: Partial<Record<SyncedCollection, readonly string[]>> = {
   meetings: ['participants'],
   lists: ['contactIds'],
   intel: ['items', 'sources'],
+  billingPlans: ['milestones'],
 }
 const OBJECT_DEFAULTS: Partial<Record<SyncedCollection, readonly string[]>> = {
   deals: ['fields'],

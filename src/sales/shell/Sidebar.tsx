@@ -6,7 +6,7 @@ import { Q } from '../data/Q'
 import { Icon, Menu, type MenuItem } from '../kit'
 import { navParent } from '../routes'
 import { UI, useUi } from '../ui/store'
-import { NAV } from './nav'
+import { NAV, navItemVisible } from './nav'
 
 function counts(): Record<string, number> {
   const me = Q.me()
@@ -57,7 +57,7 @@ export function Sidebar() {
       />
       <div className="side-scroll">
         {NAV.map(g => {
-          const vis = g.items.filter(i => (!i.admin || admin) && (!i.business || Q.member(i.business)))
+          const vis = g.items.filter(i => navItemVisible(i, { anyAdmin: admin, member: Q.member, canAdmin: Q.canAdmin }))
           if (!vis.length) return null
           return (
             <div key={g.group}>
