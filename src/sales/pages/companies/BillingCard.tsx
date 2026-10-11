@@ -82,8 +82,8 @@ export function CompanyBilling({ company }: { company: Company }) {
                 return (
                   <div key={i.id} className="rowx">
                     <span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); UI.nav('invoice', { id: i.id }) }}>{i.invoiceNumber}</a>{' '}
-                      <span className="faint sm">{i.status === 'paid' ? `paid ${fmtDay(i.payment?.paidAt)}` : i.status === 'sent' ? `due ${fmtDay(i.dueDate)}` : 'not issued'}</span></span>
-                    <span><Chip tone={c.tone}>{c.label}</Chip> <span className="money sm">{formatCents(i.totalCents)}</span></span>
+                      <span className="faint sm">{i.status === 'paid' ? `paid ${fmtDay(i.payment?.paidAt)}` : i.status === 'sent' ? `due ${fmtDay(i.dueDate)}` : i.status === 'void' ? `cancelled ${fmtDay(i.voided?.voidedAt)}` : 'not issued'}</span></span>
+                    <span><Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> <span className={'money sm' + (i.status === 'void' ? ' strike' : '')}>{formatCents(i.totalCents)}</span></span>
                   </div>
                 )
               })}

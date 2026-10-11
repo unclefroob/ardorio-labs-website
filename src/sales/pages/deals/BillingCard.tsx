@@ -140,6 +140,7 @@ function Schedule({ deal }: { deal: Deal }) {
                     <td>{known ? <Chip tone={STATUS_TONE[r.status]}>{r.status}</Chip> : <span className="faint">…</span>}</td>
                     <td>
                       {r.invoice ? <><a className="mono" href={`/sales/invoices/${r.invoice.id}`} onClick={ev => { ev.preventDefault(); open(r.invoice?.id ?? '') }}>{r.invoice.invoiceNumber}</a><div className="faint sm">{statusLine(r)}</div></> : <span className="faint">Not invoiced</span>}
+                      {r.cancelled && !r.invoice && <div className="faint sm">{r.cancelled.invoiceNumber} cancelled {fmtDay(r.cancelled.voided?.voidedAt)}</div>}
                     </td>
                     <td>
                       <span className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
@@ -173,7 +174,7 @@ function Schedule({ deal }: { deal: Deal }) {
               <div><div className="faint sm">Next invoice date</div><div className="b" style={{ fontSize: 18 }}>{fmtDay(retainer.nextInvoiceDate)}</div></div>
             </div>
             {retainerInvoices.map(i => (
-              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span>{(() => { const c = statusChip(i); return <Chip tone={c.tone}>{c.label}</Chip> })()}</div>
+              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span>{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</div>
             ))}
             <div className="row" style={{ gap: 6 }}>
               <Btn size="sm" onClick={() => create({ retainer: true })}>Create invoice</Btn>

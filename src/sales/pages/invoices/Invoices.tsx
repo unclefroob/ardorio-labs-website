@@ -4,8 +4,8 @@ import { invoiceError, invoiceSummary, invoicesCsv, listInvoices, saveBlob } fro
 import { F } from '../../data/F'
 import { dealName, useLoad } from '../../data/invoicing'
 import { useStore } from '../../data/store'
-import { Btn, Card, Chip, DataTable, DlLink, Empty, Icon, Menu, SearchInp, Sel, Skel, Tabs, type Col } from '../../kit'
-import { filterInvoices, dueCell, fmtDay, issuedText, TABS, tabCounts, tileFacts, type InvoiceTab } from '../../shared/invoices'
+import { Banner, Btn, Card, Chip, DataTable, DlLink, Empty, Icon, Menu, SearchInp, Sel, Skel, Tabs, type Col } from '../../kit'
+import { filterInvoices, dueCell, fmtDay, issuedText, needsRefund, TABS, tabCounts, tileFacts, voidReasonLabel, type InvoiceTab } from '../../shared/invoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -21,11 +21,12 @@ export function Invoices() {
   const [query, setQuery] = useState('')
   const [companyId, setCompanyId] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [refundOnly, setRefundOnly] = useState(false)
   const today = F.today()
 
   const all: InvoiceDto[] = useMemo(() => list.data?.invoices ?? [], [list.data])
   const counts = tabCounts(all)
-  const rows = useMemo(() => filterInvoices(all, { tab, query, companyId }, dealName), [all, tab, query, companyId])
+  const rows = useMemo(() => filterInvoices(all, { tab, query, companyId, refundOnly }, dealName), [all, tab, query, companyId, refundOnly])
   const facts = list.data && sum.data ? tileFacts(all, sum.data.tiles, today) : null
   const customers = useMemo(() => {
     const m = new Map<string, string>()
@@ -50,8 +51,8 @@ export function Invoices() {
   const open = (inv: InvoiceDto): void => UI.nav('invoice', { id: inv.id })
 
   const cols: Col<InvoiceDto>[] = [
-    { k: 'invoiceNumber', l: 'Invoice', sort: r => r.invoiceNumber, desc: true, r: r => <b className="mono">{r.invoiceNumber}</b> },
-    { k: 'clientName', l: 'Customer', sort: r => r.clientName.toLowerCase(), r: r => <CustomerLink inv={r} /> },
+    { k: 'invoiceNumber', l: 'Invoice', sort: r => r.invoiceNumber, desc: true, r: r => <b className={'mono' + (r.status === 'void' ? ' void-cell' : '')}>{r.invoiceNumber}</b> },
+    { k: 'clientName', l: 'Customer', sort: r => r.clientName.toLowerCase(), r: r => (r.status === 'void' ? <span className="void-cell"><CustomerLink inv={r} /></span> : <CustomerLink inv={r} />) },
     {
       k: 'deal', l: 'Deal', sort: r => dealName(r.dealId),
       r: r => (r.dealId
@@ -63,18 +64,20 @@ export function Invoices() {
       k: 'dueDate', l: 'Due', sort: r => r.dueDate,
       r: r => {
         const d = dueCell(r, today)
+        if (r.status === 'void') return <span className="void-cell">{d.text}</span>
         return r.status === 'draft' ? <span className="faint">{d.text}</span> : <div className={d.late ? 'late' : ''}>{d.text}{d.sub && <div className="sm">{d.sub}</div>}</div>
       },
     },
     {
       k: 'totalCents', l: 'Amount', right: true, sort: r => r.totalCents,
-      r: r => <div className="money"><div className="b">{formatCents(r.totalCents)}</div><div className="faint sm">{formatCents(r.subtotalCents)} ex GST</div></div>,
+      r: r => <div className={'money' + (r.status === 'void' ? ' strike' : '')}><div className="b">{formatCents(r.totalCents)}</div><div className="faint sm">{formatCents(r.subtotalCents)} ex GST</div></div>,
     },
     {
       k: 'status', l: 'Status', sort: r => (r.overdue ? 'overdue' : r.status),
       r: r => (
         <div>
-          <span className="row" style={{ gap: 4 }}><StatusChip inv={r} /><MethodChip inv={r} /></span>
+          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
+          {r.voided && <div className="void-cell sm" style={{ marginTop: 2 }}>{voidReasonLabel(r.voided.reason)} · {fmtDay(r.voided.voidedAt)}</div>}
           {r.payment && <div className="faint sm" style={{ marginTop: 2 }}>{fmtDay(r.payment.paidAt)}</div>}
         </div>
       ),
@@ -91,7 +94,7 @@ export function Invoices() {
             items={[
               { label: 'Open', icon: 'ext', onClick: () => open(r) },
               { label: r.status === 'draft' ? 'Preview PDF' : 'Download PDF', icon: 'download', onClick: () => void downloadPdf(r) },
-              r.status !== 'draft' && { label: 'Copy invoice link', icon: 'copy', onClick: () => void copyLink(r) },
+              r.status !== 'draft' && r.status !== 'void' && { label: 'Copy invoice link', icon: 'copy', onClick: () => void copyLink(r) },
             ]}
           />
         </span>
@@ -121,6 +124,14 @@ export function Invoices() {
             <div className="kpi static"><span className="l">Paid this month</span><span className="v num">{facts ? formatCentsTile(facts.paidThisMonth.exCents) : '—'}</span><span className="s">{facts ? `${formatCentsTile(facts.paidThisMonth.incCents)} inc GST · ${facts.paidThisMonth.count} invoice${facts.paidThisMonth.count === 1 ? '' : 's'}` : ' '}</span></div>
             <div className="kpi static"><span className="l">In drafts{facts ? ` · ${facts.drafts.count} invoice${facts.drafts.count === 1 ? '' : 's'}` : ''}</span><span className="v num">{facts ? formatCentsTile(facts.drafts.exCents) : '—'}</span><span className="s">Not yet issued</span></div>
           </div>
+
+          {sum.data && sum.data.tiles.needsRefundCount > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Banner tone="bad" icon="flag" action={<Btn size="sm" onClick={() => { setTab('all'); setRefundOnly(!refundOnly) }}>{refundOnly ? 'Show all' : 'Review'}</Btn>}>
+                <b>{sum.data.tiles.needsRefundCount} payment{sum.data.tiles.needsRefundCount === 1 ? '' : 's'} on cancelled invoices need{sum.data.tiles.needsRefundCount === 1 ? 's' : ''} a refund</b> ({formatCents(sum.data.tiles.needsRefundCents)}).
+              </Banner>
+            </div>
+          )}
 
           <Tabs
             value={tab}
