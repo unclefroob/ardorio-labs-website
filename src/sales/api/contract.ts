@@ -263,6 +263,7 @@ export type SalesErrorCode =
   | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION' | 'SUPPRESSED'
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
+  | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -450,3 +451,14 @@ export interface RosterioProvisionResponse {
   link: RosterioLink
   adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
 }
+
+// ── Mobile phone lookup (vendor-agnostic). Mirrors the API contract; names are identical. ────────
+// GET /phone/status and POST /phone/reveal. Error codes: NOT_CONFIGURED, PHONE_CAP_REACHED (details = PhoneUsage),
+// PHONE_NO_INPUT, PROVIDER_ERROR. The browser never sees a vendor key.
+export const PHONE_PROVIDERS = ['leadmagic','signalhire','wiza'] as const
+export type PhoneProviderId = typeof PHONE_PROVIDERS[number]
+export interface PhoneNumberFound { e164: string; type: 'mobile' | 'other' | 'unknown'; confidence?: number }
+export interface PhoneUsage { used: number; limit: number; resetsOn: string }
+export interface PhoneStatusResponse { configured: boolean; provider?: PhoneProviderId; label?: string; usage: PhoneUsage }
+export interface RevealPhoneRequest { contactId: string; businessId: BusinessId }
+export interface RevealPhoneResponse { mode: 'live' | 'stub'; provider?: PhoneProviderId; status: 'found' | 'not_found'; numbers: PhoneNumberFound[]; creditsUsed?: number; usage: PhoneUsage; lastCheckedAt?: string }
