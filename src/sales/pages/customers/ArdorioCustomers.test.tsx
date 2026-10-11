@@ -164,7 +164,7 @@ describe('Customers page: Ardorio, permissions', () => {
   it.each(['manager', 'sales', 'viewer'] as const)('a %s sees the won-deal view and never asks for invoices', async role => {
     const api = await show(ok, role)
     expect(api.calls).toEqual([])
-    expect(text()).toContain('Total won value')
+    expect(text()).toContain('Won value')
     expect(text()).toContain('There is no Ardorio account feed yet')
     expect(text()).not.toContain('Outstanding')
     expect(button(host, /^Won, not yet invoiced/)).toBeUndefined()

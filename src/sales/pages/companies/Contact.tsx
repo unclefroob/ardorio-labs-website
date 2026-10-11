@@ -29,7 +29,7 @@ function Prov({ ct, k }: { ct: ContactT; k: EnrichField }) {
   const href = safeHref(e.sourceUrl ?? '')
   return (
     <span className="row" style={{ gap: 6, display: 'inline-flex', marginLeft: 8 }}>
-      <Chip tone={e.kind === 'inferred' ? 'warn' : 'info'} title={`Added ${F.dt(e.at)} by ${Q.user(e.by)?.name ?? 'a user'}${e.pattern ? `, pattern ${e.pattern}` : ''}`}>{e.kind === 'inferred' ? 'Guessed' : 'Published'}</Chip>
+      <Chip tone={e.kind === 'inferred' ? 'warn' : 'info'} title={`${e.source ? e.source + '. ' : ''}Added ${F.dt(e.at)} by ${Q.user(e.by)?.name ?? 'a user'}${e.pattern ? `, pattern ${e.pattern}` : ''}`}>{e.source ? 'Phone lookup, Unverified' : e.kind === 'inferred' ? 'Guessed' : 'Published'}</Chip>
       {href && <a className="xs" href={href} target="_blank" rel="noopener noreferrer">source</a>}
     </span>
   )
@@ -120,6 +120,7 @@ export function Contact({ route }: { route: Route }) {
             <Btn size="sm" icon="checksq" onClick={() => UI.open('newTask', tCtx)}>Create task</Btn>
             <Btn size="sm" icon="send" onClick={() => UI.open('enrol', { contactIds: [ct.id] })}>Enrol in sequence</Btn>
             <Btn size="sm" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich contact</Btn>
+            <Btn size="sm" icon="phone" onClick={() => UI.open('findMobile', { contactId: ct.id })}>Find mobile</Btn>
             <Btn size="sm" icon="spark" onClick={() => setTab('intel')}>Research contact</Btn>
             <Btn size="sm" icon="kanban" onClick={() => UI.open('newDeal', { companyId: ct.companyId, contactIds: [ct.id], businessId: b })}>Create deal</Btn>
             <Menu

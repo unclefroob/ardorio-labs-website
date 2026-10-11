@@ -25,7 +25,7 @@ export function WonCustomers({ business }: { business: BusinessId }) {
   const cols: Col<WonCustomer>[] = [
     { k: 'company', l: 'Company', sort: r => r.company.name.toLowerCase(), r: r => <b><CoLink id={r.company.id} /></b> },
     { k: 'deal', l: 'Won deal', sort: r => r.deal.title || r.deal.name, r: r => <span>{r.deal.title || r.deal.name}{r.deals > 1 && <span className="faint sm"> +{r.deals - 1} more</span>}</span> },
-    { k: 'value', l: 'Value', right: true, sort: r => r.value, r: r => <span className="num">{F.money(r.value)}</span> },
+    { k: 'value', l: 'Won value', right: true, sort: r => r.value, r: r => <span className="num">{F.money(r.value)}</span> },
     { k: 'wonOn', l: 'Won on', sort: r => r.wonOn, desc: true, r: r => F.date(r.wonOn) },
     { k: 'owner', l: 'Owner', sort: r => Q.user(r.deal.ownerId)?.name ?? '', r: r => Q.user(r.deal.ownerId)?.name ?? '—' },
   ]
@@ -34,7 +34,7 @@ export function WonCustomers({ business }: { business: BusinessId }) {
     <>
       <div className="grid g3" style={{ marginBottom: 14 }}>
         <div className="kpi" style={{ cursor: 'default' }}><span className="l">Customers (companies with a won deal)</span><span className="v">{rows.length}</span></div>
-        <div className="kpi" style={{ cursor: 'default' }}><span className="l">Total won value</span><span className="v">{F.money(total)}</span></div>
+        <div className="kpi" style={{ cursor: 'default' }}><span className="l">Won value</span><span className="v">{F.money(total)}</span><span className="s">Deal value, not recurring revenue</span></div>
         <div className="kpi" style={{ cursor: 'default' }}><span className="l">Won this quarter</span><span className="v">{quarter}</span></div>
       </div>
       <div style={{ marginBottom: 12 }}>

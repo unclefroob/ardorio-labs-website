@@ -2,7 +2,7 @@ import type { BootstrapResponse, CollectionName } from '../api/contract'
 import { SETTINGS_IDS } from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
 import { getBootstrap } from '../api/records'
-import { setOffsetMinutes, setServerNow } from './clock'
+import { setServerNow } from './clock'
 import { stable, wire } from './diff'
 import { initSession } from './session'
 import {
@@ -15,7 +15,6 @@ import { setCursor } from './sync'
 export function hydrate(b: BootstrapResponse): void {
   clearAllMeta()
   setServerNow(b.serverNow)
-  setOffsetMinutes(0)
   initSession(b)
   S.users.splice(0, S.users.length, ...b.users)
   for (const c of ARRAY_COLLECTIONS) {

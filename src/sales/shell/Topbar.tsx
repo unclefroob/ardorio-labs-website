@@ -5,7 +5,6 @@ import { S, useStore } from '../data/store'
 import { useSyncStatus } from '../data/sync'
 import { Av, Btn, Icon, Menu, Spinner, type MenuItem } from '../kit'
 import { UI, useUi } from '../ui/store'
-import { ClockBanner } from './Banners'
 
 const QUICK: ReadonlyArray<readonly [string, string, string] | '-'> = [
   ['newCompany', 'New company', 'building'],
@@ -57,7 +56,6 @@ export function Topbar() {
           <Spinner s={12} /> Saving
         </span>
       )}
-      <ClockBanner />
       <Menu align="right" trigger={<Btn kind="pri" icon="plus" disabled={!can} title={can ? 'Quick create' : 'Read-only access'}><span className="hide-m">New</span></Btn>} items={quick} />
       <Btn kind="ghost" icon="spark" onClick={() => UI.drawer('copilot', { ctx: ui.route })} title="AI Copilot" aria-label="AI Copilot" />
       <span style={{ position: 'relative' }}>

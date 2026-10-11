@@ -100,7 +100,13 @@ export interface CompanyRel {
   [k: string]: unknown
 }
 
-export type ContactEnrichment = Partial<Record<EnrichField, { kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern; at: Iso; by: string }>>
+export type ContactEnrichment = Partial<Record<EnrichField, {
+  kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern; at: Iso; by: string
+  /** Phone lookup only: "Phone lookup (LeadMagic) 11 Oct 2026". */
+  source?: string
+  /** Phone lookup only: how sure we are of this number. A looked-up number always starts Unverified. */
+  verification?: string
+}>>
 
 export interface Contact {
   id: string

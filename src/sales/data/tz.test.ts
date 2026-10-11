@@ -77,13 +77,14 @@ describe('the web clock is org-tz wall time, independent of the browser zone', (
     expect(F.nowIso()).toBe('2026-10-09T06:00')
   })
 
-  it('includes the simulated clock offset', async () => {
+  it('is real time: no offset can move it', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-09T10:00:00Z'))
     await loadSales()
     const { F } = await import('./F')
     const clock = await import('./clock')
-    clock.setOffsetMinutes(3 * 1440)
-    expect(F.nowIso()).toBe('2026-10-12T21:00')
+    expect(clock.now()).toBe(Date.parse('2026-10-09T10:00:00Z'))
+    expect(F.nowIso()).toBe('2026-10-09T21:00')
+    expect('setOffsetMinutes' in clock).toBe(false)
   })
 })

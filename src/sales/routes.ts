@@ -12,7 +12,7 @@ const SEGMENT: Record<string, string> = {
   copilot: 'copilot', notifications: 'notifications', myday: 'myday', settings: 'settings',
   customers: 'customers', rosterioCustomers: 'customers',
   invoices: 'invoices', invoice: 'invoices',
-  users: 'users', integrations: 'integrations', pipelines: 'pipelines', clock: 'clock',
+  users: 'users', integrations: 'integrations', pipelines: 'pipelines',
 }
 
 const DETAIL: Record<string, string> = { company: 'companies', contact: 'contacts', deal: 'deals', sequence: 'sequences', invoice: 'invoices' }

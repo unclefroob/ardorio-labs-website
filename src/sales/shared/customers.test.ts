@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RosterioAccount } from '../api/contract'
 import type { Company, Deal } from '../data/types'
-import { accountTab, defaultProduct, isRosterioTab, statusTab, trialDaysLeft, wonCustomers, wonThisQuarter } from './customers'
+import { accountTab, defaultProduct, isPriced, isRosterioTab, mrrOf, statusTab, trialDaysLeft, wonCustomers, wonThisQuarter } from './customers'
 import { standing } from '../data/rosterio'
 
 const NOW = Date.parse('2026-10-11T00:00:00Z')
@@ -70,4 +70,32 @@ describe('the product the page opens on', () => {
     expect(defaultProduct(['ard', 'pth'], undefined, null)).toBe('ard')
   })
   it('nothing when they belong to nothing', () => expect(defaultProduct([], undefined, null)).toBeUndefined())
+})
+
+describe('revenue from the price Rosterio returned', () => {
+  const priced = (cost: number | null | undefined, o: Partial<RosterioAccount> = {}) => acct({ monthlyCost: cost, ...o })
+
+  it('a usable price is a finite number of zero or more', () => {
+    expect(isPriced(priced(24))).toBe(true)
+    expect(isPriced(priced(0))).toBe(true)
+    expect(isPriced(priced(null))).toBe(false)
+    expect(isPriced(priced(undefined))).toBe(false)
+    expect(isPriced(priced(-5))).toBe(false)
+    expect(isPriced(priced(Number.NaN))).toBe(false)
+    expect(isPriced(priced(Number.POSITIVE_INFINITY))).toBe(false)
+    expect(isPriced(acct({ monthlyCost: '24' as unknown as number }))).toBe(false)
+  })
+
+  it('sums the prices and says how many paying accounts had one', () => {
+    expect(mrrOf([priced(4500), priced(24), priced(null), priced(undefined)])).toEqual({ total: 4524, priced: 2, paying: 4 })
+  })
+
+  it('counts a free (zero) price as priced', () => {
+    expect(mrrOf([priced(0), priced(10)])).toEqual({ total: 10, priced: 2, paying: 2 })
+  })
+
+  it('is undefined when no account has a price, so nothing is shown or estimated', () => {
+    expect(mrrOf([])).toBeUndefined()
+    expect(mrrOf([priced(null), priced(undefined), acct({ plan: 'pro', memberCount: 50 })])).toBeUndefined()
+  })
 })

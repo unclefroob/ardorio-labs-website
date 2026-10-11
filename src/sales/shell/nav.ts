@@ -50,7 +50,6 @@ export const NAV: NavGroup[] = [
     { page: 'integrations', label: 'Integrations', icon: 'plug' },
     { page: 'templates', label: 'Templates', icon: 'file' },
     { page: 'pipelines', label: 'Pipeline Configuration', icon: 'sliders', admin: true },
-    { page: 'clock', label: 'Clock', icon: 'clock', admin: true },
   ] },
 ]
 

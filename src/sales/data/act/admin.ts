@@ -3,12 +3,10 @@ import { SalesHttpError } from '../../api/http'
 import type { Role } from '../../api/contract'
 import { UI } from '../../ui/store'
 import { F } from '../F'
-import { getOffsetMinutes, now as clockNow, setOffsetMinutes } from '../clock'
 import { nudgeEngine } from '../engineNudge'
 import { uid } from '../ids'
 import { audit, notify } from '../internals'
 import { Q } from '../Q'
-import { msFromWall } from '../tz'
 import { commit } from '../commit'
 import { idx, S } from '../store'
 import { refreshMembers, setTheme as setSessionTheme, setUsers, setWorkspace } from '../session'
@@ -214,44 +212,6 @@ export function setSession(p: { ws?: 'all' | BusinessId; theme?: 'light' | 'dark
 
 export function setTheme(t: 'light' | 'dark'): void {
   setSessionTheme(t)
-}
-
-// ── demo clock (admin only; the offset is a synced settings record) ─────────────────────────
-function describeOffset(min: number): string {
-  if (min === 0) return 'real time'
-  const abs = Math.abs(min)
-  const body = abs >= 1440 && abs % 1440 === 0 ? `${abs / 1440} day(s)` : abs >= 60 && abs % 60 === 0 ? `${abs / 60} hour(s)` : `${abs} minute(s)`
-  return `${min < 0 ? '-' : '+'}${body}`
-}
-
-export function advance(hours: number): void {
-  if (!Q.anyAdmin()) return
-  setOffsetMinutes(getOffsetMinutes() + Math.round(hours * 60))
-  audit('Demo clock advanced', `${hours >= 24 ? `+${hours / 24} day(s)` : `+${hours} hour(s)`} → ${F.dt(F.nowIso())}`)
-  nudgeEngine()
-  commit()
-}
-
-/** Set the simulated time. Zoneless input is organisation wall time; an explicit Z or offset is an instant. */
-export function setClock(iso: string): void {
-  if (!Q.anyAdmin()) return
-  // A zoneless string (what a datetime-local input gives) is a wall time in the organisation's zone, never the browser's.
-  const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso)
-  const target = zoned ? new Date(iso).getTime() : msFromWall(iso)
-  if (Number.isNaN(target)) return
-  const real = clockNow() - getOffsetMinutes() * 60000
-  setOffsetMinutes(Math.round((target - real) / 60000))
-  audit('Demo clock set', `${F.dt(F.nowIso())} (${describeOffset(getOffsetMinutes())})`)
-  nudgeEngine()
-  commit()
-}
-
-export function resetClock(): void {
-  if (!Q.anyAdmin()) return
-  setOffsetMinutes(0)
-  audit('Demo clock reset', 'real time')
-  nudgeEngine()
-  commit()
 }
 
 export function runSequences(): void {

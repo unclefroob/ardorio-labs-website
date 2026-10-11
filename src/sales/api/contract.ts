@@ -20,7 +20,7 @@ export const AUX_COLLECTIONS = ['audit', 'importJobs', 'savedViews', 'settings']
 export type CollectionName = typeof DOMAIN_COLLECTIONS[number] | typeof AUX_COLLECTIONS[number]
 export type WritableCollection = Exclude<CollectionName, 'users'>
 
-export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus', 'clock'] as const
+export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus'] as const
 export type SettingsId = typeof SETTINGS_IDS[number]
 
 export type RecordData = Record<string, unknown>
@@ -162,7 +162,8 @@ export interface ChangesResponse {
   more: boolean                   // true ⇒ call again immediately with the new cursor
   serverNow: string
   membersVersion: string
-  clockOffsetMinutes: number      // current settings/clock offset, for the D9 banner
+  /** @deprecated The server always sends 0: SalesOS runs on real time and no longer reads a clock offset. */
+  clockOffsetMinutes?: number
 }
 
 /** @deprecated Tombstoned for one release: the server runs the engine. New builds never call the lease endpoints. */
@@ -186,7 +187,7 @@ export interface EngineRunResponse {
   ran: boolean
   reason?: 'busy' | 'held_elsewhere' | 'disabled'
   businessIds: BusinessId[]
-  serverNow: string // ISO instant incl. clock offset
+  serverNow: string // ISO instant
 }
 
 export interface DemoWipeRequest { businessIds?: BusinessId[] }   // default: every business the caller admins
@@ -262,6 +263,7 @@ export type SalesErrorCode =
   | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION' | 'SUPPRESSED'
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
+  | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -415,6 +417,10 @@ export interface RosterioAccount {
   memberCount: number
   subscriptionStatus?: string
   billingEmail?: string
+  /** AUD dollars per month. Paying accounts only; the server returns the three pricing fields only to Rosterio admins. */
+  monthlyCost?: number | null
+  pricingSource?: 'plan' | 'custom' | null
+  billingQuantity?: number | null
 }
 export interface RosterioAccountsResponse {
   accounts: RosterioAccount[]
@@ -488,3 +494,13 @@ export interface InvoiceSettings {
   bank: InvoiceBankDetails
   stripeConfigured?: boolean
 }
+// ── Mobile phone lookup (vendor-agnostic). Mirrors the API contract; names are identical. ────────
+// GET /phone/status and POST /phone/reveal. Error codes: NOT_CONFIGURED, PHONE_CAP_REACHED (details = PhoneUsage),
+// PHONE_NO_INPUT, PROVIDER_ERROR. The browser never sees a vendor key.
+export const PHONE_PROVIDERS = ['leadmagic','signalhire','wiza'] as const
+export type PhoneProviderId = typeof PHONE_PROVIDERS[number]
+export interface PhoneNumberFound { e164: string; type: 'mobile' | 'other' | 'unknown'; confidence?: number }
+export interface PhoneUsage { used: number; limit: number; resetsOn: string }
+export interface PhoneStatusResponse { configured: boolean; provider?: PhoneProviderId; label?: string; usage: PhoneUsage }
+export interface RevealPhoneRequest { contactId: string; businessId: BusinessId }
+export interface RevealPhoneResponse { mode: 'live' | 'stub'; provider?: PhoneProviderId; status: 'found' | 'not_found'; numbers: PhoneNumberFound[]; creditsUsed?: number; usage: PhoneUsage; lastCheckedAt?: string }
