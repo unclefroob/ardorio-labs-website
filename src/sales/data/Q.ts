@@ -1,11 +1,13 @@
 import { F } from './F'
 import { idx, S } from './store'
+import { ageDays, applySignalAdjust, computeSignalAdjust, NO_ADJUST, type PendingClosure, type SignalAdjust, type SignalAdjustPart } from './signalAdjust'
 import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 import type {
   Activity, Business, BusinessId, Company, CompanyRel, Contact, ContactRel, Deal, Enrolment, Goal, Mailbox,
   Message, Meeting, Notification, Pipeline, PipelineField, Rec, Role, SalesUser, Sequence, Stage, Suppression,
-  Task, Team, Template, Thread, ListRec,
+  Task, Team, Template, Thread, ListRec, Intel,
 } from './types'
+import type { IntelKind } from '../api/contract'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -28,6 +30,25 @@ export interface ScoreResult {
   pos: string[]
   missing: string[]
   next?: string
+  /** Movement from saved web signals, already included in `total`. Absent when nothing moved it. */
+  adjust?: SignalAdjust
+  /** When the saved signals behind `adjust` were last checked. */
+  signalsCheckedAt?: string
+  /** Present with `adjust`: the same movement with sources, pending closures and when it was last checked. */
+  breakdown?: ScoreBreakdown
+}
+/** A base score and how saved web signals move it, with the reasons and when the web was last checked. */
+export interface ScoreBreakdown {
+  base: number
+  /** Points the saved signals add or take off (0 when nothing moved the score). */
+  adjust: number
+  total: number
+  parts: SignalAdjustPart[]
+  /** Reported closures nobody has confirmed or dismissed. They move nothing. */
+  pending: PendingClosure[]
+  /** When signals or tech were last checked for this company and business; undefined when never. */
+  checkedAt: string | undefined
+  checkedDaysAgo: number | null
 }
 export interface RiskResult { level: 'high' | 'med'; reasons: string[] }
 export interface Eligibility { blocks: string[]; warns: string[] }
@@ -59,6 +80,36 @@ export const Q = {
   template: (id: string | null | undefined): Template | undefined => (id ? idx.templates.get(id) : undefined),
   team: (id: string | null | undefined): Team | undefined => (id ? idx.teams.get(id) : undefined),
   rec: (id: string | null | undefined): Rec | undefined => (id ? idx.recs.get(id) : undefined),
+  /** Saved web-intelligence record for a company. Without a business: the newest one across the businesses the caller can see. */
+  intel(companyId: string, kind: IntelKind, b?: string): Intel | undefined {
+    const rows = S.intel.filter(i => i.companyId === companyId && i.kind === kind && (b ? i.businessId === b : Q.inScope(i.businessId)))
+    return rows.sort((x, y) => y.ts.localeCompare(x.ts))[0]
+  },
+  /** How saved signals and tech findings move a company's score for one business. Deterministic; nothing here calls the web. */
+  signalAdjust(companyId: string, b: string, now: number = Date.now()): SignalAdjust {
+    const rows = S.intel.filter(i => i.companyId === companyId && i.businessId === b)
+    return rows.length ? computeSignalAdjust(rows, now) : NO_ADJUST
+  },
+  /** The one place a score and its web-signal movement are worked out. Every score on screen reads this. */
+  scoreBreakdown(companyId: string, b: string, base: number, now: number = Date.now()): ScoreBreakdown {
+    const rows = S.intel.filter(i => i.companyId === companyId && i.businessId === b && (i.kind === 'signals' || i.kind === 'tech'))
+    const adj = rows.length ? computeSignalAdjust(rows, now) : NO_ADJUST
+    const checkedAt = rows.map(r => r.checkedAt ?? r.ts).sort().pop()
+    const total = adj.parts.length ? applySignalAdjust(base, adj.delta) : base
+    return { base, adjust: total - base, total, parts: adj.parts, pending: adj.pending, checkedAt, checkedDaysAgo: checkedAt ? ageDays(checkedAt, now) : null }
+  },
+  /** The company's newest numeric research score for a business, before any signal movement. */
+  researchScore(companyId: string, b: string): number | undefined {
+    const r = S.research.filter(x => x.companyId === companyId && x.businessId === b && typeof x.score === 'number').sort((x, y) => y.ts.localeCompare(x.ts))[0]
+    return r ? (r.score as number) : undefined
+  },
+  /** A deal's priority score: the best lead score among its contacts, else the company's latest research score moved by saved signals. Null when neither exists. */
+  dealScore(d: Deal): number | null {
+    const scores = d.contactIds.filter(id => Q.contact(id)).map(id => Q.score(id, d.businessId).total)
+    if (scores.length) return Math.max(...scores)
+    const base = Q.researchScore(d.companyId, d.businessId)
+    return base === undefined ? null : Q.scoreBreakdown(d.companyId, d.businessId, base).total
+  },
   /** One pipeline per business. An empty one is returned while it loads so callers never dereference undefined. */
   pipeline: (b: string): Pipeline => S.pipelines.find(p => p.businessId === b) ?? emptyPipeline(b as BusinessId),
 
@@ -361,7 +412,9 @@ export const Q = {
     else missing.push('Email verification')
     if (ct.title) comp += 1
 
-    const total = fit + dm + eng + sig + comp
+    const bd = Q.scoreBreakdown(co.id, b, fit + dm + eng + sig + comp)
+    const total = bd.total
+    const adj: SignalAdjust = { delta: bd.adjust, parts: bd.parts, pending: bd.pending }
     const label = comp < 5 && total < 40 ? 'Insufficient Data' : total >= 75 ? 'High Priority' : total >= 55 ? 'Qualified' : total >= 35 ? 'Developing' : 'Low Priority'
     const next =
       missing.length > 1 ? `Enrich contact to fill ${missing.slice(0, 2).join(' and ').toLowerCase()}`
@@ -370,7 +423,7 @@ export const Q = {
       : dl ? `Advance “${dl.title}”`
       : 'Book a discovery conversation'
     return {
-      total, label, pos, missing, next,
+      total, label, pos, missing, next, ...(adj.parts.length || adj.pending.length ? { adjust: adj, breakdown: bd, ...(bd.checkedAt ? { signalsCheckedAt: bd.checkedAt } : {}) } : {}),
       parts: [['Company fit', fit, 30], ['Decision-maker relevance', dm, 20], ['Engagement activity', eng, 20], ['Buying signals', sig, 20], ['Data completeness', comp, 10]],
     }
   },

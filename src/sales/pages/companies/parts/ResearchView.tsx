@@ -5,6 +5,7 @@ import type { Research } from '../../../data/types'
 import { providerName } from '../../../ai/client'
 import type { AiProvider } from '../../../api/contract'
 import { Banner, Chip, Icon, ScoreRing, Sim } from '../../../kit'
+import { ScoreWhy } from '../../../shared/IntelBits'
 import { safeHref } from '../query'
 
 export interface ResearchViewProps { r: Research; onSave?: ReactNode; saved?: boolean }
@@ -54,7 +55,10 @@ function Bullets({ items }: { items: readonly string[] }) {
 export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
   const bn = Q.biz(r.businessId)?.name ?? ''
   const by = text(r.by) ? Q.user(text(r.by))?.name : undefined
-  const score = typeof r.score === 'number' ? r.score : 0
+  const base = typeof r.score === 'number' ? r.score : 0
+  // Only a result tied to a CRM company can be moved by saved signals; an unmatched result keeps its own score.
+  const bd = typeof r.score === 'number' && r.companyId ? Q.scoreBreakdown(r.companyId, r.businessId, base) : null
+  const score = bd ? bd.total : base
   const facts = pairs(r.facts)
   const srcs = sources(r.sources)
   const caveats = list(r.inferred)
@@ -108,6 +112,11 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
           )}
         </div>
       </div>
+      {bd && r.companyId && (bd.parts.length > 0 || bd.pending.length > 0) && (
+        <div className="card card-b" style={{ marginTop: 12 }} data-testid="research-signal-adjust">
+          <ScoreWhy bd={bd} companyId={r.companyId} b={r.businessId} />
+        </div>
+      )}
       <div className="grid g3" style={{ marginTop: 14 }}>
         <div><div className="b sm">Potential challenges <span className="faint xs">(inferred)</span></div><Bullets items={list(r.challenges)} /></div>
         <div><div className="b sm">Relevant {bn} offerings</div><Bullets items={list(r.offerings)} /></div>

@@ -81,6 +81,7 @@ export function Deals({ route }: { route: Route }) {
     <div className="page" style={{ maxWidth: 'none' }}>
       <PageHead title="Deals & Pipeline" sub={sub}>
         <Seg value={view} onChange={setView} opts={[['board', 'Board', 'kanban'], ['list', 'List', 'list']]} />
+        <Btn icon="spark" disabled={!Q.canEdit(pb)} onClick={() => UI.open('checkSignals', { businessId: pb })} title="Search the web for hiring, expansion and funding news on companies with open deals">Check signals</Btn>
         {newDeal}
       </PageHead>
       <div className="row wrap" style={{ marginBottom: 12, gap: 8 }}>
@@ -165,6 +166,7 @@ export function Deals({ route }: { route: Route }) {
               { k: 'mrr', l: 'MRR', right: true, r: d => (d.mrr ? <span className="num">{F.money(d.mrr)}</span> : '—') },
               { k: 'probability', l: 'Prob.', right: true, r: d => d.probability + '%' },
               { k: 'w', l: 'Weighted', right: true, r: d => <span className="num">{F.money(Q.weighted(d), 1)}</span>, sort: d => Q.weighted(d) },
+              { k: 'score', l: 'Score', right: true, r: d => { const v = Q.dealScore(d); return v === null ? '—' : <span className="num" title="Best lead score among the deal's contacts, including saved web signals">{v}</span> }, sort: d => Q.dealScore(d) ?? -1 },
               { k: 'close', l: 'Close', r: d => <span style={{ color: d.status === 'open' && d.close < today ? 'var(--bad2)' : undefined }}>{F.date(d.close)}</span> },
               { k: 'o', l: 'Owner', r: d => <Owner id={d.ownerId} />, sort: d => Q.user(d.ownerId)?.name ?? '' },
               { k: 'lastActivity', l: 'Last activity', r: d => F.rel(d.lastActivity) },

@@ -14,8 +14,8 @@ export type Role = 'viewer' | 'sales' | 'manager' | 'admin'          // per busi
 export const DOMAIN_COLLECTIONS = [
   'businesses','users','teams','pipelines','companies','contacts','deals','tasks','meetings',
   'mailboxes','templates','sequences','enrolments','threads','messages','lists','goals','recs',
-  'research','suppressions','activities','notifications','companyRels','contactRels',
-] as const                                                              // the 24 (D7)
+  'research','suppressions','activities','notifications','companyRels','contactRels','intel',
+] as const                                                              // the 24 (D7) plus intel
 export const AUX_COLLECTIONS = ['audit', 'importJobs', 'savedViews', 'settings'] as const
 export type CollectionName = typeof DOMAIN_COLLECTIONS[number] | typeof AUX_COLLECTIONS[number]
 export type WritableCollection = Exclude<CollectionName, 'users'>
@@ -283,7 +283,79 @@ export interface FindPeopleResponse extends AiMeta {
   mode: 'llm' | 'stub'; usage: EnrichUsage
   result?: { people: FoundPerson[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
 }
-export interface EnrichUsageResponse { enabled: boolean; usage: EnrichUsage }   // GET /ai/enrich/usage?businessId=
+export interface EnrichUsageResponse { enabled: boolean; usage: EnrichUsage; /** The business has a competitor list, so a competitor's tool adds to the score. */ competitorRule?: boolean }   // GET /ai/enrich/usage?businessId=
+
+// ---- Web intelligence (Grok with live search) ----------------------------------------------------
+// Every tool below except openers is a search-backed xAI call that spends one slot of the same monthly
+// per-business cap as enrichment (EnrichUsage). Every URL returned was cited by the search; the server never trusts a model URL.
+
+export type IntelKind = 'signals' | 'tech' | 'contact'
+export interface IntelSubject { businessId: BusinessId; companyId?: string; input?: { name: string; website?: string } }   // companyId or input required
+
+export type SignalKind = 'expansion' | 'funding' | 'hiring' | 'leadership' | 'closure' | 'award' | 'news'
+/** hrOps: a hiring signal for an HR, payroll, people-and-culture, rostering or operations role (the roles Rosterio sells into). */
+export interface CompanySignal {
+  kind: SignalKind; headline: string; date?: string; sourceUrl: string; hrOps?: boolean
+  /** Closure signals only: a person confirmed or dismissed the report. Never set by the server or the model. */
+  review?: 'confirmed' | 'dismissed'; reviewedBy?: string; reviewedAt?: string
+}
+export interface SignalsResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { signals: CompanySignal[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+
+export type TechCategory = 'rostering' | 'hr' | 'payroll' | 'pos' | 'other'
+/** competitor: the server flagged it against the business's own competitor list (e.g. Deputy, Humanforce, Tanda for Rosterio). */
+export interface TechItem { name: string; category: TechCategory; evidence: string; sourceUrl: string; competitor?: boolean; sourceCheck?: SourceCheck }
+export interface TechStackResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { tools: TechItem[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+
+/** Company-level details only (switchboard, general inbox, head office), never a person's. Server-checked against the cited page. */
+export interface CompanyContactItem { field: 'phone' | 'email' | 'address'; value: string; sourceUrl: string; sourceCheck?: SourceCheck }
+export interface CompanyContactResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { items: CompanyContactItem[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+
+export interface LeadListRequest { businessId: BusinessId; query: string; state?: string }   // query 10..300 chars
+/** companyId is set when the CRM already holds this company (matched by website domain or exact name); the UI must not offer to import it again. */
+export interface LeadCandidate { name: string; website?: string; state?: string; industry?: string; why: string; sourceUrl: string; companyId?: string }
+export interface LeadListResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { leads: LeadCandidate[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+
+export interface MeetingPrepRequest { businessId: BusinessId; meetingId?: string; contactId?: string; companyId?: string }   // one of the three
+export interface MeetingPrep {
+  summary: string; talkingPoints: string[]; questions: string[]; watchOuts: string[]
+  news: Array<{ headline: string; sourceUrl: string }>
+}
+export interface MeetingPrepResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { prep: MeetingPrep; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+
+/** Opening lines are written from signals already saved in the CRM, so this is a normal (non-search, uncapped) Anthropic call. */
+export interface OpenerRequest { businessId: BusinessId; contactId?: string; companyId?: string }   // companyId or contactId required
+export interface Opener { text: string; sourceUrl: string; signalKind: SignalKind }
+export interface OpenerResponse extends AiMeta {
+  mode: 'llm' | 'stub'
+  /** True when the company has no saved signals: nothing true to open with, so no call was made and openers is empty. */
+  noSignals?: boolean
+  openers?: Opener[]
+}
+
+/** The `intel` collection: one record per company, business and kind, id `in_${companyId}_${businessId}_${kind}`, rewritten on refresh. */
+export interface IntelRecord {
+  id: string; businessId: BusinessId; companyId: string; kind: IntelKind
+  ts: string; by: string; provider: AiProvider; model: string | null
+  items: Array<CompanySignal | TechItem | CompanyContactItem>
+  sources: ResearchSource[]; disclaimer: string
+  /** The last time a lookup ran. ts is the time of the last non-empty result. Older records have neither: use ts. */
+  checkedAt?: string
+}
 
 export type EnrichLogOutcome = 'ok' | 'provider_error' | 'bad_output' | 'cap'   // stub calls are not logged
 export interface EnrichLogEntry {

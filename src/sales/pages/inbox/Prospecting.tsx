@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { Tabs } from '../../kit'
+import { INTEL_LEADS_UI } from '../../shared/features'
 import { PageHead } from '../../shared/PageHead'
 import type { Route } from '../../ui/store'
 import { Importer } from './parts/Importer'
+import { LeadList } from './parts/LeadList'
 import { ListsInner } from './parts/ListsInner'
 import { Research } from './parts/Research'
 import { WizaPanel } from './parts/WizaPanel'
 
-const TABS = [['research', 'Company research'], ['import', 'Import leads (CSV)'], ['wiza', 'Enrich contacts'], ['lists', 'Prospect lists']] as const
+const ALL_TABS = [['research', 'Company research'], ['leads', 'Lead list'], ['import', 'Import leads (CSV)'], ['wiza', 'Enrich contacts'], ['lists', 'Prospect lists']] as const
+const TABS = ALL_TABS.filter(t => t[0] !== 'leads' || INTEL_LEADS_UI)
 const isTab = (v: unknown): v is (typeof TABS)[number][0] => TABS.some(t => t[0] === v)
 
 export function Prospecting({ route }: { route: Route }) {
@@ -17,6 +20,7 @@ export function Prospecting({ route }: { route: Route }) {
       <PageHead title="Find & enrich contacts" sub="Research companies, find people, import leads and enrich contacts. Records land in the shared CRM database." />
       <Tabs value={tab} onChange={setTab} tabs={TABS} />
       {tab === 'research' && <Research />}
+      {tab === 'leads' && INTEL_LEADS_UI && <LeadList />}
       {tab === 'import' && <Importer />}
       {tab === 'wiza' && <WizaPanel onImport={() => setTab('import')} />}
       {tab === 'lists' && <ListsInner />}
