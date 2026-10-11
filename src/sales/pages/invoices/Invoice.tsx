@@ -13,7 +13,7 @@ import { InvoicesDenied } from './states'
 export function Invoice({ route }: { route: Route }) {
   useStore()
   const id = route.id
-  if (!id || id === 'new') return <InvoiceEditor invoice={null} initial={{ companyId: str(route.q?.companyId), dealId: str(route.q?.dealId) }} />
+  if (!id || id === 'new') return <InvoiceEditor invoice={null} initial={{ companyId: str(route.q?.companyId), dealId: str(route.q?.dealId), milestoneId: str(route.q?.milestoneId), retainer: route.q?.retainer === true }} />
   return <Existing id={id} />
 }
 

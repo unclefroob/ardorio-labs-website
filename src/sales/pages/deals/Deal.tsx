@@ -15,6 +15,7 @@ import { Notes } from '../companies/parts/Notes'
 import { planLabel } from '../../data/rosterio'
 import { RosterioCard } from './RosterioCard'
 import { TaskTable } from '../companies/parts/TaskTable'
+import { BillingCard } from './BillingCard'
 import { Commercials } from './Commercials'
 import { DealAI } from './DealAI'
 import { LinkBtn } from './LinkBtn'
@@ -188,6 +189,7 @@ export function Deal({ route }: { route: Route }) {
           ['emails', 'Emails', ths.length],
           ['ai', 'Insights'],
           ['commercials', 'Commercials'],
+          ...(d.businessId === 'ard' && Q.canBill() ? [['billing', 'Billing'] as const] : []),
         ]}
       />
       {tab === 'overview' && (
@@ -293,6 +295,7 @@ export function Deal({ route }: { route: Route }) {
       )}
       {tab === 'ai' && <DealAI d={d} />}
       {tab === 'commercials' && <Commercials d={d} />}
+      {tab === 'billing' && d.businessId === 'ard' && Q.canBill() && <BillingCard deal={d} />}
     </div>
   )
 }

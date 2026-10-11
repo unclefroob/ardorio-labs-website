@@ -12,6 +12,7 @@ import {
   activityItems, actionsFor, blankForm, buildInput, emptyLine, formFromInvoice, formTotals, milestoneLine, milestoneStatus,
   missingBilling, planFor, validateForm, withTerms, type FormErrors, type InvoiceForm,
 } from '../../shared/invoices'
+import { prefillForm } from '../../shared/billing'
 import { formatCents, lineAmountCents, parsePercentBp } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -23,7 +24,7 @@ import { InvoicesDenied } from './states'
 interface Props {
   /** null: a new invoice. */
   invoice: InvoiceDto | null
-  initial?: { companyId?: string; dealId?: string }
+  initial?: { companyId?: string; dealId?: string; milestoneId?: string; retainer?: boolean }
   onChange?: (inv: InvoiceDto) => void
   /** Set when editing a sent invoice, to go back to the read-only view. */
   onCancel?: () => void
@@ -50,7 +51,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
     const base = blankForm(today, { gstPct: settings && !settings.gstRegistered ? '0' : '10', card: !!settings?.offerCardPayments && !stripeOff })
     const co = initial?.companyId && ardCompanies().some(c => c.id === initial.companyId) ? initial.companyId : ''
     const deal = initial?.dealId && ardDeals(co).some(d => d.id === initial.dealId) ? initial.dealId : ''
-    return { ...base, companyId: co, dealId: deal }
+    return deal ? prefillForm(base, { companyId: co, dealId: deal, milestoneId: initial?.milestoneId, retainer: initial?.retainer }, planFor(billingPlans(), deal)) : { ...base, companyId: co, dealId: deal }
   })
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState<'' | 'save' | 'issue' | 'pdf' | 'delete'>('')
