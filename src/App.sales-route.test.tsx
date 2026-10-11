@@ -31,4 +31,12 @@ describe('SalesOS entry point', () => {
   it('moves an old /admin/sales bookmark to /sales (then through login)', async () => {
     expect(await visit('/admin/sales/deals')).toBe('/admin/login?next=%2Fsales%2Fdeals')
   })
+  it('moves the old invoice addresses to SalesOS (then through login)', async () => {
+    expect(await visit('/admin/invoices')).toBe('/admin/login?next=%2Fsales%2Finvoices')
+    expect(await visit('/admin/invoices/new')).toBe('/admin/login?next=%2Fsales%2Finvoices%2Fnew')
+    expect(await visit('/admin/invoices/65f0c1a2b3')).toBe('/admin/login?next=%2Fsales%2Finvoices%2F65f0c1a2b3')
+  })
+  it('leaves the public invoice page alone', async () => {
+    expect(await visit('/invoice/abc123')).toBe('/invoice/abc123')
+  })
 })
