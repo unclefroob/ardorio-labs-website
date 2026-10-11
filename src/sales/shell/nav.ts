@@ -1,9 +1,13 @@
+import type { BusinessId } from '../api/contract'
+
 export interface NavItem {
   page: string
   label: string
   icon: string
   /** Hidden unless the viewer is an admin of at least one business. */
   admin?: boolean
+  /** Hidden unless the viewer is a member of this business. */
+  business?: BusinessId
 }
 export interface NavGroup {
   group: string
@@ -29,6 +33,7 @@ export const NAV: NavGroup[] = [
   ] },
   { group: 'Revenue', items: [
     { page: 'deals', label: 'Deals & Pipeline', icon: 'kanban' },
+    { page: 'rosterioCustomers', label: 'Rosterio customers', icon: 'zap', business: 'ros' },
     { page: 'reports', label: 'Reports', icon: 'chart' },
     { page: 'goals', label: 'Sales Goals', icon: 'target' },
   ] },
@@ -47,3 +52,8 @@ export const NAV: NavGroup[] = [
 ]
 
 export const ADMIN_PAGES: readonly string[] = NAV.flatMap(g => g.items).filter(i => i.admin).map(i => i.page)
+
+/** Pages only members of one business may open. */
+export const BUSINESS_PAGES: Readonly<Record<string, BusinessId>> = Object.fromEntries(
+  NAV.flatMap(g => g.items).filter(i => i.business).map(i => [i.page, i.business as BusinessId]),
+)

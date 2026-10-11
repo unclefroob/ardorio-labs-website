@@ -14,6 +14,7 @@ import { Lost } from '../modals/entities/Lost'
 import { NewTask } from '../modals/entities/NewTask'
 import { CallOutcome } from '../modals/entities/CallOutcome'
 import { ProvisionRosterio } from '../modals/entities/ProvisionRosterio'
+import { LinkRosterio } from '../modals/entities/LinkRosterio'
 import { TaskDrawer } from '../modals/entities/TaskDrawer'
 
 export const u1: UnitModule = {
@@ -21,7 +22,7 @@ export const u1: UnitModule = {
   modals: {
     newCompany: NewCompany, editCompany: EditCompany, newContact: NewContact, editContact: EditContact,
     newDeal: NewDeal, stageCheck: StageCheck, won: Won, lost: Lost, newTask: NewTask,
-    callOutcome: CallOutcome, logCall: CallOutcome, provisionRosterio: ProvisionRosterio,
+    callOutcome: CallOutcome, logCall: CallOutcome, provisionRosterio: ProvisionRosterio, linkRosterio: LinkRosterio,
   },
   drawers: { task: TaskDrawer },
 }

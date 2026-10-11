@@ -57,7 +57,7 @@ export function Sidebar() {
       />
       <div className="side-scroll">
         {NAV.map(g => {
-          const vis = g.items.filter(i => !i.admin || admin)
+          const vis = g.items.filter(i => (!i.admin || admin) && (!i.business || Q.member(i.business)))
           if (!vis.length) return null
           return (
             <div key={g.group}>

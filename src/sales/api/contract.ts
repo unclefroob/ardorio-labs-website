@@ -258,7 +258,7 @@ export type SalesErrorCode =
   | 'NOT_A_MEMBER' | 'MEMBER_INACTIVE' | 'ROLE_REQUIRED' | 'NOT_FOUND'
   | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION' | 'SUPPRESSED'
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
-  | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'INTERNAL'
+  | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -399,6 +399,32 @@ export interface RosterioPushEntry { at: string; dealId: string; outcome: Roster
 export interface RosterioStatusResponse { configured: boolean; pendingFailures: number; recent: RosterioPushEntry[] }   // recent: last 20
 /** POST /sales/rosterio/sync/retry (business admins). Body `{}`. The response body is not relied on: the status is read again afterwards. */
 export interface RosterioRetryResponse { retried?: number; failed?: number }
+/** GET /sales/rosterio/accounts. A live read of Rosterio, never stored. `billingEmail` is present only for business admins. */
+export interface RosterioAccount {
+  id: string
+  name: string
+  plan?: RosterioPlan | string
+  status?: string
+  isActive: boolean
+  isTrial: boolean
+  trialEndDate?: string
+  createdAt?: string
+  memberCount: number
+  subscriptionStatus?: string
+  billingEmail?: string
+}
+export interface RosterioAccountsResponse {
+  accounts: RosterioAccount[]
+  total: number
+  /** Rosterio lists a fixed number of accounts, newest first. True when there may be older ones not shown. */
+  truncated: boolean
+  fetchedAt: string
+}
+/** POST /sales/rosterio/link. Needs edit rights in business `ros`. The server checks the account exists. */
+export interface RosterioLinkRequest { companyId: string; accountId: string }
+export interface RosterioLinkResponse { link: RosterioLink }
+/** POST /sales/rosterio/unlink. Needs edit rights in business `ros`. */
+export interface RosterioUnlinkRequest { companyId: string }
 /** POST /sales/rosterio/provision. Needs edit rights in business `ros`. */
 export interface RosterioProvisionRequest {
   dealId: string
