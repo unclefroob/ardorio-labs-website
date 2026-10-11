@@ -4,13 +4,9 @@ import { Q } from './Q'
 import { S } from './store'
 import type { Company, Deal } from './types'
 
-/**
- * Billing plans live in the 'billingPlans' record collection, added to the store separately. Until it exists
- * this returns nothing, so the milestone picker simply has no plans to offer.
- */
+/** The synced 'billingPlans' collection (id bp_<dealId>). Plans of deals you cannot see are never sent. */
 export function billingPlans(): BillingPlan[] {
-  const v = (S as unknown as { billingPlans?: unknown }).billingPlans
-  return Array.isArray(v) ? (v as BillingPlan[]) : []
+  return S.billingPlans
 }
 
 /** Companies that are in the Ardorio business, by name. */
