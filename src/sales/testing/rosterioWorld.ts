@@ -4,7 +4,8 @@ import { bootstrap, rec, ME } from './fixtures'
 import type { Sales } from './load'
 
 /** Rosterio business, a pipeline with the `plan` field, one company, one contact and one open + one won Rosterio deal. */
-export function rosterioWorld(over: { company?: Record<string, unknown>; contactEmail?: string; dealFields?: Record<string, unknown> } = {}): BootstrapResponse {
+export function rosterioWorld(over: { company?: Record<string, unknown>; contactEmail?: string; dealFields?: Record<string, unknown>; extraCompanies?: Record<string, Record<string, unknown>> } = {}): BootstrapResponse {
+  const extra = Object.entries(over.extraCompanies ?? {})
   const stages = [
     { id: 'sg1', name: 'Lead', prob: 10, required: [], won: false, lost: false },
     { id: 'sg2', name: 'Closed Won', prob: 100, required: [], won: true, lost: false },
@@ -22,12 +23,18 @@ export function rosterioWorld(over: { company?: Record<string, unknown>; contact
       businessId: 'ros', name: 'Rosterio pipeline', recurring: true, lostReasons: ['Price'], forecast: [], card: [], stages,
       fields: [{ key: 'plan', label: 'Plan', type: 'select', options: ['starter', 'pro', 'enterprise'], active: true }],
     })],
-    companies: [rec('co1', { name: 'Acme Pty Ltd', tradingName: 'Acme', tags: [], tech: [], notes: [], industry: '', subindustry: '', hq: '', state: '', ...over.company })],
+    companies: [
+      rec('co1', { name: 'Acme Pty Ltd', tradingName: 'Acme', tags: [], tech: [], notes: [], industry: '', subindustry: '', hq: '', state: '', ...over.company }),
+      ...extra.map(([id, d]) => rec(id, { name: id, tradingName: id, tags: [], tech: [], notes: [], industry: '', subindustry: '', hq: '', state: '', domain: '', archived: false, ...d })),
+    ],
     contacts: [rec('ct1', {
       firstName: 'Jo', lastName: 'Park', name: 'Jo Park', title: 'Ops Director', companyId: 'co1', email: over.contactEmail ?? 'jo@acme.test', email2: '',
       phone: '0400 000 000', mobile: '', notes: [], verification: 'Verified',
     })],
-    companyRels: [rec('cr1', { companyId: 'co1', businessId: 'ros', ownerId: 'u-me', status: 'Prospect', prospectStatus: '', source: '', priority: 'Medium', tags: [] })],
+    companyRels: [
+      rec('cr1', { companyId: 'co1', businessId: 'ros', ownerId: 'u-me', status: 'Prospect', prospectStatus: '', source: '', priority: 'Medium', tags: [] }),
+      ...extra.map(([id]) => rec('cr_' + id, { companyId: id, businessId: 'ros', ownerId: 'u-me', status: 'Prospect', prospectStatus: '', source: '', priority: 'Medium', tags: [] })),
+    ],
     deals: [deal('dl1', 'open', 'sg1'), deal('dl2', 'won', 'sg2')],
   })
   return b
@@ -66,3 +73,11 @@ export function fakeApi(routes: Record<string, Reply>): { calls: Call[]; count: 
   }) as typeof fetch)
   return { calls, count: key => calls.filter(c => `${c.method} ${c.path}` === key).length }
 }
+
+import type { RosterioAccount, RosterioAccountsResponse } from '../api/contract'
+export const account = (o: Partial<RosterioAccount> = {}): RosterioAccount => ({
+  id: 'acc1', name: 'Acme Pty Ltd', plan: 'pro', status: 'active', isActive: true, isTrial: false, memberCount: 12, createdAt: '2025-03-14T00:00:00.000Z', ...o,
+})
+export const accountsOf = (accounts: RosterioAccount[], o: Partial<RosterioAccountsResponse> = {}): RosterioAccountsResponse => ({
+  accounts, total: accounts.length, truncated: false, fetchedAt: new Date().toISOString(), ...o,
+})
