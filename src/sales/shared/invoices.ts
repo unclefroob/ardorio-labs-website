@@ -369,14 +369,16 @@ export function missingBilling(c: { billing: { email?: string; abn?: string; add
 export interface ActivityItem { label: string; when: string; note: string; done: boolean; /** Extra lines under the note. */ lines?: string[]; tone?: 'bad' | 'warn' }
 
 /** What happened to the card link when an invoice was cancelled, in words. */
-export function linkOutcome(linkDeactivated: boolean | null): string {
+export function linkOutcome(linkDeactivated: boolean | null, paymentLinkUrl?: string): string {
   if (linkDeactivated === true) return 'Card link switched off'
   if (linkDeactivated === false) return 'Card link was not switched off. It must be switched off in Stripe.'
+  // null with a link on the invoice is a hand-pasted link: the API never switches those off.
+  if (paymentLinkUrl) return 'Pasted card link is still active. Switch it off in your payment provider.'
   return 'No card link to switch off'
 }
 
 export function activityItems(
-  inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'issuedCount' | 'status' | 'payment'> & Partial<Pick<InvoiceDto, 'voided' | 'refundDue'>> | null,
+  inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'issuedCount' | 'status' | 'payment'> & Partial<Pick<InvoiceDto, 'voided' | 'refundDue' | 'paymentLinkUrl'>> | null,
   nameOf: (id: string) => string = id => id,
 ): ActivityItem[] {
   if (!inv) return [{ label: 'Created', when: '', note: 'Not saved yet', done: false }, { label: 'Issued', when: '', note: 'Not yet', done: false }, { label: 'Paid', when: '', note: 'Not yet', done: false }]
@@ -390,7 +392,7 @@ export function activityItems(
     const v = inv.voided
     const out: ActivityItem[] = [created, issuedItem, {
       label: 'Cancelled', when: fmtDay(v.voidedAt), note: nameOf(v.voidedBy), done: true, tone: 'bad',
-      lines: [`Reason: ${voidReasonLabel(v.reason)}`, ...(v.note ? [`Note: ${v.note}`] : []), linkOutcome(v.linkDeactivated)],
+      lines: [`Reason: ${voidReasonLabel(v.reason)}`, ...(v.note ? [`Note: ${v.note}`] : []), linkOutcome(v.linkDeactivated, inv.paymentLinkUrl)],
     }]
     if (inv.refundDue) {
       const r = inv.refundDue

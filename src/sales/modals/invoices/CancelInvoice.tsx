@@ -62,6 +62,7 @@ export function CancelInvoice({ invoice, onDone, onRefresh }: { invoice: Invoice
       UI.toast(`${num} cancelled`)
       onDone?.(done)
     } catch (e) {
+      setAck(false)
       setFail(classify(e))
     } finally {
       inFlight.current = false

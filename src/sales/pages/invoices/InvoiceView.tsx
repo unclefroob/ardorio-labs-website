@@ -50,6 +50,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
   const banner = useRef<HTMLDivElement>(null)
   const wasVoid = useRef(a.voided)
   const voided = inv.voided
+  const linkLive = voided?.linkDeactivated === false || (voided != null && voided.linkDeactivated == null && !!inv.paymentLinkUrl)
   const paid = inv.status === 'paid'
   // Just cancelled: the dialog closed and the button that started it is gone, so land on the banner that says what happened.
   useEffect(() => {
@@ -185,10 +186,11 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
               <div className="col" style={{ gap: 14 }}>
                 <div className="rowx">
                   <span className="muted">Card payment</span>
-                  <Chip tone={voided?.linkDeactivated === false ? 'warn' : ''} icon={voided?.linkDeactivated === false ? 'alert' : voided?.linkDeactivated ? 'check' : undefined}>
-                    {voided?.linkDeactivated === true ? 'Link switched off' : voided?.linkDeactivated === false ? 'Link still active: switch it off in Stripe' : 'No card link'}
+                  <Chip tone={linkLive ? 'warn' : ''} icon={linkLive ? 'alert' : voided?.linkDeactivated ? 'check' : undefined}>
+                    {voided?.linkDeactivated === true ? 'Link switched off' : voided?.linkDeactivated === false ? 'Link still active: switch it off in Stripe' : linkLive ? 'Link still active: switch it off in your payment provider' : 'No card link'}
                   </Chip>
                 </div>
+                {linkLive && inv.paymentLinkUrl && <div className="rowx"><span className="muted">Card link</span><span className="mono sm" style={{ wordBreak: 'break-all' }}>{inv.paymentLinkUrl}</span></div>}
                 <div className="rowx"><span className="muted">Client’s invoice page</span><span>Shows “This invoice has been cancelled”</span></div>
               </div>
             </Card>

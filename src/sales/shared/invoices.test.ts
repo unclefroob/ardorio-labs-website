@@ -376,6 +376,8 @@ describe('cancelled invoices: activity and refunds', () => {
   it('says when the link was not switched off, or there was none', () => {
     expect(linkOutcome(false)).toContain('must be switched off in Stripe')
     expect(linkOutcome(null)).toBe('No card link to switch off')
+    expect(linkOutcome(null, 'https://pay.example/x')).toContain('Pasted card link is still active')
+    expect(linkOutcome(true, 'https://pay.example/x')).toBe('Card link switched off')
   })
   it('a payment after cancelling and its confirmation are part of the history', () => {
     const refund = { amountCents: 1980000, receivedAt: '2026-10-13T01:00:00.000Z', reference: 'pi_123', acknowledgedAt: null, acknowledgedBy: null }

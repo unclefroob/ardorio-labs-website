@@ -335,6 +335,20 @@ describe('when cancelling does not work', () => {
     expect(text()).toContain('Card link was not switched off')
   })
 
+  it('the cancel-anyway tick is cleared when a new failure arrives', async () => {
+    const { api } = await show(sent(), { [VOID1]: err(502, 'LINK_DEACTIVATION_FAILED', 'Stripe down', { linkId: 'plink_123' }) })
+    await openCancel()
+    await submit()
+    await click(dialog()?.querySelector('input[type="checkbox"]') ?? null)
+    expect(dlgBtn('Cancel invoice anyway')).toBeDefined()
+    await click(dlgBtn('Cancel invoice anyway'))
+    await settle(4)
+    expect(dialog()?.getAttribute('aria-label')).toBe('Couldn’t switch off the card link')
+    expect((dialog()?.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(false)
+    expect(dlgBtn('Cancel invoice anyway')).toBeUndefined()
+    expect(voidCalls(api)).toHaveLength(2)
+  })
+
   it('permission denied: says so, changes nothing, and Close dismisses', async () => {
     await show(sent(), { [VOID1]: err(403, 'ROLE_REQUIRED', 'Forbidden') })
     await openCancel()
@@ -366,6 +380,19 @@ describe('when cancelling does not work', () => {
 })
 
 describe('after cancelling', () => {
+  it('a cancelled invoice with a hand-pasted link flags the link as still active', async () => {
+    await show(voided({ voided: { ...VOIDED, linkDeactivated: null }, paymentLinkUrl: 'https://pay.example/manual', paymentLinkIsAutomatic: false }))
+    expect(text()).toContain('Link still active: switch it off in your payment provider')
+    expect(text()).toContain('https://pay.example/manual')
+    expect(text()).toContain('Pasted card link is still active')
+    expect(text()).not.toContain('No card link')
+  })
+
+  it('a cancelled invoice with no link at all still says no card link', async () => {
+    await show(voided({ voided: { ...VOIDED, linkDeactivated: null }, paymentLinkUrl: '' }))
+    expect(text()).toContain('No card link')
+  })
+
   const win = () => ({ [VOID1]: () => json(200, voided()) })
 
   it('closes the dialog, toasts, and shows a persistent banner saying who, when and why', async () => {
