@@ -75,6 +75,15 @@ export function saveResearch(snap: Research): void {
   commit()
 }
 
+/** Records that the person checked the research is about the right company. Saved research only. */
+export function confirmResearchIdentity(id: string): void {
+  const r = S.research.find(x => x.id === id)
+  if (!r) return
+  r.identityConfirmedBy = S.session.userId
+  r.identityConfirmedAt = F.nowIso()
+  commit()
+}
+
 const HISTORY_CAP = 100
 
 /** Append to the applied-results log (newest first, capped). Whole-object sync means the cap must hold here. */

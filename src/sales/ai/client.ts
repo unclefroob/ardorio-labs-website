@@ -153,6 +153,7 @@ export async function research(cid: string | null | undefined, b: BusinessId, in
           ...base, simulated: false, overview: inf.overview, model: inf.businessModel, challenges: inf.challenges, offerings: inf.offerings,
           stakeholders: inf.stakeholders, angle: inf.angle, inferred: [inf.disclaimer], sources,
           provider: r.provider, providerModel: r.model, webSources: inf.sources,
+          ...(inf.identity ? { identity: inf.identity } : {}),
         },
         ai: tagFrom(r),
       }
