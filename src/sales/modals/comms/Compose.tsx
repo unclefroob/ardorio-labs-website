@@ -9,6 +9,7 @@ import { AiBadge, AiNotConfigured, Banner, Btn, Chip, Fld, Icon, Inp, Menu, Moda
 import { BizSel, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
 import { NoEditModal } from '../entities/guards'
+import { Openers, withOpener } from './Openers'
 
 interface Props {
   threadId?: string
@@ -153,6 +154,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
           <AiNotConfigured />
           <AiBadge tag={tag} />
         </div>
+        <Openers key={b + '|' + f.companyId + '|' + f.contactId} b={b} companyId={f.companyId || undefined} contactId={f.contactId || undefined} onInsert={line => set('body', withOpener(f.body, line))} />
         <RichText value={f.body} onChange={v => set('body', v)} tokens={TOKENS} onAI={() => void draftIt()} aiBusy={busy} />
         {ct && (f.body.includes('{{') || f.subject.includes('{{')) && (
           <div className="card card-b" style={{ background: 'var(--surf2)' }}>

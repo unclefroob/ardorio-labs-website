@@ -14,6 +14,7 @@ export interface CachedEnrich { ts: number; res: EnrichDone }
 const MAX_ENTRIES = 500
 const results = new Map<string, CachedEnrich>()
 const usage = new Map<BusinessId, EnrichUsage>()
+const competitor = new Map<BusinessId, boolean>()
 const listeners = new Set<() => void>()
 let owner: string | null = null
 
@@ -25,9 +26,10 @@ function emit(): void {
 function guard(): void {
   const who = S.session?.userId || null
   if (owner !== who) {
-    const had = results.size > 0 || usage.size > 0
+    const had = results.size > 0 || usage.size > 0 || competitor.size > 0
     results.clear()
     usage.clear()
+    competitor.clear()
     owner = who
     if (had) emit()
   }
@@ -77,10 +79,28 @@ export function setUsage(b: BusinessId, u: EnrichUsage): void {
   emit()
 }
 
+/** Whether the server has a competitor list for this business (a competitor's tool adds to the score). Unknown until a usage call answers. */
+export function getCompetitorRule(b: BusinessId): boolean | undefined {
+  guard()
+  return competitor.get(b)
+}
+
+export function setCompetitorRule(b: BusinessId, v: boolean): void {
+  guard()
+  if (competitor.get(b) === v) return
+  competitor.set(b, v)
+  emit()
+}
+
+export function useCompetitorRule(b: BusinessId | undefined): boolean | undefined {
+  return useSyncExternalStore(subscribe, () => (b ? getCompetitorRule(b) : undefined))
+}
+
 /** Forget everything. Call on sign-out. */
 export function clear(): void {
   results.clear()
   usage.clear()
+  competitor.clear()
   owner = null
   emit()
 }

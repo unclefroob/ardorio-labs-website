@@ -9,6 +9,7 @@ import { S, useStore } from '../../../data/store'
 import type { BusinessId, Research as ResearchRec } from '../../../data/types'
 import { AiBadge, AiNotConfigured, Banner, BizDot, Btn, Card, Chip, Empty, Fld, Inp, Sel, Skel, Spinner } from '../../../kit'
 import { BizSel } from '../../../shared/forms'
+import { similarCompanies } from '../../../shared/companyMatch'
 import { INDUSTRIES, domOf, norm } from '../../../shared/constants'
 import { useF } from '../../../shared/useF'
 import { normaliseUrl, WEBSITE_URL_MESSAGE } from '../../../shared/url'
@@ -28,12 +29,16 @@ export function Research() {
   const [savedCid, setSavedCid] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [webErr, setWebErr] = useState('')
+  const [picked, setPicked] = useState<string | null>(null)
   const seq = useRef(0)
 
   const name = f.name.trim()
-  const match = name.length > 2
+  const exact = name.length > 2
     ? S.companies.find(c => !c.archived && (norm(c.name) === norm(name) || (!!f.website && !!c.domain && domOf(f.website) === domOf(c.domain))))
     : undefined
+  // A close-but-not-exact CRM name is only offered; it applies when the rep clicks it, since a wrong match attaches another company's facts.
+  const similar = name.length > 2 && !exact ? similarCompanies(name, f.website, S.companies) : []
+  const match = exact ?? S.companies.find(c => c.id === picked && !c.archived)
   const bid = f.businessId
   const recent = S.research.filter(r => Q.inScope(r.businessId)).sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 8)
 
@@ -91,13 +96,19 @@ export function Research() {
           {!bid && <Banner tone="warn">You need edit access to a business before you can research a company.</Banner>}
           <form onSubmit={e => { e.preventDefault(); void go() }}>
             <div className="grid g2">
-              <Fld label="Company name" req err={err}><Inp value={f.name} onChange={v => set('name', v)} placeholder="e.g. Harbour Retail Group" /></Fld>
-              <Fld label="Website" err={webErr}><Inp value={f.website} onChange={v => { set('website', v); setWebErr('') }} placeholder="company.com.au" aria-invalid={webErr ? true : undefined} /></Fld>
+              <Fld label="Company name" req err={err}><Inp value={f.name} onChange={v => { set('name', v); setPicked(null) }} placeholder="e.g. Harbour Retail Group" /></Fld>
+              <Fld label="Website" err={webErr}><Inp value={f.website} onChange={v => { set('website', v); setWebErr(''); setPicked(null) }} placeholder="company.com.au" aria-invalid={webErr ? true : undefined} /></Fld>
               <Fld label="Industry"><Sel value={f.industry} onChange={v => set('industry', v)} placeholder="Auto / unknown" options={INDUSTRIES} /></Fld>
               <Fld label="Target business"><BizSel value={f.businessId} onChange={v => set('businessId', Q.myBiz().find(b => b === v) ?? f.businessId)} /></Fld>
             </div>
+            {!match && similar.length > 0 && (
+              <div className="row wrap" role="group" aria-label="Possible CRM matches" style={{ marginTop: 12, gap: 8 }}>
+                <span className="sm muted">No exact CRM match. Is it one of these?</span>
+                {similar.map(c => <Btn key={c.id} size="sm" icon="building" onClick={() => setPicked(c.id)}>{c.name}</Btn>)}
+              </div>
+            )}
             <div className="row" style={{ marginTop: 12 }}>
-              {match && <Chip tone="info" icon="building">Matches CRM record: {match.name}</Chip>}
+              {match && <Chip tone="info" icon="building">{exact ? 'Matches CRM record' : 'Using CRM record'}: {match.name}</Chip>}
               <span className="sp" />
               <Btn type="submit" kind="pri" icon="spark" disabled={busy || !bid}>{busy ? 'Researching…' : 'Research company'}</Btn>
             </div>

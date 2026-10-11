@@ -8,7 +8,7 @@ import type { Collections, CollKey, State } from './types'
 export const ARRAY_COLLECTIONS = [
   'businesses', 'teams', 'pipelines', 'companies', 'contacts', 'deals', 'tasks', 'meetings',
   'mailboxes', 'templates', 'sequences', 'enrolments', 'threads', 'messages', 'lists', 'goals',
-  'recs', 'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels',
+  'recs', 'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels', 'intel',
   'audit', 'importJobs', 'savedViews',
 ] as const satisfies readonly CollKey[]
 export type ArrayCollection = typeof ARRAY_COLLECTIONS[number]
@@ -24,7 +24,7 @@ function emptyState(): State {
     businesses: [], users: [], teams: [], pipelines: [], companies: [], contacts: [], deals: [],
     tasks: [], meetings: [], mailboxes: [], templates: [], sequences: [], enrolments: [], threads: [],
     messages: [], lists: [], goals: [], recs: [], research: [], suppressions: [], activities: [],
-    notifications: [], companyRels: [], contactRels: [], audit: [], importJobs: [], savedViews: [],
+    notifications: [], companyRels: [], contactRels: [], intel: [], audit: [], importJobs: [], savedViews: [],
     session: { userId: '', ws: 'all', theme: 'light' },
     org: { name: '', tz: 'Australia/Melbourne', currency: 'AUD', dateFormat: 'D MMM YYYY', notif: { email: true, inApp: true }, sendingLimit: 50 },
     wiza: { history: [] },
@@ -42,7 +42,7 @@ type Idx = { [K in IndexedKey]: Map<string, Collections[K][number]> }
 const INDEXED: readonly IndexedKey[] = [
   'businesses', 'users', 'teams', 'pipelines', 'companies', 'contacts', 'deals', 'tasks', 'meetings',
   'mailboxes', 'templates', 'sequences', 'enrolments', 'threads', 'messages', 'lists', 'goals', 'recs',
-  'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels',
+  'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels', 'intel',
 ]
 
 function emptyIdx(): Idx {
@@ -51,7 +51,7 @@ function emptyIdx(): Idx {
     contacts: new Map(), deals: new Map(), tasks: new Map(), meetings: new Map(), mailboxes: new Map(),
     templates: new Map(), sequences: new Map(), enrolments: new Map(), threads: new Map(), messages: new Map(),
     lists: new Map(), goals: new Map(), recs: new Map(), research: new Map(), suppressions: new Map(),
-    activities: new Map(), notifications: new Map(), companyRels: new Map(), contactRels: new Map(),
+    activities: new Map(), notifications: new Map(), companyRels: new Map(), contactRels: new Map(), intel: new Map(),
   }
 }
 
@@ -242,6 +242,7 @@ const ARRAY_DEFAULTS: Partial<Record<SyncedCollection, readonly string[]>> = {
   mailboxes: ['businessIds', 'authorised'],
   meetings: ['participants'],
   lists: ['contactIds'],
+  intel: ['items', 'sources'],
 }
 const OBJECT_DEFAULTS: Partial<Record<SyncedCollection, readonly string[]>> = {
   deals: ['fields'],

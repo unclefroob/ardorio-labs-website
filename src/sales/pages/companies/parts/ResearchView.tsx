@@ -5,6 +5,7 @@ import type { Research } from '../../../data/types'
 import { providerName } from '../../../ai/client'
 import type { AiProvider } from '../../../api/contract'
 import { Banner, Chip, Icon, ScoreRing, Sim } from '../../../kit'
+import { ScoreWhy } from '../../../shared/IntelBits'
 import { safeHref } from '../query'
 
 export interface ResearchViewProps { r: Research; onSave?: ReactNode; saved?: boolean }
@@ -54,12 +55,16 @@ function Bullets({ items }: { items: readonly string[] }) {
 export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
   const bn = Q.biz(r.businessId)?.name ?? ''
   const by = text(r.by) ? Q.user(text(r.by))?.name : undefined
-  const score = typeof r.score === 'number' ? r.score : 0
+  const base = typeof r.score === 'number' ? r.score : 0
+  // Only a result tied to a CRM company can be moved by saved signals; an unmatched result keeps its own score.
+  const bd = typeof r.score === 'number' && r.companyId ? Q.scoreBreakdown(r.companyId, r.businessId, base) : null
+  const score = bd ? bd.total : base
   const facts = pairs(r.facts)
   const srcs = sources(r.sources)
   const caveats = list(r.inferred)
   const provider = providerOf(r.provider)
   const web = webSources(r.webSources)
+  const limited = r.limited === true
   return (
     <div className="ai card-b">
       <div className="row wrap">
@@ -74,7 +79,15 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
         {r.simulated === true && <Sim />}
       </div>
       {provider && <div className="xs faint" style={{ marginTop: 6 }}>The overview, challenges, offerings, roles and angle below are AI inference. Only “Facts from CRM” comes from your records.</div>}
-      {r.limited === true && <Banner tone="warn">Limited result: no CRM record matched. Generic sector content only.</Banner>}
+      {limited && (
+        <div style={{ marginTop: 10 }}>
+          <Banner tone="warn">
+            {provider === 'xai'
+              ? 'No CRM record matched, so there are no CRM facts or score. Everything here is public web research.'
+              : 'Limited result: no CRM record matched. Generic sector content only.'}
+          </Banner>
+        </div>
+      )}
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 150px', gap: 14, marginTop: 12 }}>
         <div>
           <div className="sm" style={{ lineHeight: 1.6 }}>{text(r.overview)}</div>
@@ -84,11 +97,26 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved }) => {
             <span><span className="faint">Model:</span> {text(r.model) || '—'}</span>
           </div>
         </div>
-        <div className="col" style={{ alignItems: 'center' }}>
-          <ScoreRing v={score} s={64} />
-          <span className="xs faint">Opportunity score</span>
+        <div className="col" style={{ alignItems: 'center', textAlign: 'center' }}>
+          {limited ? (
+            <>
+              <span className="b" style={{ fontSize: 18 }} aria-hidden="true">—</span>
+              <span className="xs faint">Not scored</span>
+              <span className="xs faint">Scoring needs a CRM record</span>
+            </>
+          ) : (
+            <>
+              <ScoreRing v={score} s={64} />
+              <span className="xs faint">Opportunity score</span>
+            </>
+          )}
         </div>
       </div>
+      {bd && r.companyId && (bd.parts.length > 0 || bd.pending.length > 0) && (
+        <div className="card card-b" style={{ marginTop: 12 }} data-testid="research-signal-adjust">
+          <ScoreWhy bd={bd} companyId={r.companyId} b={r.businessId} />
+        </div>
+      )}
       <div className="grid g3" style={{ marginTop: 14 }}>
         <div><div className="b sm">Potential challenges <span className="faint xs">(inferred)</span></div><Bullets items={list(r.challenges)} /></div>
         <div><div className="b sm">Relevant {bn} offerings</div><Bullets items={list(r.offerings)} /></div>

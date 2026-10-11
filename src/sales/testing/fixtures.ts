@@ -28,7 +28,7 @@ export function bootstrap(over: Partial<BootstrapResponse['collections']> = {}, 
     collections: {
       businesses: [], teams: [], pipelines: [], companies: [], contacts: [], deals: [], tasks: [], meetings: [],
       mailboxes: [], templates: [], sequences: [], enrolments: [], threads: [], messages: [], lists: [], goals: [],
-      recs: [], research: [], suppressions: [], activities: [], notifications: [], companyRels: [], contactRels: [],
+      recs: [], research: [], suppressions: [], activities: [], notifications: [], companyRels: [], contactRels: [], intel: [],
       audit: [], importJobs: [], savedViews: [], settings: [],
       ...over,
     },

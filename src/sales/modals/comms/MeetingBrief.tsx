@@ -3,8 +3,10 @@ import { localAi } from '../../ai/client'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { Av, Btn, Chip, Empty, Icon, Modal } from '../../kit'
+import { INTEL_PREP_UI } from '../../shared/features'
 import { UI } from '../../ui/store'
 import { MissingModal } from '../entities/guards'
+import { WebBrief } from './WebBrief'
 
 export function MeetingBrief({ id }: { id?: string }) {
   const m = id ? Q.meeting(id) : undefined
@@ -69,6 +71,7 @@ export function MeetingBrief({ id }: { id?: string }) {
             <ul className="sm" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>{b.questions.map(a => <li key={a}>{a}</li>)}</ul>
           </div>
         </div>
+        {INTEL_PREP_UI && <WebBrief meeting={m} />}
         <div>
           <div className="b sm" style={{ marginBottom: 6 }}>Recent activity</div>
           {b.recent.length ? b.recent.map(a => <div key={a.id} className="sm muted">· {a.subject} <span className="faint">({F.rel(a.ts)})</span></div>) : <div className="faint sm">No activity recorded for this company yet.</div>}

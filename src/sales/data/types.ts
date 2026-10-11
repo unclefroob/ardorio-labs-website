@@ -1,4 +1,4 @@
-import type { BusinessId, EmailPattern, EnrichField, Role, SalesUserDTO } from '../api/contract'
+import type { AiProvider, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, SalesUserDTO, TechItem } from '../api/contract'
 
 export type { BusinessId, Role }
 
@@ -447,6 +447,22 @@ export interface Research {
   [k: string]: unknown
 }
 
+/** Saved web-intelligence result (signals, tech stack or company contact details) for one company and business. */
+export interface Intel {
+  id: string
+  businessId: BusinessId
+  companyId: string
+  kind: IntelKind
+  ts: Iso
+  by: string
+  provider: AiProvider
+  model: string | null
+  items: Array<CompanySignal | TechItem | CompanyContactItem>
+  sources: ResearchSource[]
+  disclaimer: string
+  checkedAt?: Iso
+}
+
 export interface Suppression {
   id: string
   contactId: string
@@ -554,6 +570,7 @@ export interface Collections {
   notifications: Notification[]
   companyRels: CompanyRel[]
   contactRels: ContactRel[]
+  intel: Intel[]
   audit: AuditEntry[]
   importJobs: ImportJob[]
   savedViews: SavedView[]

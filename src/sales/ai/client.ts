@@ -1,11 +1,17 @@
-import { aiCheckEmail, aiClassify, aiCopilot, aiDraft, aiEnrichContact, aiEnrichLog, aiEnrichUsage, aiFindPeople, aiMeetingRecap, aiReplySuggest, aiResearch } from '../api/ai'
-import type { AiMeta, AiProvider, EmailCheckStatus, EnrichLogEntry, EnrichSuggestion, EnrichUsage, FoundPerson, ResearchSource } from '../api/contract'
+import {
+  aiCheckEmail, aiClassify, aiCompanyContact, aiCopilot, aiDraft, aiEnrichContact, aiEnrichLog, aiEnrichUsage, aiFindPeople, aiLeadList, aiMeetingPrep,
+  aiMeetingRecap, aiOpener, aiReplySuggest, aiResearch, aiSignals, aiTechStack,
+} from '../api/ai'
+import type {
+  AiMeta, AiProvider, CompanyContactItem, CompanySignal, EmailCheckStatus, EnrichLogEntry, EnrichSuggestion, EnrichUsage, FoundPerson, IntelKind, IntelSubject,
+  LeadCandidate, MeetingPrep, MeetingPrepRequest, Opener, OpenerRequest, ResearchSource, TechItem,
+} from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
 import { F } from '../data/F'
 import { isAiEnabled, isProviderEnabled } from '../data/session'
 import { Q } from '../data/Q'
 import type { BusinessId, Contact, Deal, Meeting, Research, Thread } from '../data/types'
-import { getUsage, putEnrich, setUsage } from './enrichCache'
+import { getUsage, putEnrich, setCompetitorRule, setUsage } from './enrichCache'
 import * as local from './local'
 
 export type AiSource = 'llm' | 'stub' | 'fallback' | 'refused'
@@ -284,11 +290,109 @@ export async function findPeople(
   }
 }
 
+// ── Web intelligence (signals, tech stack, company contact, lead lists, meeting prep, opening lines) ─────────
+// Same rules as enrichment: a search-backed call spends one monthly lookup, nothing degrades to a made-up answer.
+
+export type IntelItem = CompanySignal | TechItem | CompanyContactItem
+
+export interface WebDone<T> {
+  status: 'found' | 'none' | 'withheld'
+  items: T[]
+  sources: ResearchSource[]
+  withheld: number
+  disclaimer: string
+  usage: EnrichUsage
+  provider: AiProvider
+  model: string | null
+}
+export type WebOutcome<T> = EnrichFailure | WebDone<T>
+
+interface Wire { mode: string; usage: EnrichUsage; provider: AiProvider; model: string | null; result?: { sources: ResearchSource[]; withheld: number; disclaimer: string } }
+
+function webDone<T>(r: Wire, items: T[], b: BusinessId): WebOutcome<T> {
+  if (isUsage(r.usage)) setUsage(b, r.usage)
+  if (r.mode === 'stub') return { status: 'notConfigured', usage: isUsage(r.usage) ? r.usage : undefined }
+  if (!r.result) return { status: 'badOutput', message: 'The search returned no result.' }
+  const { sources, withheld, disclaimer } = r.result
+  return { status: items.length ? 'found' : withheld > 0 ? 'withheld' : 'none', items, sources: arr(sources), withheld: withheld ?? 0, disclaimer, usage: r.usage, provider: r.provider, model: r.model }
+}
+
+const arr = <T>(v: T[] | undefined): T[] => (Array.isArray(v) ? v : [])
+
+/** Run one of the three per-company lookups. Saving the answer is the caller's job (Act.saveIntel). */
+export async function runIntel(kind: IntelKind, subject: IntelSubject, opts: { signal?: AbortSignal } = {}): Promise<WebOutcome<IntelItem>> {
+  const b = subject.businessId
+  try {
+    if (kind === 'signals') {
+      const r = await aiSignals(subject, opts.signal)
+      return webDone(r, arr(r.result?.signals), b)
+    }
+    if (kind === 'tech') {
+      const r = await aiTechStack(subject, opts.signal)
+      return webDone(r, arr(r.result?.tools), b)
+    }
+    const r = await aiCompanyContact(subject, opts.signal)
+    return webDone(r, arr(r.result?.items), b)
+  } catch (e) {
+    return failure(e, b)
+  }
+}
+
+export type LeadListOutcome = WebOutcome<LeadCandidate>
+
+export async function findLeads(b: BusinessId, query: string, opts: { state?: string; signal?: AbortSignal } = {}): Promise<LeadListOutcome> {
+  try {
+    const r = await aiLeadList({ businessId: b, query: query.trim(), ...(opts.state ? { state: opts.state } : {}) }, opts.signal)
+    return webDone(r, arr(r.result?.leads), b)
+  } catch (e) {
+    return failure(e, b)
+  }
+}
+
+export interface PrepDone { status: 'ready'; prep: MeetingPrep; sources: ResearchSource[]; withheld: number; disclaimer: string; usage: EnrichUsage; provider: AiProvider; model: string | null }
+export type PrepOutcome = EnrichFailure | PrepDone
+
+const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [])
+
+export async function prepareMeeting(req: MeetingPrepRequest, opts: { signal?: AbortSignal } = {}): Promise<PrepOutcome> {
+  try {
+    const r = await aiMeetingPrep(req, opts.signal)
+    if (isUsage(r.usage)) setUsage(req.businessId, r.usage)
+    if (r.mode === 'stub') return { status: 'notConfigured', usage: isUsage(r.usage) ? r.usage : undefined }
+    if (!r.result?.prep) return { status: 'badOutput', message: 'The brief came back empty.' }
+    const p = r.result.prep
+    const prep: MeetingPrep = {
+      summary: typeof p.summary === 'string' ? p.summary : '', talkingPoints: strs(p.talkingPoints), questions: strs(p.questions), watchOuts: strs(p.watchOuts),
+      news: Array.isArray(p.news) ? p.news.filter(n => n && typeof n.headline === 'string' && typeof n.sourceUrl === 'string') : [],
+    }
+    return { status: 'ready', prep, sources: arr(r.result.sources), withheld: r.result.withheld ?? 0, disclaimer: r.result.disclaimer ?? '', usage: r.usage, provider: r.provider, model: r.model }
+  } catch (e) {
+    return failure(e, req.businessId)
+  }
+}
+
+export type OpenerOutcome = EnrichFailure | { status: 'ok'; openers: Opener[]; model: string | null } | { status: 'noSignals' }
+
+/** Opening lines written from signals already saved for the company. Uncapped: it costs no lookup. */
+export async function openingLines(req: OpenerRequest, opts: { signal?: AbortSignal } = {}): Promise<OpenerOutcome> {
+  try {
+    const r = await aiOpener(req, opts.signal)
+    if (r.mode === 'stub') return { status: 'notConfigured' }
+    if (r.noSignals) return { status: 'noSignals' }
+    const openers = arr(r.openers).filter(o => o && typeof o.text === 'string' && o.text.trim() !== '').slice(0, 3)
+    if (!openers.length) return { status: 'badOutput', message: 'No opening lines came back.' }
+    return { status: 'ok', openers, model: r.model }
+  } catch (e) {
+    return failure(e, req.businessId)
+  }
+}
+
 /** Calls used this month for a business. Does not itself cost a call. */
 export async function enrichUsage(b: BusinessId, signal?: AbortSignal): Promise<UsageOutcome> {
   try {
     const r = await aiEnrichUsage(b, signal)
     if (isUsage(r.usage)) setUsage(b, r.usage)
+    if (typeof r.competitorRule === 'boolean') setCompetitorRule(b, r.competitorRule)
     return { status: 'ok', enabled: r.enabled, usage: r.usage }
   } catch (e) {
     const f = failure(e, b)

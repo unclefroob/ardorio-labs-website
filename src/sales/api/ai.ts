@@ -1,8 +1,9 @@
 import { salesFetch } from './http'
 import type {
-  BusinessId, CheckEmailRequest, CheckEmailResponse, ClassifyRequest, ClassifyResponse, CopilotRequest, CopilotResponse, DraftRequest, DraftResponse, EnrichContactRequest,
-  EnrichContactResponse, EnrichLogResponse, EnrichUsageResponse, FindPeopleRequest, FindPeopleResponse, MeetingRecapRequest,
-  MeetingRecapResponse, ReplySuggestRequest, ReplySuggestResponse, ResearchRequest, ResearchResponse,
+  BusinessId, CheckEmailRequest, CheckEmailResponse, ClassifyRequest, ClassifyResponse, CompanyContactResponse, CopilotRequest, CopilotResponse, DraftRequest, DraftResponse,
+  EnrichContactRequest, EnrichContactResponse, EnrichLogResponse, EnrichUsageResponse, FindPeopleRequest, FindPeopleResponse, IntelSubject, LeadListRequest, LeadListResponse,
+  MeetingPrepRequest, MeetingPrepResponse, MeetingRecapRequest, MeetingRecapResponse, OpenerRequest, OpenerResponse, ReplySuggestRequest, ReplySuggestResponse,
+  ResearchRequest, ResearchResponse, SignalsResponse, TechStackResponse,
 } from './contract'
 
 /** R12-R17. Requests carry ids; the server builds the allow-listed prompt payload itself. */
@@ -28,3 +29,17 @@ export const aiEnrichLog = (businessId: BusinessId, opts: { contactId?: string; 
 }
 export const aiCheckEmail = (req: CheckEmailRequest, signal?: AbortSignal) =>
   salesFetch<CheckEmailResponse>('/ai/enrich/check-email', { method: 'POST', body: req, signal })
+
+/** Web intelligence. Every call but the opener runs a live web search (30-60 s) and spends one monthly lookup. */
+export const aiSignals = (req: IntelSubject, signal?: AbortSignal) =>
+  salesFetch<SignalsResponse>('/ai/signals', { method: 'POST', body: req, signal })
+export const aiTechStack = (req: IntelSubject, signal?: AbortSignal) =>
+  salesFetch<TechStackResponse>('/ai/tech-stack', { method: 'POST', body: req, signal })
+export const aiCompanyContact = (req: IntelSubject, signal?: AbortSignal) =>
+  salesFetch<CompanyContactResponse>('/ai/company-contact', { method: 'POST', body: req, signal })
+export const aiLeadList = (req: LeadListRequest, signal?: AbortSignal) =>
+  salesFetch<LeadListResponse>('/ai/lead-list', { method: 'POST', body: req, signal })
+export const aiMeetingPrep = (req: MeetingPrepRequest, signal?: AbortSignal) =>
+  salesFetch<MeetingPrepResponse>('/ai/meeting-prep', { method: 'POST', body: req, signal })
+export const aiOpener = (req: OpenerRequest, signal?: AbortSignal) =>
+  salesFetch<OpenerResponse>('/ai/opener', { method: 'POST', body: req, signal })

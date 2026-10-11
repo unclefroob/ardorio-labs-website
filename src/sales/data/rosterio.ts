@@ -1,12 +1,18 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { rosterioProvision, rosterioRetry, rosterioStatus } from '../api/rosterio'
+import { rosterioAccounts, rosterioLink, rosterioProvision, rosterioRetry, rosterioStatus, rosterioUnlink } from '../api/rosterio'
 import { ROSTERIO_PLANS } from '../api/contract'
-import type { RosterioLink, RosterioLinkState, RosterioPlan, RosterioProvisionRequest, RosterioProvisionResponse, RosterioStatusResponse } from '../api/contract'
+import type {
+  RosterioAccount, RosterioAccountsResponse, RosterioLink, RosterioLinkState, RosterioPlan, RosterioProvisionRequest, RosterioProvisionResponse, RosterioStatusResponse,
+} from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
 import { F } from './F'
 import { Q } from './Q'
 import { S } from './store'
-import { pollOnce } from './sync'
+import { Act } from './Act'
+import { flushAll, pollOnce } from './sync'
+import { normaliseUrl } from '../shared/url'
+import { businessDomain } from '../shared/rosterioMatch'
+import { UI } from '../ui/store'
 import type { Company, Deal } from './types'
 
 // Rosterio CRM link. Status is read from the server on demand. The link itself lives on the company record and arrives
@@ -39,6 +45,8 @@ let status: StatusState = { s: 'idle' }
 let version = 0
 const subs = new Set<() => void>()
 const overlay = new Map<string, RosterioLink>()
+/** Companies this browser just unlinked, until the next sync brings the cleared record. */
+const unlinkedHere = new Set<string>()
 
 function emit(): void {
   version++
@@ -85,6 +93,10 @@ export function useRosterioLinks(): number {
 export function rosterioLinkOf(c: Company | undefined): RosterioLink | undefined {
   if (!c) return undefined
   const synced = asLink(c.rosterio)
+  if (unlinkedHere.has(c.id)) {
+    if (synced) return undefined
+    unlinkedHere.delete(c.id)
+  }
   if (synced?.state === 'provisioned') return synced
   return overlay.get(c.id) ?? synced
 }
@@ -161,4 +173,201 @@ export async function retryFailedPushes(): Promise<{ ok: true } | { ok: false; m
   } catch (e) {
     return { ok: false, message: e instanceof SalesNetworkError ? "Can't reach the server. Check your connection and try again." : e instanceof SalesHttpError && e.body ? e.message : 'Could not retry. Try again in a moment.' }
   }
+}
+
+// ── live accounts (a read of Rosterio each time, never a copy in the store) ────────────────────────
+export type AccountsState =
+  | { s: 'idle' }
+  | { s: 'loading'; previous?: RosterioAccountsResponse }
+  | { s: 'ok'; data: RosterioAccountsResponse }
+  | { s: 'notConfigured' }
+  | { s: 'error'; message: string; previous?: RosterioAccountsResponse }
+
+let accounts: AccountsState = { s: 'idle' }
+let accountsAt = 0
+let inflight: Promise<void> | null = null
+/** What the last good read said, kept only in memory so a card can say "last seen" when Rosterio can't be reached. */
+let lastGood: RosterioAccountsResponse | null = null
+const ACCOUNTS_TTL_MS = 60_000
+
+const failText = (e: unknown): string =>
+  e instanceof SalesNetworkError ? "Can't reach the server. Check your connection and try again."
+    : e instanceof SalesHttpError && e.body?.error ? e.body.error
+    : 'Could not load the accounts from Rosterio.'
+
+function isAccounts(v: unknown): v is RosterioAccountsResponse {
+  const o = v as Partial<RosterioAccountsResponse> | null
+  return !!o && Array.isArray(o.accounts) && typeof o.fetchedAt === 'string'
+    && o.accounts.every(a => !!a && typeof a.id === 'string' && typeof a.name === 'string')
+}
+
+/** One shared request: a second caller while one is running waits for it. */
+export function loadRosterioAccounts(): Promise<void> {
+  if (inflight) return inflight
+  accounts = { s: 'loading', previous: lastGood ?? undefined }
+  emit()
+  inflight = (async () => {
+    try {
+      const r = await rosterioAccounts()
+      if (isAccounts(r)) {
+        const data: RosterioAccountsResponse = { ...r, total: typeof r.total === 'number' ? r.total : r.accounts.length, truncated: r.truncated === true }
+        lastGood = data
+        accounts = { s: 'ok', data }
+        accountsAt = Date.now()
+      } else accounts = { s: 'error', message: 'The Rosterio accounts came back in an unexpected form.', previous: lastGood ?? undefined }
+    } catch (e) {
+      accounts = e instanceof SalesHttpError && e.code === 'NOT_CONFIGURED'
+        ? { s: 'notConfigured' }
+        : { s: 'error', message: failText(e), previous: lastGood ?? undefined }
+    }
+    inflight = null
+    emit()
+  })()
+  return inflight
+}
+
+/**
+ * `always` reads on every mount (the customers page); `ifStale` reads when nothing was read in the last minute
+ * (the company card, so many cards share one request).
+ */
+export function useRosterioAccounts(mode: 'always' | 'ifStale' | 'never' = 'always'): AccountsState & { reload: () => void; lastGood: RosterioAccountsResponse | null } {
+  useSyncExternalStore(subscribe, () => version)
+  const member = Q.member('ros')
+  useEffect(() => {
+    if (!member || mode === 'never') return
+    const stale = accounts.s === 'idle' || Date.now() - accountsAt > ACCOUNTS_TTL_MS
+    if (mode === 'always' || stale) void loadRosterioAccounts()
+  }, [member, mode])
+  return { ...accounts, reload: () => void loadRosterioAccounts(), lastGood }
+}
+
+export const accountOf = (data: RosterioAccountsResponse | undefined, id: string | undefined): RosterioAccount | undefined =>
+  id ? data?.accounts.find(a => a.id === id) : undefined
+
+/** Test seam. */
+export function resetRosterioAccounts(): void {
+  accounts = { s: 'idle' }
+  accountsAt = 0
+  inflight = null
+  lastGood = null
+  overlay.clear()
+  unlinkedHere.clear()
+  pendingCreate.clear()
+  emit()
+}
+
+// ── "Not it": remembered in this browser only ──────────────────────────────────────────────────────
+const DISMISS_KEY = 'sos.ros.notIt'
+export function readDismissed(): Set<string> {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(DISMISS_KEY) ?? '[]')
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+  } catch { return new Set() }
+}
+export function dismissAccount(id: string): void {
+  try {
+    const s = readDismissed()
+    s.add(id)
+    localStorage.setItem(DISMISS_KEY, JSON.stringify([...s]))
+  } catch { /* storage unavailable: the suggestion simply comes back */ }
+  emit()
+}
+export function useDismissed(): Set<string> {
+  useSyncExternalStore(subscribe, () => version)
+  return readDismissed()
+}
+
+// ── linking an existing account to a company ───────────────────────────────────────────────────────
+export type LinkResult =
+  | { ok: true; link: RosterioLink }
+  | { ok: false; kind: 'notSynced' | 'forbidden' | 'conflict' | 'missing' | 'failed'; message: string }
+
+export const NOT_SYNCED_MESSAGE = 'Saved here, not synced yet. Retry'
+
+function linkFail(e: unknown): LinkResult {
+  if (e instanceof SalesHttpError) {
+    if (e.status === 403) return { ok: false, kind: 'forbidden', message: 'You need edit access to Rosterio to do this.' }
+    if (e.status === 409) return { ok: false, kind: 'conflict', message: e.body?.error ?? 'That account or company is already linked.' }
+    if (e.status === 404) return { ok: false, kind: 'missing', message: e.body?.error ?? 'That account or company could not be found. Refresh and try again.' }
+    if (e.status < 500) return { ok: false, kind: 'failed', message: e.body?.error ?? 'The link could not be saved.' }
+  }
+  return { ok: false, kind: 'failed', message: failText(e) }
+}
+
+/** Saves the account id on the company. The server checks the account exists; the company is put in Rosterio first if it is not. */
+export async function linkAccount(companyId: string, accountId: string): Promise<LinkResult> {
+  if (!Q.canEdit('ros')) return { ok: false, kind: 'forbidden', message: 'You need edit access to Rosterio to do this.' }
+  if (!Q.company(companyId)) return { ok: false, kind: 'missing', message: 'That company could not be found.' }
+  if (!Q.rel(companyId, 'ros')) Act.linkCompany(companyId, 'ros')
+  if (!(await flushAll())) return { ok: false, kind: 'notSynced', message: NOT_SYNCED_MESSAGE }
+  try {
+    const r = await rosterioLink({ companyId, accountId })
+    const link = asLink(r?.link)
+    if (!link) return { ok: false, kind: 'failed', message: 'The link came back in an unexpected form. Refresh to see where it stands.' }
+    unlinkedHere.delete(companyId)
+    overlay.set(companyId, link)
+    emit()
+    void pollOnce()
+    return { ok: true, link }
+  } catch (e) {
+    return linkFail(e)
+  }
+}
+
+export async function unlinkAccount(companyId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!Q.canEdit('ros')) return { ok: false, message: 'You need edit access to Rosterio to do this.' }
+  try {
+    await rosterioUnlink({ companyId })
+    overlay.delete(companyId)
+    unlinkedHere.add(companyId)
+    emit()
+    void pollOnce()
+    return { ok: true }
+  } catch (e) {
+    const r = linkFail(e)
+    return { ok: false, message: r.ok ? 'Could not unlink.' : r.message }
+  }
+}
+
+/** Companies made here that are waiting on their link, so Retry links the same company instead of making a second. */
+const pendingCreate = new Map<string, string>()
+
+/** Creates a Rosterio company from an account (its name; its website only when the billing email is a business domain) and links it. */
+export async function createCompanyFor(account: RosterioAccount): Promise<LinkResult & { companyId?: string }> {
+  if (!UI.guard('ros', 'Creating a company')) return { ok: false, kind: 'forbidden', message: 'You need edit access to Rosterio to do this.' }
+  let cid = pendingCreate.get(account.id)
+  if (!cid || !Q.company(cid)) {
+    const dom = businessDomain(account.billingEmail)
+    const web = dom ? normaliseUrl(dom) : { ok: true as const, value: '' }
+    const c = Act.createCompany({
+      name: account.name, website: web.ok ? web.value : '', industry: '', businessId: 'ros', ownerId: Q.me().id, source: 'Rosterio customer',
+    })
+    cid = c.id
+    pendingCreate.set(account.id, cid)
+    if (c.website && (await flushAll()) && !Q.company(cid)) {
+      pendingCreate.delete(account.id)
+      return { ok: false, kind: 'failed', message: 'The server did not accept this company. Link it to an existing company instead.' }
+    }
+  }
+  const r = await linkAccount(cid, account.id)
+  if (r.ok) pendingCreate.delete(account.id)
+  return { ...r, companyId: cid }
+}
+
+export type AccountStanding = { kind: 'paid' | 'trial' | 'trialEnded' | 'inactive'; days?: number; label: string }
+
+/** What to say about an account's standing today. `now` is a parameter so it can be tested. */
+export function standing(a: RosterioAccount, now: number = Date.now()): AccountStanding {
+  if (!a.isActive) return { kind: 'inactive', label: a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Inactive' }
+  if (!a.isTrial) return { kind: 'paid', label: 'Paid' }
+  const end = a.trialEndDate ? Date.parse(a.trialEndDate) : NaN
+  if (Number.isNaN(end)) return { kind: 'trial', label: 'Trial' }
+  const days = Math.ceil((end - now) / 86_400_000)
+  if (days < 0) return { kind: 'trialEnded', days: -days, label: `Trial ended ${-days} day${-days === 1 ? '' : 's'} ago` }
+  return { kind: 'trial', days, label: days === 0 ? 'Trial · ends today' : `Trial · ${days} day${days === 1 ? '' : 's'} left` }
+}
+
+/** The accounts from the last good read, for dialogs opened from the list. */
+export function accountSnapshot(id: string): RosterioAccount | undefined {
+  return accountOf(accounts.s === 'ok' ? accounts.data : lastGood ?? undefined, id)
 }

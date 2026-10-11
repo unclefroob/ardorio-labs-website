@@ -149,4 +149,25 @@ describe('usage expiry', () => {
     cache.setUsage('ros', { used: 0, limit: 300, resetsOn: '2026-12-01' })
     expect(cache.remaining(cache.getUsage('ros'))).toBe(300)
   })
+
+  it('remembers whether a business has a competitor list, per business, and forgets it for another user', async () => {
+    const { store, cache } = await load()
+    expect(cache.getCompetitorRule('ros')).toBeUndefined()
+    cache.setCompetitorRule('ros', true)
+    cache.setCompetitorRule('ard', false)
+    expect(cache.getCompetitorRule('ros')).toBe(true)
+    expect(cache.getCompetitorRule('ard')).toBe(false)
+    store.S.session.userId = 'u2'
+    expect(cache.getCompetitorRule('ros')).toBeUndefined()
+  })
+
+  it('tells subscribers when the competitor-list answer changes, and not when it repeats', async () => {
+    const { cache } = await load()
+    const seen = vi.fn()
+    const off = cache.subscribe(seen)
+    cache.setCompetitorRule('ros', true)
+    cache.setCompetitorRule('ros', true)
+    expect(seen).toHaveBeenCalledTimes(1)
+    off()
+  })
 })
