@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import type { BusinessId } from '../../api/contract'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
@@ -11,7 +10,7 @@ import { UI } from '../../ui/store'
 export function WonCustomers({ business }: { business: BusinessId }) {
   useStore()
   const name = Q.biz(business)?.name ?? business
-  const rows = useMemo(() => wonCustomers(S.deals, S.companies, business), [business, S.deals, S.companies])
+  const rows = wonCustomers(S.deals, S.companies, business)
   const total = rows.reduce((n, r) => n + r.value, 0)
   const quarter = wonThisQuarter(S.deals, S.companies, business)
 
