@@ -161,7 +161,7 @@ function FindMobileFlow({ ctId }: { ctId: string }) {
     body = (
       <div className="col gap12">
         {done.status === 'not_found' || !done.numbers.length ? (
-          <Empty icon="search" title="Not found, no charge" body={`${label} had no number for ${ct.name}.`} />
+          <Empty icon="search" title={done.charged ? 'Not found' : 'Not found, no charge'} body={done.charged ? `${label} had no usable number for ${ct.name}. This lookup was still counted.` : `${label} had no number for ${ct.name}.`} />
         ) : (
           <div className="col" style={{ gap: 0, border: '1px solid var(--line)', borderRadius: 8 }} role="list" aria-label="Numbers found">
             {done.numbers.map(n => {

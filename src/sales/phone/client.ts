@@ -177,6 +177,8 @@ export interface PhoneDone {
   numbers: PhoneNumberFound[]
   provider?: PhoneProviderId
   creditsUsed?: number
+  /** False only when the server said not_found and charged nothing. A found answer we could not read still cost a slot. */
+  charged: boolean
   usage: PhoneUsage
   lastCheckedAt?: string
 }
@@ -200,7 +202,11 @@ const isNumber = (n: unknown): n is PhoneNumberFound => {
 const isAbort = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError'
 
 function failure(e: unknown): PhoneFailure {
-  if (isAbort(e)) return { status: 'cancelled' }
+  if (isAbort(e)) {
+    // The server reserves a slot before calling the vendor, so a request already sent may have been counted.
+    void loadPhoneStatus({ force: true })
+    return { status: 'cancelled' }
+  }
   if (e instanceof SalesHttpError) {
     switch (e.code) {
       case 'NOT_CONFIGURED': return { status: 'notConfigured' }
@@ -230,6 +236,7 @@ export async function revealPhone(contactId: string, businessId: BusinessId, sig
     const numbers = Array.isArray(r.numbers) ? r.numbers.filter(isNumber) : []
     return {
       status: r.status === 'found' && numbers.length ? 'found' : 'not_found', numbers, provider: r.provider, creditsUsed: r.creditsUsed,
+      charged: r.status === 'found' || (typeof r.creditsUsed === 'number' && r.creditsUsed > 0),
       usage: isUsage(r.usage) ? r.usage : (cached?.usage ?? { used: 0, limit: 0, resetsOn: '' }), lastCheckedAt: r.lastCheckedAt,
     }
   } catch (e) {

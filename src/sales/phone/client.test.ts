@@ -200,9 +200,28 @@ describe('revealPhone', () => {
   it('treats found-with-no-numbers and not_found alike', async () => {
     const { c } = await load()
     revealPhoneApi.mockResolvedValueOnce(live({ status: 'found', numbers: [] }))
-    expect((await c.revealPhone('ct1', 'ros')).status).toBe('not_found')
+    const a = await c.revealPhone('ct1', 'ros')
+    expect(a).toMatchObject({ status: 'not_found', charged: true })
     revealPhoneApi.mockResolvedValueOnce(live({ status: 'not_found', numbers: [], creditsUsed: 0 }))
-    expect((await c.revealPhone('ct1', 'ros')).status).toBe('not_found')
+    expect(await c.revealPhone('ct1', 'ros')).toMatchObject({ status: 'not_found', charged: false })
+  })
+
+  it('counts a found answer whose numbers were all unreadable as charged', async () => {
+    const { c } = await load()
+    revealPhoneApi.mockResolvedValueOnce(live({ numbers: [{ e164: ' ', type: 'mobile' }], creditsUsed: 0 }))
+    expect(await c.revealPhone('ct1', 'ros')).toMatchObject({ status: 'not_found', charged: true })
+  })
+
+  it('refreshes the allowance after a cancel, since the request may have been counted', async () => {
+    const { c } = await load()
+    await act(async () => { await c.loadPhoneStatus() })
+    expect(c.getPhoneStatus()?.usage.used).toBe(12)
+    phoneStatusApi.mockResolvedValueOnce({ ...STATUS, usage: usage(13) })
+    revealPhoneApi.mockRejectedValueOnce(new DOMException('x', 'AbortError'))
+    expect(await c.revealPhone('ct1', 'ros')).toEqual({ status: 'cancelled' })
+    await act(async () => { await settle() })
+    expect(phoneStatusApi).toHaveBeenCalledTimes(2)
+    expect(c.getPhoneStatus()?.usage.used).toBe(13)
   })
 
   it('drops malformed numbers instead of showing them', async () => {

@@ -195,6 +195,14 @@ describe('results', () => {
     expect(text()).toContain('Not found, no charge')
     expect(button(host, /^Add as/)).toBeUndefined()
   })
+
+  it('does not claim no charge when a found answer had no readable number', async () => {
+    await open()
+    revealPhoneApi.mockResolvedValueOnce(reply({ status: 'found', numbers: [{ e164: '', type: 'mobile' }] as never, creditsUsed: 1 }))
+    await run()
+    expect(text()).not.toContain('no charge')
+    expect(text()).toContain('still counted')
+  })
 })
 
 describe('failures', () => {
