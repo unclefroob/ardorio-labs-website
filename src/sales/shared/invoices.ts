@@ -338,3 +338,19 @@ export function activityItems(inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'is
     },
   ]
 }
+
+// ── settings ─────────────────────────────────────────────────────────────────────────────────────
+export type SettingsErrors = Partial<Record<'name' | 'email' | 'abn' | 'bsb', string>>
+
+/** The same checks the server makes on PUT /invoices/settings, so a person hears about them before the round trip. */
+export function validateSettings(s: { name: string; abn: string; email: string; bank: { bsb: string } }): SettingsErrors {
+  const e: SettingsErrors = {}
+  if (!s.name.trim()) e.name = 'Business name is required'
+  if (s.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email.trim())) e.email = 'Business email is not a valid address'
+  const abn = s.abn.trim()
+  if (abn && !/^[\d\s]+$/.test(abn)) e.abn = 'An ABN contains only digits'
+  else if (abn && abn.replace(/\s/g, '').length !== 11) e.abn = 'An ABN is 11 digits'
+  const bsb = s.bank.bsb.trim()
+  if (bsb && bsb.replace(/[\s-]/g, '').length !== 6) e.bsb = 'A BSB is 6 digits'
+  return e
+}

@@ -1,0 +1,161 @@
+import { useMemo, useState } from 'react'
+import type { InvoiceDto } from '../../api/contract'
+import { invoiceError, invoiceSummary, invoicesCsv, listInvoices, saveBlob } from '../../api/invoices'
+import { F } from '../../data/F'
+import { dealName, useLoad } from '../../data/invoicing'
+import { useStore } from '../../data/store'
+import { Btn, Card, Chip, DataTable, DlLink, Empty, Icon, Menu, SearchInp, Sel, Skel, Tabs, type Col } from '../../kit'
+import { filterInvoices, dueCell, fmtDay, issuedText, TABS, tabCounts, tileFacts, type InvoiceTab } from '../../shared/invoices'
+import { formatCents, formatCentsTile } from '../../shared/money'
+import { PageHead } from '../../shared/PageHead'
+import { UI } from '../../ui/store'
+import { copyLink, downloadPdf } from './actions'
+import { CustomerLink, MethodChip, StatusChip, milestoneLabel } from './parts'
+import { InvoicesDenied } from './states'
+
+export function Invoices() {
+  useStore()
+  const list = useLoad(s => listInvoices({}, s), 'list')
+  const sum = useLoad(s => invoiceSummary(s), 'summary')
+  const [tab, setTab] = useState<InvoiceTab>('all')
+  const [query, setQuery] = useState('')
+  const [companyId, setCompanyId] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const today = F.today()
+
+  const all: InvoiceDto[] = useMemo(() => list.data?.invoices ?? [], [list.data])
+  const counts = tabCounts(all)
+  const rows = useMemo(() => filterInvoices(all, { tab, query, companyId }, dealName), [all, tab, query, companyId])
+  const facts = list.data && sum.data ? tileFacts(all, sum.data.tiles, today) : null
+  const customers = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const i of all) if (i.companyId) m.set(i.companyId, i.clientName)
+    return [...m].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [all])
+
+  const err = list.error ? invoiceError(list.error, 'load') : null
+  if (err?.kind === 'denied') return <InvoicesDenied />
+
+  const exportCsv = async (): Promise<void> => {
+    setExporting(true)
+    try {
+      saveBlob(await invoicesCsv(), 'ardorio-invoices.csv')
+    } catch (e) {
+      UI.toast(invoiceError(e, 'download').message, 'bad')
+    } finally {
+      setExporting(false)
+    }
+  }
+  const markPaid = (inv: InvoiceDto): void => UI.open('markPaid', { invoice: inv, onDone: () => { list.reload(); sum.reload() } })
+  const open = (inv: InvoiceDto): void => UI.nav('invoice', { id: inv.id })
+
+  const cols: Col<InvoiceDto>[] = [
+    { k: 'invoiceNumber', l: 'Invoice', sort: r => r.invoiceNumber, desc: true, r: r => <b className="mono">{r.invoiceNumber}</b> },
+    { k: 'clientName', l: 'Customer', sort: r => r.clientName.toLowerCase(), r: r => <CustomerLink inv={r} /> },
+    {
+      k: 'deal', l: 'Deal', sort: r => dealName(r.dealId),
+      r: r => (r.dealId
+        ? <div><DlLink id={r.dealId} />{milestoneLabel(r) && <div className="faint sm">{milestoneLabel(r)}</div>}</div>
+        : <span className="faint">No deal</span>),
+    },
+    { k: 'issueDate', l: 'Issued', sort: r => (r.status === 'draft' ? '' : r.issueDate), r: r => (r.status === 'draft' ? <span className="faint">{issuedText(r)}</span> : fmtDay(r.issueDate)) },
+    {
+      k: 'dueDate', l: 'Due', sort: r => r.dueDate,
+      r: r => {
+        const d = dueCell(r, today)
+        return r.status === 'draft' ? <span className="faint">{d.text}</span> : <div className={d.late ? 'late' : ''}>{d.text}{d.sub && <div className="sm">{d.sub}</div>}</div>
+      },
+    },
+    {
+      k: 'totalCents', l: 'Amount', right: true, sort: r => r.totalCents,
+      r: r => <div className="money"><div className="b">{formatCents(r.totalCents)}</div><div className="faint sm">{formatCents(r.subtotalCents)} ex GST</div></div>,
+    },
+    {
+      k: 'status', l: 'Status', sort: r => (r.overdue ? 'overdue' : r.status),
+      r: r => (
+        <div>
+          <span className="row" style={{ gap: 4 }}><StatusChip inv={r} /><MethodChip inv={r} /></span>
+          {r.payment && <div className="faint sm" style={{ marginTop: 2 }}>{fmtDay(r.payment.paidAt)}</div>}
+        </div>
+      ),
+    },
+    {
+      k: 'a', l: '', nosort: true,
+      r: r => (
+        <span className="row" style={{ gap: 4 }} onClick={e => e.stopPropagation()}>
+          {r.status === 'draft' && <Btn size="xs" onClick={() => open(r)}>Edit</Btn>}
+          {r.status === 'sent' && <Btn size="xs" onClick={() => markPaid(r)}>Mark paid</Btn>}
+          <Menu
+            align="right"
+            trigger={<Btn size="xs" kind="ghost" aria-label={`More actions for ${r.invoiceNumber}`}>⋯</Btn>}
+            items={[
+              { label: 'Open', icon: 'ext', onClick: () => open(r) },
+              { label: r.status === 'draft' ? 'Preview PDF' : 'Download PDF', icon: 'download', onClick: () => void downloadPdf(r) },
+              r.status !== 'draft' && { label: 'Copy invoice link', icon: 'copy', onClick: () => void copyLink(r) },
+            ]}
+          />
+        </span>
+      ),
+    },
+  ]
+
+  return (
+    <div className="page">
+      <PageHead title="Invoices" sub="Create, issue and track invoices for your customers. Amounts are shown ex-GST unless marked.">
+        <Chip icon="plug" title="Reserved for the next phase">Xero: not connected</Chip>
+        <Btn icon="download" onClick={() => void exportCsv()} disabled={exporting}>{exporting ? 'Exporting…' : 'Export CSV'}</Btn>
+        <Btn kind="pri" icon="plus" onClick={() => UI.nav('invoice', { id: 'new' })}>New invoice</Btn>
+      </PageHead>
+
+      {err && <Card><Empty icon="alert" title="Couldn't load invoices" body={err.message} action={<Btn onClick={() => { list.reload(); sum.reload() }}>Try again</Btn>} /></Card>}
+
+      {!err && (
+        <>
+          <div className="grid g4" style={{ marginBottom: 16 }}>
+            <div className="kpi static"><span className="l">Outstanding{facts ? ` · ${facts.outstanding.count} invoice${facts.outstanding.count === 1 ? '' : 's'}` : ''}</span><span className="v num">{facts ? formatCentsTile(facts.outstanding.exCents) : '—'}</span><span className="s">{facts ? `${formatCentsTile(facts.outstanding.incCents)} inc GST` : ' '}</span></div>
+            <div className="kpi static">
+              <span className="l">Overdue</span>
+              <span className="row"><span className="v num" style={facts && facts.overdue.exCents > 0 ? { color: 'var(--bad-ink)' } : undefined}>{facts ? formatCentsTile(facts.overdue.exCents) : '—'}</span>{facts && facts.overdue.count > 0 && <Chip tone="bad">{facts.overdue.count} overdue</Chip>}</span>
+              <span className="s">{facts?.overdue.worst ? `${facts.overdue.worst.name}, ${facts.overdue.worst.days} day${facts.overdue.worst.days === 1 ? '' : 's'} late` : facts ? 'Nothing overdue' : ' '}</span>
+            </div>
+            <div className="kpi static"><span className="l">Paid this month</span><span className="v num">{facts ? formatCentsTile(facts.paidThisMonth.exCents) : '—'}</span><span className="s">{facts ? `${formatCentsTile(facts.paidThisMonth.incCents)} inc GST · ${facts.paidThisMonth.count} invoice${facts.paidThisMonth.count === 1 ? '' : 's'}` : ' '}</span></div>
+            <div className="kpi static"><span className="l">In drafts{facts ? ` · ${facts.drafts.count} invoice${facts.drafts.count === 1 ? '' : 's'}` : ''}</span><span className="v num">{facts ? formatCentsTile(facts.drafts.exCents) : '—'}</span><span className="s">Not yet issued</span></div>
+          </div>
+
+          <Tabs
+            value={tab}
+            onChange={k => setTab(k as InvoiceTab)}
+            tabs={TABS.map(([k, l]) => [k, l, counts[k]] as const)}
+          />
+
+          <div className="row wrap" style={{ marginBottom: 12, gap: 10 }}>
+            <SearchInp value={query} onChange={setQuery} placeholder="Search number, customer or deal" w={260} />
+            <Sel value={companyId} onChange={setCompanyId} placeholder="All customers" aria-label="Customer" style={{ width: 180 }} options={customers} />
+            <span className="sp" />
+            <span className="faint sm">Newest first</span>
+          </div>
+
+          {list.loading && !list.data ? (
+            <Card><Skel rows={5} /></Card>
+          ) : all.length === 0 ? (
+            <Card pad={false}>
+              <Empty
+                icon="file"
+                title="No invoices yet"
+                body="Create the first one from a won deal, or start a blank invoice for a customer. Won milestones appear on the deal as ready to invoice."
+                action={<span className="row"><Btn kind="pri" onClick={() => UI.nav('invoice', { id: 'new' })}>New invoice</Btn><Btn onClick={() => UI.nav('deals')}>Go to Deals</Btn></span>}
+              />
+            </Card>
+          ) : (
+            <Card pad={false}>
+              <DataTable<InvoiceDto> cols={cols} rows={rows} page={50} onRow={open} sortInit={['invoiceNumber', -1]} empty={<Empty icon="search" title="No invoices match" body={tab === 'all' ? 'Nothing matches the current search.' : `No ${TABS.find(t => t[0] === tab)?.[1].toLowerCase()} invoices match the current search.`} />} />
+            </Card>
+          )}
+          <div className="faint sm" style={{ marginTop: 10 }}>
+            <Icon n="info" s={12} /> Overdue is worked out from the due date. It is not a separate status. Invoices are visible to Ardorio admins only.
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
