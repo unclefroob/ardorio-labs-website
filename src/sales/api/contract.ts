@@ -14,13 +14,13 @@ export type Role = 'viewer' | 'sales' | 'manager' | 'admin'          // per busi
 export const DOMAIN_COLLECTIONS = [
   'businesses','users','teams','pipelines','companies','contacts','deals','tasks','meetings',
   'mailboxes','templates','sequences','enrolments','threads','messages','lists','goals','recs',
-  'research','suppressions','activities','notifications','companyRels','contactRels','intel',
+  'research','suppressions','activities','notifications','companyRels','contactRels','intel','billingPlans',
 ] as const                                                              // the 24 (D7) plus intel
 export const AUX_COLLECTIONS = ['audit', 'importJobs', 'savedViews', 'settings'] as const
 export type CollectionName = typeof DOMAIN_COLLECTIONS[number] | typeof AUX_COLLECTIONS[number]
 export type WritableCollection = Exclude<CollectionName, 'users'>
 
-export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus', 'clock'] as const
+export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus'] as const
 export type SettingsId = typeof SETTINGS_IDS[number]
 
 export type RecordData = Record<string, unknown>
@@ -162,7 +162,8 @@ export interface ChangesResponse {
   more: boolean                   // true ⇒ call again immediately with the new cursor
   serverNow: string
   membersVersion: string
-  clockOffsetMinutes: number      // current settings/clock offset, for the D9 banner
+  /** @deprecated The server always sends 0: SalesOS runs on real time and no longer reads a clock offset. */
+  clockOffsetMinutes?: number
 }
 
 /** @deprecated Tombstoned for one release: the server runs the engine. New builds never call the lease endpoints. */
@@ -186,7 +187,7 @@ export interface EngineRunResponse {
   ran: boolean
   reason?: 'busy' | 'held_elsewhere' | 'disabled'
   businessIds: BusinessId[]
-  serverNow: string // ISO instant incl. clock offset
+  serverNow: string // ISO instant
 }
 
 export interface DemoWipeRequest { businessIds?: BusinessId[] }   // default: every business the caller admins
@@ -262,6 +263,7 @@ export type SalesErrorCode =
   | 'CONFLICT' | 'LAST_SUPER' | 'LEASE_LOST' | 'DUPLICATE_SEND' | 'CONTENTION' | 'SUPPRESSED'
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
+  | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -415,6 +417,10 @@ export interface RosterioAccount {
   memberCount: number
   subscriptionStatus?: string
   billingEmail?: string
+  /** AUD dollars per month. Paying accounts only; the server returns the three pricing fields only to Rosterio admins. */
+  monthlyCost?: number | null
+  pricingSource?: 'plan' | 'custom' | null
+  billingQuantity?: number | null
 }
 export interface RosterioAccountsResponse {
   accounts: RosterioAccount[]
@@ -445,3 +451,56 @@ export interface RosterioProvisionResponse {
   link: RosterioLink
   adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
 }
+
+// ── Invoicing (business `ard`, admins only). Additive. ────────────────────────────────────────────
+export type InvoiceStatus = 'draft' | 'sent' | 'paid'
+export type InvoicePaymentMethod = 'bank-transfer' | 'payid' | 'card' | 'other'
+export interface InvoiceLine { description: string; detail?: string; qty: number; unitPriceCents: number; amountCents: number }
+export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
+export interface InvoiceDto {
+  id: string; invoiceNumber: string; clientSlug: string; clientName: string
+  companyId: string | null; dealId: string | null; milestoneId: string | null
+  lineItems: InvoiceLine[]; gstRate: number; notes: string
+  issueDate: string; paymentTermsDays: number; dueDate: string
+  status: InvoiceStatus; overdue: boolean; payment: InvoicePayment | null
+  offerCardPayment: boolean; paymentLinkUrl: string; paymentLinkIsAutomatic: boolean
+  publicToken: string; hostedUrl: string; sentAt: string | null; issuedCount: number
+  subtotalCents: number; gstCents: number; totalCents: number; createdAt: string
+}
+export interface InvoiceInput {
+  clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
+  lineItems: Array<{ description: string; detail?: string; qty: number; unitPriceCents: number }>
+  gstRate?: number; notes?: string; issueDate: string; paymentTermsDays: number; dueDate?: string
+  offerCardPayment?: boolean; paymentLinkUrl?: string
+}
+export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; reference?: string; amountCents?: number }
+export interface InvoiceListResponse { invoices: InvoiceDto[] }
+export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
+export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number }; byCompany: InvoiceCompanyTotals[] }
+export interface BillingClientDetails { email?: string; contactName?: string; abn?: string; address?: string }
+export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
+export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
+export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string }
+export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string }
+// sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
+export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
+// Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid.
+
+/** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
+export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }
+export interface InvoiceSettings {
+  name: string; abn: string; address: string; email: string
+  gstRegistered: boolean; offerCardPayments: boolean
+  bank: InvoiceBankDetails
+  stripeConfigured?: boolean
+}
+// ── Mobile phone lookup (vendor-agnostic). Mirrors the API contract; names are identical. ────────
+// GET /phone/status and POST /phone/reveal. Error codes: NOT_CONFIGURED, PHONE_CAP_REACHED (details = PhoneUsage),
+// PHONE_NO_INPUT, PROVIDER_ERROR. The browser never sees a vendor key.
+export const PHONE_PROVIDERS = ['leadmagic','signalhire','wiza'] as const
+export type PhoneProviderId = typeof PHONE_PROVIDERS[number]
+export interface PhoneNumberFound { e164: string; type: 'mobile' | 'other' | 'unknown'; confidence?: number }
+export interface PhoneUsage { used: number; limit: number; resetsOn: string }
+export interface PhoneStatusResponse { configured: boolean; provider?: PhoneProviderId; label?: string; usage: PhoneUsage }
+export interface RevealPhoneRequest { contactId: string; businessId: BusinessId }
+export interface RevealPhoneResponse { mode: 'live' | 'stub'; provider?: PhoneProviderId; status: 'found' | 'not_found'; numbers: PhoneNumberFound[]; creditsUsed?: number; usage: PhoneUsage; lastCheckedAt?: string }

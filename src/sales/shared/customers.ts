@@ -18,6 +18,29 @@ export const accountTab = (a: RosterioAccount, now: number = Date.now()): Exclud
 /** Whole days until a trial ends, or undefined when the account is not on a running trial. */
 export const trialDaysLeft = (st: AccountStanding): number | undefined => (st.kind === 'trial' ? st.days : undefined)
 
+/** A usable price: the server sent a finite, non-negative monthly cost. Anything else is treated as "no price returned". */
+export const isPriced = (a: RosterioAccount): a is RosterioAccount & { monthlyCost: number } =>
+  typeof a.monthlyCost === 'number' && Number.isFinite(a.monthlyCost) && a.monthlyCost >= 0
+
+export interface Mrr {
+  /** Dollars per month, summed over the paying accounts that came with a price. */
+  total: number
+  /** Paying accounts with a price. */
+  priced: number
+  /** Paying accounts in all. */
+  paying: number
+}
+
+/**
+ * Monthly recurring revenue across the paying accounts, from the cost Rosterio itself returned.
+ * Undefined when no account has a price (not an admin, or Rosterio not yet returning it): nothing is estimated.
+ */
+export function mrrOf(paying: readonly RosterioAccount[]): Mrr | undefined {
+  const priced = paying.filter(isPriced)
+  if (!priced.length) return undefined
+  return { total: priced.reduce((n, a) => n + a.monthlyCost, 0), priced: priced.length, paying: paying.length }
+}
+
 export interface WonCustomer {
   company: Company
   /** Most recent won deal. */

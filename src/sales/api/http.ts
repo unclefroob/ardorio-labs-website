@@ -39,13 +39,13 @@ export function setSessionExpiredHandler(fn: (() => void) | null): void {
 }
 
 interface Opts {
-  method?: 'GET' | 'POST' | 'PATCH'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
   signal?: AbortSignal
   keepalive?: boolean
 }
 
-export async function salesFetch<T>(path: string, opts: Opts = {}): Promise<T> {
+async function salesRequest(path: string, opts: Opts): Promise<Response> {
   if (!API_BASE) throw new SalesNetworkError('API URL is not configured (VITE_API_URL missing at build time).')
   const token = localStorage.getItem(TOKEN_KEY)
   let res: Response
@@ -84,5 +84,17 @@ export async function salesFetch<T>(path: string, opts: Opts = {}): Promise<T> {
     }
     throw new SalesHttpError(res.status, isBody(parsed) ? parsed : null)
   }
+  return res
+}
+
+export async function salesFetch<T>(path: string, opts: Opts = {}): Promise<T> {
+  const res = await salesRequest(path, opts)
+  if (res.status === 204) return undefined as T
   return (await res.json()) as T
+}
+
+/** An authenticated download (PDF, CSV). Same errors and token handling as `salesFetch`. */
+export async function salesBlob(path: string, opts: Opts = {}): Promise<Blob> {
+  const res = await salesRequest(path, opts)
+  return res.blob()
 }

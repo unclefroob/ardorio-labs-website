@@ -6,7 +6,7 @@ import { PAGES } from '../registry'
 import { pathToRoute } from '../routes'
 import { useUi, type Route } from '../ui/store'
 import { Boundary } from './Boundary'
-import { ADMIN_PAGES, BUSINESS_PAGES } from './nav'
+import { ADMIN_OF_PAGES, ADMIN_PAGES, BUSINESS_PAGES } from './nav'
 import { Denied, NotFound } from './states'
 
 function focusHeading(): void {
@@ -36,6 +36,8 @@ export function PageView() {
   if (!synced) return null
   if (!Page) return <NotFound />
   if (ADMIN_PAGES.includes(parsed.page) && !Q.anyAdmin()) return <Denied />
+  const adminOf = ADMIN_OF_PAGES[parsed.page]
+  if (adminOf && !Q.canAdmin(adminOf)) return <Denied title={`Invoices are for ${Q.biz(adminOf)?.name ?? 'Ardorio'} admins`} body={`You can see customers and deals, but invoices and billing details are limited to admins of the ${Q.biz(adminOf)?.name ?? 'Ardorio'} business. Ask an admin if you need access.`} />
   const needs = BUSINESS_PAGES[parsed.page]
   if (needs && !Q.member(needs)) return <Denied body={`This page is for members of ${Q.biz(needs)?.name ?? 'this business'}. Ask an administrator if you need access.`} />
   return (

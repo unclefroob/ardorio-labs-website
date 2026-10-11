@@ -25,8 +25,8 @@ async function run(): Promise<void> {
 }
 
 /**
- * Ask the server engine to run soon after a local change that gives it work (enrol, resume, mark as sent,
- * clock change). Calls inside a one second window coalesce into a single flush-then-nudge. Never throws.
+ * Ask the server engine to run soon after a local change that gives it work (enrol, resume, mark as sent).
+ * Calls inside a one second window coalesce into a single flush-then-nudge. Never throws.
  */
 export function nudgeEngine(): void {
   if (running) {

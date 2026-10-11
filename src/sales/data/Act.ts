@@ -1,13 +1,15 @@
 import { archiveCompany, archiveContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
+import { saveMilestones, saveRetainer } from './act/billing'
 import { createDeal, markLost, markWon, moveStage, reopenDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
+import { applyPhoneLookup } from './act/phone'
 import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, refreshRecs, saveResearch, confirmResearchIdentity, enrichLog } from './act/recs'
 import { addKnownTech, reviewClosure, saveIntel } from './act/intel'
 import { dupSequence, enrol, saveSequence, setEnrol, setSeqStatus } from './act/seq'
 import { cancelTask, completeTask, createTask, deleteTask, skipEmailTask, snoozeTask, stopEmailing, updateTask } from './act/tasks'
 import {
-  advance, deleteGoal, deleteTeam, deleteView, readAll, readNotif, removeStage, resetClock, runSequences, sampleNotif, saveGoal, savePipeline, saveTeam,
-  saveUser, saveView, setBiz, setClock, setDemo, setMailbox, setOrg, setSession, setTheme, setUserActive,
+  deleteGoal, deleteTeam, deleteView, readAll, readNotif, removeStage, runSequences, sampleNotif, saveGoal, savePipeline, saveTeam,
+  saveUser, saveView, setBiz, setDemo, setMailbox, setOrg, setSession, setTheme, setUserActive,
 } from './act/admin'
 
 export type { CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
@@ -22,10 +24,11 @@ export type { GoalInput, TeamInput, UserForm } from './act/admin'
  * is the sync layer's job. Engine-initiated changes do not go through here.
  */
 export const Act = {
-  setSession, setTheme, advance, setClock, resetClock, runSequences,
+  setSession, setTheme, runSequences,
   createCompany, updateCompany, linkCompany, updateRel, bulkCompanies, archiveCompany,
   addNote, editNote, deleteNote,
   createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, assignContacts,
+  saveMilestones, saveRetainer,
   createDeal, updateDeal, moveStage, markWon, markLost, reopenDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   logCall, saveMeeting,
@@ -33,7 +36,7 @@ export const Act = {
   saveSequence, setSeqStatus, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,
   addSuppression, removeSuppression,
-  recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, confirmResearchIdentity, saveIntel, reviewClosure, addKnownTech, applyEnrichment, enrichLog, markVerified,
+  recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, confirmResearchIdentity, saveIntel, reviewClosure, addKnownTech, applyEnrichment, applyPhoneLookup, enrichLog, markVerified,
   importRows, saveList, listAdd, listRemove, deleteList,
   saveTemplate, deleteTemplate, saveGoal, deleteGoal,
   saveUser, setUserActive, saveTeam, deleteTeam, savePipeline, removeStage, setMailbox, setOrg, setBiz, setDemo,

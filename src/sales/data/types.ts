@@ -1,4 +1,4 @@
-import type { AiProvider, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, SalesUserDTO, TechItem } from '../api/contract'
+import type { AiProvider, BillingPlan, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, SalesUserDTO, TechItem } from '../api/contract'
 
 export type { BusinessId, Role }
 
@@ -100,7 +100,13 @@ export interface CompanyRel {
   [k: string]: unknown
 }
 
-export type ContactEnrichment = Partial<Record<EnrichField, { kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern; at: Iso; by: string }>>
+export type ContactEnrichment = Partial<Record<EnrichField, {
+  kind: 'published' | 'inferred'; sourceUrl?: string; pattern?: EmailPattern; at: Iso; by: string
+  /** Phone lookup only: "Phone lookup (LeadMagic) 11 Oct 2026". */
+  source?: string
+  /** Phone lookup only: how sure we are of this number. A looked-up number always starts Unverified. */
+  verification?: string
+}>>
 
 export interface Contact {
   id: string
@@ -571,6 +577,7 @@ export interface Collections {
   companyRels: CompanyRel[]
   contactRels: ContactRel[]
   intel: Intel[]
+  billingPlans: BillingPlan[]
   audit: AuditEntry[]
   importJobs: ImportJob[]
   savedViews: SavedView[]

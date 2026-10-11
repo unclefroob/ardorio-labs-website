@@ -10,7 +10,8 @@ import {
 } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { useF } from '../../shared/useF'
-import { UI } from '../../ui/store'
+import { UI, type Route } from '../../ui/store'
+import { InvoicingSettings } from '../invoices/InvoicingSettings'
 
 const TZ = ['Australia/Melbourne', 'Australia/Sydney', 'Australia/Brisbane', 'Australia/Perth', 'Australia/Adelaide']
 const ACCENTS = ['#4F46E5', '#2563EB', '#0E8A7E', '#059669', '#8B2FFC', '#C026D3', '#D9572B', '#B45309']
@@ -289,11 +290,12 @@ function Audit() {
   )
 }
 
-export function Settings() {
+export function Settings({ route }: { route?: Route }) {
   const adm = Q.anyAdmin()
-  const [tab, setTab] = useState(adm ? 'org' : 'outreach')
+  const inv = Q.canAdmin('ard')
+  const [tab, setTab] = useState(route?.q?.tab === 'invoicing' && inv ? 'invoicing' : adm ? 'org' : 'outreach')
   const tabs: Array<[string, string]> = adm
-    ? [['org', 'Organisation'], ['biz', 'Businesses'], ['ai', 'AI settings'], ['outreach', 'Outreach & suppression'], ['audit', 'Audit history']]
+    ? [['org', 'Organisation'], ['biz', 'Businesses'], ['ai', 'AI settings'], ['outreach', 'Outreach & suppression'], ...(inv ? [['invoicing', 'Invoicing'] as [string, string]] : []), ['audit', 'Audit history']]
     : [['outreach', 'Outreach & suppression']]
   return (
     <div className="page" style={{ maxWidth: 1200 }}>
@@ -304,6 +306,7 @@ export function Settings() {
         {tab === 'biz' && adm && <BizSettings />}
         {tab === 'ai' && adm && <AiSettings />}
         {tab === 'outreach' && <Outreach />}
+        {tab === 'invoicing' && inv && <InvoicingSettings />}
         {tab === 'audit' && adm && <Audit />}
       </div>
     </div>

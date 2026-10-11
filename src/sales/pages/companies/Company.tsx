@@ -10,6 +10,7 @@ import { LinkBtn } from '../deals/LinkBtn'
 import type { Route } from '../../ui/store'
 import { UI } from '../../ui/store'
 import { BizRels } from './BizRels'
+import { CompanyBilling } from './BillingCard'
 import { CompanyIntel } from './CompanyIntel'
 import { ActFilter } from './parts/ActFilter'
 import { Notes } from './parts/Notes'
@@ -188,6 +189,7 @@ export function Company({ route }: { route: Route }) {
               {hiddenDeals > 0 && <div className="faint xs" style={{ marginTop: 6 }}><Icon n="lock" s={11} /> {hiddenDeals} deal{hiddenDeals > 1 ? 's' : ''} in other businesses (restricted)</div>}
             </Card>
             <RosterioCard companyId={c.id} />
+            <CompanyBilling company={c} />
             <Card title="Next activity">
               {nt.length
                 ? nt.slice(0, 4).map(t => (

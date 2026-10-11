@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from 'react'
-import { getOffsetMinutes, setOffsetMinutes } from './clock'
 import type { RecordData, SettingsId } from '../api/contract'
 import { SETTINGS_IDS } from '../api/contract'
 import type { Collections, CollKey, State } from './types'
@@ -8,7 +7,7 @@ import type { Collections, CollKey, State } from './types'
 export const ARRAY_COLLECTIONS = [
   'businesses', 'teams', 'pipelines', 'companies', 'contacts', 'deals', 'tasks', 'meetings',
   'mailboxes', 'templates', 'sequences', 'enrolments', 'threads', 'messages', 'lists', 'goals',
-  'recs', 'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels', 'intel',
+  'recs', 'research', 'suppressions', 'activities', 'notifications', 'companyRels', 'contactRels', 'intel', 'billingPlans',
   'audit', 'importJobs', 'savedViews',
 ] as const satisfies readonly CollKey[]
 export type ArrayCollection = typeof ARRAY_COLLECTIONS[number]
@@ -24,7 +23,7 @@ function emptyState(): State {
     businesses: [], users: [], teams: [], pipelines: [], companies: [], contacts: [], deals: [],
     tasks: [], meetings: [], mailboxes: [], templates: [], sequences: [], enrolments: [], threads: [],
     messages: [], lists: [], goals: [], recs: [], research: [], suppressions: [], activities: [],
-    notifications: [], companyRels: [], contactRels: [], intel: [], audit: [], importJobs: [], savedViews: [],
+    notifications: [], companyRels: [], contactRels: [], intel: [], billingPlans: [], audit: [], importJobs: [], savedViews: [],
     session: { userId: '', ws: 'all', theme: 'light' },
     org: { name: '', tz: 'Australia/Melbourne', currency: 'AUD', dateFormat: 'D MMM YYYY', notif: { email: true, inApp: true }, sendingLimit: 50 },
     wiza: { history: [] },
@@ -36,7 +35,7 @@ function emptyState(): State {
 /** The single mutable application state. Mutated in place by Act, then `commit()` publishes it. */
 export const S: State = emptyState()
 
-type IndexedKey = Exclude<keyof Collections, 'audit' | 'importJobs' | 'savedViews'>
+type IndexedKey = Exclude<keyof Collections, 'audit' | 'importJobs' | 'savedViews' | 'billingPlans'>
 type Idx = { [K in IndexedKey]: Map<string, Collections[K][number]> }
 
 const INDEXED: readonly IndexedKey[] = [
@@ -192,7 +191,7 @@ export function isRevoked(c: SyncedCollection, id: string | undefined): boolean 
   return !!id && revoked.has(`${c}:${id}`)
 }
 
-// ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus|clock` ──────
+// ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus` ──────
 export function isSettingsId(id: string): id is SettingsId {
   return (SETTINGS_IDS as readonly string[]).includes(id)
 }
@@ -203,7 +202,6 @@ export function settingsRecord(id: SettingsId): RecordData & Row {
     case 'wiza': return { ...S.wiza, id }
     case 'demo': return { ...S.demo, id }
     case 'crossStatus': return { ...S.crossStatus, id }
-    case 'clock': return { id, offsetMinutes: getOffsetMinutes() }
   }
 }
 
@@ -222,7 +220,6 @@ export function applySettings(id: SettingsId, data: RecordData): void {
     case 'wiza': assignContents(S.wiza, data); break
     case 'demo': assignContents(S.demo, data); break
     case 'crossStatus': assignContents(S.crossStatus, data); break
-    case 'clock': setOffsetMinutes(typeof data.offsetMinutes === 'number' ? data.offsetMinutes : 0); break
   }
 }
 
@@ -243,6 +240,7 @@ const ARRAY_DEFAULTS: Partial<Record<SyncedCollection, readonly string[]>> = {
   meetings: ['participants'],
   lists: ['contactIds'],
   intel: ['items', 'sources'],
+  billingPlans: ['milestones'],
 }
 const OBJECT_DEFAULTS: Partial<Record<SyncedCollection, readonly string[]>> = {
   deals: ['fields'],
