@@ -415,6 +415,10 @@ export interface RosterioAccount {
   memberCount: number
   subscriptionStatus?: string
   billingEmail?: string
+  /** AUD dollars per month. Paying accounts only; the server returns the three pricing fields only to Rosterio admins. */
+  monthlyCost?: number | null
+  pricingSource?: 'plan' | 'custom' | null
+  billingQuantity?: number | null
 }
 export interface RosterioAccountsResponse {
   accounts: RosterioAccount[]
