@@ -97,7 +97,7 @@ export function Research() {
           <form onSubmit={e => { e.preventDefault(); void go() }}>
             <div className="grid g2">
               <Fld label="Company name" req err={err}><Inp value={f.name} onChange={v => { set('name', v); setPicked(null) }} placeholder="e.g. Harbour Retail Group" /></Fld>
-              <Fld label="Website" err={webErr}><Inp value={f.website} onChange={v => { set('website', v); setWebErr(''); setPicked(null) }} placeholder="company.com.au" aria-invalid={webErr ? true : undefined} /></Fld>
+              <Fld label="Website" err={webErr}><Inp id="research-website" value={f.website} onChange={v => { set('website', v); setWebErr(''); setPicked(null) }} placeholder="company.com.au" aria-invalid={webErr ? true : undefined} /></Fld>
               <Fld label="Industry"><Sel value={f.industry} onChange={v => set('industry', v)} placeholder="Auto / unknown" options={INDUSTRIES} /></Fld>
               <Fld label="Target business"><BizSel value={f.businessId} onChange={v => set('businessId', Q.myBiz().find(b => b === v) ?? f.businessId)} /></Fld>
             </div>
@@ -124,6 +124,7 @@ export function Research() {
           <ResearchView
             r={res.r}
             saved={!!savedCid}
+            onWrongCompany={() => document.getElementById('research-website')?.focus()}
             onSave={
               <>
                 {match && <Btn onClick={() => UI.nav('company', { id: match.id })}>Open company</Btn>}
