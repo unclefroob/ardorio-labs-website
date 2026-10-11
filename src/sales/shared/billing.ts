@@ -76,6 +76,7 @@ export function billingProgress(quoted: number, invoices: ReadonlyArray<Pick<Inv
   let paid = 0
   let invoiced = 0
   for (const i of invoices) {
+    // A cancelled invoice is neither billed nor paid.
     if (i.status === 'paid') paid += i.subtotalCents
     else if (i.status === 'sent') invoiced += i.subtotalCents
   }
@@ -89,16 +90,21 @@ export function billingProgress(quoted: number, invoices: ReadonlyArray<Pick<Inv
 export interface ScheduleRow {
   milestone: BillingMilestone
   status: MilestoneStatus
+  /** The latest cancelled invoice for this milestone, shown as a note while the milestone is Planned again. */
+  cancelled: InvoiceDto | null
   /** The invoice furthest along for this milestone, newest first among equals. */
   invoice: InvoiceDto | null
 }
 
 const RANK = { draft: 1, sent: 2, paid: 3 } as const
+const newest = (a: InvoiceDto, b: InvoiceDto): number => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)
 
 export function scheduleRows(plan: BillingPlan | undefined, invoices: readonly InvoiceDto[]): ScheduleRow[] {
   return (plan?.milestones ?? []).map(m => {
-    const mine = invoices.filter(i => i.milestoneId === m.id).sort((a, b) => RANK[b.status] - RANK[a.status] || (a.createdAt < b.createdAt ? 1 : -1))
-    return { milestone: m, status: milestoneStatus(m.id, invoices), invoice: mine[0] ?? null }
+    const theirs = invoices.filter(i => i.milestoneId === m.id)
+    const mine = theirs.filter((i): i is InvoiceDto & { status: 'draft' | 'sent' | 'paid' } => i.status !== 'void').sort((a, b) => RANK[b.status] - RANK[a.status] || newest(a, b))
+    const cancelled = theirs.filter(i => i.status === 'void').sort(newest)[0] ?? null
+    return { milestone: m, status: milestoneStatus(m.id, invoices), invoice: mine[0] ?? null, cancelled }
   })
 }
 
@@ -125,11 +131,11 @@ export function draftForMilestone(today: string, d: Prefill, plan: BillingPlan |
 // ── company billing ──────────────────────────────────────────────────────────────────────────────
 export interface CompanyBilling { invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number }
 
-/** Ex GST, issued invoices only: drafts are not money owed yet. */
+/** Ex GST, issued invoices only: drafts are not money owed yet, and cancelled invoices were withdrawn. */
 export function companyBilling(list: ReadonlyArray<Pick<InvoiceDto, 'status' | 'overdue' | 'subtotalCents'>>): CompanyBilling {
   const t: CompanyBilling = { invoicedCents: 0, paidCents: 0, outstandingCents: 0, overdueCents: 0 }
   for (const i of list) {
-    if (i.status === 'draft') continue
+    if (i.status === 'draft' || i.status === 'void') continue
     t.invoicedCents += i.subtotalCents
     if (i.status === 'paid') t.paidCents += i.subtotalCents
     else {
@@ -229,9 +235,9 @@ export function ardorioCustomers(
   return out.sort((a, b) => b.outstandingCents - a.outstandingCents || a.name.localeCompare(b.name))
 }
 
-/** Won Ardorio deals with no invoice at all, drafts included. */
-export function wonNotInvoiced(deals: readonly Deal[], companies: readonly Company[], invoices: ReadonlyArray<Pick<InvoiceDto, 'dealId'>>): Deal[] {
-  const billed = new Set(invoices.map(i => i.dealId).filter((x): x is string => !!x))
+/** Won Ardorio deals with no live invoice at all, drafts included. A cancelled invoice does not count as billing. */
+export function wonNotInvoiced(deals: readonly Deal[], companies: readonly Company[], invoices: ReadonlyArray<Pick<InvoiceDto, 'dealId'> & Partial<Pick<InvoiceDto, 'status'>>>): Deal[] {
+  const billed = new Set(invoices.filter(i => i.status !== 'void').map(i => i.dealId).filter((x): x is string => !!x))
   const live = new Set(companies.filter(c => !c.archived).map(c => c.id))
   return deals
     .filter(d => d.businessId === 'ard' && d.status === 'won' && live.has(d.companyId) && !billed.has(d.id))

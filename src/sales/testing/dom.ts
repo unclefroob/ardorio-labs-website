@@ -2,8 +2,8 @@ import { act } from 'react'
 
 /** Set an input's value the way a person typing would, so React's onChange runs. */
 export async function type(el: Element | null, value: string): Promise<void> {
-  if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) throw new Error('not a field')
-  const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLSelectElement.prototype
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) throw new Error('not a field')
+  const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype
   const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set
   await act(async () => {
     set?.call(el, value)

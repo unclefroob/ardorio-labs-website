@@ -1,7 +1,7 @@
 import type {
-  BillingMilestone, BillingPlan, InvoiceDto, InvoiceInput, InvoicePaymentMethod, InvoiceStatus, MarkPaidInput,
+  BillingMilestone, BillingPlan, InvoiceDto, InvoiceInput, InvoicePaymentMethod, InvoiceStatus, InvoiceVoidReason, MarkPaidInput, VoidInvoiceInput,
 } from '../api/contract'
-import { centsToInput, computeTotals, milliToQty, parseCents, parsePercentBp, parseQtyMilli, qtyToInput, rateToPercentText } from './money'
+import { centsToInput, computeTotals, formatCents, milliToQty, parseCents, parsePercentBp, parseQtyMilli, qtyToInput, rateToPercentText } from './money'
 
 export const DEFAULT_TERMS_DAYS = 45
 export const DEFAULT_GST_PERCENT = '10'
@@ -45,10 +45,12 @@ export function daysBetween(a: string, b: string): number {
 }
 
 // ── status display ───────────────────────────────────────────────────────────────────────────────
-export interface StatusChip { label: string; tone: '' | 'info' | 'ok' | 'bad' }
+export interface StatusChip { label: string; tone: '' | 'info' | 'ok' | 'bad'; icon?: string }
 
 /** Overdue is worked out from the due date. It outranks the stored 'sent' in the chip but is never a status of its own. */
 export function statusChip(inv: Pick<InvoiceDto, 'status' | 'overdue'>): StatusChip {
+  // Cancelled carries an icon as well as words: status is never colour alone. A void invoice is never overdue.
+  if (inv.status === 'void') return { label: 'Cancelled', tone: '', icon: 'x' }
   if (inv.status === 'paid') return { label: 'Paid', tone: 'ok' }
   if (inv.overdue) return { label: 'Overdue', tone: 'bad' }
   if (inv.status === 'sent') return { label: 'Sent', tone: 'info' }
@@ -58,7 +60,7 @@ export function statusChip(inv: Pick<InvoiceDto, 'status' | 'overdue'>): StatusC
 /** Due cell: the date, and for an overdue invoice how late it is. A draft has no real due date yet, only terms. */
 export function dueCell(inv: Pick<InvoiceDto, 'status' | 'overdue' | 'dueDate' | 'paymentTermsDays'>, today: string): { text: string; sub: string; late: boolean } {
   if (inv.status === 'draft') return { text: `${inv.paymentTermsDays}-day terms`, sub: '', late: false }
-  if (inv.status === 'paid') return { text: fmtDay(inv.dueDate), sub: '', late: false }
+  if (inv.status === 'paid' || inv.status === 'void') return { text: fmtDay(inv.dueDate), sub: '', late: false }
   if (inv.overdue) {
     const n = Math.max(1, daysBetween(inv.dueDate, today))
     return { text: fmtDay(inv.dueDate), sub: `${n} day${n === 1 ? '' : 's'} overdue`, late: true }
@@ -78,7 +80,7 @@ export const TABS: ReadonlyArray<readonly [InvoiceTab, string]> = [['all', 'All'
 
 export function inTab(inv: Pick<InvoiceDto, 'status' | 'overdue'>, tab: InvoiceTab): boolean {
   if (tab === 'all') return true
-  if (tab === 'overdue') return inv.status === 'sent' && inv.overdue
+  if (tab === 'overdue') return inv.status === 'sent' && inv.overdue // never a void invoice
   return inv.status === tab
 }
 
@@ -88,6 +90,7 @@ export function tabCounts(list: ReadonlyArray<Pick<InvoiceDto, 'status' | 'overd
   for (const i of list) {
     if (i.status === 'draft') c.draft++
     else if (i.status === 'paid') c.paid++
+    else if (i.status === 'void') continue // listed in All only
     else {
       c.sent++
       if (i.overdue) c.overdue++
@@ -96,13 +99,14 @@ export function tabCounts(list: ReadonlyArray<Pick<InvoiceDto, 'status' | 'overd
   return c
 }
 
-export interface InvoiceFilter { tab: InvoiceTab; query: string; companyId: string }
+export interface InvoiceFilter { tab: InvoiceTab; query: string; companyId: string; /** Only cancelled invoices whose refund is still owed. */ refundOnly?: boolean }
 
 export function filterInvoices(list: readonly InvoiceDto[], f: InvoiceFilter, dealName: (id: string | null) => string = () => ''): InvoiceDto[] {
   const q = f.query.trim().toLowerCase()
   return list
     .filter(i => inTab(i, f.tab))
     .filter(i => !f.companyId || i.companyId === f.companyId)
+    .filter(i => !f.refundOnly || needsRefund(i))
     .filter(i => !q || [i.invoiceNumber, i.clientName, dealName(i.dealId)].some(s => s.toLowerCase().includes(q)))
     .slice()
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : b.invoiceNumber.localeCompare(a.invoiceNumber)))
@@ -110,13 +114,13 @@ export function filterInvoices(list: readonly InvoiceDto[], f: InvoiceFilter, de
 
 // ── milestones ───────────────────────────────────────────────────────────────────────────────────
 export type MilestoneStatus = 'Planned' | 'Draft invoice' | 'Invoiced' | 'Paid'
-const RANK: Record<InvoiceStatus, number> = { draft: 1, sent: 2, paid: 3 }
+const RANK: Record<Exclude<InvoiceStatus, 'void'>, number> = { draft: 1, sent: 2, paid: 3 }
 const RANKED: readonly MilestoneStatus[] = ['Planned', 'Draft invoice', 'Invoiced', 'Paid']
 
-/** Planned until an invoice carries the milestone id; then the furthest any of them has got. */
+/** Planned until a live invoice carries the milestone id; then the furthest any of them has got. A cancelled invoice counts for nothing. */
 export function milestoneStatus(milestoneId: string, invoices: ReadonlyArray<Pick<InvoiceDto, 'milestoneId' | 'status'>>): MilestoneStatus {
   let best = 0
-  for (const i of invoices) if (i.milestoneId === milestoneId) best = Math.max(best, RANK[i.status])
+  for (const i of invoices) if (i.milestoneId === milestoneId && i.status !== 'void') best = Math.max(best, RANK[i.status])
   return RANKED[best]
 }
 
@@ -241,18 +245,59 @@ export function buildMarkPaid(f: PaidForm, today: string): { ok: true; input: Ma
 }
 
 // ── what a person may do ─────────────────────────────────────────────────────────────────────────
-export interface Actions { edit: boolean; issue: boolean; reissue: boolean; markPaid: boolean; delete: boolean; copyLink: boolean; pdf: boolean; readOnly: boolean }
+export interface Actions {
+  edit: boolean; issue: boolean; reissue: boolean; markPaid: boolean; delete: boolean; copyLink: boolean; pdf: boolean; readOnly: boolean
+  /** Cancel (void) is offered for sent and overdue invoices only. */
+  cancel: boolean
+  /** A paid invoice shows Cancel disabled, with the reason beside it. */
+  cancelBlockedPaid: boolean
+  duplicate: boolean
+  voided: boolean
+}
+
+export const PAID_CANCEL_HINT = 'Paid invoices cannot be cancelled. Refund or issue a credit instead.'
 
 export function actionsFor(inv: Pick<InvoiceDto, 'status'> | null): Actions {
-  if (!inv) return { edit: true, issue: false, reissue: false, markPaid: false, delete: false, copyLink: false, pdf: false, readOnly: false }
+  if (!inv) return { edit: true, issue: false, reissue: false, markPaid: false, delete: false, copyLink: false, pdf: false, readOnly: false, cancel: false, cancelBlockedPaid: false, duplicate: false, voided: false }
   const draft = inv.status === 'draft'
   const sent = inv.status === 'sent'
+  const paid = inv.status === 'paid'
+  const voided = inv.status === 'void'
   return {
-    edit: !(inv.status === 'paid'), issue: draft, reissue: sent, markPaid: sent, delete: draft,
-    // The hosted page 404s a draft, so a draft has no link to copy.
-    copyLink: !draft, pdf: true, readOnly: inv.status === 'paid',
+    edit: !paid && !voided, issue: draft, reissue: sent, markPaid: sent, delete: draft,
+    // The hosted page 404s a draft, so a draft has no link to copy. A cancelled invoice's page only says it is cancelled.
+    copyLink: !draft && !voided, pdf: true, readOnly: paid || voided,
+    cancel: sent, cancelBlockedPaid: paid, duplicate: !draft, voided,
   }
 }
+
+// ── cancelling (voiding) ─────────────────────────────────────────────────────────────────────────
+export const VOID_REASONS: ReadonlyArray<readonly [InvoiceVoidReason, string]> = [
+  ['mistake', 'Raised by mistake'],
+  ['client-cancelled', 'Client cancelled'],
+  ['replaced', 'Replaced by another invoice'],
+  ['other', 'Other'],
+]
+export const voidReasonLabel = (r: InvoiceVoidReason): string => VOID_REASONS.find(x => x[0] === r)?.[1] ?? r
+export const VOID_NOTE_MAX = 200
+
+export interface VoidForm { reason: InvoiceVoidReason | ''; note: string }
+
+/** Reason is required; the note is optional except for Other. Returns the payload, or why not. */
+export function buildVoid(f: VoidForm): { ok: true; input: VoidInvoiceInput } | { ok: false; hint: string } {
+  if (!f.reason) return { ok: false, hint: 'Choose a reason to continue.' }
+  const note = f.note.trim()
+  if (f.reason === 'other' && !note) return { ok: false, hint: 'Add a note to explain why. It is required when the reason is Other.' }
+  if (note.length > VOID_NOTE_MAX) return { ok: false, hint: `Keep the note to ${VOID_NOTE_MAX} characters.` }
+  return { ok: true, input: { reason: f.reason, ...(note ? { note } : {}) } }
+}
+
+/** "Cancelled on 12 Oct 2026 by Ryan: Raised by mistake (note)". */
+export function voidSummary(v: NonNullable<InvoiceDto['voided']>, by: string): string {
+  return `Cancelled on ${fmtDay(v.voidedAt)} by ${by}: ${voidReasonLabel(v.reason)}${v.note ? ` (${v.note})` : ''}`
+}
+
+export const needsRefund = (inv: Pick<InvoiceDto, 'refundDue'>): boolean => !!inv.refundDue && !inv.refundDue.acknowledgedAt
 
 /** Card payment was asked for, the invoice is out, and no card link came back: the failure states.D case. */
 export const cardLinkMissing = (inv: Pick<InvoiceDto, 'status' | 'offerCardPayment' | 'paymentLinkUrl'>): boolean => inv.status === 'sent' && inv.offerCardPayment && !inv.paymentLinkUrl
@@ -321,17 +366,42 @@ export function missingBilling(c: { billing: { email?: string; abn?: string; add
 }
 
 // ── activity ─────────────────────────────────────────────────────────────────────────────────────
-export interface ActivityItem { label: string; when: string; note: string; done: boolean }
+export interface ActivityItem { label: string; when: string; note: string; done: boolean; /** Extra lines under the note. */ lines?: string[]; tone?: 'bad' | 'warn' }
 
-export function activityItems(inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'issuedCount' | 'status' | 'payment'> | null): ActivityItem[] {
+/** What happened to the card link when an invoice was cancelled, in words. */
+export function linkOutcome(linkDeactivated: boolean | null): string {
+  if (linkDeactivated === true) return 'Card link switched off'
+  if (linkDeactivated === false) return 'Card link was not switched off. It must be switched off in Stripe.'
+  return 'No card link to switch off'
+}
+
+export function activityItems(
+  inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'issuedCount' | 'status' | 'payment'> & Partial<Pick<InvoiceDto, 'voided' | 'refundDue'>> | null,
+  nameOf: (id: string) => string = id => id,
+): ActivityItem[] {
   if (!inv) return [{ label: 'Created', when: '', note: 'Not saved yet', done: false }, { label: 'Issued', when: '', note: 'Not yet', done: false }, { label: 'Paid', when: '', note: 'Not yet', done: false }]
   const issued = inv.status !== 'draft'
+  const issuedItem: ActivityItem = {
+    label: issued && inv.issuedCount > 1 ? `Issued, reissued ${inv.issuedCount - 1} time${inv.issuedCount === 2 ? '' : 's'}` : 'Issued',
+    when: issued ? fmtDay(inv.sentAt) : '', note: issued ? (inv.issuedCount > 1 ? 'latest issue' : 'first issue') : 'Not yet', done: issued,
+  }
+  const created: ActivityItem = { label: 'Created', when: fmtDay(inv.createdAt), note: '', done: true }
+  if (inv.status === 'void' && inv.voided) {
+    const v = inv.voided
+    const out: ActivityItem[] = [created, issuedItem, {
+      label: 'Cancelled', when: fmtDay(v.voidedAt), note: nameOf(v.voidedBy), done: true, tone: 'bad',
+      lines: [`Reason: ${voidReasonLabel(v.reason)}`, ...(v.note ? [`Note: ${v.note}`] : []), linkOutcome(v.linkDeactivated)],
+    }]
+    if (inv.refundDue) {
+      const r = inv.refundDue
+      out.push({ label: 'Payment received after cancelling', when: fmtDay(r.receivedAt), note: `${formatCents(r.amountCents)}${r.reference ? ` · ${r.reference}` : ''} · flagged for refund`, done: true, tone: 'warn' })
+      if (r.acknowledgedAt) out.push({ label: 'Refund confirmed', when: fmtDay(r.acknowledgedAt), note: r.acknowledgedBy ? nameOf(r.acknowledgedBy) : '', done: true })
+    }
+    return out
+  }
   return [
-    { label: 'Created', when: fmtDay(inv.createdAt), note: '', done: true },
-    {
-      label: issued && inv.issuedCount > 1 ? `Issued, reissued ${inv.issuedCount - 1} time${inv.issuedCount === 2 ? '' : 's'}` : 'Issued',
-      when: issued ? fmtDay(inv.sentAt) : '', note: issued ? (inv.issuedCount > 1 ? 'latest issue' : 'first issue') : 'Not yet', done: issued,
-    },
+    created,
+    issuedItem,
     {
       label: 'Paid', when: inv.payment ? fmtDay(inv.payment.paidAt) : '',
       note: inv.payment ? METHOD_LABELS[inv.payment.method] : 'Not yet', done: !!inv.payment,
@@ -353,4 +423,24 @@ export function validateSettings(s: { name: string; abn: string; email: string; 
   const bsb = s.bank.bsb.trim()
   if (bsb && bsb.replace(/[\s-]/g, '').length !== 6) e.bsb = 'A BSB is 6 digits'
   return e
+}
+
+// ── what cancelling will do, in plain words ──────────────────────────────────────────────────────
+export interface Consequence { icon: string; text: string }
+
+/** The consequences list of the cancel dialog, built from the invoice. `milestone` is the milestone's label, when known. */
+export function cancelConsequences(
+  inv: Pick<InvoiceDto, 'paymentLinkUrl' | 'paymentLinkIsAutomatic' | 'subtotalCents' | 'totalCents' | 'overdue' | 'milestoneId'>,
+  milestone: string,
+): Consequence[] {
+  const out: Consequence[] = []
+  if (inv.paymentLinkUrl) {
+    out.push(inv.paymentLinkIsAutomatic
+      ? { icon: 'dollar', text: 'The card payment link stops working. It is switched off, so the client can no longer pay this invoice by card.' }
+      : { icon: 'dollar', text: 'The card payment link was pasted in by hand, so it cannot be switched off here. Switch it off in your payment provider, or the client could still pay it.' })
+  }
+  out.push({ icon: 'file', text: 'The client’s invoice page shows “This invoice has been cancelled” with no pay button, and the PDF is watermarked CANCELLED.' })
+  out.push({ icon: 'chart', text: `${formatCents(inv.subtotalCents)} ex GST (${formatCents(inv.totalCents)} with GST) leaves Outstanding${inv.overdue ? ', Overdue' : ''} and Invoiced.` })
+  if (inv.milestoneId) out.push({ icon: 'flag', text: `${milestone ? `Milestone “${milestone}”` : 'The milestone'} goes back to Planned, and the billing progress on the deal drops.` })
+  return out
 }

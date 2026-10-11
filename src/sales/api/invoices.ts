@@ -1,5 +1,5 @@
 import type {
-  BillingClient, BillingClientInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput,
+  BillingClient, BillingClientInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, VoidInvoiceInput,
 } from './contract'
 import { SalesHttpError, SalesNetworkError, salesBlob, salesFetch } from './http'
 
@@ -25,6 +25,9 @@ export const updateInvoice = (id: string, input: InvoiceInput) => salesFetch<Inv
 export const deleteInvoice = (id: string) => salesFetch<unknown>(`/invoices/${enc(id)}`, { method: 'DELETE' })
 export const issueInvoice = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/issue`, { method: 'POST', body: {} })
 export const markInvoicePaid = (id: string, input: MarkPaidInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/mark-paid`, { method: 'POST', body: input })
+export const voidInvoice = (id: string, input: VoidInvoiceInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/void`, { method: 'POST', body: input })
+export const duplicateInvoice = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/duplicate`, { method: 'POST', body: {} })
+export const acknowledgeRefund = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/acknowledge-refund`, { method: 'POST', body: {} })
 /** Authenticated blob download: the PDF route needs the bearer token, so it cannot be a plain link. */
 export const invoicePdf = (id: string) => salesBlob(`/invoices/${enc(id)}/pdf`)
 export const invoicesCsv = () => salesBlob('/invoices/export.csv')
@@ -48,12 +51,15 @@ export function saveBlob(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 500)
 }
 
-export type InvoiceErrorKind = 'denied' | 'not-configured' | 'card-link' | 'not-found' | 'conflict' | 'validation' | 'network' | 'other'
+export type InvoiceErrorKind = 'paid' | 'already-void' | 'not-issued' | 'denied' | 'not-configured' | 'card-link' | 'not-found' | 'conflict' | 'validation' | 'network' | 'other'
 
 /** Web error codes mapped to something a person can act on. `action` says which call failed, so a 502 on issue reads as the card link problem. */
-export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'delete' | 'load' | 'download'): { kind: InvoiceErrorKind; message: string } {
+export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'delete' | 'load' | 'download' | 'cancel' | 'duplicate' | 'refund'): { kind: InvoiceErrorKind; message: string } {
   if (e instanceof SalesNetworkError) return { kind: 'network', message: 'Could not reach the server. Check your connection and try again.' }
   if (!(e instanceof SalesHttpError)) return { kind: 'other', message: e instanceof Error ? e.message : 'Something went wrong' }
+  if (e.code === 'INVOICE_PAID') return { kind: 'paid', message: 'It was paid just now, nothing was cancelled.' }
+  if (e.code === 'INVOICE_ALREADY_VOID') return { kind: 'already-void', message: 'This invoice is already cancelled.' }
+  if (e.code === 'INVOICE_NOT_ISSUED') return { kind: 'not-issued', message: 'This invoice has not been issued, so there is nothing to cancel. Delete the draft instead.' }
   if (e.status === 403 || e.code === 'ROLE_REQUIRED' || e.code === 'NOT_A_MEMBER') {
     return { kind: 'denied', message: 'Invoices are limited to admins of the Ardorio business.' }
   }
@@ -65,4 +71,11 @@ export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'de
   if (e.status === 409 || e.code === 'CONFLICT') return { kind: 'conflict', message: e.message || 'This invoice changed elsewhere. Reload and try again.' }
   if (e.status === 400 || e.code === 'VALIDATION') return { kind: 'validation', message: e.message }
   return { kind: 'other', message: e.message }
+}
+
+/** The id of the card link the server could not switch off, from a LINK_DEACTIVATION_FAILED error. */
+export function linkFailureId(e: unknown): string | null {
+  if (!(e instanceof SalesHttpError) || e.code !== 'LINK_DEACTIVATION_FAILED') return null
+  const id = e.body?.details?.linkId
+  return typeof id === 'string' ? id : ''
 }
