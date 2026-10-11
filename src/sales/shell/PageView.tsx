@@ -6,7 +6,7 @@ import { PAGES } from '../registry'
 import { pathToRoute } from '../routes'
 import { useUi, type Route } from '../ui/store'
 import { Boundary } from './Boundary'
-import { ADMIN_PAGES } from './nav'
+import { ADMIN_PAGES, BUSINESS_PAGES } from './nav'
 import { Denied, NotFound } from './states'
 
 function focusHeading(): void {
@@ -36,6 +36,8 @@ export function PageView() {
   if (!synced) return null
   if (!Page) return <NotFound />
   if (ADMIN_PAGES.includes(parsed.page) && !Q.anyAdmin()) return <Denied />
+  const needs = BUSINESS_PAGES[parsed.page]
+  if (needs && !Q.member(needs)) return <Denied body={`This page is for members of ${Q.biz(needs)?.name ?? 'this business'}. Ask an administrator if you need access.`} />
   return (
     <Boundary level="page" resetKey={key}>
       {createElement(Page as ComponentType<{ route: Route }>, { key, route: ui.route })}
