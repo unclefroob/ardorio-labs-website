@@ -237,7 +237,6 @@ export function useRosterioAccounts(mode: 'always' | 'ifStale' | 'never' = 'alwa
     if (!member || mode === 'never') return
     const stale = accounts.s === 'idle' || Date.now() - accountsAt > ACCOUNTS_TTL_MS
     if (mode === 'always' || stale) void loadRosterioAccounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [member, mode])
   return { ...accounts, reload: () => void loadRosterioAccounts(), lastGood }
 }
