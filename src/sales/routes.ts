@@ -10,7 +10,7 @@ const SEGMENT: Record<string, string> = {
   templates: 'templates', inbox: 'inbox', tasks: 'tasks', activities: 'activities',
   prospecting: 'prospecting', lists: 'lists', reports: 'reports', recs: 'recs', goals: 'goals',
   copilot: 'copilot', notifications: 'notifications', myday: 'myday', settings: 'settings',
-  rosterioCustomers: 'rosterio-customers',
+  customers: 'customers', rosterioCustomers: 'customers',
   users: 'users', integrations: 'integrations', pipelines: 'pipelines', clock: 'clock',
 }
 
@@ -50,6 +50,7 @@ export function pathToRoute(pathname: string, search: string): ParsedRoute {
   const q = parseQuery(search)
   if (seg === '') return { page: 'dashboard', q, known: true }
   const id = rawId ? decodeURIComponent(rawId) : undefined
+  if (seg === 'rosterio-customers') return { page: 'customers', q: { ...q, product: 'ros' }, known: true }
   const detail = LIST_PAGE[seg]
   if (detail && id) return { page: detail, id, q, known: true }
   if (Object.values(SEGMENT).includes(seg)) {
