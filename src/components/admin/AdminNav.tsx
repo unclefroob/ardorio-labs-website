@@ -22,7 +22,7 @@ interface NavItem {
 }
 
 const PRIMARY: NavItem[] = [
-  { to: '/admin/invoices', label: 'Invoices' },
+  { to: '/sales/invoices', label: 'Invoices' },
   { to: '/admin/clients', label: 'Clients' },
   { to: '/admin', label: 'Projects', exact: true },
   { to: '/admin/newsroom', label: 'Newsroom' },
