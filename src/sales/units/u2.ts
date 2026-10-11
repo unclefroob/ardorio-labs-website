@@ -8,6 +8,7 @@ import { CheckSignals } from '../modals/comms/CheckSignals'
 import { Compose } from '../modals/comms/Compose'
 import { Enrol } from '../modals/comms/Enrol'
 import { Enrich } from '../modals/comms/Enrich'
+import { FindMobile } from '../modals/comms/FindMobile'
 import { FindPeople } from '../modals/comms/FindPeople'
 import { SimReply } from '../modals/comms/SimReply'
 import { LinkedIn } from '../modals/comms/LinkedIn'
@@ -20,7 +21,7 @@ import { SendEmailTask } from '../modals/comms/SendEmailTask'
 export const u2: UnitModule = {
   pages: { deals: Deals, deal: Deal, customers: Customers, rosterioCustomers: Customers },
   modals: {
-    logMeeting: LogMeeting, meetingBrief: MeetingBrief, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findPeople: FindPeople,
+    logMeeting: LogMeeting, meetingBrief: MeetingBrief, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findMobile: FindMobile, findPeople: FindPeople,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
     reassign: Reassign, addSuppression: AddSuppression, sendEmailTask: SendEmailTask,
   },
