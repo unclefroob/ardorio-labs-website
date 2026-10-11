@@ -33,7 +33,7 @@ export const NAV: NavGroup[] = [
   ] },
   { group: 'Revenue', items: [
     { page: 'deals', label: 'Deals & Pipeline', icon: 'kanban' },
-    { page: 'rosterioCustomers', label: 'Rosterio customers', icon: 'zap', business: 'ros' },
+    { page: 'customers', label: 'Customers', icon: 'dollar' },
     { page: 'reports', label: 'Reports', icon: 'chart' },
     { page: 'goals', label: 'Sales Goals', icon: 'target' },
   ] },

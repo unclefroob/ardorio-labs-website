@@ -1,7 +1,7 @@
 import type { UnitModule } from './types'
 import { Deals } from '../pages/deals/Deals'
 import { Deal } from '../pages/deals/Deal'
-import { RosterioCustomers } from '../pages/rosterio/RosterioCustomers'
+import { Customers } from '../pages/customers/Customers'
 import { LogMeeting } from '../modals/comms/LogMeeting'
 import { MeetingBrief } from '../modals/comms/MeetingBrief'
 import { CheckSignals } from '../modals/comms/CheckSignals'
@@ -18,7 +18,7 @@ import { AddSuppression } from '../modals/comms/AddSuppression'
 import { SendEmailTask } from '../modals/comms/SendEmailTask'
 
 export const u2: UnitModule = {
-  pages: { deals: Deals, deal: Deal, rosterioCustomers: RosterioCustomers },
+  pages: { deals: Deals, deal: Deal, customers: Customers, rosterioCustomers: Customers },
   modals: {
     logMeeting: LogMeeting, meetingBrief: MeetingBrief, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findPeople: FindPeople,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
