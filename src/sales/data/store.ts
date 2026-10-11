@@ -97,7 +97,7 @@ export function getVersion(): number {
 
 /** Re-render on every committed change (the prototype did this globally too). Returns a version number. */
 export function useStore(): number {
-  return useSyncExternalStore(subscribe, getVersion)
+  return useSyncExternalStore(subscribe, getVersion, getVersion)
 }
 
 // ── load status ──────────────────────────────────────────────────────────────────────────────
