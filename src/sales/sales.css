@@ -57,6 +57,7 @@
 .sos .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sos .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .sos .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.sos .g5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .sos .g6{grid-template-columns:repeat(6,minmax(0,1fr))}
 .sos .split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
 .sos .row{display:flex;align-items:center;gap:8px}
@@ -231,7 +232,7 @@
 .sos .pal-i{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer}
 .sos .pal-i.on,.sos .pal-i:hover{background:var(--acc-soft)}
 @media (max-width:1180px){.sos .g6{grid-template-columns:repeat(3,minmax(0,1fr))}
-.sos .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sos .g4,.sos .g5{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sos .split{grid-template-columns:minmax(0,1fr)}
 .sos .inbox{grid-template-columns:180px 290px minmax(0,1fr)}}
 @media (max-width:900px){.sos .app{grid-template-columns:minmax(0,1fr)}
@@ -251,7 +252,7 @@
 .sos .dl{grid-template-columns:110px minmax(0,1fr)}
 .sos .cal{grid-template-columns:minmax(0,1fr)}
 .sos .cal-d{min-height:0}}
-@media (max-width:600px){.sos .g4,.sos .g6{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:600px){.sos .g4,.sos .g5,.sos .g6{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sos .ph h1{font-size:22px}
 .sos .top{padding:0 10px;gap:6px}}
 .sos .builder{grid-template-columns:minmax(260px,360px) minmax(0,1fr)}

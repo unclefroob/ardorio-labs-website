@@ -296,7 +296,8 @@ describe('Customers page: the product toggle and products with no feed', () => {
     expect(text()).not.toContain('Gone School')
     expect(text()).toContain('+1 more')
     expect(text()).toContain('There is no PathIQ account feed yet')
-    expect(text()).toContain('Total won value')
+    expect(text()).toContain('Won value')
+    expect(text()).not.toContain('Total won value')
     expect(api.count(ACCOUNTS)).toBe(0)
   })
 

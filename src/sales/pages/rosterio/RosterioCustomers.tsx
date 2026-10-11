@@ -5,7 +5,7 @@ import { Q } from '../../data/Q'
 import { createCompanyFor, dismissAccount, planLabel, rosterioLinkOf, standing, useDismissed, useRosterioAccounts, useRosterioLinks, type AccountStanding } from '../../data/rosterio'
 import { S, useStore } from '../../data/store'
 import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Inp, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
-import { accountTab, trialDaysLeft, type RosterioTab } from '../../shared/customers'
+import { accountTab, isPriced, mrrOf, trialDaysLeft, type RosterioTab } from '../../shared/customers'
 import { matchAccounts, REASON_TEXT, type AccountMatch } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
 
@@ -57,6 +57,9 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   const users = paid.reduce((n, r) => n + r.memberCount, 0)
   const byPlan = (['starter', 'pro', 'enterprise'] as const).map(p => [p, paid.filter(r => r.plan === p).length] as const).filter(([, n]) => n > 0)
   const showEmail = rows.some(r => !!r.billingEmail)
+  // Only when Rosterio sent a price for at least one paying account (a Rosterio admin on a server that returns it). Never estimated.
+  const mrr = mrrOf(paid)
+  const hasPrice = !!mrr
 
   const needle = q.trim().toLowerCase()
   const search = (r: Row): boolean => !needle || r.name.toLowerCase().includes(needle) || (r.billingEmail ?? '').toLowerCase().includes(needle)
@@ -134,13 +137,30 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   const planCell = (r: Row) => (r.plan ? <Chip tone={r.plan === 'starter' ? '' : 'acc'}>{planLabel(r.plan)}</Chip> : <span className="faint">—</span>)
   const usersCol: Col<Row> = { k: 'memberCount', l: 'Users', right: true, r: r => <span className="num">{r.memberCount}</span> }
   const emailCol: Col<Row> = { k: 'billingEmail', l: <>Billing email <Chip style={{ marginLeft: 4 }}>admins only</Chip></>, hide: !showEmail, r: r => <span className="mono">{r.billingEmail ?? '—'}</span> }
+  const revenueCol: Col<Row> = {
+    k: 'revenue', l: 'Monthly revenue', right: true, desc: true, hide: !hasPrice,
+    sort: r => (isPriced(r) ? r.monthlyCost : null),
+    r: r => {
+      if (!isPriced(r)) return <span className="faint" title="No price returned">—</span>
+      const seats = typeof r.billingQuantity === 'number' && r.billingQuantity > 0 ? `${r.billingQuantity} seat${r.billingQuantity === 1 ? '' : 's'}` : ''
+      return (
+        <div style={{ textAlign: 'right' }}>
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
+            {r.pricingSource === 'custom' && <Chip>Custom contract</Chip>}
+            <span className="num b">{F.money(r.monthlyCost)}</span>
+          </div>
+          {seats && <div className="faint sm">{seats}</div>}
+        </div>
+      )
+    },
+  }
   const since: Col<Row> = { k: 'createdAt', l: 'Customer since', sort: r => r.createdAt ?? '', r: r => (r.createdAt ? F.date(r.createdAt) : '—') }
 
   const tabCols: Record<RosterioTab, Col<Row>[]> = {
     paid: [
       { k: 'name', l: 'Account', r: account },
       { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
-      usersCol, since, emailCol,
+      usersCol, revenueCol, since, emailCol,
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
     ],
     trials: [
@@ -216,8 +236,16 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
 
       {data && rows.length > 0 && (
         <>
-          <div className="grid g4" style={{ marginBottom: 14 }}>
+          <div className={`grid ${mrr ? 'g5' : 'g4'}`} style={{ marginBottom: 14 }}>
             <div className="kpi" style={{ cursor: 'default' }}><span className="l">Paying customers</span><span className="v">{paid.length}</span></div>
+            {mrr && (
+              <div className="kpi" style={{ cursor: 'default' }}>
+                <span className="l">Monthly recurring revenue</span>
+                <span className="v">{F.money(mrr.total)}</span>
+                <span className="s">{F.money(mrr.total * 12)} a year</span>
+                {mrr.priced < mrr.paying && <span className="s">{mrr.priced} of {mrr.paying} paying accounts have a price</span>}
+              </div>
+            )}
             <div className="kpi" style={{ cursor: 'default' }}><span className="l">Active users across them</span><span className="v">{users.toLocaleString()}</span></div>
             <div className="kpi" style={{ cursor: 'default' }}>
               <span className="l">By plan</span>
@@ -253,7 +281,8 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
 
           <Card pad={false}>
             <DataTable
-              key={tab}
+              key={`${tab}-${hasPrice}`}
+              sortInit={tab === 'paid' && hasPrice ? ['revenue', -1] : null}
               cols={tabCols[tab]}
               rows={tabRows[tab]}
               page={50}
