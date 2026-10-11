@@ -7,6 +7,7 @@ import { Empty, Seg } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
 import { RosterioCustomers } from '../rosterio/RosterioCustomers'
+import { ArdorioCustomers } from './ArdorioCustomers'
 import { WonCustomers } from './WonCustomers'
 
 export function Customers({ route }: { route: Route }) {
@@ -45,7 +46,9 @@ export function Customers({ route }: { route: Route }) {
 
   const sub = product === 'ros'
     ? 'Who is paying us, by product. Rosterio accounts are read live from Rosterio. Nothing is copied into SalesOS.'
-    : 'Who is paying us, by product. Customers are companies with a won deal in this product.'
+    : product === 'ard' && Q.canBill()
+      ? 'Who is paying us, by product. Ardorio revenue comes from your invoices, ex GST.'
+      : 'Who is paying us, by product. Customers are companies with a won deal in this product.'
 
   return (
     <div className="page">
@@ -54,7 +57,7 @@ export function Customers({ route }: { route: Route }) {
         <Seg value={product} onChange={choose} opts={mine.map(b => [b, `${Q.biz(b)?.name ?? b}${count(b) === undefined ? '' : ` ${count(b)}`}`] as const)} />
         <span className="faint sm">Counts are paying customers. You only see products you belong to.</span>
       </div>
-      {product === 'ros' ? <RosterioCustomers tab={tab} onTab={chooseTab} /> : <WonCustomers business={product} />}
+      {product === 'ros' ? <RosterioCustomers tab={tab} onTab={chooseTab} /> : product === 'ard' && Q.canBill() ? <ArdorioCustomers /> : <WonCustomers business={product} />}
     </div>
   )
 }
