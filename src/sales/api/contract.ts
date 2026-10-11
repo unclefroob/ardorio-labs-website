@@ -264,6 +264,7 @@ export type SalesErrorCode =
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
   | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
+  | 'INVOICE_PAID' | 'INVOICE_ALREADY_VOID' | 'INVOICE_NOT_ISSUED' | 'LINK_DEACTIVATION_FAILED'   // LINK_DEACTIVATION_FAILED carries details: { linkId: string }
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -453,7 +454,10 @@ export interface RosterioProvisionResponse {
 }
 
 // ── Invoicing (business `ard`, admins only). Additive. ────────────────────────────────────────────
-export type InvoiceStatus = 'draft' | 'sent' | 'paid'
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'void'
+export type InvoiceVoidReason = 'mistake' | 'client-cancelled' | 'replaced' | 'other'
+export interface InvoiceVoidInfo { voidedAt: string; voidedBy: string; reason: InvoiceVoidReason; note: string; linkDeactivated: boolean | null }
+export interface InvoiceRefundDue { amountCents: number; receivedAt: string; reference: string; acknowledgedAt: string | null; acknowledgedBy: string | null }
 export type InvoicePaymentMethod = 'bank-transfer' | 'payid' | 'card' | 'other'
 export interface InvoiceLine { description: string; detail?: string; qty: number; unitPriceCents: number; amountCents: number }
 export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
@@ -466,6 +470,7 @@ export interface InvoiceDto {
   offerCardPayment: boolean; paymentLinkUrl: string; paymentLinkIsAutomatic: boolean
   publicToken: string; hostedUrl: string; sentAt: string | null; issuedCount: number
   subtotalCents: number; gstCents: number; totalCents: number; createdAt: string
+  voided: InvoiceVoidInfo | null; refundDue: InvoiceRefundDue | null
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -473,10 +478,11 @@ export interface InvoiceInput {
   gstRate?: number; notes?: string; issueDate: string; paymentTermsDays: number; dueDate?: string
   offerCardPayment?: boolean; paymentLinkUrl?: string
 }
+export interface VoidInvoiceInput { reason: InvoiceVoidReason; note?: string; linkStillLiveAcknowledged?: boolean }
 export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; reference?: string; amountCents?: number }
 export interface InvoiceListResponse { invoices: InvoiceDto[] }
 export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
-export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number }; byCompany: InvoiceCompanyTotals[] }
+export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number; needsRefundCount: number; needsRefundCents: number }; byCompany: InvoiceCompanyTotals[] }
 export interface BillingClientDetails { email?: string; contactName?: string; abn?: string; address?: string }
 export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
 export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
@@ -484,7 +490,7 @@ export interface BillingMilestone { id: string; label: string; amountCents: numb
 export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string }
 // sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
 export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
-// Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid.
+// Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
 export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }

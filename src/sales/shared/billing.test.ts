@@ -195,3 +195,33 @@ describe('Customers, Ardorio', () => {
     expect(out.map(d => d.id)).toEqual(['dl2'])
   })
 })
+
+describe('cancelled invoices in billing', () => {
+  const live = dto({ id: 'v', milestoneId: 'm2', status: 'void', subtotalCents: 1800000, voided: { voidedAt: '2026-10-12T00:00:00Z', voidedBy: 'u', reason: 'mistake', note: '', linkDeactivated: true } })
+  it('the milestone returns to Planned, and the cancelled invoice shows only as a note', () => {
+    const rows = scheduleRows(PLAN, [live])
+    expect(rows[1].status).toBe('Planned')
+    expect(rows[1].invoice).toBeNull()
+    expect(rows[1].cancelled?.id).toBe('v')
+    expect(unbilledRows(rows).map(r => r.milestone.id)).toContain('m2')
+  })
+  it('a replacement draft takes over from the cancelled invoice', () => {
+    const rows = scheduleRows(PLAN, [live, dto({ id: 'n', milestoneId: 'm2', status: 'draft' })])
+    expect(rows[1].status).toBe('Draft invoice')
+    expect(rows[1].invoice?.id).toBe('n')
+  })
+  it('billed progress excludes cancelled invoices', () => {
+    const p = billingProgress(6000000, [dto({ status: 'paid', subtotalCents: 1800000 }), dto({ status: 'sent', subtotalCents: 1800000 }), live])
+    expect(p.billed).toBe(3600000)
+    expect(p.invoiced).toBe(1800000)
+  })
+  it('company totals exclude cancelled invoices', () => {
+    expect(companyBilling([dto({ status: 'sent', subtotalCents: 100 }), live])).toEqual({ invoicedCents: 100, paidCents: 0, outstandingCents: 100, overdueCents: 0 })
+  })
+  it('a won deal whose only invoice was cancelled is not invoiced', () => {
+    const deals = [{ id: 'dl1', businessId: 'ard', status: 'won', companyId: 'co1', closedAt: '2026-07-28', stageChangedAt: '2026-07-28' }] as unknown as Deal[]
+    const cos = [{ id: 'co1', archived: false }] as unknown as Company[]
+    expect(wonNotInvoiced(deals, cos, [dto({ dealId: 'dl1', status: 'void' })]).map(d => d.id)).toEqual(['dl1'])
+    expect(wonNotInvoiced(deals, cos, [dto({ dealId: 'dl1', status: 'draft' })])).toEqual([])
+  })
+})

@@ -14,7 +14,7 @@ function inv(over: Partial<InvoiceDto> = {}): InvoiceDto {
     lineItems: [{ description: 'Milestone 2', qty: 1, unitPriceCents: 1800000, amountCents: 1800000 }], gstRate: 0.1, notes: '',
     issueDate: '2026-10-03', paymentTermsDays: 45, dueDate: '2026-11-17', status: 'sent', overdue: false, payment: null,
     offerCardPayment: false, paymentLinkUrl: '', paymentLinkIsAutomatic: false, publicToken: 't', hostedUrl: 'https://ardorio.co/invoice/t',
-    sentAt: '2026-10-03T01:00:00.000Z', issuedCount: 1, subtotalCents: 1800000, gstCents: 180000, totalCents: 1980000, createdAt: '2026-10-01T01:00:00.000Z', ...over,
+    sentAt: '2026-10-03T01:00:00.000Z', issuedCount: 1, subtotalCents: 1800000, gstCents: 180000, totalCents: 1980000, createdAt: '2026-10-01T01:00:00.000Z', voided: null, refundDue: null, ...over,
   }
 }
 const paid = (over: Partial<InvoiceDto> = {}) => inv({ status: 'paid', payment: { method: 'bank-transfer', paidAt: '2026-10-06', amountCents: 1056000, reference: 'R' }, ...over })
@@ -216,13 +216,13 @@ describe('mark paid', () => {
 
 describe('what each status allows', () => {
   it('draft: edit, issue, delete, PDF; no link yet and no mark paid', () => {
-    expect(actionsFor(inv({ status: 'draft' }))).toEqual({ edit: true, issue: true, reissue: false, markPaid: false, delete: true, copyLink: false, pdf: true, readOnly: false })
+    expect(actionsFor(inv({ status: 'draft' }))).toEqual({ edit: true, issue: true, reissue: false, markPaid: false, delete: true, copyLink: false, pdf: true, readOnly: false, cancel: false, cancelBlockedPaid: false, duplicate: false, voided: false })
   })
   it('sent: edit and reissue, mark paid, copy link; cannot be deleted', () => {
-    expect(actionsFor(inv())).toEqual({ edit: true, issue: false, reissue: true, markPaid: true, delete: false, copyLink: true, pdf: true, readOnly: false })
+    expect(actionsFor(inv())).toEqual({ edit: true, issue: false, reissue: true, markPaid: true, delete: false, copyLink: true, pdf: true, readOnly: false, cancel: true, cancelBlockedPaid: false, duplicate: true, voided: false })
   })
   it('paid: read-only, PDF and link only', () => {
-    expect(actionsFor(paid())).toEqual({ edit: false, issue: false, reissue: false, markPaid: false, delete: false, copyLink: true, pdf: true, readOnly: true })
+    expect(actionsFor(paid())).toEqual({ edit: false, issue: false, reissue: false, markPaid: false, delete: false, copyLink: true, pdf: true, readOnly: true, cancel: false, cancelBlockedPaid: true, duplicate: true, voided: false })
   })
 })
 
@@ -270,5 +270,125 @@ describe('billing details and settings validation', () => {
     expect(validateSettings({ ...base, abn: 'abc' }).abn).toMatch(/digits/)
     expect(validateSettings({ ...base, email: 'x' }).email).toBeTruthy()
     expect(validateSettings({ ...base, bank: { bsb: '12-34' } }).bsb).toMatch(/6/)
+  })
+})
+
+// ── cancelling (void) ────────────────────────────────────────────────────────────────────────────
+import { buildVoid, cancelConsequences, linkOutcome, needsRefund, PAID_CANCEL_HINT, voidSummary } from './invoices'
+
+const VOIDED = { voidedAt: '2026-10-12T04:41:00.000Z', voidedBy: 'u-me', reason: 'mistake' as const, note: 'Wrong milestone', linkDeactivated: true }
+const voided = (over: Partial<InvoiceDto> = {}) => inv({ status: 'void', voided: VOIDED, ...over })
+
+describe('cancelled invoices: status and tabs', () => {
+  it('shows a Cancelled chip with an icon, and a void invoice is never overdue', () => {
+    expect(statusChip(voided())).toEqual({ label: 'Cancelled', tone: '', icon: 'x' })
+    expect(statusChip(voided({ overdue: true })).label).toBe('Cancelled')
+  })
+  it('stays in All only: never Overdue, Sent, Drafts or Paid', () => {
+    const list = [inv({ id: 'a' }), inv({ id: 'b', overdue: true }), voided({ id: 'c', overdue: true }), paid({ id: 'd' }), inv({ id: 'e', status: 'draft' })]
+    expect(tabCounts(list)).toEqual({ all: 5, draft: 1, sent: 2, overdue: 1, paid: 1 })
+    expect(inTab(voided({ overdue: true }), 'overdue')).toBe(false)
+    expect(inTab(voided(), 'all')).toBe(true)
+    expect(filterInvoices(list, { tab: 'all', query: '', companyId: '' }).map(i => i.id)).toContain('c')
+    expect(filterInvoices(list, { tab: 'overdue', query: '', companyId: '' }).map(i => i.id)).toEqual(['b'])
+  })
+  it('the due cell of a void invoice has no overdue note', () => {
+    expect(dueCell(voided({ overdue: true }), TODAY)).toEqual({ text: '17 Nov 2026', sub: '', late: false })
+  })
+})
+
+describe('cancelled invoices: milestones', () => {
+  it('a void invoice counts as nothing, so the milestone goes back to Planned', () => {
+    expect(milestoneStatus('m1', [voided({ milestoneId: 'm1' })])).toBe('Planned')
+    expect(milestoneStatus('m1', [voided({ id: 'a', milestoneId: 'm1' }), inv({ id: 'b', milestoneId: 'm1', status: 'draft' })])).toBe('Draft invoice')
+  })
+})
+
+describe('cancelled invoices: what a person may do', () => {
+  it('Cancel is for sent (and so overdue) invoices only', () => {
+    expect(actionsFor(inv()).cancel).toBe(true)
+    expect(actionsFor(inv({ overdue: true })).cancel).toBe(true)
+    expect(actionsFor(inv({ status: 'draft' })).cancel).toBe(false)
+    expect(actionsFor(paid()).cancel).toBe(false)
+    expect(actionsFor(voided()).cancel).toBe(false)
+  })
+  it('a paid invoice shows Cancel as blocked; a draft does not', () => {
+    expect(actionsFor(paid()).cancelBlockedPaid).toBe(true)
+    expect(actionsFor(inv({ status: 'draft' })).cancelBlockedPaid).toBe(false)
+    expect(PAID_CANCEL_HINT).toBe('Paid invoices cannot be cancelled. Refund or issue a credit instead.')
+  })
+  it('a void invoice is read-only: no edit, reissue, issue, mark paid or delete, and no link to copy', () => {
+    expect(actionsFor(voided())).toMatchObject({ edit: false, reissue: false, issue: false, markPaid: false, delete: false, copyLink: false, readOnly: true, voided: true, duplicate: true })
+  })
+})
+
+describe('cancel form', () => {
+  it('needs a reason', () => {
+    expect(buildVoid({ reason: '', note: '' })).toEqual({ ok: false, hint: 'Choose a reason to continue.' })
+  })
+  it('the note is optional, except for Other', () => {
+    expect(buildVoid({ reason: 'mistake', note: '' })).toEqual({ ok: true, input: { reason: 'mistake' } })
+    expect(buildVoid({ reason: 'other', note: '   ' }).ok).toBe(false)
+    expect(buildVoid({ reason: 'other', note: ' Duplicate of INV-0030 ' })).toEqual({ ok: true, input: { reason: 'other', note: 'Duplicate of INV-0030' } })
+  })
+  it('the note is at most 200 characters', () => {
+    expect(buildVoid({ reason: 'replaced', note: 'x'.repeat(200) }).ok).toBe(true)
+    expect(buildVoid({ reason: 'replaced', note: 'x'.repeat(201) }).ok).toBe(false)
+  })
+  it('reads as a sentence', () => {
+    expect(voidSummary(VOIDED, 'Ryan')).toBe('Cancelled on 12 Oct 2026 by Ryan: Raised by mistake (Wrong milestone)')
+    expect(voidSummary({ ...VOIDED, note: '', reason: 'client-cancelled' }, 'Ryan')).toBe('Cancelled on 12 Oct 2026 by Ryan: Client cancelled')
+  })
+})
+
+describe('cancel consequences', () => {
+  const base = { paymentLinkUrl: '', paymentLinkIsAutomatic: false, subtotalCents: 1800000, totalCents: 1980000, overdue: false, milestoneId: null }
+  it('an automatic card link stops working', () => {
+    const t = cancelConsequences({ ...base, paymentLinkUrl: 'https://buy.stripe.com/x', paymentLinkIsAutomatic: true }, '').map(c => c.text)
+    expect(t[0]).toContain('card payment link stops working')
+  })
+  it('a link pasted by hand cannot be switched off here', () => {
+    const t = cancelConsequences({ ...base, paymentLinkUrl: 'https://pay.example/x' }, '').map(c => c.text)
+    expect(t[0]).toContain('pasted in by hand')
+    expect(t[0]).toContain('Switch it off in your payment provider')
+  })
+  it('no link, no link line; the page, watermark and totals lines are always there', () => {
+    const t = cancelConsequences(base, '').map(c => c.text)
+    expect(t).toHaveLength(2)
+    expect(t[0]).toContain('This invoice has been cancelled')
+    expect(t[0]).toContain('watermarked CANCELLED')
+    expect(t[1]).toBe('$18,000.00 ex GST ($19,800.00 with GST) leaves Outstanding and Invoiced.')
+  })
+  it('a milestone goes back to Planned and the deal progress drops', () => {
+    const t = cancelConsequences({ ...base, milestoneId: 'm2', overdue: true }, 'Core platform').map(c => c.text)
+    expect(t[1]).toContain('leaves Outstanding, Overdue and Invoiced')
+    expect(t[2]).toBe('Milestone “Core platform” goes back to Planned, and the billing progress on the deal drops.')
+  })
+})
+
+describe('cancelled invoices: activity and refunds', () => {
+  const names = (id: string): string => (id === 'u-me' ? 'Ryan' : id)
+  it('lists the cancellation, who, why and whether the link was switched off', () => {
+    const a = activityItems(voided(), names)
+    expect(a.map(x => x.label)).toEqual(['Created', 'Issued', 'Cancelled'])
+    expect(a[2]).toMatchObject({ when: '12 Oct 2026', note: 'Ryan', lines: ['Reason: Raised by mistake', 'Note: Wrong milestone', 'Card link switched off'] })
+  })
+  it('says when the link was not switched off, or there was none', () => {
+    expect(linkOutcome(false)).toContain('must be switched off in Stripe')
+    expect(linkOutcome(null)).toBe('No card link to switch off')
+    expect(linkOutcome(null, 'https://pay.example/x')).toContain('Pasted card link is still active')
+    expect(linkOutcome(true, 'https://pay.example/x')).toBe('Card link switched off')
+  })
+  it('a payment after cancelling and its confirmation are part of the history', () => {
+    const refund = { amountCents: 1980000, receivedAt: '2026-10-13T01:00:00.000Z', reference: 'pi_123', acknowledgedAt: null, acknowledgedBy: null }
+    expect(activityItems(voided({ refundDue: refund }), names).map(x => x.label)).toEqual(['Created', 'Issued', 'Cancelled', 'Payment received after cancelling'])
+    const done = activityItems(voided({ refundDue: { ...refund, acknowledgedAt: '2026-10-14T00:00:00.000Z', acknowledgedBy: 'u-me' } }), names)
+    expect(done.at(-1)).toMatchObject({ label: 'Refund confirmed', note: 'Ryan' })
+  })
+  it('needsRefund is true only until it is acknowledged', () => {
+    const refund = { amountCents: 100, receivedAt: '2026-10-13', reference: '', acknowledgedAt: null, acknowledgedBy: null }
+    expect(needsRefund({ refundDue: null })).toBe(false)
+    expect(needsRefund({ refundDue: refund })).toBe(true)
+    expect(needsRefund({ refundDue: { ...refund, acknowledgedAt: '2026-10-14' } })).toBe(false)
   })
 })
