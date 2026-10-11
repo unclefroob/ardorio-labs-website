@@ -1,9 +1,9 @@
-import type { BillingClient, InvoiceDto, InvoiceSettings, InvoiceSummary, Role } from '../api/contract'
+import type { BillingClient, BootstrapResponse, InvoiceDto, InvoiceSettings, InvoiceSummary, Role } from '../api/contract'
 import { bootstrap, rec, ME } from './fixtures'
 import type { Sales } from './load'
 
 /** Business ard with two companies in it (and one outside it), a deal on the first. */
-export function invoicingWorld() {
+export function invoicingWorld(over: Partial<BootstrapResponse['collections']> = {}) {
   return bootstrap({
     businesses: [rec('ard', { name: 'Ardorio', short: 'ARD', accent: '#123456', desc: '', currency: 'AUD', tz: 'Australia/Melbourne', pipelineId: 'pl1', industries: [], roles: [] })],
     companies: [
@@ -22,7 +22,29 @@ export function invoicingWorld() {
       next: '', description: '', lostReason: '', status: 'open', createdAt: '2026-10-01T09:00:00', stageChangedAt: '2026-10-01T09:00:00', lastActivity: '2026-10-01T09:00:00',
       closedAt: null, priority: 'Medium', fields: {}, stageHistory: [], notes: [],
     })],
+    ...over,
   })
+}
+
+/** A deal in Ardorio. Won by default, since billing is for won work. */
+export function ardDeal(id: string, over: Record<string, unknown> = {}) {
+  return rec(id, {
+    name: id, title: id, businessId: 'ard', companyId: 'co1', pipelineId: 'pl1', stageId: 'sg1', ownerId: 'u-me', type: 'New',
+    value: 60000, mrr: null, recurring: false, contractMonths: 12, close: '2026-12-01', probability: 100, forecast: 'Closed', source: '', contactIds: [], primaryContact: null,
+    next: '', description: '', lostReason: '', status: 'won', createdAt: '2026-07-01T09:00:00', stageChangedAt: '2026-07-28T09:00:00', lastActivity: '2026-07-28T09:00:00',
+    closedAt: '2026-07-28T09:00:00', priority: 'Medium', fields: {}, stageHistory: [], notes: [], ...over,
+  })
+}
+
+/** The Deal board: $60,000 quoted over four milestones. */
+export const PLAN_DATA = {
+  dealId: 'dl1', businessId: 'ard',
+  milestones: [
+    { id: 'm1', label: 'Discovery and design', amountCents: 1800000, plannedDate: '2026-08-15' },
+    { id: 'm2', label: 'Core platform', amountCents: 1800000, plannedDate: '2026-10-03' },
+    { id: 'm3', label: 'Integration and handover', amountCents: 1800000, plannedDate: '2026-10-13' },
+    { id: 'm4', label: 'Final acceptance', amountCents: 600000, plannedDate: '2026-12-15' },
+  ],
 }
 
 /** Make the signed-in user hold exactly this role in Ardorio, be a super admin, or hold only a role elsewhere. */

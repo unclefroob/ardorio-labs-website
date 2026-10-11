@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { changes } from '../../testing/fixtures'
+import { changes, rec } from '../../testing/fixtures'
 import { button, click, field, settle, type } from '../../testing/dom'
 import { CLIENT, dto, invoicingWorld, setArdRole, SETTINGS } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
@@ -341,19 +341,19 @@ describe('milestones (once the billingPlans collection exists)', () => {
     { id: 'm3', label: 'Milestone 3: handover', amountCents: 1440000 },
   ] }
 
-  it('the adapter returns an empty list until the store has the collection', async () => {
+  it('billingPlans() reads the synced collection: empty until a plan arrives', async () => {
     m = await loadSales()
+    m.bootstrap.hydrate(invoicingWorld())
     const { billingPlans } = await import('../../data/invoicing')
     expect(billingPlans()).toEqual([])
-    ;(m.store.S as unknown as { billingPlans: unknown[] }).billingPlans = [plan]
-    expect(billingPlans()).toHaveLength(1)
+    m.bootstrap.hydrate(invoicingWorld({ billingPlans: [rec('bp_dl1', plan)] }))
+    expect(billingPlans().map(p => p.id)).toEqual(['bp_dl1'])
   })
 
   it('lists the deal’s milestones with their derived status and fills a blank line from the one picked', async () => {
     m = await loadSales()
-    m.bootstrap.hydrate(invoicingWorld())
+    m.bootstrap.hydrate(invoicingWorld({ billingPlans: [rec('bp_dl1', plan)] }))
     setArdRole(m, 'admin')
-    ;(m.store.S as unknown as { billingPlans: unknown[] }).billingPlans = [plan]
     fakeApi({
       ...base,
       [DEAL_LIST]: () => json(200, { invoices: [dto({ id: 'x', milestoneId: 'm1', status: 'paid' }), dto({ id: 'y', milestoneId: 'm2', status: 'sent' })] }),

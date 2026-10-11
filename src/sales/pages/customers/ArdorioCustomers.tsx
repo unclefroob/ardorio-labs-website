@@ -41,7 +41,7 @@ export function ArdorioCustomers() {
     },
     {
       k: 'won', l: 'Won deals', right: true, sort: r => r.wonDeals,
-      r: r => (r.wonDeals ? <span className="money">{r.wonDeals} <span className="faint sm">· {r.retainer ? 'retainer' : F.money(r.wonValue)}</span></span> : <span className="faint">No deal</span>),
+      r: r => (r.wonDeals ? <span className="money">{r.wonDeals} <span className="faint sm">· {r.retainer ? 'retainer' : formatCentsTile(Math.round(r.wonValue * 100))}</span></span> : <span className="faint">No deal</span>),
     },
     { k: 'inv', l: 'Invoiced', right: true, sort: r => r.invoicedCents, r: r => <span className="money">{formatCents(r.invoicedCents)}</span> },
     { k: 'paid', l: 'Paid', right: true, sort: r => r.paidCents, r: r => <span className="money">{formatCents(r.paidCents)}</span> },
@@ -52,7 +52,7 @@ export function ArdorioCustomers() {
   const uCols: Col<Deal>[] = [
     { k: 'co', l: 'Customer', sort: d => Q.company(d.companyId)?.name ?? '', r: d => <b><CoLink id={d.companyId} /></b> },
     { k: 'deal', l: 'Won deal', sort: d => d.title || d.name, r: d => <DlLink id={d.id} /> },
-    { k: 'val', l: 'Value (ex GST)', right: true, sort: d => d.value, r: d => <span className="money">{F.money(d.value)}</span> },
+    { k: 'val', l: 'Value (ex GST)', right: true, sort: d => d.value, r: d => <span className="money">{formatCentsTile(Math.round(d.value * 100))}</span> },
     { k: 'won', l: 'Won on', sort: d => d.closedAt ?? d.stageChangedAt, desc: true, r: d => F.date(d.closedAt ?? d.stageChangedAt) },
     { k: 'go', l: '', nosort: true, r: d => <Btn size="xs" onClick={() => UI.nav('deal', { id: d.id, q: { tab: 'billing' } })}>Open billing</Btn> },
   ]

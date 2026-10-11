@@ -18,13 +18,18 @@ import { createDraftsForUnbilled } from './billingActions'
 /** Billing schedule of an Ardorio deal. Rendered only for admins of Ardorio; the server enforces the same. */
 export function BillingCard({ deal }: { deal: Deal }) {
   useStore()
+  // Gate before the inner card mounts, so a non-admin never triggers the invoice request.
+  return deal.businessId === 'ard' && Q.canBill() ? <Schedule deal={deal} /> : null
+}
+
+function Schedule({ deal }: { deal: Deal }) {
+  useStore()
   const inv = useLoad(s => listInvoices({ dealId: deal.id }, s).then(r => r.invoices), `deal:${deal.id}`)
   const [form, setForm] = useState<{ id: string | null; label: string; amount: string; date: string } | null>(null)
   const [retainerForm, setRetainerForm] = useState<{ amount: string; date: string } | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
-  if (deal.businessId !== 'ard' || !Q.canBill()) return null
   const plan = Q.billingPlan(deal.id)
   const list: InvoiceDto[] = inv.data ?? []
   const rows = scheduleRows(plan, list)
