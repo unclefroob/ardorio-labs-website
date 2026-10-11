@@ -58,12 +58,12 @@ export function LoadFailed({ message }: { message: string }) {
   )
 }
 
-export function Denied({ what, body }: { what?: string; body?: string }) {
+export function Denied({ what, body, title }: { what?: string; body?: string; title?: string }) {
   return (
     <div className="page">
       <Empty
         icon="lock"
-        title="You don't have access"
+        title={title ?? "You don't have access"}
         body={body ?? `${what ?? 'This page'} requires administrator access for at least one business. Ask an administrator if you need it.`}
         action={<Btn onClick={() => UI.nav('dashboard')}>Back to dashboard</Btn>}
       />
