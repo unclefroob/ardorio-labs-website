@@ -62,12 +62,12 @@ export function dto(over: Partial<InvoiceDto> = {}): InvoiceDto {
     lineItems: [{ description: 'Milestone 2: core platform', detail: 'SOW 4.2', qty: 1, unitPriceCents: 1800000, amountCents: 1800000 }], gstRate: 0.1, notes: '',
     issueDate: '2026-10-03', paymentTermsDays: 45, dueDate: '2026-11-17', status: 'sent', overdue: false, payment: null,
     offerCardPayment: false, paymentLinkUrl: '', paymentLinkIsAutomatic: false, publicToken: 'tok', hostedUrl: 'https://ardorio.co/invoice/tok',
-    sentAt: '2026-10-03T01:00:00.000Z', issuedCount: 1, subtotalCents: 1800000, gstCents: 180000, totalCents: 1980000, createdAt: '2026-10-01T01:00:00.000Z', ...over,
+    sentAt: '2026-10-03T01:00:00.000Z', issuedCount: 1, subtotalCents: 1800000, gstCents: 180000, totalCents: 1980000, createdAt: '2026-10-01T01:00:00.000Z', voided: null, refundDue: null, ...over,
   }
 }
 
 export const SUMMARY: InvoiceSummary = {
-  tiles: { outstandingCents: 2250000, overdueCents: 450000, paidThisMonthCents: 960000, draftCount: 1, draftCents: 1800000 },
+  tiles: { outstandingCents: 2250000, overdueCents: 450000, paidThisMonthCents: 960000, draftCount: 1, draftCents: 1800000, needsRefundCount: 0, needsRefundCents: 0 },
   byCompany: [],
 }
 

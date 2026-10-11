@@ -87,6 +87,7 @@ export default function PublicInvoice() {
 
   const { business, bank } = { business: invoice.business, bank: invoice.business.bank }
   const hasBankDetails = Boolean(bank.bsb || bank.accountNumber)
+  const cancelled = invoice.status === 'void'
 
   return (
     <div className="min-h-screen bg-cream-100">
@@ -102,22 +103,44 @@ export default function PublicInvoice() {
         <div className="mb-8">
           <div className="flex items-center gap-2.5 mb-2">
             <span className="font-mono text-xs text-stone-400">{invoice.invoiceNumber}</span>
-            {invoice.status === 'paid' ? (
+            {cancelled ? (
+              <span className="inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-full border bg-cream-200 text-stone-600 border-stone-400">
+                <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M15 9l-6 6M9 9l6 6" /></svg>
+                Cancelled
+              </span>
+            ) : invoice.status === 'paid' ? (
               <span className="font-mono text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">Paid</span>
             ) : invoice.overdue ? (
               <span className="font-mono text-[11px] px-2 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">Overdue</span>
             ) : null}
           </div>
-          <h1 className="font-serif text-4xl text-ink mb-1">{invoice.totalFormatted}</h1>
-          <p className="text-stone-500 text-sm">
-            {invoice.status === 'paid'
-              ? `Paid in full. Thank you.`
-              : `Due ${invoice.dueDateFormatted}`}
-          </p>
+          {cancelled ? (
+            <>
+              <h1 className="font-serif text-4xl text-ink mb-3">This invoice has been cancelled</h1>
+              <div role="status" className="border-2 border-stone-400 rounded-2xl p-5 bg-cream-200">
+                <p className="text-ink text-sm leading-relaxed">
+                  {invoice.clientName}, invoice {invoice.invoiceNumber} has been cancelled. No payment is needed, and the payment link no longer works.
+                  If you have any questions, reply to the person who sent it{business.email ? ` or email ${business.email}` : ''}.
+                </p>
+                <p className="font-mono text-xs text-stone-500 mt-3">
+                  Amount: <span className="line-through">{invoice.totalFormatted}</span>
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="font-serif text-4xl text-ink mb-1">{invoice.totalFormatted}</h1>
+              <p className="text-stone-500 text-sm">
+                {invoice.status === 'paid'
+                  ? `Paid in full. Thank you.`
+                  : `Due ${invoice.dueDateFormatted}`}
+              </p>
+            </>
+          )}
         </div>
 
         {/* How to pay — first, because it's the action. */}
-        {invoice.status !== 'paid' && (
+        {invoice.status !== 'paid' && !cancelled && (
           <div className="bg-cream-200 border border-cream-300 rounded-2xl p-6 mb-8">
             <h2 className="font-serif text-xl text-ink mb-1">How to pay</h2>
             {hasBankDetails && (
@@ -176,7 +199,7 @@ export default function PublicInvoice() {
 
           <div className="flex gap-6 mb-6 font-mono text-xs text-stone-400">
             <span>Issued {invoice.issueDateFormatted}</span>
-            <span>Due {invoice.dueDateFormatted}</span>
+            {!cancelled && <span>Due {invoice.dueDateFormatted}</span>}
           </div>
 
           {/* Line items scroll horizontally rather than squashing on mobile. */}
@@ -218,7 +241,7 @@ export default function PublicInvoice() {
               </div>
             )}
             <div className="flex justify-between font-mono text-base text-ink pt-1.5 border-t border-cream-300">
-              <span>Total</span><span>{invoice.totalFormatted}</span>
+              <span>Total</span><span className={cancelled ? 'line-through text-stone-400' : ''}>{invoice.totalFormatted}</span>
             </div>
             {invoice.gstCents > 0 && (
               <p className="font-mono text-[11px] text-stone-400 text-right pt-1">Total price includes GST.</p>

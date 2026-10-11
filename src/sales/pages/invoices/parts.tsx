@@ -8,7 +8,7 @@ import { METHOD_LABELS, statusChip } from '../../shared/invoices'
 
 export function StatusChip({ inv }: { inv: Pick<InvoiceDto, 'status' | 'overdue'> }) {
   const c = statusChip(inv)
-  return <Chip tone={c.tone}>{c.label}</Chip>
+  return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip>
 }
 
 export function MethodChip({ inv }: { inv: Pick<InvoiceDto, 'payment'> }) {
@@ -27,4 +27,9 @@ export function milestoneLabel(inv: Pick<InvoiceDto, 'dealId' | 'milestoneId'>):
 
 export function Faint({ children }: { children: ReactNode }) {
   return <div className="faint sm">{children}</div>
+}
+
+/** Who did it: a member's name, or the raw value when they are not in the user list. */
+export function personName(id: string): string {
+  return Q.user(id)?.name ?? id
 }

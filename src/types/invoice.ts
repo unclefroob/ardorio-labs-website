@@ -4,7 +4,7 @@
  * the formatted value, and neither side re-implements currency formatting.
  */
 
-export type InvoiceStatus = 'draft' | 'sent' | 'paid'
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'void'
 export type PaymentMethod = 'bank-transfer' | 'payid' | 'card' | 'other'
 
 export interface InvoiceLine {
