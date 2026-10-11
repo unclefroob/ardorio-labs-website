@@ -60,8 +60,9 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const set = (patch: Partial<InvoiceForm>): void => setF(p => ({ ...p, ...patch }))
 
   const client = clients.find(c => c.linkedCompanyId === f.companyId)
-  // Resolve the billing client from the company; keep a legacy invoice's own slug until a company is chosen.
-  const slug = f.companyId ? (client?.slug ?? '') : f.clientSlug
+  // A stored invoice keeps its billing client (the API refuses a change), so it never depends on the clients list.
+  // A new invoice resolves the billing client from the chosen company.
+  const slug = invoice ? invoice.clientSlug : f.companyId ? (client?.slug ?? '') : f.clientSlug
   const form: InvoiceForm = { ...f, clientSlug: slug }
   const { ok, errors }: { ok: boolean; errors: FormErrors } = validateForm(form)
   const totals = formTotals(form)
@@ -222,7 +223,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
             <div className="col" style={{ gap: 14 }}>
               <div className="grid g3">
                 <Fld label="Customer (CRM company)" req err={showErr('customer')}>
-                  <Sel value={f.companyId} onChange={pickCompany} placeholder="Select a customer…" disabled={issuedState} options={companies.map(c => [c.id, c.name] as const)} />
+                  <Sel value={f.companyId} onChange={pickCompany} placeholder="Select a customer…" disabled={issuedState || (!!invoice && !!invoice.companyId)} options={companies.map(c => [c.id, c.name] as const)} />
                 </Fld>
                 <Fld label="Deal (optional)">
                   <Sel value={f.dealId} onChange={pickDeal} placeholder="No deal" disabled={!f.companyId} options={deals.map(d => [d.id, d.title || d.name] as const)} />

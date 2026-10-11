@@ -31,6 +31,8 @@ function Schedule({ deal }: { deal: Deal }) {
   const [busy, setBusy] = useState(false)
 
   const plan = Q.billingPlan(deal.id)
+  // Statuses come from the invoice list, so until it has loaded no row action is offered.
+  const known = !!inv.data
   const list: InvoiceDto[] = inv.data ?? []
   const rows = scheduleRows(plan, list)
   const unbilled = unbilledRows(rows)
@@ -91,7 +93,7 @@ function Schedule({ deal }: { deal: Deal }) {
         <span className="row" style={{ gap: 6 }}>
           {!retainer && <Btn size="sm" onClick={() => { setErr(''); setRetainerForm({ amount: '', date: '' }) }}>Add retainer</Btn>}
           <Btn size="sm" onClick={startAdd}>+ Add milestone</Btn>
-          <Btn size="sm" kind="pri" disabled={!unbilled.length || busy} onClick={() => void all()}>{busy ? 'Creating…' : 'Create invoice for all unbilled'}</Btn>
+          <Btn size="sm" kind="pri" disabled={!known || !unbilled.length || busy} onClick={() => void all()}>{busy ? 'Creating…' : 'Create invoice for all unbilled'}</Btn>
         </span>
       }
     >
@@ -135,17 +137,17 @@ function Schedule({ deal }: { deal: Deal }) {
                     <td className="b">{i + 1} · {r.milestone.label}</td>
                     <td className="money" style={{ textAlign: 'right' }}>{formatCents(r.milestone.amountCents)}</td>
                     <td>{fmtDay(r.milestone.plannedDate)}</td>
-                    <td><Chip tone={STATUS_TONE[r.status]}>{r.status}</Chip></td>
+                    <td>{known ? <Chip tone={STATUS_TONE[r.status]}>{r.status}</Chip> : <span className="faint">…</span>}</td>
                     <td>
                       {r.invoice ? <><a className="mono" href={`/sales/invoices/${r.invoice.id}`} onClick={ev => { ev.preventDefault(); open(r.invoice?.id ?? '') }}>{r.invoice.invoiceNumber}</a><div className="faint sm">{statusLine(r)}</div></> : <span className="faint">Not invoiced</span>}
                     </td>
                     <td>
                       <span className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-                        {r.status === 'Planned' && <Btn size="xs" onClick={() => create({ milestoneId: r.milestone.id })}>Create invoice</Btn>}
-                        {r.status === 'Draft invoice' && r.invoice && <Btn size="xs" onClick={() => open(r.invoice?.id ?? '')}>Open draft</Btn>}
-                        {r.status === 'Invoiced' && r.invoice && <Btn size="xs" onClick={() => UI.open('markPaid', { invoice: r.invoice, onDone: inv.reload })}>Mark paid</Btn>}
-                        {r.status === 'Planned' && <Btn size="xs" kind="ghost" onClick={() => startEdit(r.milestone)}>Edit</Btn>}
-                        {r.status === 'Planned' && <Btn size="xs" kind="ghost" aria-label={`Remove ${r.milestone.label}`} onClick={() => remove(r.milestone.id)}>Remove</Btn>}
+                        {known && r.status === 'Planned' && <Btn size="xs" onClick={() => create({ milestoneId: r.milestone.id })}>Create invoice</Btn>}
+                        {known && r.status === 'Draft invoice' && r.invoice && <Btn size="xs" onClick={() => open(r.invoice?.id ?? '')}>Open draft</Btn>}
+                        {known && r.status === 'Invoiced' && r.invoice && <Btn size="xs" onClick={() => UI.open('markPaid', { invoice: r.invoice, onDone: inv.reload })}>Mark paid</Btn>}
+                        {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" onClick={() => startEdit(r.milestone)}>Edit</Btn>}
+                        {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" aria-label={`Remove ${r.milestone.label}`} onClick={() => remove(r.milestone.id)}>Remove</Btn>}
                       </span>
                     </td>
                   </tr>

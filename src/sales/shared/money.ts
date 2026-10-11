@@ -5,9 +5,16 @@
 
 const MAX_CENTS = 100_000_000_00 // A$100 million, well inside Number.MAX_SAFE_INTEGER
 
+/** Commas are accepted only as well-formed thousands groups ("1,234,567.8"). "12,50" or "7,5" is a typo or a decimal comma: reject, never rescale. */
+const stripGroups = (t: string): string | null => {
+  if (!t.includes(',')) return t
+  return /^\d{1,3}(,\d{3})+(\.\d*)?$/.test(t) ? t.replace(/,/g, '') : null
+}
+
 /** "1,234.5", "$12", "0.05" -> cents. Returns null for blanks, negatives, more than 2 decimals or junk. */
 export function parseCents(input: string): number | null {
-  const t = input.replace(/[$,\s]/g, '')
+  const t = stripGroups(input.replace(/[$\s]/g, ''))
+  if (t === null) return null
   const m = /^(\d*)(?:\.(\d{0,2}))?$/.exec(t)
   if (!m || (m[1] === '' && !m[2])) return null
   const whole = m[1] === '' ? 0 : Number(m[1])
@@ -18,7 +25,8 @@ export function parseCents(input: string): number | null {
 
 /** Quantity text -> thousandths (so 7.5 is 7500). Up to 3 decimals; zero and negatives are not quantities. */
 export function parseQtyMilli(input: string): number | null {
-  const t = input.replace(/[,\s]/g, '')
+  const t = stripGroups(input.replace(/\s/g, ''))
+  if (t === null) return null
   const m = /^(\d+)(?:\.(\d{1,3}))?$|^\.(\d{1,3})$/.exec(t)
   if (!m) return null
   const whole = m[1] !== undefined ? Number(m[1]) : 0

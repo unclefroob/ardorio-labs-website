@@ -201,6 +201,27 @@ describe('Billing card: Create invoice for all unbilled', () => {
     expect(button(host, 'Create invoice for all unbilled')?.disabled).toBe(true)
   })
 
+  it('offers no row actions and no bulk create while the invoice list has failed to load', async () => {
+    await show({ ...base, [DEAL_LIST]: () => json(500, { error: 'Server error', code: 'INTERNAL' }) })
+    expect(button(host, 'Create invoice for all unbilled')?.disabled).toBe(true)
+    for (const label of ['Create invoice', 'Edit', 'Remove']) expect([0, 1, 2, 3].map(i => rowBtn(i, label)).filter(Boolean)).toHaveLength(0)
+    expect(rowsText()[3]).not.toContain('Planned')
+  })
+
+  it('re-lists the deal invoices before creating, so a milestone invoiced meanwhile is skipped', async () => {
+    let lists = 0
+    const { api } = await show({
+      ...base,
+      // The first list (page load) is stale; the one inside the action sees m4 already invoiced.
+      [DEAL_LIST]: () => json(200, { invoices: ++lists === 1 ? BOARD : [...BOARD, dto({ id: 'p4', milestoneId: 'm4', status: 'draft' })] }),
+      [CREATE]: () => json(201, dto({ id: 'new1', milestoneId: 'm4', status: 'draft' })),
+    })
+    await click(button(host, 'Create invoice for all unbilled'))
+    await settle(10)
+    expect(api.count(CREATE)).toBe(0)
+    expect(text()).toContain('already has an invoice')
+  })
+
   it('says so, and creates nothing, when the company has no billing details yet', async () => {
     const { api } = await show({ ...base, [CLIENTS]: () => json(200, { clients: [] }) })
     await click(button(host, 'Create invoice for all unbilled'))

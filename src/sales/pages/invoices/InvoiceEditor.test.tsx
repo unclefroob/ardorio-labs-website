@@ -183,6 +183,16 @@ describe('draft invoice', () => {
     expect(text()).toContain('Available once issued')
   })
 
+  it('saves with the invoice’s own client slug, locks the customer picker, and does not need the clients list', async () => {
+    const api = await show({ [GET1]: () => json(200, draft), [PUT1]: () => json(200, draft), [CLIENTS]: () => json(500, { error: 'Server error', code: 'INTERNAL' }) }, { page: 'invoice', id: 'i1' })
+    const sel = [...host.querySelectorAll('select')].find(x => [...x.options].some(o => o.value === 'co1')) as HTMLSelectElement
+    expect(sel.disabled).toBe(true)
+    await click(button(host, 'Save draft'))
+    await settle(8)
+    expect(api.calls.find(c => c.method === 'PUT' && c.path === '/sales/invoices/i1')?.body).toMatchObject({ clientSlug: 'tidewater' })
+    expect(text()).not.toContain('Fix the highlighted fields')
+  })
+
   it('Issue invoice confirms, saves what is on screen, then issues', async () => {
     const api = await show({ [GET1]: () => json(200, draft), [PUT1]: () => json(200, draft), [ISSUE1]: () => json(200, dto({ offerCardPayment: true, paymentLinkUrl: 'https://buy.stripe.com/x', paymentLinkIsAutomatic: true })) }, { page: 'invoice', id: 'i1' })
     await fill('Unit price line 1', '20000')

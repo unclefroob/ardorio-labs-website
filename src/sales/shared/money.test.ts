@@ -105,3 +105,15 @@ describe('formatting', () => {
     for (const t of ['0.07', '1.15', '19.99', '1234.50']) expect(centsToInput(parseCents(t) as number)).toBe(Number(t).toFixed(2))
   })
 })
+
+describe('commas are thousands separators only', () => {
+  it('rejects a comma used as a decimal separator or in the wrong place instead of rescaling', () => {
+    for (const t of ['12,50', '7,5', '1,23', '1,2345', ',500', '1,,000', '1234,567', '12,50.00']) expect(parseCents(t), t).toBeNull()
+    for (const t of ['7,5', '1,5000', '12,50']) expect(parseQtyMilli(t), t).toBeNull()
+  })
+  it('still accepts well-formed groups', () => {
+    expect(parseCents('1,234,567.89')).toBe(123456789)
+    expect(parseCents('$14,400')).toBe(1440000)
+    expect(parseQtyMilli('1,000.5')).toBe(1000500)
+  })
+})
