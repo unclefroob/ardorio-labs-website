@@ -36,13 +36,15 @@ export interface DataTableProps<R> {
   sel?: readonly string[]
   setSel?: (ids: string[]) => void
   onRow?: (r: R) => void
+  /** Extra class names for a row, e.g. to mute it. */
+  rowClass?: (r: R) => string
   empty?: ReactNode
   page?: number
   sortInit?: SortState | null
   dense?: boolean
 }
 
-export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, setSel, onRow, empty, page = 30, sortInit }: DataTableProps<R>) {
+export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, setSel, onRow, rowClass, empty, page = 30, sortInit }: DataTableProps<R>) {
   const [sort, setSort] = useState<SortState | null>(sortInit ?? null)
   const [n, setN] = useState(page)
   const get = (r: R, k: string): unknown => (r as Record<string, unknown>)[k]
@@ -102,7 +104,7 @@ export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, se
               const id = idOf(r)
               const on = selected.includes(id)
               return (
-                <tr key={id} className={(onRow ? 'click ' : '') + (on ? 'sel' : '')} tabIndex={onRow ? 0 : undefined} onClick={() => onRow?.(r)} onKeyDown={e => onKey(e, r)}>
+                <tr key={id} className={(onRow ? 'click ' : '') + (on ? 'sel ' : '') + (rowClass?.(r) ?? '')} tabIndex={onRow ? 0 : undefined} onClick={() => onRow?.(r)} onKeyDown={e => onKey(e, r)}>
                   {sel && setSel && (
                     <td onClick={e => e.stopPropagation()}>
                       <Ck checked={on} label="Select row" onChange={v => setSel(v ? selected.concat(id) : selected.filter(x => x !== id))} />
