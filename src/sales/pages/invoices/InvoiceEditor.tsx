@@ -17,7 +17,9 @@ import { formatCents, lineAmountCents, parsePercentBp } from '../../shared/money
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { downloadPdf } from './actions'
-import { StatusChip } from './parts'
+import { MoreMenu } from './MoreMenu'
+import { StatusChip, TestChip } from './parts'
+import { TestBanner, testItems, useTestActions } from './testActions'
 import { Activity, Totals } from './rail'
 import { InvoicesDenied } from './states'
 
@@ -45,6 +47,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const today = F.today()
   const isNew = !invoice
   const acts = actionsFor(invoice)
+  const ta = useTestActions(invoice, i => onChange?.(i))
+  const testOptions = invoice ? testItems(invoice, ta, false) : []
   const stripeOff = settings?.stripeConfigured === false
   const [f, setF] = useState<InvoiceForm>(() => {
     if (invoice) return formFromInvoice(invoice)
@@ -203,7 +207,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <StatusChip inv={invoice} /> : <Chip>Draft</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, invoice?.invoiceNumber ?? 'New invoice']}
       >
@@ -212,7 +216,9 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
         <Btn onClick={() => void preview()} disabled={busy !== ''}>{busy === 'pdf' ? 'Preparing…' : invoice && invoice.status !== 'draft' ? 'Download PDF' : 'Preview PDF'}</Btn>
         <Btn onClick={() => void save()} disabled={busy !== ''}>{busy === 'save' ? 'Saving…' : issuedState ? 'Save changes' : 'Save draft'}</Btn>
         <Btn kind="pri" onClick={issue} disabled={busy !== ''}>{busy === 'issue' ? (issuedState ? 'Reissuing…' : 'Issuing…') : issuedState ? 'Reissue' : 'Issue invoice'}</Btn>
+        {testOptions.length > 0 && invoice && <MoreMenu label={`More actions for ${invoice.invoiceNumber}`} items={testOptions} />}
       </PageHead>
+      {invoice && <TestBanner inv={invoice} onUnmark={ta.unmarkTest} busy={ta.busy} />}
 
       {fail && <div style={{ marginBottom: 14 }}><Banner tone="bad">{fail}</Banner></div>}
       {notice && <div style={{ marginBottom: 14 }}><Banner tone="info"><b>The total changed, so the pasted payment link was cleared.</b> The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.</Banner></div>}
