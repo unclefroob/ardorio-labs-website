@@ -67,6 +67,8 @@ export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'de
   if (e.code === 'INVOICE_NOT_ISSUED') return { kind: 'not-issued', message: 'This invoice has not been issued, so there is nothing to cancel. Delete the draft instead.' }
   if (e.code === 'INVOICE_ALREADY_TEST') return { kind: 'already-test', message: 'This invoice is already marked as a test.' }
   if (e.code === 'INVOICE_NOT_TEST') return { kind: 'not-test', message: 'This invoice is not marked as a test, so it can’t be unmarked or permanently deleted.' }
+  if (e.code === 'INVOICE_DELETING') return { kind: 'conflict', message: 'Another admin is deleting this invoice right now. Reload in a moment.' }
+  if (e.code === 'REFUND_DUE_UNACKNOWLEDGED') return { kind: 'conflict', message: 'A card payment was received on this cancelled invoice and has not been marked as refunded. Acknowledge the refund first, then delete it.' }
   if (e.code === 'CONFIRMATION_MISMATCH') return { kind: 'mismatch', message: 'The invoice number you typed does not match this invoice.' }
   if (e.status === 403 || e.code === 'ROLE_REQUIRED' || e.code === 'NOT_A_MEMBER') {
     return { kind: 'denied', message: 'Invoices are limited to admins of the Ardorio business.' }

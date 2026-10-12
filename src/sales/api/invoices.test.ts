@@ -135,5 +135,7 @@ describe('test invoice calls', () => {
     expect(invoiceError(e(409, 'INVOICE_NOT_TEST'), 'test').kind).toBe('not-test')
     expect(invoiceError(e(400, 'CONFIRMATION_MISMATCH'), 'test').kind).toBe('mismatch')
     expect(invoiceError(e(403, 'ROLE_REQUIRED'), 'test').kind).toBe('denied')
+    expect(invoiceError(e(409, 'INVOICE_DELETING'), 'test').message).toContain('deleting this invoice')
+    expect(invoiceError(e(409, 'REFUND_DUE_UNACKNOWLEDGED'), 'test').message).toContain('Acknowledge the refund')
   })
 })
