@@ -339,7 +339,7 @@ export function copilot(q: string, ctx?: CopilotContext): CopilotResult {
   if (scoped.length) sc = scoped
   const R = (text: string, items: CopilotItem[] = [], extra: Partial<CopilotResult> = {}): CopilotResult => ({ text, items, scope: sc, ...extra })
   if (denied.length && !scoped.length) return R(`You don't have access to ${denied.map(bizName).join(', ')}. I can only answer using records from businesses you are a member of.`)
-  const deals = S.deals.filter(d => sc.includes(d.businessId))
+  const deals = S.deals.filter(d => sc.includes(d.businessId) && d.archived !== true)
   const me = Q.me()
   const clock = F.nowIso()
   const nameOf = (id: string | null | undefined): string => Q.user(id)?.name ?? ''
@@ -353,7 +353,7 @@ export function copilot(q: string, ctx?: CopilotContext): CopilotResult {
     const b = Q.primaryBiz(ct)
     if (!b || (!sc.includes(b) && !Q.member(b))) return R('That contact is outside your accessible businesses.')
     const cid = ct.id
-    const d = S.deals.find(x => x.contactIds.includes(cid) && x.status === 'open' && x.businessId === b)
+    const d = S.deals.find(x => x.contactIds.includes(cid) && x.status === 'open' && x.businessId === b && x.archived !== true)
     const dr = draft(ct, b, d && F.days(d.lastActivity, clock) > 7 ? 'stale' : 'follow', { deal: d })
     return R(
       `Here is a draft for ${ct.name} (${ct.title}, ${Q.company(ct.companyId)?.name ?? ''}), written in ${bizName(b)} positioning. Nothing is sent until you review it in the composer.`,

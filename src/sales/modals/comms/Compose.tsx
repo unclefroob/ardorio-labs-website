@@ -138,7 +138,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
         {ct && !ct.email && <Banner tone="warn" action={<Btn size="sm" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich</Btn>}>This contact has no email address.</Banner>}
         <div className="grid g2">
           <Fld label="Cc"><Inp value={f.cc} onChange={v => set('cc', v)} /></Fld>
-          <Fld label="Related deal"><Sel value={f.dealId} onChange={v => set('dealId', v)} placeholder="—" options={S.deals.filter(d => d.companyId === f.companyId && d.businessId === b).map(d => [d.id, d.title] as const)} /></Fld>
+          <Fld label="Related deal"><Sel value={f.dealId} onChange={v => set('dealId', v)} placeholder="—" options={S.deals.filter(d => d.companyId === f.companyId && d.businessId === b && d.archived !== true).map(d => [d.id, d.title] as const)} /></Fld>
         </div>
         <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
           <Fld label="Subject" style={{ flex: 1 }}><Inp value={f.subject} onChange={v => set('subject', v)} /></Fld>

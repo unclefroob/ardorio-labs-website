@@ -73,7 +73,7 @@ export function Contact({ route }: { route: Route }) {
   const acts = Q.activities().filter(a => a.contactId === ct.id).sort((a, x) => x.ts.localeCompare(a.ts))
   const ths = S.threads.filter(t => t.contactId === ct.id && Q.member(t.businessId)).sort((a, x) => x.updatedAt.localeCompare(a.updatedAt))
   const ens = S.enrolments.filter(e => e.contactId === ct.id && Q.member(e.businessId))
-  const deals = S.deals.filter(d => d.contactIds.includes(ct.id) && Q.member(d.businessId))
+  const deals = S.deals.filter(d => d.contactIds.includes(ct.id) && Q.member(d.businessId) && d.archived !== true)
   const tasks = S.tasks.filter(t => t.contactId === ct.id && Q.member(t.businessId))
   const live = Q.activeEnrol(ct.id)
   const tCtx = { businessId: b, companyId: ct.companyId, contactId: ct.id }

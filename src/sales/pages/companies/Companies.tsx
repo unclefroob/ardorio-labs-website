@@ -32,7 +32,7 @@ function buildRows(): Row[] {
   return Q.companies().map(c => {
     const rels = Q.relsOf(c.id)
     const myr = rels.filter(r => sc.includes(r.businessId))
-    const ds = S.deals.filter(d => d.companyId === c.id && sc.includes(d.businessId) && d.status === 'open')
+    const ds = S.deals.filter(d => d.companyId === c.id && sc.includes(d.businessId) && d.status === 'open' && d.archived !== true)
     const next = S.tasks.filter(t => t.companyId === c.id && sc.includes(t.businessId) && !Q.done(t)).sort((a, b) => a.due.localeCompare(b.due))[0]
     const lastContact = myr.map(r => r.lastContacted).filter((x): x is string => !!x).sort().pop() ?? ''
     const lastAct = S.activities.filter(a => a.companyId === c.id && sc.includes(a.businessId)).reduce((m, a) => (a.ts > m ? a.ts : m), '')

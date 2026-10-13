@@ -57,7 +57,7 @@ function Dialog({ account, initial }: { account: RosterioAccount; initial?: stri
     <div className="row"><span className="faint sm" style={{ width: 92, flex: 'none' }}>{label}</span><span style={{ minWidth: 0 }}>{v}</span></div>
   )
   const rel = company ? Q.rel(company.id, 'ros') : undefined
-  const openDeals = company ? S.deals.filter(d => d.companyId === company.id && d.businessId === 'ros' && d.status === 'open').length : 0
+  const openDeals = company ? S.deals.filter(d => d.companyId === company.id && d.businessId === 'ros' && d.status === 'open' && d.archived !== true).length : 0
 
   return (
     <Modal

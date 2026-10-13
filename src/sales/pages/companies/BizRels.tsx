@@ -17,7 +17,7 @@ export function BizRels({ c }: { c: Company }) {
         {S.businesses.map(bz => {
           const r = Q.rel(c.id, bz.id)
           const mem = Q.member(bz.id)
-          const ds = S.deals.filter(d => d.companyId === c.id && d.businessId === bz.id)
+          const ds = S.deals.filter(d => d.companyId === c.id && d.businessId === bz.id && d.archived !== true)
           const op = ds.filter(Q.open)
           const sg = sugg.find(x => x.toBiz === bz.id)
           return (

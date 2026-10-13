@@ -47,9 +47,9 @@ export function Company({ route }: { route: Route }) {
   const b = ws && Q.rel(c.id, ws) ? ws : (vis.find(r => sc.includes(r.businessId)) ?? vis[0]).businessId
   const can = Q.canEdit(b)
   const cts = S.contacts.filter(x => x.companyId === c.id && !x.archived)
-  const deals = S.deals.filter(d => d.companyId === c.id && Q.member(d.businessId))
+  const deals = S.deals.filter(d => d.companyId === c.id && Q.member(d.businessId) && d.archived !== true)
   const openDeals = deals.filter(Q.open)
-  const hiddenDeals = S.deals.filter(d => d.companyId === c.id && !Q.member(d.businessId)).length
+  const hiddenDeals = S.deals.filter(d => d.companyId === c.id && !Q.member(d.businessId) && d.archived !== true).length
   const acts = Q.activities().filter(a => a.companyId === c.id).sort((x, y) => y.ts.localeCompare(x.ts))
   const nt = S.tasks.filter(t => t.companyId === c.id && Q.member(t.businessId) && !Q.done(t)).sort((x, y) => x.due.localeCompare(y.due))
   const site = safeHref(c.website)

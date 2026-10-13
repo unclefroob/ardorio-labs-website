@@ -325,7 +325,7 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
     evidence: `Inbound email ${F.dt(ts)} · classified ${cl.cat} (${Math.round(cl.conf * 100)}%)`, confidence: cl.conf > 0.85 ? 'High' : 'Medium',
     action: cl.cat === 'Unsubscribe' ? 'view' : 'task', taskTitle: cl.taskTitle.replace('{name}', ct.firstName), taskDays: cl.followUpDays,
     contactId: ct.id, companyId: ct.companyId, dealId: t.dealId, threadId: t.id, createdAt: ts, status: 'New',
-    suggestDeal: cl.deal && !S.deals.some(d => d.companyId === ct.companyId && d.businessId === b && d.status === 'open'),
+    suggestDeal: cl.deal && !S.deals.some(d => d.companyId === ct.companyId && d.businessId === b && d.status === 'open' && d.archived !== true),
   })
   reindex()
   if (!o.silent) commit()
