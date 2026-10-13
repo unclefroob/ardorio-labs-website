@@ -3,7 +3,7 @@ import { F } from '../F'
 import { uid } from '../ids'
 import {
   claimedRetainerDate, cleanMilestone, cleanRetainer, planId, retainerPause, redraftProblem, retainerPeriodLabel, validateContract, validateDelivered, validateMilestones, validateRetainer,
-  validateVariation,
+  validateVariation, approvalProblem,
 } from '../../shared/billing'
 import { formatCents } from '../../shared/money'
 import { commit } from '../commit'
@@ -131,12 +131,12 @@ function contractProblem(dealId: string, c: ContractInput): string | null {
   if (g) return g
   if (Q.deal(dealId)?.status !== 'won') return 'A contract is set when the deal is won'
   if (Q.billingPlan(dealId)?.contract) return 'This deal already has a contract. Change it with a variation.'
-  return validateContract({ ...c, contractedBy: Q.me().id })
+  return validateContract(c, F.today())
 }
 
 /**
  * Freeze the contract of a won Ardorio deal, once, and add any milestones agreed with it after the ones already
- * planned. contractedBy is written by the server; the value sent here is only a placeholder it replaces.
+ * planned. contractedBy is written by the server (the caller's display name); the name sent here is only a placeholder it replaces.
  */
 export function setContract(dealId: string, c: ContractInput, milestones: readonly BillingMilestone[] = []): BillingResult {
   const bad = contractProblem(dealId, c)
@@ -147,7 +147,7 @@ export function setContract(dealId: string, c: ContractInput, milestones: readon
     if (m) return fail(m)
   }
   const p = plan(dealId)
-  const contract: BillingContract = { baselineCents: c.baselineCents, engagementType: c.engagementType, contractedOn: c.contractedOn, contractedBy: Q.me().id, estimateAtWonCents: c.estimateAtWonCents }
+  const contract: BillingContract = { baselineCents: c.baselineCents, engagementType: c.engagementType, contractedOn: c.contractedOn, contractedBy: Q.me().name, estimateAtWonCents: c.estimateAtWonCents }
   p.contract = contract
   if (milestones.length) p.milestones = all.map(cleanMilestone)
   audit('Contract set', `${Q.deal(dealId)?.title ?? dealId}: ${formatCents(c.baselineCents)} ex GST${milestones.length ? `, ${milestones.length} milestone${milestones.length === 1 ? '' : 's'}` : ''}`)
@@ -159,18 +159,18 @@ export type VariationResult = { ok: true; variation: BillingVariation } | { ok: 
 
 /**
  * Append a variation to the ledger, proposed or approved now. Entries are never edited or removed afterwards; a
- * mistake is corrected with another variation. createdAt/createdBy/decidedAt/decidedBy are the server's: the values
- * sent here are placeholders it replaces.
+ * mistake is corrected with another variation. createdAt/createdBy/decidedAt/decidedBy are the server's (the By keys hold
+ * the caller's display name): the values sent here are placeholders it replaces.
  */
 export function addVariation(dealId: string, v: Pick<BillingVariation, 'label' | 'amountCents' | 'reason'>, approve: boolean): VariationResult {
   const g = guard(dealId)
   if (g) return { ok: false, error: g }
   const p0 = Q.billingPlan(dealId)
   if (!p0?.contract) return { ok: false, error: 'Set the contract before adding a variation' }
-  const bad = validateVariation(v)
+  const bad = validateVariation(v) ?? (approve ? approvalProblem(p0, v.amountCents) : null)
   if (bad) return { ok: false, error: bad }
   const now = F.nowIso()
-  const me = Q.me().id
+  const me = Q.me().name
   const entry: BillingVariation = {
     id: uid('vo'), label: v.label.trim(), amountCents: v.amountCents, reason: v.reason.trim(), status: approve ? 'approved' : 'proposed', createdAt: now, createdBy: me,
     ...(approve ? { decidedAt: now, decidedBy: me } : {}),
@@ -189,7 +189,9 @@ export function decideVariation(dealId: string, id: string, status: 'approved' |
   const cur = p0?.variations?.find(v => v.id === id)
   if (!p0 || !cur) return { ok: false, error: 'That variation is no longer on this deal' }
   if (cur.status !== 'proposed') return { ok: false, error: `That variation was already ${cur.status}` }
-  const next: BillingVariation = { ...cur, status, decidedAt: F.nowIso(), decidedBy: Q.me().id }
+  const over = status === 'approved' ? approvalProblem(p0, cur.amountCents) : null
+  if (over) return { ok: false, error: over }
+  const next: BillingVariation = { ...cur, status, decidedAt: F.nowIso(), decidedBy: Q.me().name }
   p0.variations = (p0.variations ?? []).map(v => (v.id === id ? next : v))
   audit(status === 'approved' ? 'Variation approved' : 'Variation rejected', `${Q.deal(dealId)?.title ?? dealId}: ${cur.label}, ${formatCents(cur.amountCents)}`)
   commit()

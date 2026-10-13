@@ -4,7 +4,7 @@ import type {
 import type { Company, Deal } from '../data/types'
 import { domOf, norm } from './constants'
 import { withoutTest, blankForm, isDay, milestoneLine, milestoneStatus, emptyLine, type InvoiceForm, type MilestoneStatus } from './invoices'
-import { centsToInput } from './money'
+import { centsToInput, formatCents } from './money'
 
 // ── validation (the same limits the API enforces on a billing plan) ──────────────────────────────
 export const MAX_MILESTONES = 40
@@ -376,7 +376,8 @@ export const ENGAGEMENT_TYPES: readonly EngagementType[] = ['fixed-price', 'time
 export const ENGAGEMENT_LABEL: Record<EngagementType, string> = { 'fixed-price': 'Fixed-price project', 'time-materials': 'Time and materials', 'support-retainer': 'Support retainer' }
 export const VARIATION_LABEL: Record<VariationStatus, string> = { proposed: 'Proposed', approved: 'Approved', rejected: 'Rejected' }
 export const VARIATION_TONE: Record<VariationStatus, '' | 'ok' | 'warn' | 'bad'> = { proposed: 'warn', approved: 'ok', rejected: '' }
-export const MAX_REASON = 1000
+/** The API's limit on a variation's reason. */
+export const MAX_REASON = 500
 
 export const isEngagementType = (x: unknown): x is EngagementType => typeof x === 'string' && (ENGAGEMENT_TYPES as readonly string[]).includes(x)
 
@@ -396,11 +397,13 @@ export function validateContractAmount(cents: number | null): string | null {
   return null
 }
 
-export function validateContract(c: BillingContract): string | null {
+/** A contract as the API accepts it. `today` is the latest contract date allowed: the API refuses a future one. */
+export function validateContract(c: Pick<BillingContract, 'baselineCents' | 'engagementType' | 'contractedOn' | 'estimateAtWonCents'>, today: string): string | null {
   const bad = validateContractAmount(c.baselineCents)
   if (bad) return bad
   if (!isEngagementType(c.engagementType)) return 'Choose an engagement type'
   if (!isDay(c.contractedOn)) return 'The contract date is not a valid date'
+  if (c.contractedOn > today) return 'The contract date cannot be in the future. It is the day the deal was won.'
   if (!Number.isInteger(c.estimateAtWonCents) || c.estimateAtWonCents < 0) return 'The estimate at Won is not a whole number of cents'
   return null
 }
@@ -413,6 +416,17 @@ export function validateVariation(v: Pick<BillingVariation, 'label' | 'amountCen
   const reason = v.reason.trim()
   if (reason.length < 1) return 'Say why the contract changes'
   if (reason.length > MAX_REASON) return `The reason is at most ${MAX_REASON} characters`
+  return null
+}
+
+/**
+ * Why counting `amount` as approved would break the contract, or null. The API refuses approved variations that take
+ * the contracted total below 0, so a decrease larger than what is contracted is refused here first.
+ */
+export function approvalProblem(plan: Pick<BillingPlan, 'contract' | 'variations'> | undefined, amount: number): string | null {
+  const from = contractedCents(plan)
+  if (from === null) return 'Set the contract before adding a variation'
+  if (from + amount < 0) return `Approving this would take the contracted total below ${formatCents(0)}. Contracted is ${formatCents(from)}.`
   return null
 }
 

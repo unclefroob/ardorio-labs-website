@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { BillingContract, BillingPlan, BillingVariation } from '../api/contract'
 import { dto } from '../testing/invoicingWorld'
 import {
-  approvedVariations, cleanMilestone, contractedCents, moneyForDeal, nextVariationLabel, proposedVariations, reconciliationLine, signedCents, validateContract,
+  approvalProblem, approvedVariations, cleanMilestone, contractedCents, moneyForDeal, nextVariationLabel, proposedVariations, reconciliationLine, signedCents, validateContract,
   validateContractAmount, validateVariation, variationEffect, wonDay,
 } from './billing'
 import { formatCents } from './money'
 
+const TODAY = '2026-10-14'
 const CONTRACT: BillingContract = { baselineCents: 4800000, engagementType: 'fixed-price', contractedOn: '2026-09-03', contractedBy: 'u-me', estimateAtWonCents: 4800000 }
 const V = (id: string, amountCents: number, status: BillingVariation['status']): BillingVariation => ({
   id, label: id, amountCents, reason: 'Client asked', status, createdAt: '2026-09-20T01:00:00.000Z', createdBy: 'u-me',
@@ -119,10 +120,21 @@ describe('contract and variation validation', () => {
     expect(validateContractAmount(4800000)).toBeNull()
   })
   it('a whole contract needs an engagement type and a contract day', () => {
-    expect(validateContract(CONTRACT)).toBeNull()
-    expect(validateContract({ ...CONTRACT, engagementType: 'monthly' as never })).toBe('Choose an engagement type')
-    expect(validateContract({ ...CONTRACT, contractedOn: '2026-02-30' })).toMatch(/not a valid date/)
-    expect(validateContract({ ...CONTRACT, estimateAtWonCents: -1 })).toMatch(/estimate/)
+    expect(validateContract(CONTRACT, TODAY)).toBeNull()
+    expect(validateContract({ ...CONTRACT, engagementType: 'monthly' as never }, TODAY)).toBe('Choose an engagement type')
+    expect(validateContract({ ...CONTRACT, contractedOn: '2026-02-30' }, TODAY)).toMatch(/not a valid date/)
+    expect(validateContract({ ...CONTRACT, estimateAtWonCents: -1 }, TODAY)).toMatch(/estimate/)
+  })
+  it('a contract date is today or earlier, as the API requires', () => {
+    expect(validateContract({ ...CONTRACT, contractedOn: TODAY }, TODAY)).toBeNull()
+    expect(validateContract({ ...CONTRACT, contractedOn: '2026-10-15' }, TODAY)).toMatch(/cannot be in the future/)
+  })
+  it('an approval cannot take the contracted total below 0, as the API requires', () => {
+    // PLAN contracts 4,800,000 + 600,000 - 100,000 = 5,300,000.
+    expect(approvalProblem(PLAN, -5_300_000)).toBeNull()
+    expect(approvalProblem(PLAN, -5_300_001)).toMatch(/below \$0\.00\. Contracted is \$53,000\.00/)
+    expect(approvalProblem(PLAN, 100)).toBeNull()
+    expect(approvalProblem({ variations: [] }, 100)).toMatch(/Set the contract/)
   })
   it('a variation is labelled, signed, non-zero, within the limit either way, and has a reason', () => {
     const ok = { label: 'VO-2 SSO', amountCents: -240000, reason: 'Descoped' }
@@ -134,7 +146,9 @@ describe('contract and variation validation', () => {
     expect(validateVariation({ ...ok, amountCents: 1.5 })).toMatch(/whole cents/)
     expect(validateVariation({ ...ok, amountCents: -100_000_001 })).toMatch(/either way/)
     expect(validateVariation({ ...ok, reason: ' ' })).toMatch(/why/)
-    expect(validateVariation({ ...ok, reason: 'x'.repeat(1001) })).toMatch(/at most 1000/)
+    // The API allows a reason of at most 500 characters.
+    expect(validateVariation({ ...ok, reason: 'x'.repeat(500) })).toBeNull()
+    expect(validateVariation({ ...ok, reason: 'x'.repeat(501) })).toMatch(/at most 500/)
   })
 })
 

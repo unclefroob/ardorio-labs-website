@@ -36,13 +36,27 @@ describe('Act.setContract', () => {
     const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, milestones: PLAN_DATA.milestones.slice(0, 1) }, 2)] })
     expect(m.Act.setContract('dl1', C, [{ id: 'n1', label: ' Build ', amountCents: 2400000, plannedDate: '2026-12-01' }])).toEqual({ ok: true })
     const p = m.Q.billingPlan('dl1')
-    expect(p?.contract).toEqual({ ...C, contractedBy: m.Q.me().id })
+    expect(p?.contract).toEqual({ ...C, contractedBy: m.Q.me().name })
     expect(p?.milestones.map(x => x.id)).toEqual(['m1', 'n1'])
     expect(p?.milestones[1]).toEqual({ id: 'n1', label: 'Build', amountCents: 2400000, plannedDate: '2026-12-01' })
     await vi.advanceTimersByTimeAsync(300)
     const [op] = plansIn(m.post.mock.calls[0][0])
-    expect(op).toMatchObject({ op: 'put', id: 'bp_dl1', baseRev: 2, set: { contract: { ...C, contractedBy: m.Q.me().id } } })
+    expect(op).toMatchObject({ op: 'put', id: 'bp_dl1', baseRev: 2, set: { contract: { ...C, contractedBy: m.Q.me().name } } })
     expect(op.op === 'put' ? Object.keys(op.set ?? {}).sort() : []).toEqual(['contract', 'milestones'])
+    m.stop()
+  })
+  it('the placeholder who is the display name, as the server stamps it, not a user id', async () => {
+    const m = await setup()
+    expect(m.Act.setContract('dl1', C)).toEqual({ ok: true })
+    expect(m.Q.billingPlan('dl1')?.contract?.contractedBy).toBe('Me Myself')
+    m.stop()
+  })
+  it('refuses a contract dated after today, as the API does, and writes nothing', async () => {
+    // The fixture server clock is 9 Oct 2026 in Melbourne.
+    const m = await setup()
+    expect(m.Act.setContract('dl1', { ...C, contractedOn: '2026-10-10' })).toEqual({ ok: false, error: 'The contract date cannot be in the future. It is the day the deal was won.' })
+    expect(m.store.S.billingPlans).toHaveLength(0)
+    expect(m.Act.setContract('dl1', { ...C, contractedOn: '2026-10-09' })).toEqual({ ok: true })
     m.stop()
   })
   it('creates the plan when there is none, and leaves milestones alone when none are given', async () => {
@@ -85,7 +99,7 @@ describe('Act.addVariation and decideVariation', () => {
   it('appends a proposed variation, never touching the contract or milestones', async () => {
     const m = await withContract()
     const r = m.Act.addVariation('dl1', { label: ' VO-1 SSO ', amountCents: 240000, reason: ' Client asked ' }, false)
-    expect(r).toMatchObject({ ok: true, variation: { label: 'VO-1 SSO', amountCents: 240000, reason: 'Client asked', status: 'proposed', createdBy: m.Q.me().id } })
+    expect(r).toMatchObject({ ok: true, variation: { label: 'VO-1 SSO', amountCents: 240000, reason: 'Client asked', status: 'proposed', createdBy: m.Q.me().name } })
     const v = m.Q.billingPlan('dl1')?.variations ?? []
     expect(v).toHaveLength(1)
     expect(v[0]).not.toHaveProperty('decidedAt')
@@ -98,7 +112,7 @@ describe('Act.addVariation and decideVariation', () => {
   it('Approve now records the decision with the entry; a negative amount is kept signed', async () => {
     const m = await withContract()
     const r = m.Act.addVariation('dl1', { label: 'VO-1 descoped', amountCents: -100000, reason: 'Dropped reports' }, true)
-    expect(r).toMatchObject({ ok: true, variation: { status: 'approved', amountCents: -100000, decidedBy: m.Q.me().id } })
+    expect(r).toMatchObject({ ok: true, variation: { status: 'approved', amountCents: -100000, decidedBy: m.Q.me().name } })
     expect(r.ok && r.variation.decidedAt).toBeTruthy()
     m.stop()
   })
@@ -115,11 +129,25 @@ describe('Act.addVariation and decideVariation', () => {
     expect(mgr.Act.addVariation('dl1', { label: 'x', amountCents: 1, reason: 'y' }, true)).toMatchObject({ ok: false })
     mgr.stop()
   })
+  it('refuses an approval that takes the contracted total below 0; a proposal of the same decrease is kept', async () => {
+    const m = await withContract()
+    // Contracted is the 4,800,000 baseline.
+    expect(m.Act.addVariation('dl1', { label: 'VO-1 cancel', amountCents: -4800001, reason: 'Cancelled' }, true)).toMatchObject({ ok: false, error: expect.stringMatching(/below/) })
+    expect(m.Q.billingPlan('dl1')?.variations).toBeUndefined()
+    const r = m.Act.addVariation('dl1', { label: 'VO-1 cancel', amountCents: -4800001, reason: 'Cancelled' }, false)
+    expect(r).toMatchObject({ ok: true, variation: { status: 'proposed' } })
+    const id = r.ok ? r.variation.id : ''
+    expect(m.Act.decideVariation('dl1', id, 'approved')).toMatchObject({ ok: false, error: expect.stringMatching(/below/) })
+    expect(m.Q.billingPlan('dl1')?.variations?.[0].status).toBe('proposed')
+    expect(m.Act.decideVariation('dl1', id, 'rejected')).toMatchObject({ ok: true, variation: { status: 'rejected' } })
+    expect(m.Act.addVariation('dl1', { label: 'VO-2 cancel all', amountCents: -4800000, reason: 'Cancelled' }, true)).toMatchObject({ ok: true })
+    m.stop()
+  })
   it('approves or rejects a proposed variation once; other entries are left exactly as they were', async () => {
     const decided = { id: 'v0', label: 'VO-1', amountCents: 600000, reason: 'r', status: 'approved', createdAt: '2026-09-20T00:00:00Z', createdBy: 'u-other', decidedAt: '2026-09-24T00:00:00Z', decidedBy: 'u-other' }
     const proposed = { id: 'v1', label: 'VO-2', amountCents: 240000, reason: 'r', status: 'proposed', createdAt: '2026-10-02T00:00:00Z', createdBy: 'u-other' }
     const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, contract: CONTRACT, variations: [decided, proposed, { ...proposed, id: 'v2' }] })] })
-    expect(m.Act.decideVariation('dl1', 'v1', 'approved')).toMatchObject({ ok: true, variation: { id: 'v1', status: 'approved', createdBy: 'u-other', decidedBy: m.Q.me().id } })
+    expect(m.Act.decideVariation('dl1', 'v1', 'approved')).toMatchObject({ ok: true, variation: { id: 'v1', status: 'approved', createdBy: 'u-other', decidedBy: m.Q.me().name } })
     expect(m.Act.decideVariation('dl1', 'v1', 'rejected')).toEqual({ ok: false, error: 'That variation was already approved' })
     expect(m.Act.decideVariation('dl1', 'v2', 'rejected')).toMatchObject({ ok: true, variation: { status: 'rejected' } })
     expect(m.Act.decideVariation('dl1', 'v0', 'rejected')).toMatchObject({ ok: false })

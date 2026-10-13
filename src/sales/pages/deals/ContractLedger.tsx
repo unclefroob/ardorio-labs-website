@@ -26,7 +26,8 @@ export function ContractLedger({ deal }: { deal: Deal }) {
   return deal.status === 'won' ? <SetContract deal={deal} /> : null
 }
 
-const who = (id: string | undefined): string => Q.user(id)?.name ?? 'Unknown user'
+/** Who wrote a ledger entry. The server stores the display name; an older placeholder may still be a user id. */
+export const who = (by: string | undefined): string => (by ? Q.user(by)?.name ?? by : 'Unknown user')
 const day = (iso: string | undefined): string => fmtDay((iso ?? '').slice(0, 10))
 
 /** The success line after an approval: the new contract and what it leaves outside the milestones. */

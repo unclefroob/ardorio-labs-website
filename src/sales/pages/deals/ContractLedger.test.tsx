@@ -87,10 +87,33 @@ describe('Contract ledger card', () => {
     expect(confirm?.textContent).toContain(`Contracted changes from ${fmt(5400000)} to ${fmt(5640000)}`)
     expect(plan()?.variations?.[1].status).toBe('proposed')
     await click(button(confirm!, 'Approve'))
-    expect(plan()?.variations?.[1]).toMatchObject({ status: 'approved', decidedBy: 'u-me' })
+    expect(plan()?.variations?.[1]).toMatchObject({ status: 'approved', decidedBy: 'Me Myself' })
     expect(total()).toContain(fmt(5640000))
     const banner = [...host.querySelectorAll('[role="status"]')].find(b => b.textContent?.includes('approved.'))
     expect(banner?.textContent).toBe(`VO-2 Single sign-on approved. Contracted is now ${fmt(5640000)}, and ${fmt(1840000)} is not yet in a milestone.`)
+  })
+
+  it('shows who as the server stores it: a display name, not a user id', async () => {
+    // The API stamps contractedBy, createdBy and decidedBy with the caller's display name; none of these is a user id here.
+    await show({
+      contract: { ...CONTRACT, contractedBy: 'Dana Ortiz' },
+      variations: [{ ...VO1, createdBy: 'Dana Ortiz', decidedBy: 'Lee Park' }, { ...VO2, createdBy: 'lee@example.com' }],
+      milestones: MILESTONES,
+    })
+    const rows = ledgerRows()
+    expect(rows[0]).toContain('3 Sep 2026 · Dana Ortiz')
+    expect(rows[1]).toContain('Approved 24 Sep 2026 · Lee Park')
+    expect(rows[2]).toContain('Proposed 2 Oct 2026 · lee@example.com')
+    expect(text()).not.toContain('Unknown user')
+  })
+
+  it('refuses to approve a decrease that takes the contracted total below 0, as the API does', async () => {
+    const { plan } = await show({ contract: CONTRACT, variations: [VO1, { ...VO2, label: 'VO-2 Cancel', amountCents: -5400001 }], milestones: MILESTONES })
+    await click(host.querySelector('button[aria-label="Approve VO-2 Cancel"]'))
+    await click(button(host.querySelector('[role="dialog"][aria-label="Approve VO-2 Cancel?"]')!, 'Approve'))
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(`below ${fmt(0)}. Contracted is ${fmt(5400000)}.`)
+    expect(plan()?.variations?.[1].status).toBe('proposed')
+    expect(total()).toContain(fmt(5400000))
   })
 
   it('Reject asks first, keeps the entry as rejected and changes nothing counted', async () => {
@@ -151,10 +174,25 @@ describe('Add variation dialog', () => {
     await type(dlg.querySelector('textarea'), 'Descoped the kiosk')
     expect(dlg.querySelector('[aria-label="What approving does"]')?.textContent).toContain(`from ${fmt(200000)} over-scheduled to ${fmt(300000)} over-scheduled`)
     await click(button(dlg, 'Approve now'))
-    expect(plan()?.variations?.[0]).toMatchObject({ amountCents: -100000, status: 'approved', decidedBy: 'u-me' })
+    expect(plan()?.variations?.[0]).toMatchObject({ amountCents: -100000, status: 'approved', createdBy: 'Me Myself', decidedBy: 'Me Myself' })
     expect(ledgerRows()[1]).toContain(`−${fmt(100000)}`)
     expect(total()).toContain(fmt(4700000))
     expect(text()).toContain(`VO-1 approved. Contracted is now ${fmt(4700000)}, and the milestones are ${fmt(300000)} over the contract.`)
+  })
+
+  it('refuses an Approve now decrease below a zero contract and a reason over the API limit of 500', async () => {
+    const { plan } = await show({ contract: CONTRACT })
+    await click(button(host, '+ Add variation'))
+    await click(button(dialog()!, '− Decrease'))
+    await type(dialog()!.querySelector('#vo-amount'), '48000.01')
+    await type(dialog()!.querySelector('textarea'), 'Cancelled')
+    await click(button(dialog()!, 'Approve now'))
+    expect(dialog()?.querySelector('[role="alert"]')?.textContent).toContain(`below ${fmt(0)}`)
+    await type(dialog()!.querySelector('#vo-amount'), '1000')
+    await type(dialog()!.querySelector('textarea'), 'x'.repeat(501))
+    await click(button(dialog()!, 'Approve now'))
+    expect(dialog()?.querySelector('[role="alert"]')?.textContent).toContain('at most 500')
+    expect(plan()?.variations).toBeUndefined()
   })
 
   it('refuses a zero or unreadable amount', async () => {
@@ -179,7 +217,7 @@ describe('Set contract for a deal won before the ledger', () => {
     await type(field(host, 'Contracted amount (A$, ex GST)'), '55000')
     await type(field(host, 'Engagement type'), 'time-materials')
     await click(button(host, 'Save contract'))
-    expect(plan()?.contract).toEqual({ baselineCents: 5500000, engagementType: 'time-materials', contractedOn: '2026-07-28', contractedBy: 'u-me', estimateAtWonCents: 6000000 })
+    expect(plan()?.contract).toEqual({ baselineCents: 5500000, engagementType: 'time-materials', contractedOn: '2026-07-28', contractedBy: 'Me Myself', estimateAtWonCents: 6000000 })
     expect(plan()?.milestones).toHaveLength(4)
     expect(button(host, 'Set contract')).toBeUndefined()
     expect(text()).toContain('Contract ledger')

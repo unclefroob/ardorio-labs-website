@@ -539,6 +539,7 @@ export interface BillingContract { baselineCents: number; engagementType: Engage
 // BillingMilestone gains: deliveredOn?: string ; deliveredBy?: string   (YYYY-MM-DD, not in the future)
 // contracted total = contract.baselineCents + sum(amountCents of variations with status 'approved'). It is the denominator for progress and reconciliation.
 // Server-written keys (a client value is ignored and the stored value kept): contract.contractedBy, variation.createdBy, variation.createdAt, variation.decidedBy, variation.decidedAt, milestone.deliveredBy.
+// The By keys (contractedBy, createdBy, decidedBy, deliveredBy) hold the caller's display name (displayName || username || email), not a user id: show the stored text as it is.
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
