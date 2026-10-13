@@ -16,6 +16,11 @@ export function TestChip({ inv }: { inv: Pick<InvoiceDto, 'test'> }) {
   return inv.test ? <Chip icon="flag" title={`Test invoice: ${inv.test.reason}`}>TEST</Chip> : null
 }
 
+/** Made by the retainer scheduler (always as a draft). An icon and words, never colour alone. Missing source reads as manual. */
+export function RetainerChip({ inv }: { inv: Pick<InvoiceDto, 'source'> }) {
+  return inv.source === 'retainer' ? <Chip icon="refresh" title="Drafted automatically from the deal's monthly retainer">From retainer</Chip> : null
+}
+
 export function MethodChip({ inv }: { inv: Pick<InvoiceDto, 'payment'> }) {
   return inv.payment ? <Chip>{METHOD_LABELS[inv.payment.method]}</Chip> : null
 }
