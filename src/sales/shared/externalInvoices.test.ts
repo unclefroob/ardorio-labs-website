@@ -123,7 +123,7 @@ describe('External invoices: the live preview', () => {
 
 describe('External invoices everywhere', () => {
   it('count as project money on the deal: Invoiced on issue, Collected when paid, never as retainer', () => {
-    const plan = { contract: { baselineCents: 12_000_000, engagementType: 'fixed-price' as const, contractedOn: '2026-03-03', estimateAtWonCents: 12_000_000 }, variations: [], milestones: [], retainer: { amountCents: 100_000, interval: 'monthly' as const } }
+    const plan = { contract: { baselineCents: 12_000_000, engagementType: 'fixed-price' as const, contractedOn: '2026-03-03', estimateAtWonCents: 12_000_000, contractedBy: 'Ryan' }, variations: [], milestones: [], retainer: { amountCents: 100_000, interval: 'monthly' as const } }
     const loose = ext({ milestoneId: null })
     // A hand-made invoice with no milestone on a deal with a retainer reads as retainer; an external record never does.
     expect(isRetainerInvoice(dto({ milestoneId: null }), plan)).toBe(true)
