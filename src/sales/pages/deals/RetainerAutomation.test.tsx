@@ -1,14 +1,17 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { changes, rec } from '../../testing/fixtures'
+import type { ChangeEntry } from '../../api/contract'
+import { change, changes, rec } from '../../testing/fixtures'
 import { button, click, settle, type } from '../../testing/dom'
 import { ardDeal, CLIENT, dto, invoicingWorld, setArdRole, SETTINGS, SUMMARY } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
 import { fakeApi, json } from '../../testing/rosterioWorld'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
-vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: () => Promise.resolve(changes([])), getBootstrap: vi.fn() }))
+// What the server has changed since the last poll; a test sets it to have the scheduler act while the editor is open.
+const remote = vi.hoisted(() => ({ changes: [] as ChangeEntry[] }))
+vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: () => Promise.resolve(changes(remote.changes)), getBootstrap: vi.fn() }))
 vi.mock('../../api/members', () => ({ getMembers: vi.fn() }))
 vi.mock('../../api/me', () => ({ getMe: vi.fn() }))
 vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
@@ -22,6 +25,7 @@ let root: Root
 let m: Sales
 
 beforeEach(() => {
+  remote.changes = []
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   localStorage.clear()
   sessionStorage.clear()
@@ -167,12 +171,12 @@ describe('A retainer invoice made by hand', () => {
     expect(host.querySelector('[aria-label="Create invoice by hand"]')).toBeNull()
   })
 
-  async function openEditor(retainer: Record<string, unknown>, retainerFor: string) {
+  async function openEditor(retainer: Record<string, unknown>, retainerFor: string, over: Parameters<typeof fakeApi>[0] = {}) {
     m = await loadSales()
     m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', ardDeal('dl1').data)], billingPlans: [plan(retainer)] }))
     setArdRole(m, 'admin')
     m.ui.bindNavigate(vi.fn())
-    const api = fakeApi({ ...base, 'POST /sales/invoices': () => json(201, dto({ id: 'n1', invoiceNumber: 'INV-0050', status: 'draft', issuedCount: 0, sentAt: null })) })
+    const api = fakeApi({ ...base, 'POST /sales/invoices': () => json(201, dto({ id: 'n1', invoiceNumber: 'INV-0050', status: 'draft', issuedCount: 0, sentAt: null })), ...over })
     const { Invoice } = await import('../invoices/Invoice')
     await act(async () => { root.render(<Invoice route={{ page: 'invoice', id: 'new', q: { companyId: 'co1', dealId: 'dl1', retainer: true, retainerFor } }} />) })
     await settle(10)
@@ -205,6 +209,74 @@ describe('A retainer invoice made by hand', () => {
     await openEditor({ nextInvoiceDate: '2026-08-31', lastDraftedFor: '2026-07-31', anchorDay: 31 }, '2026-08-31')
     expect(text()).toContain('Saving it moves the automatic draft on to 30 Sep 2026')
     expect(text()).not.toContain('Later drafts then fall')
+  })
+
+  // The scheduler drafts October and moves the plan on, the way it does within 30 seconds of the date coming due.
+  const serverDrafted = (): ChangeEntry[] => [change('billingPlans', 'bp_dl1', 2, plan({ nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-10-01' }).data, 'system')]
+  const octoberDraft = { ...fromRetainer, dealId: 'dl1', companyId: 'co1', lineItems: [{ description: 'Retainer, October 2026', qty: 1, unitPriceCents: 450000, amountCents: 450000 }] }
+
+  it('when the server drafts the period while the editor is open, saving stops and offers the automatic draft', async () => {
+    const api = await openEditor({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' }, '2026-10-01', { [DEAL_LIST]: () => json(200, { invoices: [octoberDraft, manual] }) })
+    expect(text()).toContain('This invoice bills the October 2026 retainer.')
+    remote.changes = serverDrafted()
+    await click(button(host, 'Save draft'))
+    await settle(8)
+    expect(api.count('POST /sales/invoices')).toBe(0)
+    const alert = host.querySelector('[role="alert"][aria-label="Retainer already drafted"]')?.textContent ?? ''
+    expect(alert).toContain('The October 2026 retainer was drafted automatically while this was open as INV-0041')
+    expect(alert).toContain('Nothing was saved')
+    expect(text()).not.toContain('Saving it moves the automatic draft on')
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, 'Open INV-0041'))
+    expect(path(nav).pathname).toBe('/sales/invoices/r1')
+    // Choosing to keep it as an extra invoice saves it, and claims nothing.
+    await click(button(host, 'Save as an extra invoice'))
+    await click(button(host, 'Save draft'))
+    await settle(8)
+    expect(api.count('POST /sales/invoices')).toBe(1)
+    expect(m.store.S.billingPlans[0].retainer).toMatchObject({ nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-10-01' })
+  })
+
+  it('when the server drafts the period while the invoice is being created, it says there are two and does not move on', async () => {
+    const created = dto({ id: 'n1', invoiceNumber: 'INV-0050', status: 'draft', issuedCount: 0, sentAt: null })
+    const api = await openEditor({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' }, '2026-10-01', {
+      [DEAL_LIST]: () => json(200, { invoices: [octoberDraft, manual] }),
+      'POST /sales/invoices': () => { remote.changes = serverDrafted(); return json(201, created) },
+    })
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, 'Save draft'))
+    await settle(8)
+    expect(api.count('POST /sales/invoices')).toBe(1)
+    const alert = host.querySelector('[role="alert"][aria-label="Two invoices for one retainer month"]')?.textContent ?? ''
+    expect(alert).toContain('There are now two invoices for the October 2026 retainer')
+    expect(alert).toContain('also drafted automatically as INV-0041')
+    expect(alert).toContain('Delete one of the two drafts')
+    // It stays on the warning rather than moving to the new invoice, and the plan keeps the server's dates.
+    expect(nav).not.toHaveBeenCalled()
+    expect(m.store.S.billingPlans[0].retainer).toEqual({ amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-10-01' })
+    await click(button(host, 'Open INV-0041'))
+    expect(path(nav).pathname).toBe('/sales/invoices/r1')
+    await click(button(host, 'Open INV-0050'))
+    expect(path(nav).pathname).toBe('/sales/invoices/n1')
+  })
+
+  it('issuing stops at the same warning, so the second invoice is never issued', async () => {
+    const created = dto({ id: 'n1', invoiceNumber: 'INV-0050', status: 'draft', issuedCount: 0, sentAt: null })
+    const api = await openEditor({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' }, '2026-10-01', {
+      [DEAL_LIST]: () => json(200, { invoices: [octoberDraft, manual] }),
+      'POST /sales/invoices': () => { remote.changes = serverDrafted(); return json(201, created) },
+      'POST /sales/invoices/n1/issue': () => json(200, { ...created, status: 'sent' }),
+    })
+    await click(button(host, 'Issue invoice'))
+    const confirm = m.ui.UI.get().modals.at(-1)
+    expect(confirm?.name).toBe('confirm')
+    await act(async () => { (confirm?.props.onConfirm as () => void)() })
+    await settle(8)
+    expect(api.count('POST /sales/invoices')).toBe(1)
+    expect(api.count('POST /sales/invoices/n1/issue')).toBe(0)
+    expect(text()).toContain('There are now two invoices for the October 2026 retainer')
   })
 
   it('claims nothing when the period has moved on since the card offered it', async () => {

@@ -19,6 +19,7 @@ import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { downloadPdf } from './actions'
 import { MoreMenu } from './MoreMenu'
+import { catchUpPlans, ClashBanner, DoubledRetainer, findRetainerDraft, type RetainerClash } from './retainerClash'
 import { RetainerChip, StatusChip, TestChip } from './parts'
 import { TestBanner, testItems, useTestActions } from './testActions'
 import { Activity, Totals } from './rail'
@@ -79,6 +80,12 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const [busy, setBusy] = useState<'' | 'save' | 'issue' | 'pdf' | 'delete'>('')
   const [fail, setFail] = useState('')
   const [notice, setNotice] = useState('')
+  // The server drafted the period before this was saved: ask before making a second invoice for it.
+  const [clash, setClash] = useState<RetainerClash | null>(null)
+  // The user chose to save an extra invoice after that, so nothing is claimed.
+  const [extra, setExtra] = useState(false)
+  // Saved, but the claim lost to the server's draft: two invoices for one month, shown in place of the form.
+  const [doubled, setDoubled] = useState<{ saved: InvoiceDto; clash: RetainerClash } | null>(null)
   const set = (patch: Partial<InvoiceForm>): void => setF(p => ({ ...p, ...patch }))
 
   const client = clients.find(c => c.linkedCompanyId === f.companyId)
@@ -118,12 +125,29 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
       return null
     }
     setFail('')
+    const claim = !invoice && claiming && !extra && form.dealId === claiming.dealId ? claiming : null
     try {
+      if (claim) {
+        // The scheduler runs every 30 seconds, so check the period is still unclaimed against the server, not the
+        // plan as it was when the editor opened.
+        await catchUpPlans()
+        const problem = Act.retainerClaimProblem(claim.dealId, claim.due)
+        if (problem) {
+          setClash({ ...claim, reason: problem, draft: await findRetainerDraft(claim.dealId, claim.due) })
+          return null
+        }
+      }
       const input = buildInput(form)
       const saved = invoice ? await updateInvoice(invoice.id, input) : await createInvoice(input)
-      if (!invoice && claiming && saved.dealId === claiming.dealId) {
-        const c = Act.claimRetainerPeriod(claiming.dealId, claiming.due)
-        if (c.ok) UI.toast(`The ${retainerPeriodLabel(claiming.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.${c.laterDay ? ` Later drafts fall on the ${dayOrdinal(c.laterDay)}.` : ''}`)
+      if (claim && saved.dealId === claim.dealId) {
+        await catchUpPlans()
+        const c = Act.claimRetainerPeriod(claim.dealId, claim.due)
+        if (!c.ok) {
+          // Saved, but the server drafted the same month first. Stop here (no issue, no navigation) and say so.
+          setDoubled({ saved, clash: { ...claim, reason: c.error, draft: await findRetainerDraft(claim.dealId, claim.due) } })
+          return null
+        }
+        UI.toast(`The ${retainerPeriodLabel(claim.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.${c.laterDay ? ` Later drafts fall on the ${dayOrdinal(c.laterDay)}.` : ''}`)
       }
       if (invoice && invoice.paymentLinkUrl && saved.paymentLinkUrl === '') {
         setNotice('The total changed, so the pasted payment link was cleared. The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.')
@@ -227,6 +251,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const issuedState = invoice?.status === 'sent'
   const cardOn = f.offerCard && !stripeOff
 
+  if (doubled) return <DoubledRetainer saved={doubled.saved} clash={doubled.clash} />
+
   return (
     <div className="page">
       <PageHead
@@ -243,7 +269,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
       </PageHead>
       {invoice && <TestBanner inv={invoice} onUnmark={ta.unmarkTest} busy={ta.busy} />}
 
-      {claiming && f.dealId === claiming.dealId && (
+      {clash && <ClashBanner clash={clash} onExtra={() => { setClash(null); setExtra(true) }} />}
+      {claiming && !clash && !extra && f.dealId === claiming.dealId && (
         <div style={{ marginBottom: 14 }}>
           <Banner tone="info">
             <b>This invoice bills the {retainerPeriodLabel(claiming.due)} retainer.</b> Saving it moves the automatic draft on to {fmtDay(claimNext.next)}, so that month is not drafted twice.
