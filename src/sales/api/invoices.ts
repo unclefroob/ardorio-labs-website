@@ -1,5 +1,5 @@
 import type {
-  BillingClient, BillingClientInput, DeleteTestInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
+  BillingClient, BillingClientInput, DeleteTestInput, ExternalInvoiceInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
 } from './contract'
 import { SalesHttpError, SalesNetworkError, salesBlob, salesFetch } from './http'
 
@@ -23,6 +23,10 @@ export const invoiceSummary = (signal?: AbortSignal) => salesFetch<InvoiceSummar
 export const getInvoice = (id: string, signal?: AbortSignal) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}`, { signal })
 export const createInvoice = (input: InvoiceInput) => salesFetch<InvoiceDto>('/invoices', { method: 'POST', body: input })
 export const updateInvoice = (id: string, input: InvoiceInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}`, { method: 'PUT', body: input })
+/** Record an invoice or payment made outside SalesOS. Admins of `ard` (or super) only. */
+export const recordExternalInvoice = (input: ExternalInvoiceInput) => salesFetch<InvoiceDto>('/invoices/external', { method: 'POST', body: input })
+/** Every field of an external, not cancelled invoice, under the same rules. */
+export const updateExternalInvoice = (id: string, input: ExternalInvoiceInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/external`, { method: 'PUT', body: input })
 export const deleteInvoice = (id: string) => salesFetch<unknown>(`/invoices/${enc(id)}`, { method: 'DELETE' })
 export const issueInvoice = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/issue`, { method: 'POST', body: {} })
 export const markInvoicePaid = (id: string, input: MarkPaidInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/mark-paid`, { method: 'POST', body: input })
@@ -56,10 +60,10 @@ export function saveBlob(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 500)
 }
 
-export type InvoiceErrorKind = 'paid' | 'already-void' | 'not-issued' | 'denied' | 'not-configured' | 'card-link' | 'not-found' | 'already-test' | 'not-test' | 'mismatch' | 'conflict' | 'validation' | 'network' | 'other'
+export type InvoiceErrorKind = 'paid' | 'already-void' | 'not-issued' | 'denied' | 'not-configured' | 'card-link' | 'not-found' | 'already-test' | 'not-test' | 'mismatch' | 'conflict' | 'validation' | 'network' | 'duplicate-reference' | 'not-external' | 'other'
 
 /** Web error codes mapped to something a person can act on. `action` says which call failed, so a 502 on issue reads as the card link problem. */
-export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'delete' | 'load' | 'download' | 'cancel' | 'duplicate' | 'refund' | 'test'): { kind: InvoiceErrorKind; message: string } {
+export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'delete' | 'load' | 'download' | 'cancel' | 'duplicate' | 'refund' | 'test' | 'external'): { kind: InvoiceErrorKind; message: string } {
   if (e instanceof SalesNetworkError) return { kind: 'network', message: 'Could not reach the server. Check your connection and try again.' }
   if (!(e instanceof SalesHttpError)) return { kind: 'other', message: e instanceof Error ? e.message : 'Something went wrong' }
   if (e.code === 'INVOICE_PAID') return { kind: 'paid', message: 'It was paid just now, nothing was cancelled.' }
@@ -70,8 +74,10 @@ export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'de
   if (e.code === 'INVOICE_DELETING') return { kind: 'conflict', message: 'Another admin is deleting this invoice right now. Reload in a moment.' }
   if (e.code === 'REFUND_DUE_UNACKNOWLEDGED') return { kind: 'conflict', message: 'A card payment was received on this cancelled invoice and has not been marked as refunded. Acknowledge the refund first, then delete it.' }
   if (e.code === 'CONFIRMATION_MISMATCH') return { kind: 'mismatch', message: 'The invoice number you typed does not match this invoice.' }
+  if (e.code === 'DUPLICATE_EXTERNAL_REFERENCE') return { kind: 'duplicate-reference', message: 'That reference is already recorded. Recording it again would count it twice.' }
+  if (e.code === 'NOT_EXTERNAL') return { kind: 'not-external', message: 'Only an invoice recorded from outside SalesOS can be edited here.' }
   if (e.status === 403 || e.code === 'ROLE_REQUIRED' || e.code === 'NOT_A_MEMBER') {
-    return { kind: 'denied', message: 'Invoices are limited to admins of the Ardorio business.' }
+    return { kind: 'denied', message: action === 'external' ? 'Ask an admin to record external invoices.' : 'Invoices are limited to admins of the Ardorio business.' }
   }
   if (e.code === 'NOT_CONFIGURED') return { kind: 'not-configured', message: 'Card payments are not set up on the server. Invoices can still be paid by bank transfer or PayID.' }
   if (e.code === 'UPSTREAM_ERROR' || (action === 'issue' && e.status === 502)) {
@@ -88,4 +94,18 @@ export function linkFailureId(e: unknown): string | null {
   if (!(e instanceof SalesHttpError) || e.code !== 'LINK_DEACTIVATION_FAILED') return null
   const id = e.body?.details?.linkId
   return typeof id === 'string' ? id : ''
+}
+
+/** Where the reference is already recorded, from a DUPLICATE_EXTERNAL_REFERENCE error; null for any other error. */
+export function duplicateReference(e: unknown): { invoiceId: string; dealId: string | null } | null {
+  if (!(e instanceof SalesHttpError) || e.code !== 'DUPLICATE_EXTERNAL_REFERENCE') return null
+  const d = e.body?.details
+  return { invoiceId: typeof d?.invoiceId === 'string' ? d.invoiceId : '', dealId: typeof d?.dealId === 'string' && d.dealId ? d.dealId : null }
+}
+
+/** The form field a 400 VALIDATION names in its details, if any. */
+export function errorField(e: unknown): string | null {
+  if (!(e instanceof SalesHttpError) || e.code !== 'VALIDATION') return null
+  const f = e.body?.details?.field
+  return typeof f === 'string' ? f : null
 }
