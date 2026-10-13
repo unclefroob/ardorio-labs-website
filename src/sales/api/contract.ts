@@ -264,7 +264,7 @@ export type SalesErrorCode =
   | 'BATCH_TOO_LARGE' | 'PAYLOAD_TOO_LARGE'
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
   | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
-  | 'INVOICE_PAID' | 'INVOICE_ALREADY_VOID' | 'INVOICE_NOT_ISSUED' | 'LINK_DEACTIVATION_FAILED'   // LINK_DEACTIVATION_FAILED carries details: { linkId: string }
+  | 'INVOICE_PAID' | 'INVOICE_ALREADY_VOID' | 'INVOICE_NOT_ISSUED' | 'LINK_DEACTIVATION_FAILED' | 'INVOICE_ALREADY_TEST' | 'INVOICE_NOT_TEST' | 'CONFIRMATION_MISMATCH' | 'INVOICE_DELETING' | 'REFUND_DUE_UNACKNOWLEDGED'   // LINK_DEACTIVATION_FAILED carries details: { linkId: string }
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -461,6 +461,8 @@ export interface InvoiceRefundDue { amountCents: number; receivedAt: string; ref
 export type InvoicePaymentMethod = 'bank-transfer' | 'payid' | 'card' | 'other'
 export interface InvoiceLine { description: string; detail?: string; qty: number; unitPriceCents: number; amountCents: number }
 export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
+/** Set when an admin marked the invoice as a test. Test invoices are excluded from every list, total and export unless ?includeTest=1. */
+export interface InvoiceTestInfo { markedAt: string; markedBy: string; reason: string }
 export interface InvoiceDto {
   id: string; invoiceNumber: string; clientSlug: string; clientName: string
   companyId: string | null; dealId: string | null; milestoneId: string | null
@@ -471,6 +473,7 @@ export interface InvoiceDto {
   publicToken: string; hostedUrl: string; sentAt: string | null; issuedCount: number
   subtotalCents: number; gstCents: number; totalCents: number; createdAt: string
   voided: InvoiceVoidInfo | null; refundDue: InvoiceRefundDue | null
+  test: InvoiceTestInfo | null
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -479,6 +482,10 @@ export interface InvoiceInput {
   offerCardPayment?: boolean; paymentLinkUrl?: string
 }
 export interface VoidInvoiceInput { reason: InvoiceVoidReason; note?: string; linkStillLiveAcknowledged?: boolean }
+/** POST /invoices/:id/mark-test. `reason` is trimmed, 1..200 chars, plain text, no control characters. */
+export interface MarkTestInput { reason: string }
+/** DELETE /invoices/:id/permanent (super only, test invoices only). `confirmNumber` must equal the invoice number exactly. */
+export interface DeleteTestInput { confirmNumber: string }
 export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; reference?: string; amountCents?: number }
 export interface InvoiceListResponse { invoices: InvoiceDto[] }
 export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }

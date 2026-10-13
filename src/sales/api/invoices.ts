@@ -1,16 +1,17 @@
 import type {
-  BillingClient, BillingClientInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, VoidInvoiceInput,
+  BillingClient, BillingClientInput, DeleteTestInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
 } from './contract'
 import { SalesHttpError, SalesNetworkError, salesBlob, salesFetch } from './http'
 
 /** Every call is under /sales/invoices and limited by the server to admins of business `ard` (or super). */
-export type InvoiceListFilter = { status?: InvoiceStatus | 'overdue'; companyId?: string; dealId?: string }
+export type InvoiceListFilter = { status?: InvoiceStatus | 'overdue'; companyId?: string; dealId?: string; /** Test invoices are left out of every list unless this is true. */ includeTest?: boolean }
 
 function qs(f: InvoiceListFilter): string {
   const p = new URLSearchParams()
   if (f.status) p.set('status', f.status)
   if (f.companyId) p.set('companyId', f.companyId)
   if (f.dealId) p.set('dealId', f.dealId)
+  if (f.includeTest) p.set('includeTest', '1')
   const s = p.toString()
   return s ? `?${s}` : ''
 }
@@ -28,6 +29,10 @@ export const markInvoicePaid = (id: string, input: MarkPaidInput) => salesFetch<
 export const voidInvoice = (id: string, input: VoidInvoiceInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/void`, { method: 'POST', body: input })
 export const duplicateInvoice = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/duplicate`, { method: 'POST', body: {} })
 export const acknowledgeRefund = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/acknowledge-refund`, { method: 'POST', body: {} })
+export const markTest = (id: string, input: MarkTestInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/mark-test`, { method: 'POST', body: input })
+export const unmarkTest = (id: string) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/unmark-test`, { method: 'POST', body: {} })
+/** Super users only, and only for an invoice marked as test. The server checks both. */
+export const deleteTestInvoice = (id: string, input: DeleteTestInput) => salesFetch<{ deleted: true; invoiceNumber: string }>(`/invoices/${enc(id)}/permanent`, { method: 'DELETE', body: input })
 /** Authenticated blob download: the PDF route needs the bearer token, so it cannot be a plain link. */
 export const invoicePdf = (id: string) => salesBlob(`/invoices/${enc(id)}/pdf`)
 export const invoicesCsv = () => salesBlob('/invoices/export.csv')
@@ -51,15 +56,20 @@ export function saveBlob(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 500)
 }
 
-export type InvoiceErrorKind = 'paid' | 'already-void' | 'not-issued' | 'denied' | 'not-configured' | 'card-link' | 'not-found' | 'conflict' | 'validation' | 'network' | 'other'
+export type InvoiceErrorKind = 'paid' | 'already-void' | 'not-issued' | 'denied' | 'not-configured' | 'card-link' | 'not-found' | 'already-test' | 'not-test' | 'mismatch' | 'conflict' | 'validation' | 'network' | 'other'
 
 /** Web error codes mapped to something a person can act on. `action` says which call failed, so a 502 on issue reads as the card link problem. */
-export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'delete' | 'load' | 'download' | 'cancel' | 'duplicate' | 'refund'): { kind: InvoiceErrorKind; message: string } {
+export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'delete' | 'load' | 'download' | 'cancel' | 'duplicate' | 'refund' | 'test'): { kind: InvoiceErrorKind; message: string } {
   if (e instanceof SalesNetworkError) return { kind: 'network', message: 'Could not reach the server. Check your connection and try again.' }
   if (!(e instanceof SalesHttpError)) return { kind: 'other', message: e instanceof Error ? e.message : 'Something went wrong' }
   if (e.code === 'INVOICE_PAID') return { kind: 'paid', message: 'It was paid just now, nothing was cancelled.' }
   if (e.code === 'INVOICE_ALREADY_VOID') return { kind: 'already-void', message: 'This invoice is already cancelled.' }
   if (e.code === 'INVOICE_NOT_ISSUED') return { kind: 'not-issued', message: 'This invoice has not been issued, so there is nothing to cancel. Delete the draft instead.' }
+  if (e.code === 'INVOICE_ALREADY_TEST') return { kind: 'already-test', message: 'This invoice is already marked as a test.' }
+  if (e.code === 'INVOICE_NOT_TEST') return { kind: 'not-test', message: 'This invoice is not marked as a test, so it can’t be unmarked or permanently deleted.' }
+  if (e.code === 'INVOICE_DELETING') return { kind: 'conflict', message: 'Another admin is deleting this invoice right now. Reload in a moment.' }
+  if (e.code === 'REFUND_DUE_UNACKNOWLEDGED') return { kind: 'conflict', message: 'A card payment was received on this cancelled invoice and has not been marked as refunded. Acknowledge the refund first, then delete it.' }
+  if (e.code === 'CONFIRMATION_MISMATCH') return { kind: 'mismatch', message: 'The invoice number you typed does not match this invoice.' }
   if (e.status === 403 || e.code === 'ROLE_REQUIRED' || e.code === 'NOT_A_MEMBER') {
     return { kind: 'denied', message: 'Invoices are limited to admins of the Ardorio business.' }
   }

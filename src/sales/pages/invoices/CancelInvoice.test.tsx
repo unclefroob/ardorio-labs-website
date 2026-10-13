@@ -82,9 +82,10 @@ const key = async (k: string, target: Element = document.activeElement ?? docume
 const voidCalls = (api: { calls: Array<{ method: string; path: string; body: unknown }> }) => api.calls.filter(c => c.method === 'POST' && c.path.endsWith('/void'))
 
 describe('the More menu, by status', () => {
-  it('a draft has no More menu and no Cancel (it keeps Delete)', async () => {
+  it('a draft has a More menu with no Cancel (it keeps Delete)', async () => {
     await show(sent({ status: 'draft', issuedCount: 0, sentAt: null }))
-    expect(more()).toBeUndefined()
+    await openMenu()
+    expect(items().map(i => i.textContent?.trim())).toEqual(['Mark as test invoice…'])
     expect(text()).not.toContain('Cancel invoice')
     expect(button(host, 'Delete draft')).toBeDefined()
   })
@@ -94,7 +95,7 @@ describe('the More menu, by status', () => {
     expect(more()?.getAttribute('aria-label')).toBe('More actions for INV-0034')
     expect(more()?.querySelector('svg')).not.toBeNull()
     await openMenu()
-    expect(items().map(i => i.textContent?.trim())).toEqual(['Copy public link', 'Duplicate as new draft', 'Cancel invoice…'])
+    expect(items().map(i => i.textContent?.trim())).toEqual(['Copy public link', 'Duplicate as new draft', 'Cancel invoice…', 'Mark as test invoice…'])
     const c = item('Cancel invoice…')!
     expect(c.classList.contains('dngtxt')).toBe(true)
     expect(c.querySelector('svg')).not.toBeNull()
@@ -128,9 +129,10 @@ describe('the More menu, by status', () => {
     expect(modals()).toEqual([])
   })
 
-  it('a cancelled invoice has no More menu', async () => {
+  it('a cancelled invoice has only the test item in its More menu', async () => {
     await show(voided())
-    expect(more()).toBeUndefined()
+    await openMenu()
+    expect(items().map(i => i.textContent?.trim())).toEqual(['Mark as test invoice…'])
   })
 })
 
@@ -144,13 +146,15 @@ describe('the More menu, by keyboard', () => {
     await key('ArrowDown')
     expect(document.activeElement).toBe(item('Cancel invoice…'))
     await key('ArrowDown')
+    expect(document.activeElement).toBe(item('Mark as test invoice…'))
+    await key('ArrowDown')
     expect(document.activeElement).toBe(item('Copy public link'))
     await key('ArrowUp')
-    expect(document.activeElement).toBe(item('Cancel invoice…'))
+    expect(document.activeElement).toBe(item('Mark as test invoice…'))
     await key('Home')
     expect(document.activeElement).toBe(item('Copy public link'))
     await key('End')
-    expect(document.activeElement).toBe(item('Cancel invoice…'))
+    expect(document.activeElement).toBe(item('Mark as test invoice…'))
   })
 
   it('Escape closes the menu and focus returns to the trigger', async () => {

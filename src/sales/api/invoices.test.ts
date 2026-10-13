@@ -98,3 +98,44 @@ describe('invoiceError', () => {
     expect(invoiceError('weird').kind).toBe('other')
   })
 })
+
+describe('test invoice calls', () => {
+  it('list adds includeTest=1 only when asked', async () => {
+    const seen: string[] = []
+    vi.stubGlobal('fetch', (async (url: string) => { seen.push(url); return json(200, { invoices: [] }) }) as typeof fetch)
+    const { listInvoices } = await import('./invoices')
+    await listInvoices({ includeTest: true })
+    await listInvoices({ includeTest: false })
+    await listInvoices({ dealId: 'dl1', includeTest: true })
+    expect(seen).toEqual(['https://api.test/sales/invoices?includeTest=1', 'https://api.test/sales/invoices', 'https://api.test/sales/invoices?dealId=dl1&includeTest=1'])
+  })
+
+  it('markTest, unmarkTest and deleteTestInvoice use the contract routes and bodies', async () => {
+    const api = fakeApi({
+      'POST /sales/invoices/i%2F1/mark-test': json(200, { id: 'i/1' }),
+      'POST /sales/invoices/i1/unmark-test': json(200, { id: 'i1' }),
+      'DELETE /sales/invoices/i1/permanent': json(200, { deleted: true, invoiceNumber: 'INV-0002' }),
+    })
+    const m = await import('./invoices')
+    await m.markTest('i/1', { reason: 'Practice' })
+    await m.unmarkTest('i1')
+    await expect(m.deleteTestInvoice('i1', { confirmNumber: 'INV-0002' })).resolves.toEqual({ deleted: true, invoiceNumber: 'INV-0002' })
+    expect(api.calls.map(c => [c.method, c.path, c.body])).toEqual([
+      ['POST', '/sales/invoices/i%2F1/mark-test', { reason: 'Practice' }],
+      ['POST', '/sales/invoices/i1/unmark-test', {}],
+      ['DELETE', '/sales/invoices/i1/permanent', { confirmNumber: 'INV-0002' }],
+    ])
+  })
+
+  it('maps the new error codes to something a person can act on', async () => {
+    const { invoiceError } = await import('./invoices')
+    const { SalesHttpError } = await import('./http')
+    const e = (status: number, code: string) => new SalesHttpError(status, { error: 'x', code: code as never })
+    expect(invoiceError(e(409, 'INVOICE_ALREADY_TEST'), 'test').kind).toBe('already-test')
+    expect(invoiceError(e(409, 'INVOICE_NOT_TEST'), 'test').kind).toBe('not-test')
+    expect(invoiceError(e(400, 'CONFIRMATION_MISMATCH'), 'test').kind).toBe('mismatch')
+    expect(invoiceError(e(403, 'ROLE_REQUIRED'), 'test').kind).toBe('denied')
+    expect(invoiceError(e(409, 'INVOICE_DELETING'), 'test').message).toContain('deleting this invoice')
+    expect(invoiceError(e(409, 'REFUND_DUE_UNACKNOWLEDGED'), 'test').message).toContain('Acknowledge the refund')
+  })
+})

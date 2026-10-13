@@ -10,12 +10,13 @@ import { PageHead } from '../../shared/PageHead'
 import { F } from '../../data/F'
 import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
+import { TestBanner, testItems, useTestActions, type TestOps } from './testActions'
 import { MoreMenu, type MoreItem } from './MoreMenu'
-import { milestoneLabel, personName, StatusChip } from './parts'
+import { milestoneLabel, personName, StatusChip, TestChip } from './parts'
 import { Activity, Totals } from './rail'
 
 /** The items of the More menu for an invoice, by status. Drafts have none: they keep Delete in the editor and were never issued. */
-export function moreItems(inv: InvoiceDto, o: { copy: () => void; duplicate: () => void; cancel: () => void }): MoreItem[] {
+export function moreItems(inv: InvoiceDto, o: { copy: () => void; duplicate: () => void; cancel: () => void } & TestOps): MoreItem[] {
   const a = actionsFor(inv)
   const items: MoreItem[] = []
   if (a.copyLink) items.push({ key: 'copy', label: 'Copy public link', icon: 'copy', onSelect: o.copy })
@@ -23,6 +24,7 @@ export function moreItems(inv: InvoiceDto, o: { copy: () => void; duplicate: () 
   if (a.cancel) items.push({ key: 'cancel', label: 'Cancel invoice…', icon: 'x', danger: true, divider: items.length > 0, onSelect: o.cancel })
   // A paid invoice cannot be cancelled: say so in words beside the item rather than hiding it.
   if (a.cancelBlockedPaid) items.push({ key: 'cancel', label: 'Cancel invoice', icon: 'lock', disabled: true, hint: PAID_CANCEL_HINT, divider: items.length > 0 })
+  items.push(...testItems(inv, o, items.length > 0))
   return items
 }
 
@@ -92,7 +94,9 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
       UI.toast(invoiceError(e, 'load').message, 'bad')
     }
   }
+  const ta = useTestActions(inv, onChange)
   const more = moreItems(inv, {
+    markTest: ta.markTest, unmarkTest: ta.unmarkTest, deleteTest: ta.deleteTest, isSuper: ta.isSuper,
     copy: () => void copyLink(inv),
     duplicate: () => void duplicate(),
     cancel: () => UI.open('cancelInvoice', { invoice: inv, onDone: onChange, onRefresh: refresh }),
@@ -103,7 +107,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{inv.invoiceNumber}<StatusChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{inv.invoiceNumber}<StatusChip inv={inv} /><TestChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, inv.invoiceNumber]}
       >
@@ -114,6 +118,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
         {more.length > 0 && <><span aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: 'var(--line2)', margin: '0 4px' }} /><MoreMenu label={`More actions for ${inv.invoiceNumber}`} items={more} /></>}
       </PageHead>
 
+      <TestBanner inv={inv} onUnmark={ta.unmarkTest} busy={ta.busy} />
       {voided && (
         <div ref={banner} tabIndex={-1} style={{ marginBottom: 14, outline: 'none' }}>
           <Banner icon="x">

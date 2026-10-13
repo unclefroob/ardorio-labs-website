@@ -1,5 +1,5 @@
 import type {
-  BillingMilestone, BillingPlan, InvoiceDto, InvoiceInput, InvoicePaymentMethod, InvoiceStatus, InvoiceVoidReason, MarkPaidInput, VoidInvoiceInput,
+  BillingMilestone, BillingPlan, InvoiceDto, InvoiceInput, InvoicePaymentMethod, InvoiceStatus, InvoiceVoidReason, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
 } from '../api/contract'
 import { centsToInput, computeTotals, formatCents, milliToQty, parseCents, parsePercentBp, parseQtyMilli, qtyToInput, rateToPercentText } from './money'
 
@@ -85,7 +85,8 @@ export function inTab(inv: Pick<InvoiceDto, 'status' | 'overdue'>, tab: InvoiceT
 }
 
 /** Sent includes the overdue ones: overdue is a view over sent invoices, not a separate state. */
-export function tabCounts(list: ReadonlyArray<Pick<InvoiceDto, 'status' | 'overdue'>>): Record<InvoiceTab, number> {
+export function tabCounts(all: ReadonlyArray<Pick<InvoiceDto, 'status' | 'overdue'> & MaybeTest>): Record<InvoiceTab, number> {
+  const list = withoutTest(all)
   const c: Record<InvoiceTab, number> = { all: list.length, draft: 0, sent: 0, overdue: 0, paid: 0 }
   for (const i of list) {
     if (i.status === 'draft') c.draft++
@@ -99,11 +100,12 @@ export function tabCounts(list: ReadonlyArray<Pick<InvoiceDto, 'status' | 'overd
   return c
 }
 
-export interface InvoiceFilter { tab: InvoiceTab; query: string; companyId: string; /** Only cancelled invoices whose refund is still owed. */ refundOnly?: boolean }
+export interface InvoiceFilter { tab: InvoiceTab; query: string; companyId: string; /** Only cancelled invoices whose refund is still owed. */ refundOnly?: boolean; /** Test invoices are listed only when this is true. */ includeTest?: boolean }
 
 export function filterInvoices(list: readonly InvoiceDto[], f: InvoiceFilter, dealName: (id: string | null) => string = () => ''): InvoiceDto[] {
   const q = f.query.trim().toLowerCase()
   return list
+    .filter(i => f.includeTest || !i.test)
     .filter(i => inTab(i, f.tab))
     .filter(i => !f.companyId || i.companyId === f.companyId)
     .filter(i => !f.refundOnly || needsRefund(i))
@@ -112,15 +114,22 @@ export function filterInvoices(list: readonly InvoiceDto[], f: InvoiceFilter, de
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : b.invoiceNumber.localeCompare(a.invoiceNumber)))
 }
 
+// ── test invoices ────────────────────────────────────────────────────────────────────────────────
+type MaybeTest = { test?: InvoiceDto['test'] }
+/** True when the invoice was marked as a test. Absent counts as not a test. */
+export const isTest = (inv: MaybeTest): boolean => !!inv.test
+/** Everything derived from invoices (totals, milestone status, billed progress) leaves test invoices out, even if one slips into a list. */
+export const withoutTest = <T extends MaybeTest>(list: readonly T[]): T[] => list.filter(i => !i.test)
+
 // ── milestones ───────────────────────────────────────────────────────────────────────────────────
 export type MilestoneStatus = 'Planned' | 'Draft invoice' | 'Invoiced' | 'Paid'
 const RANK: Record<Exclude<InvoiceStatus, 'void'>, number> = { draft: 1, sent: 2, paid: 3 }
 const RANKED: readonly MilestoneStatus[] = ['Planned', 'Draft invoice', 'Invoiced', 'Paid']
 
 /** Planned until a live invoice carries the milestone id; then the furthest any of them has got. A cancelled invoice counts for nothing. */
-export function milestoneStatus(milestoneId: string, invoices: ReadonlyArray<Pick<InvoiceDto, 'milestoneId' | 'status'>>): MilestoneStatus {
+export function milestoneStatus(milestoneId: string, invoices: ReadonlyArray<Pick<InvoiceDto, 'milestoneId' | 'status'> & MaybeTest>): MilestoneStatus {
   let best = 0
-  for (const i of invoices) if (i.milestoneId === milestoneId && i.status !== 'void') best = Math.max(best, RANK[i.status])
+  for (const i of withoutTest(invoices)) if (i.milestoneId === milestoneId && i.status !== 'void') best = Math.max(best, RANK[i.status])
   return RANKED[best]
 }
 
@@ -321,10 +330,11 @@ export interface TileFacts {
  * list the page already holds, so the tile can say "$22,500" with "$24,750 inc GST" beneath it.
  */
 export function tileFacts(
-  list: readonly InvoiceDto[],
+  all: readonly InvoiceDto[],
   tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number },
   today: string,
 ): TileFacts {
+  const list = withoutTest(all)
   const sent = list.filter(i => i.status === 'sent')
   const late = sent.filter(i => i.overdue)
   const month = today.slice(0, 7)
@@ -446,3 +456,42 @@ export function cancelConsequences(
   if (inv.milestoneId) out.push({ icon: 'flag', text: `${milestone ? `Milestone “${milestone}”` : 'The milestone'} goes back to Planned, and the billing progress on the deal drops.` })
   return out
 }
+
+// ── test invoices: marking and deleting ──────────────────────────────────────────────────────────
+export const TEST_REASON_MAX = 200
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/
+
+/** The reason is trimmed, 1 to 200 characters of plain text with no control characters. */
+export function buildMarkTest(reason: string): { ok: true; input: MarkTestInput } | { ok: false; hint: string } {
+  const r = reason.trim()
+  if (!r) return { ok: false, hint: 'Add a reason to continue. It is kept with the invoice.' }
+  if (r.length > TEST_REASON_MAX) return { ok: false, hint: `Keep the reason to ${TEST_REASON_MAX} characters.` }
+  if (CONTROL.test(r)) return { ok: false, hint: 'Use plain text only: remove line breaks and other control characters.' }
+  return { ok: true, input: { reason: r } }
+}
+
+/** What the person typed must equal the invoice number exactly. Pasting is fine; surrounding spaces and a different case are not. */
+export const deleteNumberMatches = (typed: string, invoiceNumber: string): boolean => typed === invoiceNumber
+
+export interface TestMenu { mark: boolean; unmark: boolean; deletePermanently: boolean }
+/** Admins of Ardorio may mark and unmark in any status. Only a super user may delete, and only a test invoice. */
+export function testMenu(inv: MaybeTest, isSuper: boolean): TestMenu {
+  const t = isTest(inv)
+  return { mark: !t, unmark: t, deletePermanently: t && isSuper }
+}
+
+export const MARK_TEST_PAID_NOTE = 'This invoice is marked paid. Marking it as test removes that payment from your revenue figures.'
+
+export const markTestConsequences: ReadonlyArray<Consequence> = [
+  { icon: 'chart', text: 'It disappears from totals, revenue, lists and exports.' },
+  { icon: 'file', text: 'It keeps its invoice number.' },
+  { icon: 'refresh', text: 'You can unmark it later and it will count again.' },
+]
+
+export const deleteConsequences = (inv: Pick<InvoiceDto, 'paymentLinkUrl'>): Consequence[] => [
+  { icon: 'alert', text: 'This cannot be undone. The invoice and its history are removed.' },
+  { icon: 'file', text: 'The invoice number will be missing from your invoice sequence.' },
+  ...(inv.paymentLinkUrl ? [{ icon: 'dollar', text: 'The payment link, if there is one, is switched off.' }] : [{ icon: 'dollar', text: 'The payment link, if there is one, is switched off. This invoice has none.' }]),
+  { icon: 'clock', text: 'A record of the deletion is kept.' },
+]
