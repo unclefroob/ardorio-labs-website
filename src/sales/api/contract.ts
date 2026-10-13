@@ -545,12 +545,20 @@ export interface BillingContract { baselineCents: number; engagementType: Engage
 // The By keys (contractedBy, createdBy, decidedBy, deliveredBy) hold the caller's display name (displayName || username || email), not a user id: show the stored text as it is.
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
 // ---- Recorded won deals and external invoices ----
-// Deals: a deal created already won carries recordedWonDirectly: true and recordedWonBy (server-set display name). The server refuses a won date (deal.close) in the future for such a deal.
+// Deals: a deal created already won carries recordedWonDirectly: true and recordedWonBy (server-set display name). The server refuses a won date (deal.close) in the future for such a deal. Restoring a deleted deal (resurrect) keeps its stored stamps, or their absence, and is not judged as a new recorded won deal.
 // InvoiceSource gains 'external' (InvoiceSource = 'manual' | 'retainer' | 'external').
 export type ExternalInvoiceSource = 'xero' | 'other-system' | 'bank-transfer-no-invoice'
 export interface ExternalInvoiceInput { companyId: string; dealId: string; milestoneId?: string | null; externalSource: ExternalInvoiceSource; externalReference: string; issueDate: string; subtotalCents: number; gstCents: number; paidOn?: string | null; paymentMethod?: InvoicePaymentMethod | null; paidAmountCents?: number | null; notes?: string }
+// An external record is outstanding ('sent', no paidOn) or paid in full ('paid', paidOn given): paidAmountCents may be
+// omitted (it is then subtotal + GST) and, when given, must equal subtotalCents + gstCents, else 400 VALIDATION on
+// paidAmountCents. Collected counts a paid record's whole subtotal, so a part payment is recorded as its own record for
+// the part paid, with the rest left as an unpaid record.
 export interface InvoiceExternalInfo { source: ExternalInvoiceSource; reference: string; recordedBy: string; recordedAt: string }
 // InvoiceDto gains: external: InvoiceExternalInfo | null
+// The billing client of an external record: the company's linked one; else the one unlinked billing client the company's
+// earlier non-void invoices bill (it is then linked); else a billing-only client made from the company name (one per
+// company, linked after the record is written). Two or more unlinked clients on earlier invoices -> 409 CONFLICT
+// { field: 'companyId', clientSlugs, needsBillingLink: true }: link the right one first.
 // POST /sales/invoices/external (ExternalInvoiceInput) -> InvoiceDto ; PUT /sales/invoices/:id/external (ExternalInvoiceInput) -> InvoiceDto (external, not void)
 // SalesErrorCode gains: 'DUPLICATE_EXTERNAL_REFERENCE' (details: { invoiceId: string; dealId: string | null }) | 'NOT_EXTERNAL'
 
