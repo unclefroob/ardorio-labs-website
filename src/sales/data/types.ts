@@ -433,7 +433,8 @@ export interface Goal {
   ownerId: string
   metric: string
   target: number
-  period: 'day' | 'week' | 'month'
+  /** 'quarter' is the calendar quarter; 'year' is the Australian financial year, 1 July to 30 June. */
+  period: 'day' | 'week' | 'month' | 'quarter' | 'year'
   start?: string
   end?: string
   createdBy: string

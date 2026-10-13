@@ -104,13 +104,15 @@ export function Dashboard() {
   const seqSent = new Set(acts.filter(a => a.type === 'email_out' && a.seqId).map(a => a.contactId))
   const seqRep = new Set(acts.filter(a => a.type === 'email_in' && seqSent.has(a.contactId)).map(a => a.contactId))
   const bizs = S.businesses.filter(b => sc.includes(b.id))
+  // Ardorio is one-off project work: no recurring tiles when it is the only business in view.
+  const ardOnly = sc.length === 1 && sc[0] === 'ard'
 
   const months = Array.from({ length: 6 }).map((_, i) => {
     const d = F.now()
     d.setDate(1)
     d.setMonth(d.getMonth() - 5 + i)
     const k = F.iso(d).slice(0, 7)
-    return { l: F.M[d.getMonth()], v: bizs.map(b => sum(deals.filter(x => x.status === 'won' && x.businessId === b.id && !!x.closedAt && x.closedAt.slice(0, 7) === k), x => x.value)) }
+    return { l: F.M[d.getMonth()], v: bizs.map(b => sum(deals.filter(x => x.status === 'won' && x.businessId === b.id && !!x.closedAt && x.closedAt.slice(0, 7) === k), Q.wonAmount)) }
   })
   const weeks = Array.from({ length: 8 }).map((_, i) => {
     const s = F.addDays(F.weekStart(), -7 * (7 - i))
@@ -170,8 +172,8 @@ export function Dashboard() {
           <div className="grid g6" style={{ marginBottom: 14 }}>
             <Kpi label="Open pipeline" value={F.money(tot, 1)} sub={`${open.length} deals`} onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label="Weighted pipeline" value={F.money(wt, 1)} sub="Value × stage probability" onClick={() => go('deals', { status: 'open', view: 'list' })} />
-            <Kpi label={`Won · ${PER[per][0].toLowerCase()}`} value={F.money(sum(won, d => d.value), 1)} sub={`${won.length} deals`} tone="ok" onClick={() => go('deals', { status: 'won', view: 'list' })} />
-            <Kpi label="Recurring revenue (ARR)" value={F.money(arr, 1)} sub="Won subscription deals" onClick={() => go('deals', { status: 'won', view: 'list' })} />
+            <Kpi label={`Won · ${PER[per][0].toLowerCase()}`} value={F.money(sum(won, Q.wonAmount), 1)} sub={`${won.length} deals`} tone="ok" onClick={() => go('deals', { status: 'won', view: 'list' })} />
+            {!ardOnly && <Kpi label="Recurring revenue (ARR)" value={F.money(arr, 1)} sub="Won subscription deals" onClick={() => go('deals', { status: 'won', view: 'list' })} />}
             <Kpi label="New leads" value={leads} sub={PER[per][0]} onClick={() => go('contacts')} />
             <Kpi label="Deals at risk" value={risk.length} tone={risk.length ? 'bad2' : undefined} sub="High-risk signals" onClick={() => go('deals', { risk: 1, view: 'list' })} />
             <Kpi label="Meetings booked" value={cnt('meeting_booked')} onClick={() => go('activities', { type: 'meeting_booked', from })} />
@@ -209,8 +211,8 @@ export function Dashboard() {
                 </>
               )}
             </Card>
-            <Card title="Won revenue by month" right={<Legend items={bizs.map(b => [b.name, b.accent] as const)} />}>
-              <Bars label="Won revenue by month" stacked series={bizs.map(b => b.name)} data={months} colors={bizs.map(b => b.accent)} fmt={v => F.money(v, 1)} />
+            <Card title="Won value by month" right={<Legend items={bizs.map(b => [b.name, b.accent] as const)} />}>
+              <Bars label="Won value by month" stacked series={bizs.map(b => b.name)} data={months} colors={bizs.map(b => b.accent)} fmt={v => F.money(v, 1)} />
             </Card>
             <Card title="Sales activity — last 8 weeks" right={<Legend items={[['Emails', 'var(--acc)', LINE_DASH[0]], ['Calls', '#0E8A7E', LINE_DASH[1]], ['Meetings booked', '#D9572B', LINE_DASH[2]]]} />}>
               <Line label="Sales activity by week" labels={weeks.map(w => w.l)} series={[{ n: 'Emails', c: 'var(--acc)', v: wc('email_out') }, { n: 'Calls', c: '#0E8A7E', v: wc('call') }, { n: 'Meetings', c: '#D9572B', v: wc('meeting_booked') }]} />

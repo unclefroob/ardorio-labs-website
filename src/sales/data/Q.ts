@@ -10,6 +10,7 @@ import type {
 } from './types'
 import type { BillingPlan, IntelKind, InvoiceDto } from '../api/contract'
 import { milestoneStatus, type MilestoneStatus } from '../shared/invoices'
+import { fyDays, quarterDays, wonAt } from '../shared/goalMetrics'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -522,13 +523,42 @@ export const Q = {
       const t = clock.slice(0, 8)
       return [`${t}01T00:00`, `${t}31T23:59`]
     }
+    if (g.period === 'quarter' || g.period === 'year') {
+      const r = g.period === 'quarter' ? quarterDays(clock.slice(0, 10)) : fyDays(clock.slice(0, 10))
+      return [`${r.from}T00:00`, `${r.to}T23:59`]
+    }
     const ws = F.weekStart()
     return [ws, F.addDays(ws, 7)]
   },
+  /**
+   * What a won deal adds to won value, in dollars: the contracted amount frozen when an Ardorio deal was won
+   * (contract.baselineCents; variations approved later are not bookings), else deal.value. Board 6: "Won value
+   * counts contracted amounts on the day a deal is won." Plans are synced to Ardorio admins only, so for anyone else
+   * every deal falls back to deal.value.
+   */
+  wonAmount(d: Pick<Deal, 'id' | 'businessId' | 'value'>): number {
+    const c = d.businessId === 'ard' ? Q.billingPlan(d.id)?.contract : undefined
+    return c ? c.baselineCents / 100 : (d.value || 0)
+  },
+  /**
+   * Won value in dollars (Q.wonAmount: the contract at won, else deal.value): live deals of business `b` won between
+   * `from` and `to` (wall clock, both included; won at closedAt, else the close date) whose owner is one of `ownerIds`.
+   */
+  wonValue(ownerIds: string[], from: string, to: string, b: string): number {
+    return S.deals
+      .filter(d => d.businessId === b && d.status === 'won' && d.archived !== true && ownerIds.includes(d.ownerId))
+      .filter(d => {
+        const at = wonAt(d)
+        return !!at && at >= from && at <= to
+      })
+      .reduce((s, d) => s + Q.wonAmount(d), 0)
+  },
+  /** A goal's actual so far. Invoiced and collected come from the revenue report, not from here (see useGoalRevenue): 0. */
   goalActual(g: Goal): number {
     const [f, t] = Q.goalRange(g)
     const ids = g.ownerType === 'team' ? (Q.team(g.ownerId)?.members ?? []) : [g.ownerId]
     const clock = F.nowIso()
+    if (g.metric === 'won_value') return Q.wonValue(ids, f, t > clock ? clock : t, g.businessId)
     return Q.metric(ids, g.metric, f, t > clock ? clock : t, g.businessId)
   },
   notifs(): Notification[] {
