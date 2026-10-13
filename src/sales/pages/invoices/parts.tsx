@@ -11,6 +11,11 @@ export function StatusChip({ inv }: { inv: Pick<InvoiceDto, 'status' | 'overdue'
   return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip>
 }
 
+/** TEST marker: an icon and the word, never colour alone. */
+export function TestChip({ inv }: { inv: Pick<InvoiceDto, 'test'> }) {
+  return inv.test ? <Chip icon="flag" title={`Test invoice: ${inv.test.reason}`}>TEST</Chip> : null
+}
+
 export function MethodChip({ inv }: { inv: Pick<InvoiceDto, 'payment'> }) {
   return inv.payment ? <Chip>{METHOD_LABELS[inv.payment.method]}</Chip> : null
 }

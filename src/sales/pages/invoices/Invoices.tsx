@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { InvoiceDto } from '../../api/contract'
 import { invoiceError, invoiceSummary, invoicesCsv, listInvoices, saveBlob } from '../../api/invoices'
 import { F } from '../../data/F'
@@ -10,12 +10,19 @@ import { formatCents, formatCentsTile } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
-import { CustomerLink, MethodChip, StatusChip, milestoneLabel } from './parts'
+import { CustomerLink, MethodChip, StatusChip, TestChip, milestoneLabel } from './parts'
 import { InvoicesDenied } from './states'
+
+const SHOW_TEST_KEY = 'sos.invoices.showTest'
+// Remembered for this browser session only; storage can be blocked, so every access is guarded.
+const readShowTest = (): boolean => { try { return sessionStorage.getItem(SHOW_TEST_KEY) === '1' } catch { return false } }
+const writeShowTest = (v: boolean): void => { try { if (v) sessionStorage.setItem(SHOW_TEST_KEY, '1'); else sessionStorage.removeItem(SHOW_TEST_KEY) } catch { /* not remembered */ } }
 
 export function Invoices() {
   useStore()
-  const list = useLoad(s => listInvoices({}, s), 'list')
+  const [showTest, setShowTest] = useState(readShowTest)
+  useEffect(() => writeShowTest(showTest), [showTest])
+  const list = useLoad(s => listInvoices({ includeTest: showTest }, s), `list:${showTest ? 'test' : 'real'}`)
   const sum = useLoad(s => invoiceSummary(s), 'summary')
   const [tab, setTab] = useState<InvoiceTab>('all')
   const [query, setQuery] = useState('')
@@ -26,7 +33,8 @@ export function Invoices() {
 
   const all: InvoiceDto[] = useMemo(() => list.data?.invoices ?? [], [list.data])
   const counts = tabCounts(all)
-  const rows = useMemo(() => filterInvoices(all, { tab, query, companyId, refundOnly }, dealName), [all, tab, query, companyId, refundOnly])
+  const rows = useMemo(() => filterInvoices(all, { tab, query, companyId, refundOnly, includeTest: showTest }, dealName), [all, tab, query, companyId, refundOnly, showTest])
+  const testCount = all.filter(i => i.test).length
   const facts = list.data && sum.data ? tileFacts(all, sum.data.tiles, today) : null
   const customers = useMemo(() => {
     const m = new Map<string, string>()
@@ -76,7 +84,7 @@ export function Invoices() {
       k: 'status', l: 'Status', sort: r => (r.overdue ? 'overdue' : r.status),
       r: r => (
         <div>
-          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
+          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
           {r.voided && <div className="void-cell sm" style={{ marginTop: 2 }}>{voidReasonLabel(r.voided.reason)} · {fmtDay(r.voided.voidedAt)}</div>}
           {r.payment && <div className="faint sm" style={{ marginTop: 2 }}>{fmtDay(r.payment.paidAt)}</div>}
         </div>
@@ -142,6 +150,7 @@ export function Invoices() {
           <div className="row wrap" style={{ marginBottom: 12, gap: 10 }}>
             <SearchInp value={query} onChange={setQuery} placeholder="Search number, customer or deal" w={260} />
             <Sel value={companyId} onChange={setCompanyId} placeholder="All customers" aria-label="Customer" style={{ width: 180 }} options={customers} />
+            <label className="ck"><input type="checkbox" checked={showTest} onChange={e => setShowTest(e.target.checked)} /><span>Show test invoices{showTest && list.data ? ` (${testCount})` : ''}</span></label>
             <span className="sp" />
             <span className="faint sm">Newest first</span>
           </div>
@@ -159,11 +168,11 @@ export function Invoices() {
             </Card>
           ) : (
             <Card pad={false}>
-              <DataTable<InvoiceDto> cols={cols} rows={rows} page={50} onRow={open} sortInit={['invoiceNumber', -1]} empty={<Empty icon="search" title="No invoices match" body={tab === 'all' ? 'Nothing matches the current search.' : `No ${TABS.find(t => t[0] === tab)?.[1].toLowerCase()} invoices match the current search.`} />} />
+              <DataTable<InvoiceDto> cols={cols} rows={rows} page={50} onRow={open} rowClass={r => (r.test ? 'test-row' : '')} sortInit={['invoiceNumber', -1]} empty={<Empty icon="search" title="No invoices match" body={tab === 'all' ? 'Nothing matches the current search.' : `No ${TABS.find(t => t[0] === tab)?.[1].toLowerCase()} invoices match the current search.`} />} />
             </Card>
           )}
           <div className="faint sm" style={{ marginTop: 10 }}>
-            <Icon n="info" s={12} /> Overdue is worked out from the due date. It is not a separate status. Invoices are visible to Ardorio admins only.
+            <Icon n="info" s={12} /> Overdue is worked out from the due date. It is not a separate status. Test invoices are never counted in the figures above. Invoices are visible to Ardorio admins only.
           </div>
         </>
       )}
