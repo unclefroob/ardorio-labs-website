@@ -37,8 +37,10 @@ export function saveMeeting(f: MeetingInput): Meeting {
   const isNew = !m
   if (!m) {
     m = {
-      id: uid('mt'), createdBy: S.session.userId, ownerId: S.session.userId, participants: [], duration: 30, type: 'Discovery', sections: {},
+      createdBy: S.session.userId, ownerId: S.session.userId, participants: [], duration: 30, type: 'Discovery', sections: {},
       summary: '', nextSteps: '', ...f,
+      // The form passes `id: undefined` for a new meeting; it must not overwrite the generated id.
+      id: f.id || uid('mt'),
     }
     S.meetings.push(m)
     idx.meetings.set(m.id, m)
