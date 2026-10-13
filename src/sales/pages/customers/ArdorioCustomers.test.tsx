@@ -107,12 +107,17 @@ describe('Customers page: Ardorio by deal, for admins', () => {
     expect(t[0]).toBe('Contracted$65,400')
     // Delivered: 18,000 + 18,000 + 9,000.
     expect(t[1]).toBe('Earned$45,000')
-    // 18,000 + 6,000 external + 4,500 + 1,200 retainer + 1,800 unlinked; void, test and draft left out.
-    expect(t[2]).toBe('Invoiced$31,500')
-    expect(t[3]).toBe('Collected$21,000')
+    // Project money only, the sum of the deal rows (board 7): 18,000 + 6,000 external + 4,500; void, test and draft left out.
+    expect(t[2]).toBe('Invoiced$28,500')
+    expect(t[3]).toBe('Collected$18,000')
     expect(t[4]).toContain('Outstanding$10,500')
     expect(t[4]).toContain('$4,500 overdue · 1 customer')
     expect(text()).toContain('Money is counted per deal, ex GST')
+    // The 1,200 retainer and the 1,800 not on a deal are named apart, and every issued invoice adds up as in the report.
+    const apart = host.querySelector('[data-apart]')?.textContent ?? ''
+    expect(apart).toContain('Retainer $1,200 invoiced, $1,200 collected, $0 outstanding')
+    expect(apart).toContain('Not on a won deal $1,800 invoiced, $1,800 collected')
+    expect(apart).toContain('Every issued invoice: $31,500 invoiced, $21,000 collected, $10,500 outstanding')
   })
 
   it('company rows are sorted by Outstanding, biggest first, with proper headers', async () => {
@@ -131,8 +136,10 @@ describe('Customers page: Ardorio by deal, for admins', () => {
     expect(t).toContain('$6,000.00')
     // Overdue is said in words, not only in colour.
     expect(company('co2')?.textContent).toContain('Overdue $4,500.00')
-    expect(company('co2')?.textContent).toContain('incl. retainer $1,200.00')
+    // Retainer and not-on-a-deal money is labelled apart, never in the company's project figure.
+    expect(company('co2')?.textContent).toContain('$4,500.00+ retainer $1,200.00')
     expect(company('co4')?.textContent).toContain('No won deal')
+    expect(company('co4')?.textContent).toContain('$0.00+ not on a deal $1,800.00')
     expect(company('co5')?.textContent).toContain('+ $9,600.00 estimate')
   })
 
@@ -259,10 +266,52 @@ describe('Customers page: Ardorio by deal, for admins', () => {
     expect(new URL(p, 'https://x').pathname).toBe('/sales/invoices/l')
   })
 
+  it('No contract yet lists won deals with no contract, says which were never invoiced, and Add contract opens billing', async () => {
+    await show()
+    const tab = button(host, /^No contract yet/)
+    expect(tab?.textContent).toContain('1 not invoiced')
+    expect(tab?.querySelector('.cnt')?.textContent).toBe('1')
+    await click(tab)
+    const r = rowsText()
+    expect(r).toHaveLength(1)
+    expect(r[0]).toContain('Newly Won Pty')
+    expect(r[0]).toContain('Website rebuild')
+    expect(r[0]).toContain('$9,600.00')
+    expect(r[0]).toContain('Not invoiced')
+    expect(r[0]).toContain('1 Dec 2026') // the close date, as wonDay reads it
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, 'Add contract'))
+    const [p] = nav.mock.calls.at(-1) as [string]
+    const u = new URL(p, 'https://x')
+    expect(u.pathname).toBe('/sales/deals/dl3')
+    expect(JSON.parse(u.searchParams.get('q') ?? '{}')).toEqual({ tab: 'billing' })
+  })
+
+  it('an invoice on an archived or unknown company is named in Unlinked and in a banner, not silently dropped', async () => {
+    const extra = [
+      dto({ id: 'g1', invoiceNumber: 'INV-0200', clientName: 'Gone Ltd', dealId: 'dlz', companyId: 'co-missing', status: 'sent', subtotalCents: 250000, issueDate: '2026-10-07' }),
+    ]
+    await show({ [LIST]: () => json(200, { invoices: [...INVOICES, ...extra] }) })
+    // The project tiles are unchanged; the line under them names the money on no customer and the full total.
+    expect(tiles()[2]).toBe('Invoiced$28,500')
+    const apart = host.querySelector('[data-apart]')?.textContent ?? ''
+    expect(apart).toContain('On no customer (no company, or archived or not found) $2,500 invoiced')
+    expect(apart).toContain('Every issued invoice: $34,000 invoiced')
+    expect(text()).toContain('$2,500 of issued invoices is on no customer')
+    await click(button(host, /^Unlinked invoices/))
+    const r = rowsText()
+    expect(r).toHaveLength(2)
+    expect(r[0]).toContain('INV-0200')
+    expect(r[0]).toContain('Gone Ltd')
+    expect(r[0]).toContain('Company not found')
+  })
+
   it('empty worklists say so', async () => {
     await show({ [LIST]: () => json(200, { invoices: [] }) })
     await click(button(host, /^Unlinked invoices/))
     expect(text()).toContain('Every invoice is linked to a deal')
+    expect(host.querySelector('[data-apart]')).toBeNull()
   })
 
   it('a server error offers Try again, and a 403 shows the admins-only state', async () => {

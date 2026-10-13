@@ -5,8 +5,8 @@ import { useLoad } from '../../data/invoicing'
 import { S, useStore } from '../../data/store'
 import { Banner, Btn, Card, Chip, CoLink, DataTable, DlLink, Empty, Icon, Link, Skel, Tabs, type Col } from '../../kit'
 import {
-  ardorioByDeal, ENGAGEMENT_LABEL, sortArdorio,
-  type ArdorioCompanyRow, type ArdorioDealRow, type ArdorioSortKey, type DeliveredNotInvoiced, type UnscheduledValue,
+  ardorioByDeal, ENGAGEMENT_LABEL, sortArdorio, UNLINKED_LABEL,
+  type ArdorioCompanyRow, type ArdorioDealRow, type ArdorioSortKey, type DeliveredNotInvoiced, type InvoiceMoney, type NoContractDeal, type UnscheduledValue,
 } from '../../shared/billing'
 import { fmtDay, withoutTest } from '../../shared/invoices'
 import { EXTERNAL_CHIP, invoiceRef } from '../../shared/externalInvoices'
@@ -14,8 +14,8 @@ import { formatCents, formatCentsTile } from '../../shared/money'
 import { UI } from '../../ui/store'
 import { ExternalChip, StatusChip } from '../invoices/parts'
 
-type View = 'deals' | 'delivered' | 'unscheduled' | 'unlinked'
-const VIEWS: readonly View[] = ['deals', 'delivered', 'unscheduled', 'unlinked']
+type View = 'deals' | 'delivered' | 'unscheduled' | 'nocontract' | 'unlinked'
+const VIEWS: readonly View[] = ['deals', 'delivered', 'unscheduled', 'nocontract', 'unlinked']
 
 const fmt = formatCents
 const sortBtn: CSSProperties = { background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', textTransform: 'inherit', letterSpacing: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }
@@ -26,13 +26,32 @@ const billingTab = (id: string): void => UI.nav('deal', { id, q: { tab: 'billing
 /** "Phase 2 integrations · 3 Nov 2026 · $6,000.00", or a dash. */
 function NextDue({ r }: { r: ArdorioDealRow }) {
   const m = r.next
-  const gap = r.money.unscheduled
+  const gap = r.unscheduledCents
   return (
     <span className="row wrap" style={{ gap: 6 }}>
       {m ? <span>{m.label} <span className="faint sm money">· {m.plannedDate ? fmtDay(m.plannedDate) : 'no date'} · {fmt(m.amountCents)}</span></span> : dash}
-      {gap !== null && gap > 0 && <Chip tone="warn">{fmt(gap)} unscheduled</Chip>}
+      {gap > 0 && <Chip tone="warn">{fmt(gap)} unscheduled</Chip>}
     </span>
   )
+}
+
+type Fig = 'invoiced' | 'collected' | 'outstanding'
+
+/**
+ * The money of a company kept apart from its project figures: retainer invoices and invoices not on a won deal, each
+ * labelled, so the row's own figure stays the sum of its deals (board 7) and nothing issued goes unseen.
+ */
+function Apart({ r, k }: { r: Pick<ArdorioCompanyRow, 'retainer' | 'notOnDeal'>; k: Fig }) {
+  const line = (m: InvoiceMoney, label: string): ReactNode => m[k] > 0 && (
+    <div className="sm muted">+ {label} {fmt(m[k])}{k === 'outstanding' && m.overdue > 0 && <span className="over"> · {fmt(m.overdue)} overdue</span>}</div>
+  )
+  return <>{line(r.retainer, 'retainer')}{line(r.notOnDeal, 'not on a deal')}</>
+}
+
+/** "Retainer A$1,200 invoiced" and the like, for the line under the tiles; empty when the bucket is empty. */
+function apartText(m: InvoiceMoney, label: string): string | null {
+  if (m.invoiced === 0) return null
+  return `${label} ${formatCentsTile(m.invoiced)} invoiced, ${formatCentsTile(m.collected)} collected, ${formatCentsTile(m.outstanding)} outstanding${m.overdue > 0 ? ` (${formatCentsTile(m.overdue)} overdue)` : ''}`
 }
 
 /** The Ardorio view of Customers: money per company and per deal, ex GST. Admins of Ardorio only; others see the won-deal view. */
@@ -111,12 +130,16 @@ export function ArdorioCustomers() {
         <td className="money" style={{ textAlign: 'right' }}>{fmt(r.earnedCents)}</td>
         <td className="money" style={{ textAlign: 'right' }}>
           {fmt(r.invoicedCents)}
-          {r.retainerInvoicedCents > 0 && <div className="sm muted">incl. retainer {fmt(r.retainerInvoicedCents)}</div>}
+          <Apart r={r} k="invoiced" />
         </td>
-        <td className="money" style={{ textAlign: 'right' }}>{fmt(r.collectedCents)}</td>
+        <td className="money" style={{ textAlign: 'right' }}>
+          {fmt(r.collectedCents)}
+          <Apart r={r} k="collected" />
+        </td>
         <td className="money" style={{ textAlign: 'right' }}>
           <span className={'b' + (r.overdueCents > 0 ? ' over' : '')}>{fmt(r.outstandingCents)}</span>
           {r.overdueCents > 0 && <> <Chip tone="bad">Overdue {fmt(r.overdueCents)}</Chip></>}
+          <Apart r={r} k="outstanding" />
         </td>
         <td />
       </tr>
@@ -185,16 +208,38 @@ export function ArdorioCustomers() {
   const gapRows = all.unscheduled.map(x => ({ ...x, id: x.deal.id }))
   const gapCols: Col<UnscheduledValue & { id: string }>[] = [
     { k: 'co', l: 'Customer', sort: x => S.companies.find(c => c.id === x.companyId)?.name ?? '', r: x => <b><CoLink id={x.companyId} /></b> },
-    { k: 'deal', l: 'Deal', sort: x => dealName(x), r: x => <DlLink id={x.deal.id} /> },
+    { k: 'deal', l: 'Deal', sort: x => dealName(x), r: x => <><DlLink id={x.deal.id} />{x.engagement && <div className="sm muted">{ENGAGEMENT_LABEL[x.engagement]}</div>}</> },
     { k: 'con', l: 'Contracted', right: true, sort: x => x.contractedCents, r: x => <span className="money">{fmt(x.contractedCents)}</span> },
     { k: 'sch', l: 'In milestones', right: true, sort: x => x.scheduledCents, r: x => <span className="money">{fmt(x.scheduledCents)}</span> },
+    { k: 'inv', l: 'Invoiced', right: true, sort: x => x.invoicedCents, r: x => <span className="money">{fmt(x.invoicedCents)}</span> },
     { k: 'gap', l: 'Unscheduled', right: true, desc: true, sort: x => x.gapCents, r: x => <span className="money b">{fmt(x.gapCents)}</span> },
     { k: 'go', l: '', nosort: true, r: x => <Btn size="xs" onClick={() => billingTab(x.deal.id)}>Open billing</Btn> },
   ]
+  const ncRows = all.noContract.map(x => ({ ...x, id: x.deal.id }))
+  const ncCols: Col<NoContractDeal & { id: string }>[] = [
+    { k: 'co', l: 'Customer', sort: x => S.companies.find(c => c.id === x.companyId)?.name ?? '', r: x => <b><CoLink id={x.companyId} /></b> },
+    { k: 'deal', l: 'Deal', sort: x => dealName(x), r: x => <DlLink id={x.deal.id} /> },
+    { k: 'won', l: 'Won', sort: x => x.wonOn, r: x => (x.wonOn ? fmtDay(x.wonOn) : dash) },
+    { k: 'est', l: 'Estimate', right: true, desc: true, sort: x => x.estimateCents, r: x => <span className="money"><Chip>Estimate</Chip> {fmt(x.estimateCents)}</span> },
+    { k: 'inv', l: 'Invoiced', right: true, sort: x => x.invoicedCents, r: x => (x.invoicedCents > 0 ? <span className="money">{fmt(x.invoicedCents)}</span> : <Chip tone="warn">Not invoiced</Chip>) },
+    { k: 'go', l: '', nosort: true, r: x => <Btn size="xs" kind="pri" onClick={() => billingTab(x.deal.id)}>Add contract</Btn> },
+  ]
   const unCols: Col<InvoiceDto>[] = [
     { k: 'num', l: 'Invoice', sort: i => invoiceRef(i), r: i => <span className="row wrap" style={{ gap: 6 }}><span className="mono">{invoiceRef(i)}</span><ExternalChip inv={i} /></span> },
-    { k: 'co', l: 'Customer', sort: i => i.clientName, r: i => (i.companyId ? <CoLink id={i.companyId} /> : <span>{i.clientName} <Chip tone="warn">No company</Chip></span>) },
-    { k: 'deal', l: 'Deal', nosort: true, r: i => (i.dealId ? <DlLink id={i.dealId} /> : <Chip tone="warn">No deal</Chip>) },
+    {
+      k: 'co', l: 'Customer', sort: i => i.clientName,
+      r: i => {
+        const why = all.unlinkedReason[i.id]
+        const known = i.companyId && why !== 'unknown-company' && why !== 'archived-company'
+        return known ? <CoLink id={i.companyId!} /> : <span>{i.clientName} {why && <Chip tone="warn">{UNLINKED_LABEL[why]}</Chip>}</span>
+      },
+    },
+    {
+      k: 'deal', l: 'Deal', nosort: true,
+      r: i => (i.dealId
+        ? <span className="row wrap" style={{ gap: 6 }}><DlLink id={i.dealId} />{all.unlinkedReason[i.id] === 'deal-not-won' && <Chip tone="warn">{UNLINKED_LABEL['deal-not-won']}</Chip>}</span>
+        : <Chip tone="warn">No deal</Chip>),
+    },
     { k: 'st', l: 'Status', sort: i => i.status, r: i => <StatusChip inv={i} /> },
     { k: 'iss', l: 'Issued', sort: i => i.issueDate, r: i => fmtDay(i.issueDate) },
     { k: 'amt', l: 'Amount (ex GST)', right: true, sort: i => i.subtotalCents, r: i => <span className="money">{fmt(i.subtotalCents)}</span> },
@@ -203,6 +248,8 @@ export function ArdorioCustomers() {
 
   const dniTotal = all.deliveredNotInvoiced.reduce((a, x) => a + x.milestone.amountCents, 0)
   const gapTotal = all.unscheduled.reduce((a, x) => a + x.gapCents, 0)
+  const neverBilled = all.noContract.filter(x => x.invoicedCents === 0).length
+  const apart = [apartText(t.retainer, 'Retainer'), apartText(t.notOnDeal, 'Not on a won deal'), apartText(t.noCustomer, 'On no customer (no company, or archived or not found)')].filter((x): x is string => !!x)
 
   return (
     <>
@@ -216,6 +263,11 @@ export function ArdorioCustomers() {
           <span className="row wrap"><span className="v num">{formatCentsTile(t.outstandingCents)}</span>{t.overdueCents > 0 && <Chip tone="bad">{formatCentsTile(t.overdueCents)} overdue · {t.overdueCustomers} customer{t.overdueCustomers === 1 ? '' : 's'}</Chip>}</span>
         </div>
       </div>
+      {apart.length > 0 && (
+        <div className="sm muted" data-apart style={{ margin: '-6px 0 14px' }}>
+          Project money of won deals only. Kept apart: {apart.join('; ')}. Every issued invoice: {formatCentsTile(t.all.invoiced)} invoiced, {formatCentsTile(t.all.collected)} collected, {formatCentsTile(t.all.outstanding)} outstanding, as the revenue report counts them.
+        </div>
+      )}
       <Tabs
         value={view}
         onChange={k => setView(VIEWS.find(v => v === k) ?? 'deals')}
@@ -223,6 +275,7 @@ export function ArdorioCustomers() {
           ['deals', 'All deals', dealCount],
           ['delivered', `Delivered, not invoiced${dniTotal > 0 ? ` · ${formatCentsTile(dniTotal)}` : ''}`, all.deliveredNotInvoiced.length],
           ['unscheduled', `Unscheduled contract value${gapTotal > 0 ? ` · ${formatCentsTile(gapTotal)}` : ''}`, all.unscheduled.length],
+          ['nocontract', `No contract yet${neverBilled > 0 ? ` · ${neverBilled} not invoiced` : ''}`, all.noContract.length],
           ['unlinked', 'Unlinked invoices', all.unlinked.length],
         ]}
       />
@@ -261,15 +314,18 @@ export function ArdorioCustomers() {
         <Card pad={false}><DataTable cols={dniCols} rows={dniRows} page={50} empty={<Empty icon="check" title="Every delivered milestone has an invoice" body="Delivered milestones with no invoice yet appear here, so earned money is billed." />} /></Card>
       )}
       {view === 'unscheduled' && (
-        <Card pad={false}><DataTable cols={gapCols} rows={gapRows} page={50} sortInit={['gap', -1]} empty={<Empty icon="check" title="Every contract is fully scheduled" body="Won deals whose milestones add up to less than the contract appear here, with the gap." />} /></Card>
+        <Card pad={false}><DataTable cols={gapCols} rows={gapRows} page={50} sortInit={['gap', -1]} empty={<Empty icon="check" title="Every contract is fully scheduled" body="Won deals whose milestones add up to less than the contract appear here, with the gap. Time and materials and support retainers count what is already invoiced too." />} /></Card>
+      )}
+      {view === 'nocontract' && (
+        <Card pad={false}><DataTable cols={ncCols} rows={ncRows} page={50} empty={<Empty icon="check" title="Every won deal has a contract" body="Won deals with no contract yet appear here, not yet invoiced first, so each gets its contracted amount." />} /></Card>
       )}
       {view === 'unlinked' && (
-        <Card pad={false}><DataTable cols={unCols} rows={all.unlinked} page={50} empty={<Empty icon="check" title="Every invoice is linked to a deal" body="Invoices with no deal or no company appear here. They count for the company but not for any deal." />} /></Card>
+        <Card pad={false}><DataTable cols={unCols} rows={all.unlinked} page={50} empty={<Empty icon="check" title="Every invoice is linked to a deal" body="Invoices in no deal's figures appear here: no deal or no company, an archived or unknown company, or a deal that is not won. They are counted apart from the project figures." />} /></Card>
       )}
       <div className="faint sm" style={{ marginTop: 10 }}>
-        Contracted = baseline plus approved variations. Earned counts delivered milestones. A deal&apos;s Invoiced, Collected and Outstanding are its project invoices, as on the deal page; a company&apos;s include retainer invoices and invoices not linked to a deal. Drafts, cancelled and test invoices are left out; invoices recorded externally count. Ex GST, as recorded in SalesOS; Xero is the books.
+        Contracted = baseline plus approved variations. Earned counts delivered milestones. Invoiced, Collected and Outstanding are project invoices, as on the deal page, and a company&apos;s are the sum of its deals; retainer invoices and invoices not on a won deal are shown apart, labelled. Drafts, cancelled and test invoices are left out; invoices recorded externally count. Ex GST, as recorded in SalesOS; Xero is the books.
       </div>
-      {all.unlinked.some(i => !i.companyId) && <Banner tone="warn">Some invoices have no company, so they are not in any customer&apos;s figures. See Unlinked invoices.</Banner>}
+      {t.noCustomer.invoiced > 0 && <Banner tone="warn">{formatCentsTile(t.noCustomer.invoiced)} of issued invoices is on no customer: no company, or an archived or unknown one. See Unlinked invoices.</Banner>}
     </>
   )
 }
