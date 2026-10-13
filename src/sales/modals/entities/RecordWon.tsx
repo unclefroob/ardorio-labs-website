@@ -207,13 +207,15 @@ function CompanyPick({ f, set, err, locked }: { f: Draft; set: SetF<Draft>; err?
   const dup = open ? findDuplicate(q, '') : undefined
   const use = (c: Company): void => set({ companyId: c.id, companyName: c.name, newCompany: false, contactId: '', contactName: '', contactEmail: '' })
   const change = (): void => set({ companyId: '', newCompany: false, contactId: '', contactName: '', contactEmail: '' })
+  // Point only at what is rendered: the error when there is one, else the hint.
+  const described = err ? 'rw-company-err' : 'rw-company-hint'
 
   return (
     <div className="fld">
       <label htmlFor="rw-company">Company<span style={{ color: 'var(--bad2)' }}> *</span></label>
       {picked || f.newCompany ? (
         <div className="row wrap" style={{ gap: 8 }}>
-          <Inp id="rw-company" value={f.companyName} readOnly style={{ flex: '1 1 220px' }} aria-describedby="rw-company-state" />
+          <Inp id="rw-company" value={f.companyName} readOnly style={{ flex: '1 1 220px' }} aria-describedby={`rw-company-state ${described}`} aria-invalid={err ? true : undefined} />
           <span id="rw-company-state" className="row" style={{ gap: 6 }}>
             {f.newCompany ? <Chip tone="acc" icon="plus">New company · not researched yet</Chip> : <Chip tone="ok" icon="check">In your CRM</Chip>}
           </span>
@@ -227,7 +229,7 @@ function CompanyPick({ f, set, err, locked }: { f: Draft; set: SetF<Draft>; err?
           placeholder="Type a company name"
           autoFocus
           aria-invalid={err ? true : undefined}
-          aria-describedby="rw-company-hint"
+          aria-describedby={described}
         />
       )}
       {open && (
@@ -258,7 +260,7 @@ function CompanyPick({ f, set, err, locked }: { f: Draft; set: SetF<Draft>; err?
           </div>
         </div>
       )}
-      {err ? <div className="err" role="alert">{err}</div> : <div className="hint" id="rw-company-hint">Only the name is needed. You can research the company later from its page.</div>}
+      {err ? <div className="err" role="alert" id="rw-company-err">{err}</div> : <div className="hint" id="rw-company-hint">Only the name is needed. You can research the company later from its page.</div>}
     </div>
   )
 }

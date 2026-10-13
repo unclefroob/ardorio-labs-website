@@ -190,6 +190,24 @@ describe('Record a won deal (Ardorio admin)', () => {
     expect(document.activeElement).toBe(companyInput())
   })
 
+  it('the company picker is described by its hint, then by its error once shown; every id it names is rendered', async () => {
+    await open()
+    const described = () => (companyInput()?.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+    const rendered = () => described().every(id => !!document.getElementById(id))
+    expect(described()).toEqual(['rw-company-hint'])
+    expect(rendered()).toBe(true)
+    await click(button(host, 'Record won deal'))
+    expect(described()).toEqual(['rw-company-err'])
+    expect(rendered()).toBe(true)
+    expect(document.getElementById('rw-company-err')?.textContent).toBe('Pick a company, or type a name to create one')
+    expect(document.getElementById('rw-company-err')?.getAttribute('role')).toBe('alert')
+    // Picking a company: the field says it is in the CRM, and still names only what is rendered.
+    await type(companyInput(), 'tidewater foods')
+    await click(host.querySelector('button[aria-label="Use Tidewater Foods"]'))
+    expect(described()[0]).toBe('rw-company-state')
+    expect(rendered()).toBe(true)
+  })
+
   it('from a company page the company is preselected; an existing contact can be picked', async () => {
     const { counts, newDeal, nav } = await open({ companyId: 'co1', businessId: 'ard' })
     const before = counts()
