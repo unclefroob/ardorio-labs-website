@@ -12,6 +12,7 @@ import { INDUSTRIES, PER, type PeriodKey } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import { seqStats, type SeqStats } from '../../shared/seqStats'
 import { UI } from '../../ui/store'
+import { ArdorioRevenue } from './ArdorioRevenue'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner', 'Cross-business introduction']
 const POSITIVE = ['Interested', 'Meeting Requested', 'More Information Requested']
@@ -78,6 +79,10 @@ export function Reports() {
   const pl = pb ? Q.pipeline(pb) : null
   const users = S.users.filter(x => !x.super && x.active && (Object.keys(x.m) as BusinessId[]).some(b => bs.includes(b)) && !Object.values(x.m).every(r => r === 'viewer')).map(x => x.id)
   const empty = !deals.length && !acts.length
+  // Ardorio is one-off project work: no recurring tiles when it is the only business in view.
+  const ardOnly = bs.length === 1 && bs[0] === 'ard'
+  // Ardorio money is for admins of Ardorio (or super) only; everyone else sees nothing here, not an error.
+  const ardSection = bs.includes('ard') && Q.canBill() ? <ArdorioRevenue from={from} to={clock} period={per} periodLabel={PER[per][0]} /> : null
 
   const exp = (): void => {
     download('salesos_report.csv', toCSV([
@@ -128,9 +133,12 @@ export function Reports() {
         </FilterBar>
       </div>
       {empty ? (
-        <Card>
-          <Empty icon="chart" title="No reports available for these filters" body="There is no recorded activity or deal data for this combination. Widen the date range or clear filters." action={<Btn onClick={reset}>Reset filters</Btn>} />
-        </Card>
+        <>
+          <Card>
+            <Empty icon="chart" title="No reports available for these filters" body="There is no recorded activity or deal data for this combination. Widen the date range or clear filters." action={<Btn onClick={reset}>Reset filters</Btn>} />
+          </Card>
+          {ardSection && <div style={{ marginTop: 16 }}>{ardSection}</div>}
+        </>
       ) : (
         <>
           <h3 className="b" style={{ margin: '4px 0 10px' }}>Sales activity</h3>
@@ -161,11 +169,12 @@ export function Reports() {
           <div className="grid g6" style={{ marginBottom: 16 }}>
             <Kpi label="Open pipeline" value={F.money(sum(open, d => d.value), 1)} />
             <Kpi label="Weighted pipeline" value={F.money(sum(open, Q.weighted), 1)} />
-            <Kpi label="Won revenue" value={F.money(sum(won, d => d.value), 1)} tone="ok" />
+            <Kpi label="Won value" value={F.money(sum(won, d => d.value), 1)} tone="ok" />
             <Kpi label="Lost revenue" value={F.money(sum(lost, d => d.value), 1)} />
             <Kpi label="Forecast (commit)" value={F.money(sum(open.filter(d => d.forecast === 'Commit'), Q.weighted), 1)} />
-            <Kpi label="Recurring (won ARR)" value={F.money(sum(deals.filter(d => d.status === 'won' && d.recurring), d => d.value), 1)} />
+            {!ardOnly && <Kpi label="Recurring (won ARR)" value={F.money(sum(deals.filter(d => d.status === 'won' && d.recurring), d => d.value), 1)} />}
           </div>
+          {ardSection}
           <div className="grid g2" style={{ marginBottom: 14 }}>
             <Card title="Sales activity trend" right={<Legend items={[['Emails', 'var(--acc)', LINE_DASH[0]], ['Calls', '#0E8A7E', LINE_DASH[1]], ['Meetings', '#D9572B', LINE_DASH[2]], ['LinkedIn', '#8E8897', LINE_DASH[3]]]} />}>
               <Line label="Sales activity trend by week" labels={weeks.map(x => x.l)} series={[
