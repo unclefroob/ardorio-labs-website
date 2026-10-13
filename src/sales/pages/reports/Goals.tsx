@@ -5,14 +5,22 @@ import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import type { Goal } from '../../data/types'
 import { Banner, BizDot, Btn, Card, DataTable, Empty, Icon, Owner, Prog, Seg, type Col } from '../../kit'
+import { formatGoalValue, GOAL_METRIC_LABEL, isMoneyMetric, prevGoalDays } from '../../shared/goalMetrics'
 import { PageHead } from '../../shared/PageHead'
+import { useGoalRevenue, type GoalRevenue } from '../../shared/useGoalRevenue'
 import { UI } from '../../ui/store'
 
 type Period = Goal['period']
-export const METRIC_LABEL: Record<string, string> = { calls: 'Calls', emails: 'Emails sent', meetings: 'Meetings booked', meetings_held: 'Meetings completed' }
+export const METRIC_LABEL: Record<string, string> = GOAL_METRIC_LABEL
 
 function prevActual(g: Goal): number {
   const [f, t] = Q.goalRange(g)
+  if (g.metric === 'won_value') {
+    // Money goals compare with the whole period before: yesterday, last week or last calendar month.
+    const p = prevGoalDays(g.period, f.slice(0, 10))
+    const ids = g.ownerType === 'team' ? (Q.team(g.ownerId)?.members ?? []) : [g.ownerId]
+    return Q.wonValue(ids, `${p.from}T00:00`, `${p.to}T23:59`, g.businessId)
+  }
   const len = g.period === 'day' ? 1 : g.period === 'week' ? 7 : 30
   const ids = g.ownerType === 'team' ? (Q.team(g.ownerId)?.members ?? []) : [g.ownerId]
   return Q.metric(ids, g.metric, F.addDays(f, -len), F.addDays(t, -len), g.businessId)
@@ -25,7 +33,21 @@ function remaining(per: Period): string {
   return `${rem} of ${tot} day${tot > 1 ? 's' : ''} remaining`
 }
 
-interface GoalRow extends Goal { actual: number; prev: number }
+/** actual and prev are null for an invoiced or collected goal whose report is loading or not available; `wait` says which. */
+interface GoalRow extends Goal { actual: number | null; prev: number | null; wait?: Exclude<GoalRevenue, { kind: 'value' }> }
+
+const show = (g: GoalRow, n: number): string => formatGoalValue(g.metric, n)
+
+/** The Progress cell of a goal whose actual is not known: the wait or the reason, in words. */
+function NoActual({ wait }: { wait?: GoalRow['wait'] }) {
+  if (!wait || wait.kind === 'loading') return <span className="faint xs" role="status">Loading invoiced and collected…</span>
+  return (
+    <span className="row" style={{ gap: 6 }}>
+      <span className="faint xs">{wait.reason}</span>
+      {wait.retry && <Btn size="xs" kind="ghost" onClick={wait.retry}>Try again</Btn>}
+    </span>
+  )
+}
 
 function GoalTable({ title, rows, period }: { title: string; rows: GoalRow[]; period: Period }) {
   const team = title.startsWith('Team')
@@ -38,11 +60,17 @@ function GoalTable({ title, rows, period }: { title: string; rows: GoalRow[]; pe
     },
     { k: 'b', l: 'Business', nosort: true, r: g => <span className="row" style={{ gap: 6 }}><BizDot b={g.businessId} />{Q.biz(g.businessId)?.name}</span> },
     { k: 'metric', l: 'Metric', nosort: true, r: g => METRIC_LABEL[g.metric] ?? g.metric },
-    { k: 'target', l: 'Target', right: true, r: g => <span className="num">{g.target}</span> },
-    { k: 'actual', l: 'Actual', right: true, r: g => <span className="num b">{g.actual}</span> },
+    { k: 'target', l: 'Target', right: true, r: g => <span className="num">{show(g, g.target)}</span> },
+    {
+      k: 'actual', l: 'Actual', right: true, sort: g => g.actual ?? -1,
+      r: g => (g.actual === null
+        ? <span className="num b">{g.wait?.kind === 'loading' ? '…' : '—'}</span>
+        : <span className="num b">{show(g, g.actual)}</span>),
+    },
     {
       k: 'p', l: 'Progress', w: 200, nosort: true,
       r: g => {
+        if (g.actual === null) return <NoActual wait={g.wait} />
         const p = (g.actual / g.target) * 100
         return (
           <div className="row" style={{ gap: 8 }}>
@@ -52,15 +80,19 @@ function GoalTable({ title, rows, period }: { title: string; rows: GoalRow[]; pe
         )
       },
     },
-    { k: 'rem', l: 'Remaining', right: true, nosort: true, r: g => <span className="num">{Math.max(0, g.target - g.actual)}</span> },
+    { k: 'rem', l: 'Remaining', right: true, nosort: true, r: g => <span className="num">{g.actual === null ? '—' : show(g, Math.max(0, g.target - g.actual))}</span> },
     {
-      k: 'prev', l: 'Prev. period', right: true,
-      r: g => (
-        <>
-          <span className="num">{g.prev}</span>{' '}
-          <span className="xs" style={{ color: g.actual >= g.prev ? 'var(--ok)' : 'var(--bad2)' }}>{g.actual >= g.prev ? '▲' : '▼'}{Math.abs(g.actual - g.prev)}</span>
-        </>
-      ),
+      k: 'prev', l: 'Prev. period', right: true, sort: g => g.prev ?? -1,
+      r: g => {
+        if (g.prev === null || g.actual === null) return <span className="num">—</span>
+        const up = g.actual >= g.prev
+        return (
+          <>
+            <span className="num">{show(g, g.prev)}</span>{' '}
+            <span className="xs num" style={{ color: up ? 'var(--ok)' : 'var(--bad2)' }}>{up ? '▲' : '▼'}{show(g, Math.abs(g.actual - g.prev))}</span>
+          </>
+        )
+      },
     },
     {
       k: 'a', l: '', nosort: true,
@@ -97,14 +129,21 @@ export function Goals() {
   const [per, setPer] = useState<Period>('week')
   const sc = Q.scope()
   const canSet = Q.anyManage()
-  const gs: GoalRow[] = S.goals.filter(g => sc.includes(g.businessId) && g.period === per).map(g => ({ ...g, actual: Q.goalActual(g), prev: prevActual(g) }))
+  const inView = S.goals.filter(g => sc.includes(g.businessId) && g.period === per)
+  const revenue = useGoalRevenue(inView, per, true)
+  const gs: GoalRow[] = inView.map(g => {
+    const r = revenue(g)
+    if (!r) return { ...g, actual: Q.goalActual(g), prev: prevActual(g) }
+    return r.kind === 'value' ? { ...g, actual: r.actual, prev: r.prev } : { ...g, actual: null, prev: null, wait: r }
+  })
+  const money = inView.some(g => isMoneyMetric(g.metric))
   return (
     <div className="page">
       <PageHead title="Sales goals" sub={`Measured from recorded activity only · ${remaining(per)}`}>
         <Seg value={per} onChange={v => setPer(v as Period)} opts={[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]} />
         {canSet && <Btn kind="pri" icon="plus" onClick={() => UI.open('goal', { period: per })}>Set goal</Btn>}
       </PageHead>
-      <Banner tone="info">Drafts, scheduled emails, cancelled calls and duplicates are not counted. Simulated sends and replies are not counted, because no real email has left SalesOS. Meetings booked are tracked separately from meetings completed.</Banner>
+      <Banner tone="info">Drafts, scheduled emails, cancelled calls and duplicates are not counted. Simulated sends and replies are not counted, because no real email has left SalesOS. Meetings booked are tracked separately from meetings completed.{money && ' Won value adds up the deal value of deals won in the period by the salesperson or team. Invoiced and collected are for all of Ardorio, ex GST, as recorded in SalesOS: void and test invoices are left out.'}</Banner>
       <div className="col" style={{ gap: 14, marginTop: 14 }}>
         <GoalTable title="Individual targets" rows={gs.filter(g => g.ownerType === 'user')} period={per} />
         <GoalTable title="Team targets" rows={gs.filter(g => g.ownerType === 'team')} period={per} />
