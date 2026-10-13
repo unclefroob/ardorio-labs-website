@@ -64,7 +64,8 @@ export function markDelivered(dealId: string, milestoneId: string, day: string |
     const rest: BillingMilestone = { ...m }
     delete rest.deliveredOn
     delete rest.deliveredBy
-    return day === null ? rest : { ...rest, deliveredOn: day, deliveredBy: m.deliveredOn === day && m.deliveredBy ? m.deliveredBy : Q.me().name }
+    // The API reads a missing deliveredOn as 'keep the stored date', so undoing must send an explicit null.
+    return day === null ? { ...rest, deliveredOn: null } : { ...rest, deliveredOn: day, deliveredBy: m.deliveredOn === day && m.deliveredBy ? m.deliveredBy : Q.me().name }
   })
   audit(day === null ? 'Milestone delivery undone' : 'Milestone delivered', `${Q.deal(dealId)?.title ?? dealId}: ${cur.label}${day ? `, ${day}` : ''}`)
   commit()

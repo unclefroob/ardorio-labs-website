@@ -232,7 +232,8 @@ describe('Milestones: states and delivery', () => {
     const dlg = host.querySelector('[role="dialog"][aria-label="Undo delivered for Reporting module (VO-1)?"]')
     expect(dlg?.textContent).toContain(`${fmt(600000)} leaves Earned`)
     await click(button(dlg!, 'Undo delivered'))
-    expect(plan().milestones[2].deliveredOn).toBeUndefined()
+    // An explicit null tells the API to un-deliver; a missing key would keep the stored date.
+    expect(plan().milestones[2].deliveredOn).toBeNull()
     expect(stateChip(2)).toBe('Planned')
     expect(fig('Earned')).toBe(`${fmt(3200000)}Earned`)
   })

@@ -510,7 +510,7 @@ export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCent
 export interface BillingClientDetails { email?: string; contactName?: string; abn?: string; address?: string }
 export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
 export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
-export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string; deliveredOn?: string; deliveredBy?: string }
+export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string; deliveredOn?: string | null; deliveredBy?: string }
 // lastDraftedFor: YYYY-MM-DD of the retainer period already drafted; written only by the server (a client write
 // never changes it). When a plan's nextInvoiceDate is on or before today (org timezone) and lastDraftedFor differs,
 // the server engine drafts the invoice (source 'retainer', status draft, never issued or sent) and moves

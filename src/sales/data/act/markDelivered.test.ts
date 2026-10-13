@@ -54,10 +54,10 @@ describe('Act.markDelivered', () => {
     m.stop()
   })
 
-  it('undo clears deliveredOn and deliveredBy and keeps the rest of the milestone', async () => {
+  it('undo sends an explicit null deliveredOn (the API keeps a missing one), drops deliveredBy and keeps the rest', async () => {
     const m = await setup('admin', [{ ...PLAN_DATA.milestones[0], deliveredOn: '2026-09-01', deliveredBy: 'Ryan' }, ...PLAN_DATA.milestones.slice(1)])
     expect(m.Act.markDelivered('dl1', 'm1', null)).toEqual({ ok: true })
-    expect(m.Q.billingPlan('dl1')!.milestones[0]).toEqual(PLAN_DATA.milestones[0])
+    expect(m.Q.billingPlan('dl1')!.milestones[0]).toEqual({ ...PLAN_DATA.milestones[0], deliveredOn: null })
     // Undoing one that is not delivered is a no-op, not an error.
     expect(m.Act.markDelivered('dl1', 'm2', null)).toEqual({ ok: true })
     m.stop()

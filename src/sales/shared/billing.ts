@@ -44,6 +44,8 @@ export function cleanMilestone(m: BillingMilestone): BillingMilestone {
   if (m.plannedDate) out.plannedDate = m.plannedDate
   // Delivered state rides along unchanged, so editing a milestone never forgets that it was delivered.
   if (m.deliveredOn) out.deliveredOn = m.deliveredOn
+  // An undo not yet synced must stay an explicit null, or the server keeps the stored date.
+  else if (m.deliveredOn === null) out.deliveredOn = null
   if (m.deliveredBy) out.deliveredBy = m.deliveredBy
   return out
 }
