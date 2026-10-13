@@ -1,5 +1,5 @@
 import type { BillingMilestone, BillingPlan, BillingRetainer } from '../../api/contract'
-import { cleanMilestone, cleanRetainer, planId, redraftProblem, validateMilestones, validateRetainer } from '../../shared/billing'
+import { cleanMilestone, cleanRetainer, nextRetainerDate, planId, redraftProblem, retainerPeriodLabel, validateMilestones, validateRetainer } from '../../shared/billing'
 import { commit } from '../commit'
 import { audit } from '../internals'
 import { Q } from '../Q'
@@ -55,4 +55,25 @@ export function saveRetainer(dealId: string, retainer: BillingRetainer | null): 
   audit('Billing retainer saved', Q.deal(dealId)?.title ?? dealId)
   commit()
   return { ok: true }
+}
+
+export type ClaimResult = { ok: true; next: string } | { ok: false; error: string }
+
+/**
+ * A retainer invoice made by hand for the period that is due: move the plan's next invoice date on a month, the way
+ * the server does after its own draft, so the scheduler does not draft the same period again. Only the period the
+ * card offered is claimed, and only while it is still the plan's due date and the server has not claimed it.
+ */
+export function claimRetainerPeriod(dealId: string, due: string): ClaimResult {
+  const g = guard(dealId)
+  if (g) return { ok: false, error: g }
+  const r = Q.billingPlan(dealId)?.retainer
+  if (!r || r.nextInvoiceDate !== due) return { ok: false, error: 'The retainer has already moved on from that period' }
+  if (r.lastDraftedFor === due) return { ok: false, error: `The ${retainerPeriodLabel(due)} retainer is already being drafted automatically` }
+  const { next, anchorDay } = nextRetainerDate(due, r.anchorDay)
+  r.nextInvoiceDate = next
+  r.anchorDay = anchorDay
+  audit('Billing retainer period invoiced by hand', `${Q.deal(dealId)?.title ?? dealId}: ${retainerPeriodLabel(due)}, next ${next}`)
+  commit()
+  return { ok: true, next }
 }

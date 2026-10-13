@@ -140,6 +140,67 @@ describe('Deal billing card: retainer automation', () => {
   })
 })
 
+describe('A retainer invoice made by hand', () => {
+  const manualNote = (): string => host.querySelector('[aria-label="Create invoice by hand"]')?.textContent ?? ''
+
+  it('while a period is due, Create invoice bills it and says the automatic draft is skipped', async () => {
+    await showCard({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' })
+    expect(manualNote()).toContain('Create invoice bills October 2026 by hand')
+    expect(manualNote()).toContain('the automatic draft for October 2026 is skipped')
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, 'Create invoice'))
+    expect(path(nav).q).toEqual({ companyId: 'co1', dealId: 'dl1', retainer: true, retainerFor: '2026-10-01' })
+  })
+
+  it('before the date, an invoice made here is an extra one and the card says the draft still comes', async () => {
+    await showCard({ nextInvoiceDate: '2099-11-01' })
+    expect(manualNote()).toContain('An invoice created here is an extra one: the November 2099 draft is still made automatically on 1 Nov 2099')
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, 'Create invoice'))
+    expect(path(nav).q).toEqual({ companyId: 'co1', dealId: 'dl1', retainer: true })
+  })
+
+  it('says nothing extra without a next invoice date', async () => {
+    await showCard({})
+    expect(host.querySelector('[aria-label="Create invoice by hand"]')).toBeNull()
+  })
+
+  async function openEditor(retainer: Record<string, unknown>, retainerFor: string) {
+    m = await loadSales()
+    m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', ardDeal('dl1').data)], billingPlans: [plan(retainer)] }))
+    setArdRole(m, 'admin')
+    m.ui.bindNavigate(vi.fn())
+    const api = fakeApi({ ...base, 'POST /sales/invoices': () => json(201, dto({ id: 'n1', invoiceNumber: 'INV-0050', status: 'draft', issuedCount: 0, sentAt: null })) })
+    const { Invoice } = await import('../invoices/Invoice')
+    await act(async () => { root.render(<Invoice route={{ page: 'invoice', id: 'new', q: { companyId: 'co1', dealId: 'dl1', retainer: true, retainerFor } }} />) })
+    await settle(10)
+    return api
+  }
+
+  it('saving it claims the period: the next invoice date moves on a month, so the scheduler does not draft it again', async () => {
+    const api = await openEditor({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' }, '2026-10-01')
+    expect((host.querySelector('[aria-label="Description line 1"]') as HTMLInputElement).value).toBe('Retainer, October 2026')
+    expect(text()).toContain('This invoice bills the October 2026 retainer.')
+    expect(text()).toContain('Saving it moves the automatic draft on to 1 Nov 2026')
+    await click(button(host, 'Save draft'))
+    await settle(6)
+    expect(api.count('POST /sales/invoices')).toBe(1)
+    expect(m.store.S.billingPlans[0].retainer).toMatchObject({ nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-09-01', anchorDay: 1 })
+  })
+
+  it('claims nothing when the period has moved on since the card offered it', async () => {
+    const api = await openEditor({ nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-10-01' }, '2026-10-01')
+    expect(text()).not.toContain('This invoice bills the')
+    expect((host.querySelector('[aria-label="Description line 1"]') as HTMLInputElement).value).toBe('Monthly retainer')
+    await click(button(host, 'Save draft'))
+    await settle(6)
+    expect(api.count('POST /sales/invoices')).toBe(1)
+    expect(m.store.S.billingPlans[0].retainer?.nextInvoiceDate).toBe('2026-11-01')
+  })
+})
+
 describe('From retainer chip', () => {
   it('shows in the invoice list on retainer invoices only', async () => {
     m = await loadSales()

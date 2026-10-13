@@ -47,7 +47,7 @@ function Schedule({ deal }: { deal: Deal }) {
   const today = F.today()
 
   const open = (id: string): void => UI.nav('invoice', { id })
-  const create = (q: { milestoneId?: string; retainer?: boolean }): void => UI.nav('invoice', { id: 'new', q: { companyId: deal.companyId, dealId: deal.id, ...q } })
+  const create = (q: { milestoneId?: string; retainer?: boolean; retainerFor?: string }): void => UI.nav('invoice', { id: 'new', q: { companyId: deal.companyId, dealId: deal.id, ...q } })
 
   const startAdd = (): void => { setErr(''); setForm({ id: null, label: '', amount: '', date: '' }) }
   const startEdit = (m: BillingMilestone): void => { setErr(''); setForm({ id: m.id, label: m.label, amount: centsToInput(m.amountCents), date: m.plannedDate ?? '' }) }
@@ -205,8 +205,9 @@ function Schedule({ deal }: { deal: Deal }) {
             {retainerInvoices.map(i => (
               <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
+            <ManualRetainerNote retainer={retainer} today={today} />
             <div className="row" style={{ gap: 6 }}>
-              <Btn size="sm" onClick={() => create({ retainer: true })}>Create invoice</Btn>
+              <Btn size="sm" onClick={() => create(retainerAutoState(retainer, today) === 'due' && retainer.nextInvoiceDate ? { retainer: true, retainerFor: retainer.nextInvoiceDate } : { retainer: true })}>Create invoice</Btn>
               <Btn size="sm" kind="ghost" onClick={() => setRetainerForm({ amount: centsToInput(retainer.amountCents), date: retainer.nextInvoiceDate ?? '' })}>Edit retainer</Btn>
               <Btn size="sm" kind="ghost" onClick={() => { const r = Act.saveRetainer(deal.id, null); if (!r.ok) setErr(r.error) }}>Remove retainer</Btn>
             </div>
@@ -216,6 +217,22 @@ function Schedule({ deal }: { deal: Deal }) {
       </div>
     </Card>
   )
+}
+
+/**
+ * What Create invoice does next to the scheduler. While a period is due, the invoice made here bills it and the
+ * automatic draft moves on a month. Before then, an invoice made here is an extra one: the scheduled draft still comes.
+ */
+function ManualRetainerNote({ retainer, today }: { retainer: BillingRetainer; today: string }) {
+  const st = retainerAutoState(retainer, today)
+  if (st === 'no-date') return null
+  const period = retainerPeriodLabel(retainer.nextInvoiceDate)
+  const msg = st === 'due'
+    ? `Create invoice bills ${period} by hand: once it is saved, the automatic draft for ${period} is skipped and the date moves on a month.`
+    : st === 'drafted'
+      ? `The ${period} draft is already being made, so an invoice created here is an extra one.`
+      : `An invoice created here is an extra one: the ${period} draft is still made automatically on ${fmtDay(retainer.nextInvoiceDate)}. If this invoice replaces it, move the next invoice date on first.`
+  return <div className="faint sm" aria-label="Create invoice by hand">{msg}</div>
 }
 
 /** What the server scheduler will do with this retainer. Drafts only: nothing is ever issued or sent automatically. */

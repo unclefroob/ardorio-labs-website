@@ -198,14 +198,18 @@ export const unbilledRows = (rows: readonly ScheduleRow[]): ScheduleRow[] => row
 export const STATUS_TONE: Record<MilestoneStatus, '' | 'info' | 'ok' | 'warn'> = { Planned: '', 'Draft invoice': 'warn', Invoiced: 'info', Paid: 'ok' }
 
 // ── the editor, prefilled ────────────────────────────────────────────────────────────────────────
-export interface Prefill { companyId: string; dealId: string; milestoneId?: string; retainer?: boolean }
+export interface Prefill { companyId: string; dealId: string; milestoneId?: string; retainer?: boolean; /** The due period this retainer invoice bills, when it claims one. */ retainerFor?: string }
 
 /** A new invoice for one milestone: company, deal, milestone, and one line for the milestone amount. */
 export function prefillForm(base: InvoiceForm, d: Prefill, plan: BillingPlan | undefined): InvoiceForm {
   const next: InvoiceForm = { ...base, companyId: d.companyId, dealId: d.dealId, milestoneId: '' }
   const m = d.milestoneId ? plan?.milestones.find(x => x.id === d.milestoneId) : undefined
   if (m) return { ...next, milestoneId: m.id, lines: [{ ...emptyLine(), ...milestoneLine(m) }] }
-  if (d.retainer && plan?.retainer) return { ...next, lines: [{ ...emptyLine(), description: 'Monthly retainer', unitPrice: centsToInput(plan.retainer.amountCents) }] }
+  if (d.retainer && plan?.retainer) {
+    // Named like the server's own retainer drafts when it bills a known period.
+    const period = retainerPeriodLabel(d.retainerFor)
+    return { ...next, lines: [{ ...emptyLine(), description: period ? `Retainer, ${period}` : 'Monthly retainer', unitPrice: centsToInput(plan.retainer.amountCents) }] }
+  }
   return next
 }
 

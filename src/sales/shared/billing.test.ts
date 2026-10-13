@@ -88,6 +88,8 @@ describe('the prefilled editor payload', () => {
     const f = prefillForm(blankForm('2026-10-09'), { companyId: 'co1', dealId: 'dl1', retainer: true }, plan)
     expect(f.milestoneId).toBe('')
     expect(f.lines).toEqual([{ description: 'Monthly retainer', detail: '', qty: '1', unitPrice: '4500.00' }])
+    const due = prefillForm(blankForm('2026-10-09'), { companyId: 'co1', dealId: 'dl1', retainer: true, retainerFor: '2026-10-01' }, plan)
+    expect(due.lines[0].description).toBe('Retainer, October 2026')
   })
 })
 
