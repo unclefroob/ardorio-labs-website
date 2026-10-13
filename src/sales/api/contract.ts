@@ -32,6 +32,13 @@ export type RecordData = Record<string, unknown>
  */
 export interface SimulatedFlag { simulated?: boolean }
 
+/**
+ * Archiving (additive, data-only): `deals` and `sequences` records gain these keys. Only admins of that business may
+ * change `archived` on deals and sequences (server-enforced). Companies and contacts keep their existing `archived`
+ * field. Web rules live in data/archive.ts.
+ */
+export interface ArchiveFields { archived?: boolean; archivedAt?: string; archivedBy?: string }
+
 export interface Permissions { read: boolean; edit: boolean; manage: boolean; admin: boolean }
 
 export interface MeDTO {

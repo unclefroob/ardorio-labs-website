@@ -195,6 +195,10 @@ export interface Deal {
   revenueType?: string
   wonNotes?: string
   lostNotes?: string
+  /** Archived deals leave boards, forecasts, reports and goals. Only admins of the business change it (server-enforced). */
+  archived?: boolean
+  archivedAt?: Iso
+  archivedBy?: string
   [k: string]: unknown
 }
 
@@ -324,6 +328,10 @@ export interface Sequence {
   steps: SeqStep[]
   createdAt: Iso
   updatedAt: Iso
+  /** Archived sequences also carry status 'archived'. Older ones have only the status. Admins only (server-enforced). */
+  archived?: boolean
+  archivedAt?: Iso
+  archivedBy?: string
 }
 
 export interface Enrolment {

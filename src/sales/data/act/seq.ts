@@ -127,3 +127,29 @@ export function setEnrol(id: string, st: string, reason?: string): void {
   if (st === 'active') nudgeEngine()
   commit()
 }
+
+/** Admins only (the server rejects anyone else). Status 'archived' keeps the engine from moving its enrolments. */
+export function archiveSequence(id: string): void {
+  const s = idx.sequences.get(id)
+  if (!s || s.archived) return
+  s.archived = true
+  s.archivedAt = F.nowIso()
+  s.archivedBy = S.session.userId
+  s.status = 'archived'
+  s.updatedAt = F.nowIso()
+  audit('Sequence archived', s.name)
+  commit()
+}
+
+/** Comes back paused (draft if nobody was ever enrolled), so nothing moves until someone activates it. */
+export function restoreSequence(id: string): void {
+  const s = idx.sequences.get(id)
+  if (!s || (!s.archived && s.status !== 'archived')) return
+  s.archived = false
+  delete s.archivedAt
+  delete s.archivedBy
+  s.status = S.enrolments.some(e => e.seqId === id) ? 'paused' : 'draft'
+  s.updatedAt = F.nowIso()
+  audit('Sequence restored', s.name)
+  commit()
+}
