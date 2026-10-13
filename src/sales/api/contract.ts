@@ -561,6 +561,13 @@ export interface InvoiceExternalInfo { source: ExternalInvoiceSource; reference:
 // { field: 'companyId', clientSlugs, needsBillingLink: true }: link the right one first.
 // POST /sales/invoices/external (ExternalInvoiceInput) -> InvoiceDto ; PUT /sales/invoices/:id/external (ExternalInvoiceInput) -> InvoiceDto (external, not void)
 // SalesErrorCode gains: 'DUPLICATE_EXTERNAL_REFERENCE' (details: { invoiceId: string; dealId: string | null }) | 'NOT_EXTERNAL'
+// ---- Ardorio revenue report ----
+export type RevenueSourceFilter = 'all' | 'salesos' | 'external'
+export interface RevenueMonth { month: string /* YYYY-MM */; invoicedCents: number; collectedCents: number; externalInvoicedCents: number; externalCollectedCents: number }
+export interface RevenueReport { from: string; to: string; source: RevenueSourceFilter; months: RevenueMonth[]; invoicedCents: number; collectedCents: number; outstandingCents: number; overdueCents: number; recordedLate: { month: string; count: number; cents: number }[] }
+// GET /sales/reports/revenue?business=ard&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all|salesos|external -> RevenueReport (ard admins or super only). All money is integer cents ex GST. Invoiced by issueDate, collected by payment date; void and test invoices never count. outstanding/overdue are as of now (not range bound). recordedLate lists months in range whose figures include external records recorded (external.recordedAt) after that month ended.
+// Goal metrics gain: 'won_value' (dollars: per deal won in the period, the contract baseline frozen at won, else deal.value), 'invoiced_cents', 'collected_cents' (from the revenue report, ard only).
+// A goal with metric 'invoiced_cents' or 'collected_cents' is Ardorio money: businessId must be 'ard' (else VALIDATION); only an ard admin or super may create, change or delete one, or change a goal's metric to one (else ROLE_REQUIRED, details { needed: 'admin', businessId: 'ard', field: 'metric' }); to every other member it is hidden (absent from bootstrap, a hidden entry with data null in the changes feed, NOT_FOUND on write).
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
 export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }

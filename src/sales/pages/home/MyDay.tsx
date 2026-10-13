@@ -6,8 +6,10 @@ import type { Task } from '../../data/types'
 import {
   Av, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DataTable, Due, Empty, Icon, Kpi, Menu, Prog, TONE, type Col, type MenuItem,
 } from '../../kit'
+import { formatGoalValue, isMoneyMetric, MONEY_METRICS } from '../../shared/goalMetrics'
 import { completeFlow } from '../../shared/moves'
 import { PageHead } from '../../shared/PageHead'
+import { useGoalRevenue } from '../../shared/useGoalRevenue'
 import { UI } from '../../ui/store'
 import { safeHref } from '../companies/query'
 import { RecRow } from '../reports/RecRow'
@@ -102,6 +104,7 @@ export function MyDay() {
     .slice(0, 6)
   const clicks = S.activities.filter(a => sc.includes(a.businessId) && a.type === 'link_click' && F.days(a.ts, clock) <= 7).slice(-3)
   const goals = S.goals.filter(g => g.ownerType === 'user' && g.ownerId === me.id && g.period === 'week')
+  const revenue = useGoalRevenue(goals, 'week')
   const ws = Q.wsBiz()
 
   const overdueCols: Col<Task>[] = [
@@ -164,10 +167,21 @@ export function MyDay() {
             <Card title="This week's targets" icon="target" right={<Btn size="sm" kind="ghost" onClick={() => UI.nav('goals')}>Goals</Btn>}>
               <div className="col gap12">
                 {goals.map(g => {
-                  const a = Q.goalActual(g)
+                  const label = MONEY_METRICS[g.metric] ?? (g.metric === 'meetings' ? 'Meetings booked' : g.metric)
+                  const r = revenue(g)
+                  if (r && r.kind !== 'value') {
+                    return (
+                      <div key={g.id}>
+                        <div className="row sm"><span className="b">{label}</span><span className="sp" /><span className="num">{r.kind === 'loading' ? '…' : '—'} / {formatGoalValue(g.metric, g.target)}</span></div>
+                        <div className="faint xs" role={r.kind === 'loading' ? 'status' : undefined}>{r.kind === 'loading' ? 'Loading invoiced and collected…' : r.reason}</div>
+                      </div>
+                    )
+                  }
+                  const a = r ? r.actual : Q.goalActual(g)
+                  const money = isMoneyMetric(g.metric)
                   return (
                     <div key={g.id}>
-                      <div className="row sm"><span className="b" style={{ textTransform: 'capitalize' }}>{g.metric === 'meetings' ? 'Meetings booked' : g.metric}</span><span className="sp" /><span className="num">{a} / {g.target}</span></div>
+                      <div className="row sm"><span className="b" style={money ? undefined : { textTransform: 'capitalize' }}>{label}</span><span className="sp" /><span className="num">{money ? `${formatGoalValue(g.metric, a)} / ${formatGoalValue(g.metric, g.target)}` : `${a} / ${g.target}`}</span></div>
                       <Prog v={(a / g.target) * 100} tone={a >= g.target ? 'ok' : undefined} />
                     </div>
                   )

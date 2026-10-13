@@ -56,11 +56,13 @@ const sum = (v: number | number[]): number => (Array.isArray(v) ? v.reduce((s, x
 
 
 /**
- * `series` names the parts of a stacked bar, in the same order as `colors`. They go into the bar's
+ * `series` names the parts of a stacked (or `grouped`, side-by-side) bar, in the same order as `colors`. They go into the bar's
  * spoken label and the text table, so the split is not carried by colour alone.
  */
-export function Bars({ data, h = 180, fmt, stacked, onBar, colors, series, label = 'Bar chart' }: { data: readonly BarDatum[]; h?: number; fmt?: (v: number) => string; stacked?: boolean; onBar?: (d: BarDatum, i: number) => void; colors?: readonly string[]; series?: readonly string[]; label?: string }) {
+export function Bars({ data, h = 180, fmt, stacked, grouped, onBar, colors, series, label = 'Bar chart' }: { data: readonly BarDatum[]; h?: number; fmt?: (v: number) => string; stacked?: boolean; grouped?: boolean; onBar?: (d: BarDatum, i: number) => void; colors?: readonly string[]; series?: readonly string[]; label?: string }) {
   const [ref, W] = useWidth()
+  // Grouped: the parts of each datum stand side by side (Invoiced next to Collected), so no total is drawn or spoken.
+  const side = !stacked && !!grouped
   const max = Math.max(1, ...data.map(d => (stacked ? sum(d.v) : Array.isArray(d.v) ? Math.max(...d.v) : d.v)))
   const empty = data.every(d => sum(d.v) === 0)
   const slot = (W - PL - PR) / Math.max(1, data.length)
@@ -69,12 +71,13 @@ export function Bars({ data, h = 180, fmt, stacked, onBar, colors, series, label
   const f = (v: number): string => (fmt ? fmt(v) : String(v))
   const step = labelStep(data.map(d => d.l), slot)
   const widestVal = Math.max(1, ...data.map(d => f(sum(d.v)).length)) * CH + 6
-  const showVals = slot >= widestVal
-  const parts = stacked && series ? series : null
+  const showVals = slot >= widestVal && !side
+  const parts = (stacked || side) && series ? series : null
   const spoken = (d: BarDatum): string => {
     const total = f(sum(d.v))
     if (!parts || !Array.isArray(d.v)) return `${d.l}: ${total}`
-    return `${d.l}: ${total} (${d.v.map((v, j) => `${parts[j] ?? `Part ${j + 1}`} ${f(v)}`).join(', ')})`
+    const each = d.v.map((v, j) => `${parts[j] ?? `Part ${j + 1}`} ${f(v)}`).join(', ')
+    return side ? `${d.l}: ${each}` : `${d.l}: ${total} (${each})`
   }
   return (
     <div ref={ref} role="group" aria-label={label}>
@@ -90,11 +93,17 @@ export function Bars({ data, h = 180, fmt, stacked, onBar, colors, series, label
             <g key={i} style={{ cursor: onBar ? 'pointer' : undefined }} {...act}>
               <title>{spoken(d)}</title>
               <rect x={PL + i * slot} y={0} width={slot} height={h + 24} fill="transparent" />
-              {vals.map((v, j) => {
-                const bh = (v / max) * ph
-                y -= bh
-                return <rect key={j} x={x} y={y} width={bw} height={Math.max(0, bh)} rx="2" fill={colors?.[j] ?? d.c ?? 'var(--acc)'} opacity={stacked ? 1 : 0.9} />
-              })}
+              {side && Array.isArray(d.v)
+                ? d.v.map((v, j, all) => {
+                  const sw = bw / all.length
+                  const bh = (v / max) * ph
+                  return <rect key={j} x={x + j * sw} y={h - bh} width={Math.max(0, sw - 2)} height={Math.max(0, bh)} rx="2" fill={colors?.[j] ?? d.c ?? 'var(--acc)'} />
+                })
+                : vals.map((v, j) => {
+                  const bh = (v / max) * ph
+                  y -= bh
+                  return <rect key={j} x={x} y={y} width={bw} height={Math.max(0, bh)} rx="2" fill={colors?.[j] ?? d.c ?? 'var(--acc)'} opacity={stacked ? 1 : 0.9} />
+                })}
               {showVals && total > 0 && (
                 <text x={x + bw / 2} y={y - 4} textAnchor="middle" style={{ fill: 'var(--fg2)' }}>
                   {f(total)}
@@ -115,7 +124,7 @@ export function Bars({ data, h = 180, fmt, stacked, onBar, colors, series, label
           <tr>
             <th scope="col">Item</th>
             {parts ? parts.map(n => <th key={n} scope="col">{n}</th>) : null}
-            <th scope="col">{parts ? 'Total' : 'Value'}</th>
+            {!(parts && side) && <th scope="col">{parts ? 'Total' : 'Value'}</th>}
           </tr>
         </thead>
         <tbody>
@@ -123,7 +132,7 @@ export function Bars({ data, h = 180, fmt, stacked, onBar, colors, series, label
             <tr key={i}>
               <th scope="row">{d.l}</th>
               {parts ? parts.map((n, j) => <td key={n}>{f(Array.isArray(d.v) ? d.v[j] ?? 0 : j === 0 ? d.v : 0)}</td>) : null}
-              <td>{f(sum(d.v))}</td>
+              {!(parts && side) && <td>{f(sum(d.v))}</td>}
             </tr>
           ))}
         </tbody>
