@@ -6,9 +6,10 @@ import { CancelInvoice } from '../modals/invoices/CancelInvoice'
 import { MarkTest } from '../modals/invoices/MarkTest'
 import { DeleteTestInvoice } from '../modals/invoices/DeleteTestInvoice'
 import { BillingDetails } from '../modals/invoices/BillingDetails'
+import { AddVariation } from '../modals/invoices/AddVariation'
 
 export const invoicing: UnitModule = {
   pages: { invoices: Invoices, invoice: Invoice },
-  modals: { markPaid: MarkPaid, cancelInvoice: CancelInvoice, markTest: MarkTest, deleteTestInvoice: DeleteTestInvoice, billingDetails: BillingDetails },
+  modals: { markPaid: MarkPaid, cancelInvoice: CancelInvoice, markTest: MarkTest, deleteTestInvoice: DeleteTestInvoice, billingDetails: BillingDetails, addVariation: AddVariation },
   drawers: {},
 }

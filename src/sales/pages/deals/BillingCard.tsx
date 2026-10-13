@@ -8,18 +8,23 @@ import { uid } from '../../data/ids'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
-import { Banner, Btn, Card, Chip, Fld, Icon, Inp, Skel } from '../../kit'
+import { Banner, Btn, Card, Chip, Fld, Icon, Inp } from '../../kit'
 import {
-  billingProgress, quotedCents, redraftProblem, retainerAutoState, retainerPause, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows, STATUS_TONE,
-  unbilledRows, type RetainerPause, type ScheduleRow,
+  isRetainerInvoice, milestoneState, moneyForDeal, redraftProblem, retainerAutoState, retainerPause, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows,
+  STATE_TONE, unbilledRows, validateDelivered, type RetainerPause, type ScheduleRow,
 } from '../../shared/billing'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
 import { RetainerChip } from '../invoices/parts'
 import { createDraftsForUnbilled } from './billingActions'
+import { ContractLedger } from './ContractLedger'
+import { moneyTarget, MoneyWarnings, ProjectMoney } from './DealMoney'
 
-/** Billing schedule of an Ardorio deal. Rendered only for admins of Ardorio; the server enforces the same. */
+/**
+ * The Billing tab of an Ardorio deal: warnings, the project money, the contract ledger beside the milestones, and the
+ * support retainer in its own card. Rendered only for admins of Ardorio; the server enforces the same.
+ */
 export function BillingCard({ deal }: { deal: Deal }) {
   useStore()
   // Gate before the inner card mounts, so a non-admin never triggers the invoice request.
@@ -32,7 +37,9 @@ function Schedule({ deal }: { deal: Deal }) {
   const [form, setForm] = useState<{ id: string | null; label: string; amount: string; date: string } | null>(null)
   const [retainerForm, setRetainerForm] = useState<{ amount: string; date: string } | null>(null)
   const [err, setErr] = useState('')
+  const [retErr, setRetErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [delivering, setDelivering] = useState<{ id: string; day: string } | null>(null)
 
   const plan = Q.billingPlan(deal.id)
   // Statuses come from the invoice list, so until it has loaded no row action is offered.
@@ -40,10 +47,14 @@ function Schedule({ deal }: { deal: Deal }) {
   const list: InvoiceDto[] = inv.data ?? []
   const rows = scheduleRows(plan, list)
   const unbilled = unbilledRows(rows)
-  const quoted = quotedCents(deal)
-  const prog = billingProgress(quoted, list)
+  const money = known ? moneyForDeal(deal, plan, list) : null
   const e = inv.error ? invoiceError(inv.error, 'load') : null
-  const retainerInvoices = list.filter(i => !i.milestoneId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  const retainerInvoices = list.filter(i => isRetainerInvoice(i, plan)).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  // Project invoices with no milestone, as time and materials bills: counted in the money, listed under the milestones.
+  const looseInvoices = list.filter(i => !i.milestoneId && !isRetainerInvoice(i, plan)).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  const scheduled = (plan?.milestones ?? []).reduce((a, x) => a + x.amountCents, 0)
+  const target = moneyTarget(deal, moneyForDeal(deal, plan, []))
+  const gap = target.cents - scheduled
   const today = F.today()
   const paused = retainerPause(deal)
 
@@ -56,13 +67,39 @@ function Schedule({ deal }: { deal: Deal }) {
     if (!form) return
     const cents = parseCents(form.amount)
     if (cents === null) return setErr('Amount is dollars and cents, like 18000.00')
-    const m: BillingMilestone = { id: form.id ?? uid('ms'), label: form.label, amountCents: cents, ...(form.date ? { plannedDate: form.date } : {}) }
     const cur = plan?.milestones ?? []
+    // An edit keeps the delivered state: only the label, amount and planned date come from the form.
+    const prev = form.id ? cur.find(x => x.id === form.id) : undefined
+    const m: BillingMilestone = {
+      id: form.id ?? uid('ms'), label: form.label, amountCents: cents, ...(form.date ? { plannedDate: form.date } : {}),
+      ...(prev?.deliveredOn ? { deliveredOn: prev.deliveredOn } : {}), ...(prev?.deliveredBy ? { deliveredBy: prev.deliveredBy } : {}),
+    }
     const next = form.id ? cur.map(x => (x.id === form.id ? m : x)) : [...cur, m]
     const r = Act.saveMilestones(deal.id, next)
     if (!r.ok) return setErr(r.error)
     setForm(null)
     setErr('')
+  }
+  const saveDelivered = (): void => {
+    if (!delivering) return
+    const bad = validateDelivered(delivering.day, today)
+    if (bad) return setErr(bad)
+    const r = Act.markDelivered(deal.id, delivering.id, delivering.day)
+    if (!r.ok) return setErr(r.error)
+    setErr('')
+    setDelivering(null)
+  }
+  const undoDelivered = (m: BillingMilestone): void => {
+    UI.confirm({
+      title: `Undo delivered for ${m.label}?`,
+      body: `It goes back to not delivered, and ${formatCents(m.amountCents)} leaves Earned. Any invoice for it is left as it is.`,
+      confirm: 'Undo delivered',
+      onConfirm: () => {
+        const r = Act.markDelivered(deal.id, m.id, null)
+        if (!r.ok) setErr(r.error)
+        else { setErr(''); UI.toast(`${m.label} is no longer marked delivered`) }
+      },
+    })
   }
   const remove = (id: string): void => {
     const r = Act.saveMilestones(deal.id, (plan?.milestones ?? []).filter(x => x.id !== id))
@@ -71,12 +108,12 @@ function Schedule({ deal }: { deal: Deal }) {
   const saveRetainer = (): void => {
     if (!retainerForm) return
     const cents = parseCents(retainerForm.amount)
-    if (cents === null) return setErr('Monthly amount is dollars and cents, like 4500.00')
+    if (cents === null) return setRetErr('Monthly amount is dollars and cents, like 4500.00')
     const r: BillingRetainer = { amountCents: cents, interval: 'monthly', ...(retainerForm.date ? { nextInvoiceDate: retainerForm.date } : {}) }
     const res = Act.saveRetainer(deal.id, r)
-    if (!res.ok) return setErr(res.error)
+    if (!res.ok) return setRetErr(res.error)
     setRetainerForm(null)
-    setErr('')
+    setRetErr('')
   }
   const all = async (): Promise<void> => {
     setBusy(true)
@@ -96,38 +133,24 @@ function Schedule({ deal }: { deal: Deal }) {
   const formCatchUp = retainerForm && !formRedraft ? retainerDuePeriods({ nextInvoiceDate: formDate, lastDraftedFor: retainer?.lastDraftedFor, anchorDay: formDate === retainer?.nextInvoiceDate ? retainer?.anchorDay : undefined }, today) : []
   const statusLine = (r: ScheduleRow): string => (r.invoice ? (r.invoice.status === 'draft' ? 'Not issued' : r.invoice.status === 'paid' ? `Paid ${fmtDay(r.invoice.payment?.paidAt)}` : `Due ${fmtDay(r.invoice.dueDate)}`) : '')
 
-  return (
+  const who = (x: string | undefined): string => (x ? Q.user(x)?.name ?? x : '')
+  const invLink = (i: InvoiceDto) => <a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a>
+  const contracted = !!plan?.contract
+  const ofText = `Scheduled ${formatCents(scheduled)} of ${formatCents(target.cents)} ${contracted ? 'contracted' : 'estimate'}`
+
+  const milestones = (
     <Card
-      title="Billing schedule"
+      title="Milestones"
       right={
-        <span className="row" style={{ gap: 6 }}>
-          {!retainer && <Btn size="sm" onClick={() => { setErr(''); setRetainerForm({ amount: '', date: '' }) }}>Add retainer</Btn>}
+        <span className="row wrap" style={{ gap: 6 }}>
+          {!retainer && !retainerForm && <Btn size="sm" onClick={() => { setRetErr(''); setRetainerForm({ amount: '', date: '' }) }}>Add retainer</Btn>}
           <Btn size="sm" onClick={startAdd}>+ Add milestone</Btn>
           <Btn size="sm" kind="pri" disabled={!known || !unbilled.length || busy} onClick={() => void all()}>{busy ? 'Creating…' : 'Create invoice for all unbilled'}</Btn>
         </span>
       }
     >
       <div className="col" style={{ gap: 14 }}>
-        {e && e.kind !== 'denied' && <Banner tone="bad" action={<Btn size="sm" onClick={inv.reload}>Try again</Btn>}>{e.message}</Banner>}
         {err && <Banner tone="bad">{err}</Banner>}
-        {inv.loading && !inv.data ? <Skel rows={3} /> : (
-          <div>
-            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-              <span className="b">Billed {formatCents(prog.billed)} of {formatCents(prog.quoted)} quoted</span>
-              <span className="faint sm">ex GST · {prog.billedPct}%</span>
-            </div>
-            <div className="prog" role="img" aria-label={`Paid ${formatCents(prog.paid)}, invoiced ${formatCents(prog.invoiced)}, not yet billed ${formatCents(prog.unbilled)} of ${formatCents(prog.quoted)}`} style={{ display: 'flex' }}>
-              <i style={{ width: prog.paidPct + '%', background: 'var(--ok)', borderRadius: 0 }} />
-              <i style={{ width: prog.invoicedPct + '%', background: 'var(--info)', borderRadius: 0 }} />
-            </div>
-            <div className="row wrap sm" style={{ gap: 16, marginTop: 8 }}>
-              <span><Chip tone="ok">Paid</Chip> {formatCents(prog.paid)}</span>
-              <span><Chip tone="info">Invoiced</Chip> {formatCents(prog.invoiced)}</span>
-              <span><Chip>Not yet billed</Chip> {formatCents(prog.unbilled)}</span>
-            </div>
-          </div>
-        )}
-
         {form && (
           <div className="grid g3" style={{ alignItems: 'end' }}>
             <Fld label="Milestone"><Inp aria-label="Milestone label" value={form.label} onChange={v => setForm({ ...form, label: v })} /></Fld>
@@ -139,35 +162,94 @@ function Schedule({ deal }: { deal: Deal }) {
 
         {rows.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
-            <table className="tbl" style={{ minWidth: 760 }}>
-              <thead><tr><th>Milestone</th><th style={{ textAlign: 'right' }}>Amount (ex GST)</th><th>Planned</th><th>Status</th><th>Invoice</th><th /></tr></thead>
+            <table className="tbl" aria-label="Milestones" style={{ minWidth: 760 }}>
+              <thead><tr><th>Milestone</th><th style={{ textAlign: 'right' }}>Amount (ex GST)</th><th>Planned</th><th>State</th><th>Invoice</th><th /></tr></thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.milestone.id}>
-                    <td className="b">{i + 1} · {r.milestone.label}</td>
-                    <td className="money" style={{ textAlign: 'right' }}>{formatCents(r.milestone.amountCents)}</td>
-                    <td>{fmtDay(r.milestone.plannedDate)}</td>
-                    <td>{known ? <Chip tone={STATUS_TONE[r.status]}>{r.status}</Chip> : <span className="faint">…</span>}</td>
-                    <td>
-                      {r.invoice ? <><a className="mono" href={`/sales/invoices/${r.invoice.id}`} onClick={ev => { ev.preventDefault(); open(r.invoice?.id ?? '') }}>{r.invoice.invoiceNumber}</a><div className="faint sm">{statusLine(r)}</div></> : <span className="faint">Not invoiced</span>}
-                      {r.cancelled && !r.invoice && <div className="faint sm">{r.cancelled.invoiceNumber} cancelled {fmtDay(r.cancelled.voided?.voidedAt)}</div>}
-                    </td>
-                    <td>
-                      <span className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-                        {known && r.status === 'Planned' && <Btn size="xs" onClick={() => create({ milestoneId: r.milestone.id })}>Create invoice</Btn>}
-                        {known && r.status === 'Draft invoice' && r.invoice && <Btn size="xs" onClick={() => open(r.invoice?.id ?? '')}>Open draft</Btn>}
-                        {known && r.status === 'Invoiced' && r.invoice && <Btn size="xs" onClick={() => UI.open('markPaid', { invoice: r.invoice, onDone: inv.reload })}>Mark paid</Btn>}
-                        {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" onClick={() => startEdit(r.milestone)}>Edit</Btn>}
-                        {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" aria-label={`Remove ${r.milestone.label}`} onClick={() => remove(r.milestone.id)}>Remove</Btn>}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((r, i) => {
+                  const st = milestoneState(r)
+                  const ms = r.milestone
+                  const picking = delivering?.id === ms.id
+                  return (
+                    <tr key={ms.id}>
+                      <td className="b">{i + 1} · {ms.label}</td>
+                      <td className="money" style={{ textAlign: 'right' }}>{formatCents(ms.amountCents)}</td>
+                      <td>{fmtDay(ms.plannedDate)}</td>
+                      <td>
+                        {known || st === 'Delivered' ? <Chip tone={STATE_TONE[st]}>{st}</Chip> : <span className="faint">…</span>}
+                        {ms.deliveredOn && <div className="faint sm">Delivered {fmtDay(ms.deliveredOn)}{ms.deliveredBy ? ` · ${who(ms.deliveredBy)}` : ''}</div>}
+                      </td>
+                      <td>
+                        {r.invoice ? <>{invLink(r.invoice)}<div className="faint sm">{statusLine(r)}</div></> : <span className="faint">Not invoiced</span>}
+                        {r.cancelled && !r.invoice && <div className="faint sm">{r.cancelled.invoiceNumber} cancelled {fmtDay(r.cancelled.voided?.voidedAt)}</div>}
+                      </td>
+                      <td>
+                        {picking ? (
+                          <span className="row wrap" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                            <Inp aria-label={`Delivered date for ${ms.label}`} type="date" max={today} value={delivering.day} onChange={v => setDelivering({ id: ms.id, day: v })} style={{ width: 150 }} />
+                            <Btn size="xs" kind="pri" onClick={saveDelivered}>Save delivered</Btn>
+                            <Btn size="xs" kind="ghost" onClick={() => { setDelivering(null); setErr('') }}>Cancel</Btn>
+                          </span>
+                        ) : (
+                          <span className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                            {known && r.status === 'Planned' && <Btn size="xs" kind={st === 'Delivered' ? 'pri' : undefined} onClick={() => create({ milestoneId: ms.id })}>Create invoice</Btn>}
+                            {known && r.status === 'Draft invoice' && r.invoice && <Btn size="xs" onClick={() => open(r.invoice?.id ?? '')}>Open draft</Btn>}
+                            {known && r.status === 'Invoiced' && r.invoice && <Btn size="xs" onClick={() => UI.open('markPaid', { invoice: r.invoice, onDone: inv.reload })}>Mark paid</Btn>}
+                            {!ms.deliveredOn && <Btn size="xs" aria-label={`Mark delivered: ${ms.label}`} onClick={() => { setErr(''); setDelivering({ id: ms.id, day: today }) }}>Mark delivered</Btn>}
+                            {ms.deliveredOn && <Btn size="xs" kind="ghost" aria-label={`Undo delivered: ${ms.label}`} onClick={() => undoDelivered(ms)}>Undo delivered</Btn>}
+                            {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" onClick={() => startEdit(ms)}>Edit</Btn>}
+                            {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" aria-label={`Remove ${ms.label}`} onClick={() => remove(ms.id)}>Remove</Btn>}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td>Scheduled</td>
+                  <td className="money" style={{ textAlign: 'right' }}>{formatCents(scheduled)}</td>
+                  <td colSpan={4}>
+                    <span className="row wrap" style={{ gap: 8 }} aria-label="Reconciliation">
+                      <span>{ofText}</span>
+                      {gap > 0 && <Chip tone="warn">Unscheduled {formatCents(gap)}</Chip>}
+                      {gap < 0 && <Chip tone="warn">Over-scheduled by {formatCents(-gap)}</Chip>}
+                      {gap === 0 && <Chip tone="ok">All scheduled</Chip>}
+                      {gap > 0 && !form && <Btn size="xs" onClick={startAdd}>Add milestone</Btn>}
+                    </span>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
-        ) : !retainer && !form && <div className="faint sm">No milestones yet. Add the agreed payments for this deal, or set up a monthly retainer.</div>}
+        ) : !form && <div className="faint sm">No milestones yet. Add the agreed payments for this deal{retainer ? '' : ', or set up a monthly retainer'}.</div>}
 
+        {rows.length > 0 && gap < 0 && (
+          <Banner tone="warn" action={contracted ? <Btn size="sm" onClick={() => UI.open('addVariation', { dealId: deal.id })}>Add variation</Btn> : undefined}>
+            <span className="sm">
+              <b>Over-scheduled by {formatCents(-gap)}.</b> Milestones total {formatCents(scheduled)} against {formatCents(target.cents)} {contracted ? 'contracted' : 'estimated'}.{' '}
+              <span className="muted">{contracted ? 'Reduce a milestone, or approve a variation if the client agreed to more work.' : 'Reduce a milestone, or set the contract to what was agreed.'}</span>
+            </span>
+          </Banner>
+        )}
+
+        {looseInvoices.length > 0 && (
+          <div className="col" style={{ gap: 6 }}>
+            <div className="b sm">Project invoices without a milestone</div>
+            {looseInvoices.map(i => (
+              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 6 }}><span className="money sm">{formatCents(i.subtotalCents)}</span>{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
+            ))}
+          </div>
+        )}
+        <div className="faint sm">Milestones are agreed amounts, not forecasts. Mark one delivered when the client has it; creating an invoice makes a draft with the milestone as its line, which you still review and issue.</div>
+      </div>
+    </Card>
+  )
+
+  const retainerCard = (retainer || retainerForm) && (
+    <Card title="Support retainer" right={<Chip>Separate from project progress</Chip>}>
+      <div className="col" style={{ gap: 14 }}>
+        {retErr && <Banner tone="bad">{retErr}</Banner>}
         {retainerForm && (
           <div className="col" style={{ gap: 8 }}>
             <div className="grid g3" style={{ alignItems: 'end' }}>
@@ -175,7 +257,7 @@ function Schedule({ deal }: { deal: Deal }) {
               <Fld label="Next invoice date"><Inp aria-label="Retainer next invoice date" type="date" value={retainerForm.date} onChange={v => setRetainerForm({ ...retainerForm, date: v })} /></Fld>
               <span className="row" style={{ gap: 6 }}>
                 <Btn size="sm" kind="pri" onClick={saveRetainer}>{formCatchUp.length > 1 ? `Save and draft ${retainerSpanLabel(formCatchUp.slice(-1))} only` : 'Save retainer'}</Btn>
-                <Btn size="sm" onClick={() => { setRetainerForm(null); setErr('') }}>Cancel</Btn>
+                <Btn size="sm" onClick={() => { setRetainerForm(null); setRetErr('') }}>Cancel</Btn>
               </span>
             </div>
             {formRedraft && <Banner tone="bad">{formRedraft}.</Banner>}
@@ -204,19 +286,32 @@ function Schedule({ deal }: { deal: Deal }) {
             </div>
             <RetainerNote retainer={retainer} today={today} paused={paused} />
             {retainerInvoices.map(i => (
-              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
+              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
+            {money && <div className="sm muted" aria-label="Retainer invoiced">Retainer invoiced {formatCents(money.retainerInvoiced)} ex GST, not counted in Contracted, Invoiced or Collected above.</div>}
             <ManualRetainerNote retainer={retainer} today={today} paused={paused} />
             <div className="row" style={{ gap: 6 }}>
               <Btn size="sm" onClick={() => create(!paused && retainerAutoState(retainer, today) === 'due' && retainer.nextInvoiceDate ? { retainer: true, retainerFor: retainer.nextInvoiceDate } : { retainer: true })}>Create invoice</Btn>
               <Btn size="sm" kind="ghost" onClick={() => setRetainerForm({ amount: centsToInput(retainer.amountCents), date: retainer.nextInvoiceDate ?? '' })}>Edit retainer</Btn>
-              <Btn size="sm" kind="ghost" onClick={() => { const r = Act.saveRetainer(deal.id, null); if (!r.ok) setErr(r.error) }}>Remove retainer</Btn>
+              <Btn size="sm" kind="ghost" onClick={() => { const r = Act.saveRetainer(deal.id, null); if (!r.ok) setRetErr(r.error) }}>Remove retainer</Btn>
             </div>
           </div>
         )}
-        <div className="faint sm">Milestones are agreed amounts, not forecasts. Creating an invoice makes a draft with the milestone as its line; you still review and issue it.</div>
       </div>
     </Card>
+  )
+
+  return (
+    <div className="col" style={{ gap: 14 }}>
+      {e && e.kind !== 'denied' && <Banner tone="bad" action={<Btn size="sm" onClick={inv.reload}>Try again</Btn>}>{e.message}</Banner>}
+      <MoneyWarnings deal={deal} plan={plan} money={money} />
+      <ProjectMoney deal={deal} plan={plan} invoices={known ? list : null} loading={inv.loading} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+        {plan?.contract || deal.status === 'won' ? <div style={{ flex: '1 1 420px', minWidth: 0 }}><ContractLedger deal={deal} /></div> : null}
+        <div style={{ flex: '2 1 560px', minWidth: 0 }}>{milestones}</div>
+      </div>
+      {retainerCard}
+    </div>
   )
 }
 

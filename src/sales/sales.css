@@ -134,6 +134,11 @@
 .sos .tbl tr.sel td{background-image:linear-gradient(var(--acc-soft),var(--acc-soft))}
 .sos .tbl td.w{white-space:normal;min-width:220px}
 .sos .tbl tr:last-child td{border-bottom:0}
+.sos .tbl tfoot td{border-top:1px solid var(--line2);border-bottom:0;font-weight:600}
+.sos .tbl .struck{text-decoration:line-through;color:var(--fg3)}
+.sos .steps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:0;list-style:none;font-size:12px;color:var(--fg3)}
+.sos .steps li{padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.sos .steps li[aria-current=step]{border-color:var(--acc-line);background:var(--acc-soft);color:var(--acc-ink);font-weight:600}
 .sos .kpi{padding:12px 14px;text-align:left;border:1px solid var(--line);background:var(--surf);border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;gap:2px;box-shadow:var(--sh);min-width:0}
 .sos .kpi:hover{border-color:var(--acc-line)}
 .sos .kpi .l{font-size:12px;color:var(--fg2);font-weight:500}
@@ -413,3 +418,18 @@
 .sos .ulx li{display:flex;gap:10px;align-items:flex-start}
 .sos .ulx li>svg{margin-top:2px;flex:none;color:var(--fg2)}
 .sos .cnt{font-size:12px;color:var(--fg2);text-align:right}
+/* Deal money bullet chart: earned, invoiced and collected as bars against the contracted marker. */
+.sos{--b-earned:#9DB4F0;--b-inv:#4F46E5;--b-col:#1E1B6B}
+.sos[data-theme=dark]{--b-earned:#3B4E8C;--b-inv:#818CF8;--b-col:#C7D2FE}
+.sos .bul{display:grid;grid-template-columns:110px minmax(0,1fr) 120px;gap:6px 12px;align-items:center}
+.sos .bul .lab{font-size:12px;color:var(--fg2)}
+.sos .bul .val{font-size:12.5px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sos .bt{position:relative;height:14px;background:var(--surf2);border:1px solid var(--line);border-radius:3px}
+.sos .bt i{position:absolute;left:0;top:2px;bottom:2px;border-radius:2px;max-width:100%}
+.sos .bt b{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:var(--fg);border-radius:1px}
+.sos .key{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fg2)}
+.sos .key i{width:12px;height:10px;border-radius:2px;display:inline-block}
+.sos .money-figs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sos .money-figs .kpi{box-shadow:none}
+.sos .money-figs .wide{grid-column:1 / -1}
+@media (max-width:560px){.sos .bul{grid-template-columns:72px minmax(0,1fr) auto}}

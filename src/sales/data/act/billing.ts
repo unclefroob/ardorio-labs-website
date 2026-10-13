@@ -1,5 +1,11 @@
-import type { BillingMilestone, BillingPlan, BillingRetainer } from '../../api/contract'
-import { claimedRetainerDate, cleanMilestone, cleanRetainer, planId, retainerPause, redraftProblem, retainerPeriodLabel, validateMilestones, validateRetainer } from '../../shared/billing'
+import type { BillingContract, BillingMilestone, BillingPlan, BillingRetainer, BillingVariation, EngagementType } from '../../api/contract'
+import { F } from '../F'
+import { uid } from '../ids'
+import {
+  claimedRetainerDate, cleanMilestone, cleanRetainer, planId, retainerPause, redraftProblem, retainerPeriodLabel, validateContract, validateDelivered, validateMilestones, validateRetainer,
+  validateVariation, approvalProblem,
+} from '../../shared/billing'
+import { formatCents } from '../../shared/money'
 import { commit } from '../commit'
 import { audit } from '../internals'
 import { Q } from '../Q'
@@ -39,6 +45,33 @@ export function saveMilestones(dealId: string, milestones: readonly BillingMiles
 }
 
 /** Set or clear (null) the retainer of a deal's plan. Milestones are left alone. */
+/**
+ * Mark a milestone delivered on `day` (not in the future), or undo that with null. Only deliveredOn changes; the
+ * server writes deliveredBy, so the value kept here is only a placeholder it replaces. Admins of Ardorio only.
+ */
+export function markDelivered(dealId: string, milestoneId: string, day: string | null): BillingResult {
+  const g = guard(dealId)
+  if (g) return fail(g)
+  const p = Q.billingPlan(dealId)
+  const cur = p?.milestones.find(m => m.id === milestoneId)
+  if (!p || !cur) return fail('That milestone is no longer on this deal')
+  if (day !== null) {
+    const bad = validateDelivered(day, F.today())
+    if (bad) return fail(bad)
+  } else if (!cur.deliveredOn) return { ok: true }
+  p.milestones = p.milestones.map(m => {
+    if (m.id !== milestoneId) return m
+    const rest: BillingMilestone = { ...m }
+    delete rest.deliveredOn
+    delete rest.deliveredBy
+    // The API reads a missing deliveredOn as 'keep the stored date', so undoing must send an explicit null.
+    return day === null ? { ...rest, deliveredOn: null } : { ...rest, deliveredOn: day, deliveredBy: m.deliveredOn === day && m.deliveredBy ? m.deliveredBy : Q.me().name }
+  })
+  audit(day === null ? 'Milestone delivery undone' : 'Milestone delivered', `${Q.deal(dealId)?.title ?? dealId}: ${cur.label}${day ? `, ${day}` : ''}`)
+  commit()
+  return { ok: true }
+}
+
 export function saveRetainer(dealId: string, retainer: BillingRetainer | null): BillingResult {
   const g = guard(dealId)
   if (g) return fail(g)
@@ -88,4 +121,80 @@ export function claimRetainerPeriod(dealId: string, due: string): ClaimResult {
   audit('Billing retainer period invoiced by hand', `${Q.deal(dealId)?.title ?? dealId}: ${retainerPeriodLabel(due)}, next ${c.next}`)
   commit()
   return c.laterDay ? { ok: true, next: c.next, laterDay: c.laterDay } : { ok: true, next: c.next }
+}
+
+// ── contract ledger ──────────────────────────────────────────────────────────────────────────────
+export interface ContractInput { baselineCents: number; engagementType: EngagementType; contractedOn: string; estimateAtWonCents: number }
+
+/** Why a contract cannot be written on this deal now, or null. It is written once, on a won deal. */
+function contractProblem(dealId: string, c: ContractInput): string | null {
+  const g = guard(dealId)
+  if (g) return g
+  if (Q.deal(dealId)?.status !== 'won') return 'A contract is set when the deal is won'
+  if (Q.billingPlan(dealId)?.contract) return 'This deal already has a contract. Change it with a variation.'
+  return validateContract(c, F.today())
+}
+
+/**
+ * Freeze the contract of a won Ardorio deal, once, and add any milestones agreed with it after the ones already
+ * planned. contractedBy is written by the server (the caller's display name); the name sent here is only a placeholder it replaces.
+ */
+export function setContract(dealId: string, c: ContractInput, milestones: readonly BillingMilestone[] = []): BillingResult {
+  const bad = contractProblem(dealId, c)
+  if (bad) return fail(bad)
+  const all = [...(Q.billingPlan(dealId)?.milestones ?? []), ...milestones]
+  if (milestones.length) {
+    const m = validateMilestones(all)
+    if (m) return fail(m)
+  }
+  const p = plan(dealId)
+  const contract: BillingContract = { baselineCents: c.baselineCents, engagementType: c.engagementType, contractedOn: c.contractedOn, contractedBy: Q.me().name, estimateAtWonCents: c.estimateAtWonCents }
+  p.contract = contract
+  if (milestones.length) p.milestones = all.map(cleanMilestone)
+  audit('Contract set', `${Q.deal(dealId)?.title ?? dealId}: ${formatCents(c.baselineCents)} ex GST${milestones.length ? `, ${milestones.length} milestone${milestones.length === 1 ? '' : 's'}` : ''}`)
+  commit()
+  return { ok: true }
+}
+
+export type VariationResult = { ok: true; variation: BillingVariation } | { ok: false; error: string }
+
+/**
+ * Append a variation to the ledger, proposed or approved now. Entries are never edited or removed afterwards; a
+ * mistake is corrected with another variation. createdAt/createdBy/decidedAt/decidedBy are the server's (the By keys hold
+ * the caller's display name): the values sent here are placeholders it replaces.
+ */
+export function addVariation(dealId: string, v: Pick<BillingVariation, 'label' | 'amountCents' | 'reason'>, approve: boolean): VariationResult {
+  const g = guard(dealId)
+  if (g) return { ok: false, error: g }
+  const p0 = Q.billingPlan(dealId)
+  if (!p0?.contract) return { ok: false, error: 'Set the contract before adding a variation' }
+  const bad = validateVariation(v) ?? (approve ? approvalProblem(p0, v.amountCents) : null)
+  if (bad) return { ok: false, error: bad }
+  const now = F.nowIso()
+  const me = Q.me().name
+  const entry: BillingVariation = {
+    id: uid('vo'), label: v.label.trim(), amountCents: v.amountCents, reason: v.reason.trim(), status: approve ? 'approved' : 'proposed', createdAt: now, createdBy: me,
+    ...(approve ? { decidedAt: now, decidedBy: me } : {}),
+  }
+  p0.variations = [...(p0.variations ?? []), entry]
+  audit(approve ? 'Variation approved' : 'Variation proposed', `${Q.deal(dealId)?.title ?? dealId}: ${entry.label}, ${formatCents(entry.amountCents)}`)
+  commit()
+  return { ok: true, variation: entry }
+}
+
+/** Approve or reject a proposed variation. A decided one stays as it is. */
+export function decideVariation(dealId: string, id: string, status: 'approved' | 'rejected'): VariationResult {
+  const g = guard(dealId)
+  if (g) return { ok: false, error: g }
+  const p0 = Q.billingPlan(dealId)
+  const cur = p0?.variations?.find(v => v.id === id)
+  if (!p0 || !cur) return { ok: false, error: 'That variation is no longer on this deal' }
+  if (cur.status !== 'proposed') return { ok: false, error: `That variation was already ${cur.status}` }
+  const over = status === 'approved' ? approvalProblem(p0, cur.amountCents) : null
+  if (over) return { ok: false, error: over }
+  const next: BillingVariation = { ...cur, status, decidedAt: F.nowIso(), decidedBy: Q.me().name }
+  p0.variations = (p0.variations ?? []).map(v => (v.id === id ? next : v))
+  audit(status === 'approved' ? 'Variation approved' : 'Variation rejected', `${Q.deal(dealId)?.title ?? dealId}: ${cur.label}, ${formatCents(cur.amountCents)}`)
+  commit()
+  return { ok: true, variation: next }
 }

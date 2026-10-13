@@ -660,7 +660,7 @@ describe('the invoice list and the Show test invoices checkbox', () => {
 
 describe('everything derived from invoices leaves test invoices out', () => {
   const NOW = '2026-10-09T00:00:00Z'
-  it('the deal Billing card ignores a test invoice for milestone status and billed progress', async () => {
+  it('the deal Billing card ignores a test invoice for milestone status and project money', async () => {
     const t = dto({ id: 'x1', invoiceNumber: 'INV-0050', milestoneId: 'm2', status: 'paid', subtotalCents: 1800000, createdAt: NOW, test: TEST, payment: { method: 'card', paidAt: '2026-10-06', amountCents: 1980000, reference: '' } })
     const { rec } = await import('../../testing/fixtures')
     const { ardDeal, PLAN_DATA } = await import('../../testing/invoicingWorld')
@@ -675,7 +675,8 @@ describe('everything derived from invoices leaves test invoices out', () => {
     const row = [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes('Core platform'))!
     expect(row.textContent).toContain('Planned')
     expect(row.textContent).not.toContain('INV-0050')
-    expect(host.querySelector('[aria-label^="Paid $0.00"]')).not.toBeNull()
+    expect(host.querySelector('.bul[data-bar="Invoiced"]')?.getAttribute('aria-label')).toBe('Invoiced $0.00 of $60,000.00 estimated, no contract recorded')
+    expect(host.querySelector('.bul[data-bar="Collected"]')?.getAttribute('aria-label')).toBe('Collected $0.00 of $60,000.00 estimated, no contract recorded')
   })
 
   it('the company Billing card totals ignore a test invoice', async () => {
