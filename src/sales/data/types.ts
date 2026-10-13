@@ -199,6 +199,10 @@ export interface Deal {
   archived?: boolean
   archivedAt?: Iso
   archivedBy?: string
+  /** Created already won (Record a won deal), skipping the pipeline stages. The server refuses a future won date (close) for it. */
+  recordedWonDirectly?: boolean
+  /** Who recorded it, as the server stores it (the caller's display name). A client value is only a placeholder. */
+  recordedWonBy?: string
   [k: string]: unknown
 }
 

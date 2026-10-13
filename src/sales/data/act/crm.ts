@@ -42,7 +42,8 @@ function newContactRel(ct: Contact, businessId: BusinessId, ownerId: string): Co
   }
 }
 
-export function createCompany(f: CompanyForm): Company {
+/** The company and its relationship with `f.businessId`, written without an activity, audit entry or commit. */
+export function addCompanyRows(f: CompanyForm): Company {
   const now = F.nowIso()
   const dom = (f.website || '').replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase()
   const name = f.name.trim()
@@ -57,8 +58,18 @@ export function createCompany(f: CompanyForm): Company {
   S.companies.push(c)
   S.companyRels.push(newCompanyRel(c.id, f.businessId, f.ownerId || S.session.userId, c.source))
   if (f.notes) c.notes = [{ id: uid('nt'), body: f.notes, by: S.session.userId, ts: now, businessId: f.businessId, visibility: 'business' }]
-  act({ type: 'note', businessId: f.businessId, companyId: c.id, subject: 'Company created', desc: `Added to ${Q.biz(f.businessId)?.name ?? f.businessId}` })
+  return c
+}
+
+/** The activity and audit entry that say a company was created. */
+export function companyCreatedLog(c: Company, b: BusinessId): void {
+  act({ type: 'note', businessId: b, companyId: c.id, subject: 'Company created', desc: `Added to ${Q.biz(b)?.name ?? b}` })
   audit('Record created', `Company: ${c.name}`)
+}
+
+export function createCompany(f: CompanyForm): Company {
+  const c = addCompanyRows(f)
+  companyCreatedLog(c, f.businessId)
   commit()
   return c
 }
@@ -71,15 +82,26 @@ export function updateCompany(id: string, p: Partial<Company>): void {
   commit()
 }
 
-export function linkCompany(cid: string, b: BusinessId, ownerId?: string): void {
+/** Link an existing company (and its contacts) to business `b`, without an activity, audit entry or commit. */
+export function linkCompanyRows(cid: string, b: BusinessId, ownerId?: string): void {
   if (Q.rel(cid, b)) return
   const owner = ownerId || S.session.userId
   S.companyRels.push(newCompanyRel(cid, b, owner, 'Cross-business'))
   for (const c of S.contacts.filter(x => x.companyId === cid)) {
     if (!Q.crel(c.id, b)) S.contactRels.push(newContactRel(c, b, owner))
   }
+}
+
+/** The activity and audit entry that say a company was linked to business `b`. */
+export function companyLinkedLog(cid: string, b: BusinessId): void {
   act({ type: 'note', businessId: b, companyId: cid, subject: 'Business relationship created', desc: `${Q.biz(b)?.name ?? b} relationship linked to existing master record` })
   audit('Relationship created', `${Q.company(cid)?.name ?? cid} ↔ ${Q.biz(b)?.name ?? b}`)
+}
+
+export function linkCompany(cid: string, b: BusinessId, ownerId?: string): void {
+  if (Q.rel(cid, b)) return
+  linkCompanyRows(cid, b, ownerId)
+  companyLinkedLog(cid, b)
   commit()
 }
 
@@ -194,7 +216,8 @@ export interface ContactForm {
   enrichment?: Contact['enrichment']
 }
 
-export function createContact(f: ContactForm): Contact {
+/** The contact and its relationships with `f.businessId`, written without an activity, audit entry or commit. */
+export function addContactRows(f: ContactForm): Contact {
   const now = F.nowIso()
   const c: Contact = {
     id: uid('ct'), firstName: f.firstName.trim(), lastName: f.lastName.trim(), name: `${f.firstName} ${f.lastName}`.trim(),
@@ -208,8 +231,18 @@ export function createContact(f: ContactForm): Contact {
   S.contacts.push(c)
   reindex()
   ensureRels(c.id, f.businessId, f.ownerId)
-  act({ type: 'note', businessId: f.businessId, contactId: c.id, companyId: c.companyId, subject: 'Contact created' })
+  return c
+}
+
+/** The activity and audit entry that say a contact was created. */
+export function contactCreatedLog(c: Contact, b: BusinessId): void {
+  act({ type: 'note', businessId: b, contactId: c.id, companyId: c.companyId, subject: 'Contact created' })
   audit('Record created', `Contact: ${c.name}`)
+}
+
+export function createContact(f: ContactForm): Contact {
+  const c = addContactRows(f)
+  contactCreatedLog(c, f.businessId)
   commit()
   return c
 }

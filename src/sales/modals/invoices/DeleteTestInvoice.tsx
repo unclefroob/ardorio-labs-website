@@ -3,6 +3,7 @@ import type { InvoiceDto } from '../../api/contract'
 import { deleteTestInvoice, invoiceError, linkFailureId } from '../../api/invoices'
 import { Banner, Btn, Icon, Modal, Spinner } from '../../kit'
 import { deleteConsequences, deleteNumberMatches } from '../../shared/invoices'
+import { confirmText, invoiceRef } from '../../shared/externalInvoices'
 import { UI } from '../../ui/store'
 
 type Fail =
@@ -32,8 +33,10 @@ export function DeleteTestInvoice({ invoice, onRefresh }: { invoice: InvoiceDto;
   const inFlight = useRef(false)
   const fieldId = useId()
   const hintId = useId()
-  const num = invoice.invoiceNumber
-  const matches = deleteNumberMatches(typed, num)
+  // An external record is named, and confirmed, by its reference: its stored number is never shown.
+  const num = invoiceRef(invoice)
+  const confirm = confirmText(invoice)
+  const matches = deleteNumberMatches(typed, confirm)
 
   const failKind = fail?.kind
   useEffect(() => {
@@ -54,7 +57,7 @@ export function DeleteTestInvoice({ invoice, onRefresh }: { invoice: InvoiceDto;
     try {
       const r = await deleteTestInvoice(invoice.id, { confirmNumber: typed })
       UI.close()
-      UI.toast(`${r.invoiceNumber} deleted permanently`)
+      UI.toast(`${invoice.source === 'external' ? num : r.invoiceNumber} deleted permanently`)
       UI.nav('invoices')
     } catch (e) {
       setFail(classify(e))
@@ -105,7 +108,7 @@ export function DeleteTestInvoice({ invoice, onRefresh }: { invoice: InvoiceDto;
 
   const mismatchServer = fail?.kind === 'mismatch'
   const showMismatch = typed.length > 0 && !matches
-  const hint = busy ? 'Deleting. Keep this window open.' : matches ? 'Ready. This is permanent.' : `Type ${num} to enable deletion.`
+  const hint = busy ? 'Deleting. Keep this window open.' : matches ? 'Ready. This is permanent.' : `Type ${confirm} to enable deletion.`
   return (
     <Modal
       role="alertdialog"
@@ -141,7 +144,7 @@ export function DeleteTestInvoice({ invoice, onRefresh }: { invoice: InvoiceDto;
           <ul className="ulx">{deleteConsequences(invoice).map(c => <Row key={c.text} icon={c.icon}>{c.text}</Row>)}</ul>
         </div>
         <div className="fld">
-          <label htmlFor={fieldId}>Type {num} to confirm<span style={{ color: 'var(--bad2)' }}> *</span></label>
+          <label htmlFor={fieldId}>Type {confirm} to confirm<span style={{ color: 'var(--bad2)' }}> *</span></label>
           <input
             id={fieldId}
             className="inp mono"
@@ -155,7 +158,7 @@ export function DeleteTestInvoice({ invoice, onRefresh }: { invoice: InvoiceDto;
             aria-describedby={hintId}
           />
           <div id={hintId} className={showMismatch ? 'err' : 'hint'} aria-live="polite">
-            {showMismatch ? `That does not match. Type ${num} exactly as shown.` : 'Pasting is fine. It must match exactly.'}
+            {showMismatch ? `That does not match. Type ${confirm} exactly as shown.` : 'Pasting is fine. It must match exactly.'}
           </div>
         </div>
       </div>

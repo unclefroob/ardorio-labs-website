@@ -3,6 +3,7 @@ import type { InvoiceDto } from '../../api/contract'
 import { invoiceError, markTest } from '../../api/invoices'
 import { Banner, Btn, Fld, Icon, Modal, Spinner, TA } from '../../kit'
 import { buildMarkTest, MARK_TEST_PAID_NOTE, markTestConsequences, TEST_REASON_MAX } from '../../shared/invoices'
+import { invoiceRef } from '../../shared/externalInvoices'
 import { UI } from '../../ui/store'
 
 type Fail = { kind: 'denied' | 'already-test' | 'not-found'; message: string } | { kind: 'other'; message: string }
@@ -25,7 +26,7 @@ export function MarkTest({ invoice, onDone, onRefresh }: { invoice: InvoiceDto; 
   const [busy, setBusy] = useState(false)
   const [fail, setFail] = useState<Fail | null>(null)
   const inFlight = useRef(false)
-  const num = invoice.invoiceNumber
+  const num = invoiceRef(invoice)
   const built = buildMarkTest(reason)
   const paid = invoice.status === 'paid'
 
