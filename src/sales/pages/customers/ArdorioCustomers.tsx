@@ -8,8 +8,8 @@ import {
   ardorioByDeal, ENGAGEMENT_LABEL, sortArdorio,
   type ArdorioCompanyRow, type ArdorioDealRow, type ArdorioSortKey, type DeliveredNotInvoiced, type UnscheduledValue,
 } from '../../shared/billing'
-import { fmtDay } from '../../shared/invoices'
-import { invoiceRef } from '../../shared/externalInvoices'
+import { fmtDay, withoutTest } from '../../shared/invoices'
+import { EXTERNAL_CHIP, invoiceRef } from '../../shared/externalInvoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
 import { UI } from '../../ui/store'
 import { ExternalChip, StatusChip } from '../invoices/parts'
@@ -58,6 +58,12 @@ export function ArdorioCustomers() {
   const rows = sortArdorio(all.companies, sort[0], sort[1])
   const t = all.tiles
   const dealCount = all.companies.reduce((a, r) => a + r.deals.length, 0)
+  // Invoices and payments recorded outside SalesOS count in the figures like any other; each customer row names them.
+  const external = new Map<string, string[]>()
+  for (const i of withoutTest(list.data)) {
+    if (i.source !== 'external' || i.status === 'void' || !i.companyId) continue
+    external.set(i.companyId, [...(external.get(i.companyId) ?? []), invoiceRef(i)])
+  }
 
   const toggle = (id: string): void => setOpen(prev => {
     const next = new Set(prev)
@@ -80,6 +86,7 @@ export function ArdorioCustomers() {
   const companyRow = (r: ArdorioCompanyRow): ReactNode => {
     const isOpen = open.has(r.companyId)
     const n = r.deals.length
+    const refs = external.get(r.companyId) ?? []
     return (
       <tr key={r.companyId} data-company={r.companyId} style={{ background: 'var(--surf2)' }}>
         <td>
@@ -90,6 +97,12 @@ export function ArdorioCustomers() {
             <b><CoLink id={r.companyId} /></b>
             <span className="sm muted">{n === 0 ? 'No won deal' : `${n} deal${n === 1 ? '' : 's'}`}</span>
           </span>
+          {refs.length > 0 && (
+            <span className="row wrap" style={{ gap: 6, marginTop: 2, paddingLeft: 34 }}>
+              <Chip tone="info" icon="ext">{EXTERNAL_CHIP}</Chip>
+              <span className="faint sm mono">{refs.slice(0, 2).join(', ')}{refs.length > 2 ? ` and ${refs.length - 2} more` : ''}</span>
+            </span>
+          )}
         </td>
         <td className="money b" style={{ textAlign: 'right' }}>
           {fmt(r.contractedCents)}
