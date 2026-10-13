@@ -9,6 +9,7 @@ import { Modal } from '../../kit/overlay'
 import { useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
 import { RosterioWinPrompt } from '../../pages/deals/RosterioCard'
+import { WonBilling } from '../../pages/deals/WonBilling'
 import { MissingModal } from './guards'
 
 interface WonDraft { value: string; close: string; term: string; revenueType: string; notes: string }
@@ -27,6 +28,8 @@ function WonForm({ d }: { d: Deal }) {
   })
   const [done, setDone] = useState(false)
   const [pick, setPick] = useState<number[]>([0, 1, 2])
+  // Ardorio only: open the deal Billing tab once this dialog closes, however it closes.
+  const [milestones, setMilestones] = useState(false)
   const sugs: Suggestion[] = [
     [`Schedule kickoff / onboarding with ${Q.contact(d.primaryContact)?.firstName ?? 'customer'}`, 'Meeting Preparation', 2],
     ['Send welcome pack and implementation timeline', 'Email', 1],
@@ -41,6 +44,11 @@ function WonForm({ d }: { d: Deal }) {
     setDone(true)
   }
 
+  const finish = (): void => {
+    UI.close()
+    if (milestones) UI.nav('deal', { id: d.id, q: { tab: 'billing' } })
+  }
+
   const createTasks = (): void => {
     const chosen = pick.slice().sort().map(i => sugs[i])
     // Only the last create commits, so the batch lands as one change instead of one per task.
@@ -50,7 +58,7 @@ function WonForm({ d }: { d: Deal }) {
         dealId: d.id, companyId: d.companyId, contactId: d.primaryContact, source: 'Post-sale suggestion',
       }, i < chosen.length - 1)
     })
-    UI.close()
+    finish()
     UI.toast(`${chosen.length} post-sale task${chosen.length !== 1 ? 's' : ''} created`)
   }
 
@@ -60,15 +68,17 @@ function WonForm({ d }: { d: Deal }) {
         title="Deal won"
         icon="star"
         sub={d.name}
+        onClose={finish}
         footer={
           <>
-            <Btn onClick={UI.close}>Skip</Btn>
+            <Btn onClick={finish}>Skip</Btn>
             <Btn kind="pri" disabled={!pick.length} onClick={createTasks}>Create {pick.length} task{pick.length !== 1 ? 's' : ''}</Btn>
           </>
         }
       >
         <Banner tone="ok">Won revenue of <b>{F.money(d.value)}</b> recorded. Dashboards, forecasts and goals have been recalculated.</Banner>
         <RosterioWinPrompt dealId={d.id} />
+        <WonBilling dealId={d.id} milestones={milestones} onMilestones={setMilestones} />
         <div className="ai card-b" style={{ marginTop: 14 }}>
           <div className="ai-h"><Icon n="spark" s={14} />Suggested post-sale follow-up</div>
           <div className="col" style={{ marginTop: 10 }}>

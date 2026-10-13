@@ -54,6 +54,13 @@ export function Deal({ route }: { route: Route }) {
   const d = route.id ? Q.deal(route.id) : undefined
   const qTab = route.q?.tab
   const [tab, setTab] = useState(typeof qTab === 'string' ? qTab : 'overview')
+  // The page is keyed on the deal, not the query, so a link to another tab of the deal already open (the Won
+  // dialog's Add milestones, say) has to switch tabs here rather than by remounting.
+  const [seenTab, setSeenTab] = useState(qTab)
+  if (qTab !== seenTab) {
+    setSeenTab(qTab)
+    if (typeof qTab === 'string') setTab(qTab)
+  }
   const [ef, setEf] = useState<Fields | null>(null)
 
   if (!d) {
