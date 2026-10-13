@@ -13,10 +13,11 @@ import {
   isRetainerInvoice, milestoneState, moneyForDeal, redraftProblem, retainerAutoState, retainerPause, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows,
   STATE_TONE, unbilledRows, validateDelivered, type RetainerPause, type ScheduleRow,
 } from '../../shared/billing'
+import { invoiceRef, recordedLine } from '../../shared/externalInvoices'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
-import { RetainerChip } from '../invoices/parts'
+import { ExternalChip, RetainerChip } from '../invoices/parts'
 import { createDraftsForUnbilled } from './billingActions'
 import { ContractLedger } from './ContractLedger'
 import { moneyTarget, MoneyWarnings, ProjectMoney } from './DealMoney'
@@ -40,6 +41,7 @@ function Schedule({ deal }: { deal: Deal }) {
   const [retErr, setRetErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [delivering, setDelivering] = useState<{ id: string; day: string } | null>(null)
+  const [recorded, setRecorded] = useState('')
 
   const plan = Q.billingPlan(deal.id)
   // Statuses come from the invoice list, so until it has loaded no row action is offered.
@@ -134,7 +136,12 @@ function Schedule({ deal }: { deal: Deal }) {
   const statusLine = (r: ScheduleRow): string => (r.invoice ? (r.invoice.status === 'draft' ? 'Not issued' : r.invoice.status === 'paid' ? `Paid ${fmtDay(r.invoice.payment?.paidAt)}` : `Due ${fmtDay(r.invoice.dueDate)}`) : '')
 
   const who = (x: string | undefined): string => (x ? Q.user(x)?.name ?? x : '')
-  const invLink = (i: InvoiceDto) => <a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a>
+  // An external record is named by its reference, with the chip, never by the hidden number the server keeps.
+  const invLink = (i: InvoiceDto) => (
+    <><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{invoiceRef(i)}</a>{i.source === 'external' && <> <ExternalChip inv={i} /></>}</>
+  )
+  const recordExternal = (): void => UI.open('recordExternal', { dealId: deal.id, onDone: (saved: InvoiceDto) => { setRecorded(recordedLine(saved)); inv.reload() } })
+
   const contracted = !!plan?.contract
   const ofText = `Scheduled ${formatCents(scheduled)} of ${formatCents(target.cents)} ${contracted ? 'contracted' : 'estimate'}`
 
@@ -143,6 +150,7 @@ function Schedule({ deal }: { deal: Deal }) {
       title="Milestones"
       right={
         <span className="row wrap" style={{ gap: 6 }}>
+          <Btn size="sm" icon="plus" onClick={recordExternal}>Record external invoice or payment</Btn>
           {!retainer && !retainerForm && <Btn size="sm" onClick={() => { setRetErr(''); setRetainerForm({ amount: '', date: '' }) }}>Add retainer</Btn>}
           <Btn size="sm" onClick={startAdd}>+ Add milestone</Btn>
           <Btn size="sm" kind="pri" disabled={!known || !unbilled.length || busy} onClick={() => void all()}>{busy ? 'Creating…' : 'Create invoice for all unbilled'}</Btn>
@@ -180,7 +188,7 @@ function Schedule({ deal }: { deal: Deal }) {
                       </td>
                       <td>
                         {r.invoice ? <>{invLink(r.invoice)}<div className="faint sm">{statusLine(r)}</div></> : <span className="faint">Not invoiced</span>}
-                        {r.cancelled && !r.invoice && <div className="faint sm">{r.cancelled.invoiceNumber} cancelled {fmtDay(r.cancelled.voided?.voidedAt)}</div>}
+                        {r.cancelled && !r.invoice && <div className="faint sm">{invoiceRef(r.cancelled)} cancelled {fmtDay(r.cancelled.voided?.voidedAt)}</div>}
                       </td>
                       <td>
                         {picking ? (
@@ -193,7 +201,7 @@ function Schedule({ deal }: { deal: Deal }) {
                           <span className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
                             {known && r.status === 'Planned' && <Btn size="xs" kind={st === 'Delivered' ? 'pri' : undefined} onClick={() => create({ milestoneId: ms.id })}>Create invoice</Btn>}
                             {known && r.status === 'Draft invoice' && r.invoice && <Btn size="xs" onClick={() => open(r.invoice?.id ?? '')}>Open draft</Btn>}
-                            {known && r.status === 'Invoiced' && r.invoice && <Btn size="xs" onClick={() => UI.open('markPaid', { invoice: r.invoice, onDone: inv.reload })}>Mark paid</Btn>}
+                            {known && r.status === 'Invoiced' && r.invoice && r.invoice.source !== 'external' && <Btn size="xs" onClick={() => UI.open('markPaid', { invoice: r.invoice, onDone: inv.reload })}>Mark paid</Btn>}
                             {!ms.deliveredOn && <Btn size="xs" aria-label={`Mark delivered: ${ms.label}`} onClick={() => { setErr(''); setDelivering({ id: ms.id, day: today }) }}>Mark delivered</Btn>}
                             {ms.deliveredOn && <Btn size="xs" kind="ghost" aria-label={`Undo delivered: ${ms.label}`} onClick={() => undoDelivered(ms)}>Undo delivered</Btn>}
                             {known && r.status === 'Planned' && <Btn size="xs" kind="ghost" onClick={() => startEdit(ms)}>Edit</Btn>}
@@ -237,11 +245,12 @@ function Schedule({ deal }: { deal: Deal }) {
           <div className="col" style={{ gap: 6 }}>
             <div className="b sm">Project invoices without a milestone</div>
             {looseInvoices.map(i => (
-              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 6 }}><span className="money sm">{formatCents(i.subtotalCents)}</span>{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
+              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}{i.status === 'paid' && i.payment ? ` · paid ${fmtDay(i.payment.paidAt)}` : ''}</span></span><span className="row" style={{ gap: 6 }}><span className="money sm">{formatCents(i.subtotalCents)}</span>{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
           </div>
         )}
         <div className="faint sm">Milestones are agreed amounts, not forecasts. Mark one delivered when the client has it; creating an invoice makes a draft with the milestone as its line, which you still review and issue.</div>
+        <div className="faint sm">Money already invoiced or received outside SalesOS (for example in Xero) is recorded with Record external invoice or payment. It takes no SalesOS invoice number and has no PDF, card link or pay page, and counts as Invoiced on its issue date and Collected on its paid date.</div>
       </div>
     </Card>
   )
@@ -304,6 +313,7 @@ function Schedule({ deal }: { deal: Deal }) {
   return (
     <div className="col" style={{ gap: 14 }}>
       {e && e.kind !== 'denied' && <Banner tone="bad" action={<Btn size="sm" onClick={inv.reload}>Try again</Btn>}>{e.message}</Banner>}
+      {recorded && <Banner tone="ok" icon="check" action={<Btn size="sm" kind="ghost" aria-label="Dismiss" icon="x" onClick={() => setRecorded('')} />}>{recorded}</Banner>}
       <MoneyWarnings deal={deal} plan={plan} money={money} />
       <ProjectMoney deal={deal} plan={plan} invoices={known ? list : null} loading={inv.loading} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>

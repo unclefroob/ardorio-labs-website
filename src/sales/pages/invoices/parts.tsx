@@ -4,6 +4,7 @@ import { Link } from '../../kit'
 import { Chip } from '../../kit/basic'
 import { Q } from '../../data/Q'
 import { billingPlans } from '../../data/invoicing'
+import { EXTERNAL_CHIP, EXTERNAL_SOURCE_LABEL } from '../../shared/externalInvoices'
 import { METHOD_LABELS, statusChip } from '../../shared/invoices'
 
 export function StatusChip({ inv }: { inv: Pick<InvoiceDto, 'status' | 'overdue'> }) {
@@ -19,6 +20,16 @@ export function TestChip({ inv }: { inv: Pick<InvoiceDto, 'test'> }) {
 /** Made by the retainer scheduler (always as a draft). An icon and words, never colour alone. Missing source reads as manual. */
 export function RetainerChip({ inv }: { inv: Pick<InvoiceDto, 'source'> }) {
   return inv.source === 'retainer' ? <Chip icon="refresh" title="Drafted automatically from the deal's monthly retainer">From retainer</Chip> : null
+}
+
+/**
+ * Recorded from outside SalesOS (Xero, another system, a bank transfer): an icon and words, never colour alone. The
+ * title says the source and who recorded it.
+ */
+export function ExternalChip({ inv }: { inv: Pick<InvoiceDto, 'source' | 'external'> }) {
+  if (inv.source !== 'external') return null
+  const e = inv.external
+  return <Chip tone="info" icon="ext" title={e ? `${EXTERNAL_SOURCE_LABEL[e.source]}, recorded by ${e.recordedBy}` : undefined}>{EXTERNAL_CHIP}</Chip>
 }
 
 export function MethodChip({ inv }: { inv: Pick<InvoiceDto, 'payment'> }) {

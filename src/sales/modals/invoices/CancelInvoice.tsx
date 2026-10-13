@@ -3,6 +3,7 @@ import type { InvoiceDto, InvoiceVoidReason } from '../../api/contract'
 import { invoiceError, linkFailureId, voidInvoice } from '../../api/invoices'
 import { Banner, Btn, Fld, Icon, Modal, Sel, Spinner, TA } from '../../kit'
 import { buildVoid, cancelConsequences, VOID_NOTE_MAX, VOID_REASONS } from '../../shared/invoices'
+import { invoiceRef } from '../../shared/externalInvoices'
 import { UI } from '../../ui/store'
 import { milestoneLabel } from '../../pages/invoices/parts'
 
@@ -37,7 +38,7 @@ export function CancelInvoice({ invoice, onDone, onRefresh }: { invoice: Invoice
   const body = useRef<HTMLDivElement>(null)
   const ms = milestoneLabel(invoice)
   const built = buildVoid({ reason, note })
-  const num = invoice.invoiceNumber
+  const num = invoiceRef(invoice)
 
   // The dialog changes content when a call fails: put focus on that state's primary control.
   const failKind = fail?.kind
@@ -160,7 +161,9 @@ export function CancelInvoice({ invoice, onDone, onRefresh }: { invoice: Invoice
           </Banner>
         )}
         <p id="cancel-inv-desc" style={{ margin: 0, lineHeight: 1.55 }}>
-          This stops {num} being paid and takes it out of your totals. The invoice and its number are kept for your records. <b>This can’t be undone.</b>
+          {invoice.source === 'external'
+            ? <>This takes the record of {num} out of your totals. Nothing changes in the other system, and the record is kept. <b>This can’t be undone.</b></>
+            : <>This stops {num} being paid and takes it out of your totals. The invoice and its number are kept for your records. <b>This can’t be undone.</b></>}
         </p>
         <div>
           <div className="sm b" style={{ marginBottom: 8 }}>What will happen</div>

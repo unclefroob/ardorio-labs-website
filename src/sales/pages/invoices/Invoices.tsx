@@ -6,11 +6,12 @@ import { dealName, useLoad } from '../../data/invoicing'
 import { useStore } from '../../data/store'
 import { Banner, Btn, Card, Chip, DataTable, DlLink, Empty, Icon, Menu, SearchInp, Sel, Skel, Tabs, type Col } from '../../kit'
 import { filterInvoices, dueCell, fmtDay, issuedText, needsRefund, TABS, tabCounts, tileFacts, voidReasonLabel, type InvoiceTab } from '../../shared/invoices'
+import { invoiceRef } from '../../shared/externalInvoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
-import { CustomerLink, MethodChip, RetainerChip, StatusChip, TestChip, milestoneLabel } from './parts'
+import { CustomerLink, ExternalChip, MethodChip, RetainerChip, StatusChip, TestChip, milestoneLabel } from './parts'
 import { InvoicesDenied } from './states'
 
 const SHOW_TEST_KEY = 'sos.invoices.showTest'
@@ -57,9 +58,11 @@ export function Invoices() {
   }
   const markPaid = (inv: InvoiceDto): void => UI.open('markPaid', { invoice: inv, onDone: () => { list.reload(); sum.reload() } })
   const open = (inv: InvoiceDto): void => UI.nav('invoice', { id: inv.id })
+  const recordExternal = (): void => UI.open('recordExternal', { onDone: () => { list.reload(); sum.reload() } })
 
   const cols: Col<InvoiceDto>[] = [
-    { k: 'invoiceNumber', l: 'Invoice', sort: r => r.invoiceNumber, desc: true, r: r => <b className={'mono' + (r.status === 'void' ? ' void-cell' : '')}>{r.invoiceNumber}</b> },
+    // An external record shows its reference, never the hidden number the server keeps for it.
+    { k: 'invoiceNumber', l: 'Invoice', sort: r => invoiceRef(r), desc: true, r: r => <b className={'mono' + (r.status === 'void' ? ' void-cell' : '')}>{invoiceRef(r)}</b> },
     { k: 'clientName', l: 'Customer', sort: r => r.clientName.toLowerCase(), r: r => (r.status === 'void' ? <span className="void-cell"><CustomerLink inv={r} /></span> : <CustomerLink inv={r} />) },
     {
       k: 'deal', l: 'Deal', sort: r => dealName(r.dealId),
@@ -84,7 +87,7 @@ export function Invoices() {
       k: 'status', l: 'Status', sort: r => (r.overdue ? 'overdue' : r.status),
       r: r => (
         <div>
-          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><RetainerChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
+          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><RetainerChip inv={r} /><ExternalChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
           {r.voided && <div className="void-cell sm" style={{ marginTop: 2 }}>{voidReasonLabel(r.voided.reason)} · {fmtDay(r.voided.voidedAt)}</div>}
           {r.payment && <div className="faint sm" style={{ marginTop: 2 }}>{fmtDay(r.payment.paidAt)}</div>}
         </div>
@@ -95,14 +98,15 @@ export function Invoices() {
       r: r => (
         <span className="row" style={{ gap: 4 }} onClick={e => e.stopPropagation()}>
           {r.status === 'draft' && <Btn size="xs" onClick={() => open(r)}>Edit</Btn>}
-          {r.status === 'sent' && <Btn size="xs" onClick={() => markPaid(r)}>Mark paid</Btn>}
+          {r.status === 'sent' && r.source !== 'external' && <Btn size="xs" onClick={() => markPaid(r)}>Mark paid</Btn>}
           <Menu
             align="right"
-            trigger={<Btn size="xs" kind="ghost" aria-label={`More actions for ${r.invoiceNumber}`}>⋯</Btn>}
+            trigger={<Btn size="xs" kind="ghost" aria-label={`More actions for ${invoiceRef(r)}`}>⋯</Btn>}
             items={[
               { label: 'Open', icon: 'ext', onClick: () => open(r) },
-              { label: r.status === 'draft' ? 'Preview PDF' : 'Download PDF', icon: 'download', onClick: () => void downloadPdf(r) },
-              r.status !== 'draft' && r.status !== 'void' && { label: 'Copy invoice link', icon: 'copy', onClick: () => void copyLink(r) },
+              // An external record has no PDF and no hosted page.
+              r.source !== 'external' && { label: r.status === 'draft' ? 'Preview PDF' : 'Download PDF', icon: 'download', onClick: () => void downloadPdf(r) },
+              r.source !== 'external' && r.status !== 'draft' && r.status !== 'void' && { label: 'Copy invoice link', icon: 'copy', onClick: () => void copyLink(r) },
             ]}
           />
         </span>
@@ -115,6 +119,7 @@ export function Invoices() {
       <PageHead title="Invoices" sub="Create, issue and track invoices for your customers. Amounts are shown ex-GST unless marked.">
         <Chip icon="plug" title="Reserved for the next phase">Xero: not connected</Chip>
         <Btn icon="download" onClick={() => void exportCsv()} disabled={exporting}>{exporting ? 'Exporting…' : 'Export CSV'}</Btn>
+        <Btn icon="plus" onClick={recordExternal}>Record external invoice or payment</Btn>
         <Btn kind="pri" icon="plus" onClick={() => UI.nav('invoice', { id: 'new' })}>New invoice</Btn>
       </PageHead>
 
