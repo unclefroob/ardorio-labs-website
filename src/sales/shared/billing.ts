@@ -570,10 +570,46 @@ export const bulletPct = (n: number, scale: number): string => `${Math.round((Ma
 
 // ── Customers, Ardorio by deal (board 7) ─────────────────────────────────────────────────────────
 // Company rows expand to their won Ardorio deals. Each deal's project figures come from moneyForDeal, the same helper
-// as the deal page, so the two always agree. Retainer invoices are counted for the company and shown on their own line
-// under the deal, never in Earned or the project figures. Ex GST cents throughout.
+// as the deal page, so the two always agree. A company's Contracted, Earned, Invoiced, Collected and Outstanding are the
+// sum of its deal rows, as on board 7, and the tiles are the sum of the companies. Retainer invoices and invoices not on
+// a won deal are kept apart, in their own labelled figures, so nothing is mixed into project progress and nothing issued
+// is dropped: project + retainer + not on a deal + not on a customer is every issued invoice, as in the revenue report.
+// Ex GST cents throughout.
 
-export interface RetainerMoney { invoiced: number; collected: number; outstanding: number }
+/** Issued invoices in one bucket, ex GST. Outstanding is what is sent and unpaid; overdue is the part of it past due. */
+export interface InvoiceMoney { invoiced: number; collected: number; outstanding: number; overdue: number }
+export type RetainerMoney = InvoiceMoney
+
+const noMoney = (): InvoiceMoney => ({ invoiced: 0, collected: 0, outstanding: 0, overdue: 0 })
+function addInvoice(m: InvoiceMoney, i: Pick<InvoiceDto, 'status' | 'subtotalCents'> & Partial<Pick<InvoiceDto, 'overdue'>>): void {
+  m.invoiced += i.subtotalCents
+  if (i.status === 'paid') m.collected += i.subtotalCents
+  else {
+    m.outstanding += i.subtotalCents
+    if (i.overdue) m.overdue += i.subtotalCents
+  }
+}
+function addMoney(a: InvoiceMoney, b: InvoiceMoney | null): void {
+  if (!b) return
+  a.invoiced += b.invoiced
+  a.collected += b.collected
+  a.outstanding += b.outstanding
+  a.overdue += b.overdue
+}
+
+/**
+ * The contract value of a won deal that no milestone covers yet, never below zero. A fixed-price project bills by
+ * milestone, so the gap is contracted minus milestones. Time and materials may invoice with or without milestones, so
+ * what is already invoiced on the project covers the contract too; a support retainer bills by its retainer invoices,
+ * which count as well. Null with no contract.
+ */
+export function unscheduledGap(money: Pick<DealMoney, 'contracted' | 'scheduled' | 'invoiced' | 'retainerInvoiced'>, engagement: EngagementType | null): number | null {
+  if (money.contracted === null) return null
+  const covered = engagement === 'time-materials' ? Math.max(money.scheduled, money.invoiced)
+    : engagement === 'support-retainer' ? Math.max(money.scheduled, money.invoiced + money.retainerInvoiced)
+      : money.scheduled
+  return Math.max(0, money.contracted - covered)
+}
 
 export interface ArdorioDealRow {
   deal: Deal
@@ -583,8 +619,10 @@ export interface ArdorioDealRow {
   money: DealMoney
   /** Project invoices of this deal that are past due. */
   overdueCents: number
-  /** Retainer invoices of this deal, issued: counted for the company, shown on their own line. */
+  /** Retainer invoices of this deal, issued: shown on their own line, never in project progress. */
   retainer: RetainerMoney | null
+  /** Contract value no milestone covers yet, by engagement type (see unscheduledGap); 0 with no contract. */
+  unscheduledCents: number
   /** The earliest milestone still Planned (not delivered, no live invoice): dated ones first. */
   next: BillingMilestone | null
   /** Delivered milestones with no live invoice yet. */
@@ -600,24 +638,52 @@ export interface ArdorioCompanyRow {
   /** Sum of the estimates of won deals that have no contract yet: never added to Contracted. */
   estimateOnlyCents: number
   earnedCents: number
-  /** Every issued invoice of the company: project, retainer and any not linked to a deal. */
+  /** Project figures: the sum of the deal rows, as on the deal page. */
   invoicedCents: number
   collectedCents: number
   outstandingCents: number
   overdueCents: number
+  /** Retainer invoices of the company's deals: apart from the project figures. */
+  retainer: InvoiceMoney
+  /** Issued invoices of the company on no deal, or on a deal that is not a won Ardorio deal: apart from the project figures. */
+  notOnDeal: InvoiceMoney
   retainerInvoicedCents: number
 }
 
 export interface DeliveredNotInvoiced { deal: Deal; companyId: string; milestone: BillingMilestone }
-export interface UnscheduledValue { deal: Deal; companyId: string; contractedCents: number; scheduledCents: number; gapCents: number }
+export interface UnscheduledValue { deal: Deal; companyId: string; engagement: EngagementType | null; contractedCents: number; scheduledCents: number; invoicedCents: number; gapCents: number }
+/** A won deal with no contract yet: won before the ledger, recorded later, or deferred with Later. */
+export interface NoContractDeal { deal: Deal; companyId: string; estimateCents: number; invoicedCents: number; wonOn: string }
+
+/** Why an invoice is in no deal's figures. */
+export type UnlinkedReason = 'no-company' | 'archived-company' | 'unknown-company' | 'no-deal' | 'deal-not-won'
+export const UNLINKED_LABEL: Record<UnlinkedReason, string> = {
+  'no-company': 'No company', 'archived-company': 'Company archived', 'unknown-company': 'Company not found', 'no-deal': 'No deal', 'deal-not-won': 'Deal not won or archived',
+}
+
+export interface ArdorioTotals {
+  /** Project figures: the sum of the company rows. */
+  contractedCents: number; earnedCents: number; invoicedCents: number; collectedCents: number; outstandingCents: number; overdueCents: number; overdueCustomers: number
+  /** Retainer invoices, apart from project progress. */
+  retainer: InvoiceMoney
+  /** Issued invoices of a customer on no won deal. */
+  notOnDeal: InvoiceMoney
+  /** Issued invoices on no customer row: no company, or an archived or unknown one. */
+  noCustomer: InvoiceMoney
+  /** Every issued invoice, not cancelled and not test: the four above together, as the revenue report counts. */
+  all: InvoiceMoney
+}
 
 export interface ArdorioByDeal {
   companies: ArdorioCompanyRow[]
-  tiles: { contractedCents: number; earnedCents: number; invoicedCents: number; collectedCents: number; outstandingCents: number; overdueCents: number; overdueCustomers: number }
+  tiles: ArdorioTotals
   deliveredNotInvoiced: DeliveredNotInvoiced[]
   unscheduled: UnscheduledValue[]
-  /** Live (not cancelled, not test) invoices with no deal, or no company. */
+  noContract: NoContractDeal[]
+  /** Live (not cancelled, not test) invoices in no deal's figures: no deal or no company (drafts too), and issued ones on an archived or unknown company or on a deal that is not won. */
   unlinked: InvoiceDto[]
+  /** Why each unlinked invoice is unlinked, by invoice id. */
+  unlinkedReason: Record<string, UnlinkedReason>
 }
 
 /** The milestone a deal bills next: still Planned, earliest planned date first, undated ones after, in schedule order. */
@@ -628,15 +694,13 @@ export function nextMilestoneDue(plan: BillingPlan | undefined, invoices: readon
 }
 
 /** Retainer invoices of a deal, issued, ex GST. Null when there are none. */
-export function retainerMoney(dealId: string, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined, invoices: readonly MoneyInvoice[]): RetainerMoney | null {
-  const r: RetainerMoney = { invoiced: 0, collected: 0, outstanding: 0 }
+export function retainerMoney(dealId: string, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined, invoices: ReadonlyArray<MoneyInvoice & Partial<Pick<InvoiceDto, 'overdue'>>>): RetainerMoney | null {
+  const r = noMoney()
   let any = false
   for (const i of withoutTest(invoices)) {
     if (i.dealId !== dealId || i.status === 'draft' || i.status === 'void' || !isRetainerInvoice(i, plan)) continue
     any = true
-    r.invoiced += i.subtotalCents
-    if (i.status === 'paid') r.collected += i.subtotalCents
-    else r.outstanding += i.subtotalCents
+    addInvoice(r, i)
   }
   return any ? r : null
 }
@@ -648,53 +712,84 @@ export function retainerMoney(dealId: string, plan: Pick<BillingPlan, 'retainer'
 export function ardorioByDeal(deals: readonly Deal[], companies: readonly Company[], plans: readonly BillingPlan[], all: readonly InvoiceDto[]): ArdorioByDeal {
   const live = withoutTest(all).filter(i => i.status !== 'void')
   const byDeal = new Map<string, InvoiceDto[]>()
-  const byCompany = new Map<string, InvoiceDto[]>()
-  for (const i of live) {
-    if (i.dealId) byDeal.set(i.dealId, [...(byDeal.get(i.dealId) ?? []), i])
-    if (i.companyId) byCompany.set(i.companyId, [...(byCompany.get(i.companyId) ?? []), i])
-  }
+  for (const i of live) if (i.dealId) byDeal.set(i.dealId, [...(byDeal.get(i.dealId) ?? []), i])
   const planOf = new Map(plans.map(p => [p.dealId, p] as const))
   const cos = new Map(companies.map(c => [c.id, c] as const))
   const dealRows = new Map<string, ArdorioDealRow[]>()
+  const counted = new Set<string>()
   const delivered: DeliveredNotInvoiced[] = []
   const unscheduled: UnscheduledValue[] = []
+  const noContract: NoContractDeal[] = []
   for (const d of deals) {
     if (d.businessId !== 'ard' || d.status !== 'won' || d.archived === true) continue
     const c = cos.get(d.companyId)
     if (!c || c.archived) continue
     const plan = planOf.get(d.id)
     const inv = byDeal.get(d.id) ?? []
+    for (const i of inv) counted.add(i.id)
     const money = moneyForDeal(d, plan, inv)
+    const engagement = plan?.contract?.engagementType ?? null
+    const gap = unscheduledGap(money, engagement)
     const dni = scheduleRows(plan, inv).filter(r => milestoneState(r) === 'Delivered').map(r => r.milestone)
     const row: ArdorioDealRow = {
-      deal: d, companyId: c.id, engagement: plan?.contract?.engagementType ?? null, money,
+      deal: d, companyId: c.id, engagement, money, unscheduledCents: gap ?? 0,
       overdueCents: overdueProjectCents(d.id, plan, inv), retainer: retainerMoney(d.id, plan, inv), next: nextMilestoneDue(plan, inv), deliveredNotInvoiced: dni,
     }
     dealRows.set(c.id, [...(dealRows.get(c.id) ?? []), row])
     for (const m of dni) delivered.push({ deal: d, companyId: c.id, milestone: m })
-    if (money.contracted !== null && money.unscheduled !== null && money.unscheduled > 0) {
-      unscheduled.push({ deal: d, companyId: c.id, contractedCents: money.contracted, scheduledCents: money.scheduled, gapCents: money.unscheduled })
+    if (money.contracted !== null && gap !== null && gap > 0) {
+      unscheduled.push({ deal: d, companyId: c.id, engagement, contractedCents: money.contracted, scheduledCents: money.scheduled, invoicedCents: money.invoiced, gapCents: gap })
     }
+    if (money.contracted === null) noContract.push({ deal: d, companyId: c.id, estimateCents: money.estimate, invoicedCents: money.invoiced + money.retainerInvoiced, wonOn: wonDay(d) })
   }
-  const ids = new Set<string>(dealRows.keys())
-  for (const [id, list] of byCompany) if (list.some(i => i.status !== 'draft')) ids.add(id)
+
+  // Invoices on no deal row: on the company's own row when the company is live, else on no customer at all.
+  const notOnDeal = new Map<string, InvoiceMoney>()
+  const noCustomer = noMoney()
+  const unlinked: InvoiceDto[] = []
+  const unlinkedReason: Record<string, UnlinkedReason> = {}
+  for (const i of live) {
+    if (counted.has(i.id)) continue
+    const c = i.companyId ? cos.get(i.companyId) : undefined
+    const reason: UnlinkedReason = !i.companyId ? 'no-company' : !c ? 'unknown-company' : c.archived ? 'archived-company'
+      : !i.dealId ? 'no-deal' : 'deal-not-won'
+    const issued = i.status !== 'draft'
+    // Drafts are listed only when they have no deal or no company, as before; otherwise only issued money is.
+    if (issued || !i.dealId || !i.companyId) { unlinked.push(i); unlinkedReason[i.id] = reason }
+    if (!issued) continue
+    if (c && !c.archived) {
+      const m = notOnDeal.get(c.id) ?? noMoney()
+      addInvoice(m, i)
+      notOnDeal.set(c.id, m)
+    } else addInvoice(noCustomer, i)
+  }
+
+  const ids = new Set<string>([...dealRows.keys(), ...notOnDeal.keys()])
   const rows: ArdorioCompanyRow[] = []
   for (const id of ids) {
     const c = cos.get(id)
     if (!c || c.archived) continue
     const ds = dealRows.get(id) ?? []
-    const b = companyBilling(byCompany.get(id) ?? [])
+    const retainer = noMoney()
+    for (const r of ds) addMoney(retainer, r.retainer)
     rows.push({
       companyId: id, name: c.name, deals: ds,
       contractedCents: ds.reduce((a, r) => a + (r.money.contracted ?? 0), 0),
       estimateOnlyCents: ds.reduce((a, r) => a + (r.money.contracted === null ? r.money.estimate : 0), 0),
       earnedCents: ds.reduce((a, r) => a + r.money.earned, 0),
-      invoicedCents: b.invoicedCents, collectedCents: b.paidCents, outstandingCents: b.outstandingCents, overdueCents: b.overdueCents,
-      retainerInvoicedCents: ds.reduce((a, r) => a + (r.retainer?.invoiced ?? 0), 0),
+      invoicedCents: ds.reduce((a, r) => a + r.money.invoiced, 0),
+      collectedCents: ds.reduce((a, r) => a + r.money.collected, 0),
+      outstandingCents: ds.reduce((a, r) => a + r.money.outstanding, 0),
+      overdueCents: ds.reduce((a, r) => a + r.overdueCents, 0),
+      retainer, notOnDeal: notOnDeal.get(id) ?? noMoney(),
+      retainerInvoicedCents: retainer.invoiced,
     })
   }
   rows.sort((a, b) => b.outstandingCents - a.outstandingCents || a.name.localeCompare(b.name))
-  const tiles = { contractedCents: 0, earnedCents: 0, invoicedCents: 0, collectedCents: 0, outstandingCents: 0, overdueCents: 0, overdueCustomers: 0 }
+  const tiles: ArdorioTotals = {
+    contractedCents: 0, earnedCents: 0, invoicedCents: 0, collectedCents: 0, outstandingCents: 0, overdueCents: 0, overdueCustomers: 0,
+    retainer: noMoney(), notOnDeal: noMoney(), noCustomer, all: noMoney(),
+  }
   for (const r of rows) {
     tiles.contractedCents += r.contractedCents
     tiles.earnedCents += r.earnedCents
@@ -703,13 +798,15 @@ export function ardorioByDeal(deals: readonly Deal[], companies: readonly Compan
     tiles.outstandingCents += r.outstandingCents
     tiles.overdueCents += r.overdueCents
     if (r.overdueCents > 0) tiles.overdueCustomers++
+    addMoney(tiles.retainer, r.retainer)
+    addMoney(tiles.notOnDeal, r.notOnDeal)
   }
+  for (const i of live) if (i.status !== 'draft') addInvoice(tiles.all, i)
   delivered.sort((a, b) => (a.milestone.deliveredOn ?? '').localeCompare(b.milestone.deliveredOn ?? ''))
   unscheduled.sort((a, b) => b.gapCents - a.gapCents)
-  const unlinked = live
-    .filter(i => !i.dealId || !i.companyId)
-    .sort((a, b) => (a.issueDate < b.issueDate ? 1 : a.issueDate > b.issueDate ? -1 : a.invoiceNumber.localeCompare(b.invoiceNumber)))
-  return { companies: rows, tiles, deliveredNotInvoiced: delivered, unscheduled, unlinked }
+  noContract.sort((a, b) => a.invoicedCents - b.invoicedCents || b.estimateCents - a.estimateCents || (a.deal.title || a.deal.name).localeCompare(b.deal.title || b.deal.name))
+  unlinked.sort((a, b) => (a.issueDate < b.issueDate ? 1 : a.issueDate > b.issueDate ? -1 : a.invoiceNumber.localeCompare(b.invoiceNumber)))
+  return { companies: rows, tiles, deliveredNotInvoiced: delivered, unscheduled, noContract, unlinked, unlinkedReason }
 }
 
 export type ArdorioSortKey = 'name' | 'contracted' | 'earned' | 'invoiced' | 'collected' | 'outstanding'
