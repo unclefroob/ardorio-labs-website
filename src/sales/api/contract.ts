@@ -561,6 +561,12 @@ export interface InvoiceExternalInfo { source: ExternalInvoiceSource; reference:
 // { field: 'companyId', clientSlugs, needsBillingLink: true }: link the right one first.
 // POST /sales/invoices/external (ExternalInvoiceInput) -> InvoiceDto ; PUT /sales/invoices/:id/external (ExternalInvoiceInput) -> InvoiceDto (external, not void)
 // SalesErrorCode gains: 'DUPLICATE_EXTERNAL_REFERENCE' (details: { invoiceId: string; dealId: string | null }) | 'NOT_EXTERNAL'
+// ---- Ardorio revenue report ----
+export type RevenueSourceFilter = 'all' | 'salesos' | 'external'
+export interface RevenueMonth { month: string /* YYYY-MM */; invoicedCents: number; collectedCents: number; externalInvoicedCents: number; externalCollectedCents: number }
+export interface RevenueReport { from: string; to: string; source: RevenueSourceFilter; months: RevenueMonth[]; invoicedCents: number; collectedCents: number; outstandingCents: number; overdueCents: number; recordedLate: { month: string; count: number; cents: number }[] }
+// GET /sales/reports/revenue?business=ard&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all|salesos|external -> RevenueReport (ard admins or super only). All money is integer cents ex GST. Invoiced by issueDate, collected by payment date; void and test invoices never count. outstanding/overdue are as of now (not range bound). recordedLate lists months in range whose figures include external records recorded (external.recordedAt) after that month ended.
+// Goal metrics gain: 'won_value' (sum of value of deals won in the period, cents-free dollars as deal.value), 'invoiced_cents', 'collected_cents' (from the revenue report, ard only).
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
 export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }

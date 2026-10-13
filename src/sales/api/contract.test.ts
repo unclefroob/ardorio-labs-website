@@ -33,3 +33,25 @@ describe('Contract: recorded won deals and external invoices', () => {
     expect(block(web)).toBe(block(readFileSync(apiFile, 'utf8')))
   })
 })
+
+// The revenue report block: from its heading to the goal metrics line.
+function revenueBlock(src: string): string {
+  const lines = src.split('\n')
+  const s = lines.indexOf('// ---- Ardorio revenue report ----')
+  const e = lines.findIndex((l, i) => i > s && l.startsWith('// Goal metrics gain:'))
+  if (s < 0 || e < 0) throw new Error('revenue block not found')
+  return lines.slice(s, e + 1).join('\n')
+}
+
+describe('Contract: Ardorio revenue report', () => {
+  it('carries the agreed route and rules', () => {
+    const b = revenueBlock(web)
+    expect(b).toContain('// GET /sales/reports/revenue?business=ard&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all|salesos|external -> RevenueReport (ard admins or super only).')
+    expect(b).toContain("export type RevenueSourceFilter = 'all' | 'salesos' | 'external'")
+    expect(b).toContain("'won_value' (sum of value of deals won in the period, cents-free dollars as deal.value), 'invoiced_cents', 'collected_cents'")
+  })
+
+  it.skipIf(!apiFile || !existsSync(apiFile))('is identical to the API block', () => {
+    expect(revenueBlock(web)).toBe(revenueBlock(readFileSync(apiFile, 'utf8')))
+  })
+})
