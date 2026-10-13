@@ -13,7 +13,7 @@ import {
   activityItems, actionsFor, blankForm, buildInput, emptyLine, fmtDay, formFromInvoice, formTotals, milestoneLine, milestoneStatus,
   missingBilling, planFor, validateForm, withTerms, type FormErrors, type InvoiceForm,
 } from '../../shared/invoices'
-import { nextRetainerDate, prefillForm, retainerAutoState, retainerPeriodLabel } from '../../shared/billing'
+import { claimedRetainerDate, dayOrdinal, prefillForm, retainerAutoState, retainerPeriodLabel } from '../../shared/billing'
 import { formatCents, lineAmountCents, parsePercentBp } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -107,6 +107,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const setLine = (i: number, patch: Partial<InvoiceForm['lines'][number]>): void => set({ lines: f.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) })
 
   const company = f.companyId ? Q.company(f.companyId) : undefined
+  const claimNext = claiming ? claimedRetainerDate(claiming.due, planFor(billingPlans(), claiming.dealId)?.retainer?.anchorDay) : { next: '' }
   const lacks = missingBilling(client)
 
   /** Saves what is on screen. Returns the stored invoice, or null after showing why not. */
@@ -122,7 +123,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
       const saved = invoice ? await updateInvoice(invoice.id, input) : await createInvoice(input)
       if (!invoice && claiming && saved.dealId === claiming.dealId) {
         const c = Act.claimRetainerPeriod(claiming.dealId, claiming.due)
-        if (c.ok) UI.toast(`The ${retainerPeriodLabel(claiming.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.`)
+        if (c.ok) UI.toast(`The ${retainerPeriodLabel(claiming.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.${c.laterDay ? ` Later drafts fall on the ${dayOrdinal(c.laterDay)}.` : ''}`)
       }
       if (invoice && invoice.paymentLinkUrl && saved.paymentLinkUrl === '') {
         setNotice('The total changed, so the pasted payment link was cleared. The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.')
@@ -245,7 +246,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
       {claiming && f.dealId === claiming.dealId && (
         <div style={{ marginBottom: 14 }}>
           <Banner tone="info">
-            <b>This invoice bills the {retainerPeriodLabel(claiming.due)} retainer.</b> Saving it moves the automatic draft on to {fmtDay(nextRetainerDate(claiming.due, planFor(billingPlans(), claiming.dealId)?.retainer?.anchorDay).next)}, so that month is not drafted twice.
+            <b>This invoice bills the {retainerPeriodLabel(claiming.due)} retainer.</b> Saving it moves the automatic draft on to {fmtDay(claimNext.next)}, so that month is not drafted twice.
+            {claimNext.laterDay && <> Later drafts then fall on the {dayOrdinal(claimNext.laterDay)} of each month, not the {dayOrdinal(+claiming.due.slice(8, 10))}. Change the next invoice date on the deal afterwards to keep the {dayOrdinal(+claiming.due.slice(8, 10))}.</>}
           </Banner>
         </div>
       )}

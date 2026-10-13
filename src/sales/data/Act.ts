@@ -1,5 +1,5 @@
 import { archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
-import { claimRetainerPeriod, saveMilestones, saveRetainer } from './act/billing'
+import { claimRetainerPeriod, retainerClaimProblem, saveMilestones, saveRetainer } from './act/billing'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
 import { applyPhoneLookup } from './act/phone'
@@ -28,7 +28,7 @@ export const Act = {
   createCompany, updateCompany, linkCompany, updateRel, bulkCompanies, archiveCompany, restoreCompany,
   addNote, editNote, deleteNote,
   createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, restoreContact, assignContacts,
-  saveMilestones, saveRetainer, claimRetainerPeriod,
+  saveMilestones, saveRetainer, claimRetainerPeriod, retainerClaimProblem,
   createDeal, updateDeal, moveStage, markWon, markLost, reopenDeal, archiveDeal, restoreDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   logCall, saveMeeting,

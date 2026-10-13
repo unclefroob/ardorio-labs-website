@@ -79,6 +79,24 @@ export function nextRetainerDate(due: string, anchorDay?: number): { next: strin
   return { next: `${y}-${p2(m)}-${p2(Math.min(a, daysIn(y, m)))}`, anchorDay: a }
 }
 
+/**
+ * The plan's next invoice date after a retainer period is billed by hand. The server keeps the anchorDay it stored
+ * and drops one a client sends, so only the stored anchor counts. With no stored anchor, a claim from the 29th to
+ * the 31st into a shorter month moves every later date to that shorter day: `laterDay` is then that day.
+ */
+export function claimedRetainerDate(due: string, storedAnchor?: number): { next: string; laterDay?: number } {
+  const { next, anchorDay } = nextRetainerDate(due, storedAnchor)
+  const after = nextRetainerDate(next, storedAnchor).anchorDay
+  return after === anchorDay ? { next } : { next, laterDay: after }
+}
+
+/** "1st", "28th", "31st". */
+export function dayOrdinal(d: number): string {
+  const t = d % 100
+  const s = t >= 11 && t <= 13 ? 'th' : d % 10 === 1 ? 'st' : d % 10 === 2 ? 'nd' : d % 10 === 3 ? 'rd' : 'th'
+  return `${d}${s}`
+}
+
 /** Never list more than this many catch-up periods; a date this far back is a mistake either way. */
 export const MAX_CATCH_UP = 240
 

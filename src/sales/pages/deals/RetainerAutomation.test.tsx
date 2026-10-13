@@ -187,7 +187,24 @@ describe('A retainer invoice made by hand', () => {
     await click(button(host, 'Save draft'))
     await settle(6)
     expect(api.count('POST /sales/invoices')).toBe(1)
-    expect(m.store.S.billingPlans[0].retainer).toMatchObject({ nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-09-01', anchorDay: 1 })
+    expect(m.store.S.billingPlans[0].retainer).toMatchObject({ nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-09-01' })
+    // anchorDay is the server's: it drops a client's value, so the claim never writes one.
+    expect(m.store.S.billingPlans[0].retainer).not.toHaveProperty('anchorDay')
+  })
+
+  it('a claim into a shorter month with no anchor stored says the later drafts move to the shorter day', async () => {
+    await openEditor({ nextInvoiceDate: '2026-08-31' }, '2026-08-31')
+    expect(text()).toContain('Saving it moves the automatic draft on to 30 Sep 2026')
+    expect(text()).toContain('Later drafts then fall on the 30th of each month, not the 31st')
+    await click(button(host, 'Save draft'))
+    await settle(6)
+    expect(m.store.S.billingPlans[0].retainer).toEqual({ amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-09-30' })
+  })
+
+  it('with the anchor the server stored, a claim into a shorter month says nothing about later dates', async () => {
+    await openEditor({ nextInvoiceDate: '2026-08-31', lastDraftedFor: '2026-07-31', anchorDay: 31 }, '2026-08-31')
+    expect(text()).toContain('Saving it moves the automatic draft on to 30 Sep 2026')
+    expect(text()).not.toContain('Later drafts then fall')
   })
 
   it('claims nothing when the period has moved on since the card offered it', async () => {

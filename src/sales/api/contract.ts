@@ -515,7 +515,9 @@ export interface BillingMilestone { id: string; label: string; amountCents: numb
 // never changes it). When a plan's nextInvoiceDate is on or before today (org timezone) and lastDraftedFor differs,
 // the server engine drafts the invoice (source 'retainer', status draft, never issued or sent) and moves
 // nextInvoiceDate on one month, keeping the original day where the month has it (31 Jan -> 28/29 Feb -> 31 Mar).
-// anchorDay: that original day of month, written by the server when it moves the date; a client keeps it as it was.
+// anchorDay: that original day of month, written by the server when it moves the date after its own draft. Read only:
+// the API keeps the value it stored and drops one a client sends (none stored means none kept), and its own contract
+// does not list the key. A client never writes it; a claim by hand moves nextInvoiceDate alone.
 export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string; lastDraftedFor?: string; anchorDay?: number }
 // sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
 export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
