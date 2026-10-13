@@ -4,6 +4,9 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, useStore } from '../../data/store'
 import { Banner, BizChip, Btn, Chip, Empty, Link, Owner, Tabs } from '../../kit'
+import { seqArchived } from '../../data/archive'
+import { askArchive } from '../../shared/archiveActions'
+import { ArchivedState } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { seqStats } from '../../shared/seqStats'
 import { UI, type Route } from '../../ui/store'
@@ -44,6 +47,7 @@ export function Sequence({ route }: { route: Route }) {
       </div>
     )
   }
+  if (seqArchived(s)) return <ArchivedState kind="sequence" r={s} />
   if (!dr) return null
 
   const can = Q.canEdit(s.businessId) && (s.shared || s.ownerId === Q.me().id || Q.canManage(s.businessId))
@@ -92,6 +96,7 @@ export function Sequence({ route }: { route: Route }) {
           </>
         )}
         {can && !dirty && (s.status === 'active' ? <Btn icon="pause" onClick={() => Act.setSeqStatus(s.id, 'paused')}>Pause</Btn> : s.status !== 'archived' && <Btn kind="pri" icon="play" onClick={activate}>Activate</Btn>)}
+        {Q.canAdmin(s.businessId) && !dirty && <Btn icon="archive" onClick={() => askArchive('sequence', s.id)}>Archive</Btn>}
         {can && <Btn icon="send" disabled={s.status !== 'active' || dirty} title={s.status !== 'active' ? 'Activate the sequence to enrol' : dirty ? 'Save your changes first' : undefined} onClick={() => UI.open('enrol', { seqId: s.id })}>Enrol contacts</Btn>}
       </PageHead>
       {!can && <Banner icon="lock">You have read-only access to this sequence.</Banner>}
