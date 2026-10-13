@@ -45,6 +45,7 @@ function RecordWonForm({ b0, company }: { b0: BusinessId; company?: Company }) {
   const [err, setErr] = useState<RecordWonErrors>({})
   const [fail, setFail] = useState<string | null>(null)
   const [tries, setTries] = useState(0)
+  const [busy, setBusy] = useState(false)
   const body = useRef<HTMLDivElement>(null)
   const today = F.today()
   const b = f.businessId
@@ -62,7 +63,8 @@ function RecordWonForm({ b0, company }: { b0: BusinessId; company?: Company }) {
     if (tries) body.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
   }, [tries])
 
-  const save = (): void => {
+  const save = async (): Promise<void> => {
+    if (busy) return
     setFail(null)
     const c = checkRecordWon(f, today, contract)
     if (!c.ok) {
@@ -80,10 +82,20 @@ function RecordWonForm({ b0, company }: { b0: BusinessId; company?: Company }) {
       amountCents: c.amountCents, engagementType: contract ? f.engagementType : null,
     })
     if (!r.ok) return setFail(r.error)
+    // Success is said only once the server has accepted the records; a refusal takes them all back out.
+    setBusy(true)
+    const out = await Act.recordWonOutcome(r.saved)
+    setBusy(false)
+    if (out.state === 'refused') return setFail(`Nothing was recorded. ${out.error}.`.replace(/\.\.$/, '.'))
     UI.close()
-    UI.nav('deal', r.contract ? { id: r.deal.id, q: { tab: 'billing' } } : { id: r.deal.id })
-    if (r.contractError) UI.toast(`Won deal recorded, but the contract was not saved: ${r.contractError}`, 'bad')
-    else if (r.contract) UI.toast(`Won deal recorded. Contract of ${formatCents(c.amountCents)} ex GST set.`)
+    if (out.state === 'pending') {
+      UI.nav('deal', { id: r.deal.id })
+      UI.toast('Won deal saved on this device only. It is recorded, or taken back out, when SalesOS reaches the server.', 'warn')
+      return
+    }
+    UI.nav('deal', out.contract ? { id: r.deal.id, q: { tab: 'billing' } } : { id: r.deal.id })
+    if (out.contractError) UI.toast(`Won deal recorded, but the contract was not saved: ${out.contractError}`, 'bad')
+    else if (out.contract) UI.toast(`Won deal recorded. Contract of ${formatCents(c.amountCents)} ex GST set.`)
     else UI.toast('Won deal recorded')
   }
 
@@ -100,7 +112,7 @@ function RecordWonForm({ b0, company }: { b0: BusinessId; company?: Company }) {
       title="Record a won deal"
       icon="star"
       width={720}
-      footer={<><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" onClick={save} disabled={!hasWon}>Record won deal</Btn></>}
+      footer={<><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" onClick={() => void save()} disabled={!hasWon || busy}>{busy ? 'Recording…' : 'Record won deal'}</Btn></>}
     >
       <div ref={body} className="col" style={{ gap: 14 }}>
         <div className="sm muted">For work you have already won, including past deals. It skips the pipeline stages and goes straight to Won.</div>
