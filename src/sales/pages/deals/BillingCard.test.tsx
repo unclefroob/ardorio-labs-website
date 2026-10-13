@@ -90,12 +90,16 @@ describe('Billing card: the schedule', () => {
     expect(r[3]).toContain('$6,000.00')
   })
 
-  it('shows Billed X of Y quoted, with the deal value as the quote and drafts left out', async () => {
+  it('shows the project money against the deal value while no contract is recorded, with drafts left out', async () => {
     await show()
-    expect(text()).toContain('Billed $36,000.00 of $60,000.00 quoted')
-    expect(text()).toContain('60%')
-    const bar = host.querySelector('.prog')
-    expect(bar?.getAttribute('aria-label')).toBe('Paid $18,000.00, invoiced $18,000.00, not yet billed $24,000.00 of $60,000.00')
+    const bars = [...host.querySelectorAll('.bul')].map(b => b.getAttribute('aria-label'))
+    expect(bars).toEqual([
+      'Earned $0.00 of $60,000.00 estimated, no contract recorded',
+      'Invoiced $36,000.00 of $60,000.00 estimated, no contract recorded',
+      'Collected $18,000.00 of $60,000.00 estimated, no contract recorded',
+    ])
+    expect(host.querySelector('.prog')).toBeNull()
+    expect(text()).not.toContain('quoted')
   })
 
   it('offers the right button for each state', async () => {
@@ -300,7 +304,7 @@ describe('Billing card: who sees it', () => {
   })
   it('a super admin sees it', async () => {
     await show(base, 'super')
-    expect(text()).toContain('Billing schedule')
+    expect(text()).toContain('Milestones')
   })
   it('the Deal page has a Billing tab for admins and none for anyone else', async () => {
     for (const [role, expected] of [['admin', true], ['manager', false]] as const) {
@@ -325,7 +329,7 @@ describe('Billing card: who sees it', () => {
     const { Deal } = await import('./Deal')
     await act(async () => { root.render(<Deal route={{ page: 'deal', id: 'dl1', q: { tab: 'billing' } } as never} />) })
     await settle(8)
-    expect(text()).toContain('Billing schedule')
-    expect(text()).toContain('Billed $36,000.00 of $60,000.00 quoted')
+    expect(text()).toContain('Milestones')
+    expect(host.querySelector('.bul[data-bar="Invoiced"]')?.getAttribute('aria-label')).toBe('Invoiced $36,000.00 of $60,000.00 estimated, no contract recorded')
   })
 })

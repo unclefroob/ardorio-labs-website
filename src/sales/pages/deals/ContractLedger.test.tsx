@@ -196,7 +196,7 @@ describe('Set contract for a deal won before the ledger', () => {
 })
 
 describe('Deal Billing tab', () => {
-  it('shows the contract ledger above the billing schedule', async () => {
+  it('shows the contract ledger before the milestones', async () => {
     m = await loadSales()
     m.bootstrap.hydrate(invoicingWorld({ deals: [ardDeal('dl1')], billingPlans: [rec('bp_dl1', { ...PLAN_DATA, contract: CONTRACT, variations: [VO1] })] }))
     setArdRole(m, 'admin')
@@ -206,7 +206,7 @@ describe('Deal Billing tab', () => {
     await settle(6)
     const titles = [...host.querySelectorAll('.card-h h3')].map(h => h.textContent)
     expect(titles.indexOf('Contract ledger')).toBeGreaterThanOrEqual(0)
-    expect(titles.indexOf('Contract ledger')).toBeLessThan(titles.indexOf('Billing schedule'))
+    expect(titles.indexOf('Contract ledger')).toBeLessThan(titles.indexOf('Milestones'))
     expect(total()).toContain(fmt(5400000))
   })
 })
