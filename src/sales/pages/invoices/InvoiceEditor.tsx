@@ -18,7 +18,7 @@ import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { downloadPdf } from './actions'
 import { MoreMenu } from './MoreMenu'
-import { StatusChip, TestChip } from './parts'
+import { RetainerChip, StatusChip, TestChip } from './parts'
 import { TestBanner, testItems, useTestActions } from './testActions'
 import { Activity, Totals } from './rail'
 import { InvoicesDenied } from './states'
@@ -207,7 +207,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /><RetainerChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, invoice?.invoiceNumber ?? 'New invoice']}
       >
