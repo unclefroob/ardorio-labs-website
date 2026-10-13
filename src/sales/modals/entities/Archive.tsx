@@ -1,11 +1,13 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { canArchive, isArchived, KIND_NOUN, liveSeqEnrolments, lookup, recordName, stoppableEnrolments, whoMay, type ArchiveKind } from '../../data/archive'
-import { Act } from '../../data/Act'
+import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import type { Contact, Deal } from '../../data/types'
 import { Banner, Btn, Modal } from '../../kit'
 import { archiveNow, restoreNow } from '../../shared/archiveActions'
+import { retainerDuePeriods, retainerSpanLabel } from '../../shared/billing'
+import { fmtDay } from '../../shared/invoices'
 import { formatCents } from '../../shared/money'
 import { UI } from '../../ui/store'
 import { MissingModal } from './guards'
@@ -21,9 +23,6 @@ const TITLE: Record<ArchiveKind, string> = { company: 'Company', contact: 'Conta
  */
 export function ArchiveRecord({ kind, id, mode = 'archive' }: { kind: ArchiveKind; id: string; mode?: 'archive' | 'restore' }) {
   useStore()
-  // An Ardorio deal's monthly retainer keeps drafting invoices whatever the deal's state, and an archived deal hides
-  // its billing schedule, so archiving offers to remove the retainer too (on by default).
-  const [stopRetainer, setStopRetainer] = useState(true)
   const r = lookup(kind, id)
   if (!r) return <MissingModal title={mode === 'archive' ? 'Archive' : 'Restore'} what={TITLE[kind]} />
   const noun = KIND_NOUN[kind]
@@ -47,13 +46,12 @@ export function ArchiveRecord({ kind, id, mode = 'archive' }: { kind: ArchiveKin
     )
   }
 
-  const retainer = archive && kind === 'deal' ? Q.billingPlan(id)?.retainer : undefined
+  // The server scheduler drafts a retainer only for a won deal that is not archived, and leaves an archived deal's plan
+  // exactly as it is (date and last drafted period), so archiving pauses the retainer and restoring resumes it. The
+  // retainer is never removed here: that would drop the server's record of the periods already drafted.
+  const retainer = kind === 'deal' ? Q.billingPlan(id)?.retainer : undefined
   const go = (): void => {
     UI.close()
-    if (retainer && stopRetainer) {
-      const res = Act.saveRetainer(id, null)
-      if (!res.ok) UI.toast(`The retainer was not removed: ${res.error}`)
-    }
     if (archive) archiveNow(kind, id)
     else restoreNow(kind, id)
   }
@@ -83,12 +81,8 @@ export function ArchiveRecord({ kind, id, mode = 'archive' }: { kind: ArchiveKin
       body = (
         <>
           {retainer && (
-            <Banner tone="warn">
-              <b>This deal has a monthly retainer of {formatCents(retainer.amountCents)}.</b> Archiving does not stop it: a draft invoice would still be made each month, and the billing schedule is hidden until the deal is restored.
-              <label className="row" style={{ gap: 8, marginTop: 8, alignItems: 'flex-start' }}>
-                <input type="checkbox" checked={stopRetainer} onChange={e => setStopRetainer(e.target.checked)} />
-                <span>Remove the retainer as well. Restoring the deal does not bring it back; add it again on the billing schedule.</span>
-              </label>
+            <Banner tone="info">
+              <b>This deal has a monthly retainer of {formatCents(retainer.amountCents)}.</b> No retainer invoices are drafted while the deal is archived. The retainer is kept, and drafting picks up where it stopped when the deal is restored.
             </Banner>
           )}
           <P>{name} leaves the pipeline board, forecasts, reports and goals{d.status === 'open' ? ', taking its value out of the pipeline' : ''}. Activity logged on it stops counting too.</P>
@@ -106,7 +100,15 @@ export function ArchiveRecord({ kind, id, mode = 'archive' }: { kind: ArchiveKin
     }
   } else if (kind === 'deal') {
     const d = r as Deal
-    body = <P>{name} returns to the pipeline board, forecasts, reports and goals in its current stage, {Q.stage(d)?.name ?? 'a removed stage'}.</P>
+    const behind = retainer && d.status === 'won' ? retainerDuePeriods(retainer, F.today()) : []
+    body = (
+      <>
+        <P>{name} returns to the pipeline board, forecasts, reports and goals in its current stage, {Q.stage(d)?.name ?? 'a removed stage'}.</P>
+        {retainer && d.status === 'won' && (behind.length > 1
+          ? <Banner tone="warn"><b>Retainer drafting resumes, {behind.length} months behind.</b> A draft is made for each of {retainerSpanLabel(behind)}, one each run. Move the next invoice date on first if those months were billed some other way.</Banner>
+          : <P>Its monthly retainer resumes{behind.length === 1 ? `, and the ${retainerSpanLabel(behind)} draft is made on the next run` : retainer.nextInvoiceDate ? `, with the next draft on ${fmtDay(retainer.nextInvoiceDate)}` : ''}.</P>)}
+      </>
+    )
   } else if (kind === 'contact') {
     body = <P>{name} returns to Contacts, search and pickers. Sequence enrolments that stopped when it was archived stay stopped; enrol again if you need to.</P>
   } else if (kind === 'company') {
