@@ -91,10 +91,11 @@ describe('Restoring a deal that has a retainer', () => {
     expect(m.store.S.billingPlans[0].retainer).toEqual(RETAINER)
   })
 
-  it('warns when the months missed while archived are drafted on restore', async () => {
+  it('warns on restore that only the latest missed month is drafted and the rest are skipped', async () => {
     // The fixture clock is 9 Oct 2026, so July to October are all due.
     await openArchive(true, 'restore', { ...RETAINER, nextInvoiceDate: '2026-07-01', lastDraftedFor: '2026-06-01' })
     expect(dialog().textContent).toContain('Retainer drafting resumes, 4 months behind.')
-    expect(dialog().textContent).toContain('July 2026 to October 2026')
+    expect(dialog().textContent).toContain('Only October 2026 is drafted, on the next run.')
+    expect(dialog().textContent).toContain('July 2026 to September 2026 are skipped')
   })
 })

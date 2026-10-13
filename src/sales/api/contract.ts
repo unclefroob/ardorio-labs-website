@@ -525,7 +525,8 @@ export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; mi
 // link) carry two extra keys, kind and data:
 //   kind 'retainer-invoice-drafted'      data { invoiceId, invoiceNumber, dealId }   to the deal owner
 //   kind 'retainer-needs-billing-client' data { dealId, companyId }                  to the deal owner, once per due date
-export type RetainerNotificationKind = 'retainer-invoice-drafted' | 'retainer-needs-billing-client'
+//   kind 'retainer-periods-skipped'      a plan more than one period behind: only the latest period is drafted; the months passed over are listed once
+export type RetainerNotificationKind = 'retainer-invoice-drafted' | 'retainer-needs-billing-client' | 'retainer-periods-skipped'
 export interface RetainerInvoiceDraftedData { invoiceId: string; invoiceNumber: string; dealId: string }
 export interface RetainerNeedsBillingClientData { dealId: string; companyId: string }
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.

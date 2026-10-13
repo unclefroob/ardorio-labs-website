@@ -174,15 +174,15 @@ function Schedule({ deal }: { deal: Deal }) {
               <Fld label="Monthly amount (ex GST)"><Inp aria-label="Retainer amount" className="mono" value={retainerForm.amount} onChange={v => setRetainerForm({ ...retainerForm, amount: v })} /></Fld>
               <Fld label="Next invoice date"><Inp aria-label="Retainer next invoice date" type="date" value={retainerForm.date} onChange={v => setRetainerForm({ ...retainerForm, date: v })} /></Fld>
               <span className="row" style={{ gap: 6 }}>
-                <Btn size="sm" kind="pri" onClick={saveRetainer}>{formCatchUp.length > 1 ? `Save and draft ${formCatchUp.length} months` : 'Save retainer'}</Btn>
+                <Btn size="sm" kind="pri" onClick={saveRetainer}>{formCatchUp.length > 1 ? `Save and draft ${retainerSpanLabel(formCatchUp.slice(-1))} only` : 'Save retainer'}</Btn>
                 <Btn size="sm" onClick={() => { setRetainerForm(null); setErr('') }}>Cancel</Btn>
               </span>
             </div>
             {formRedraft && <Banner tone="bad">{formRedraft}.</Banner>}
             {formCatchUp.length > 1 && (
               <Banner tone="warn">
-                <b>This date is in the past, so {formCatchUp.length} draft invoices would be made, one each run, for {retainerSpanLabel(formCatchUp)}.</b>{' '}
-                Choose today or a later date unless every one of those months still needs billing.
+                <b>This date is {formCatchUp.length} months in the past, so only {retainerSpanLabel(formCatchUp.slice(-1))} is drafted, on the next run. {retainerSpanLabel(formCatchUp.slice(0, -1))} {formCatchUp.length === 2 ? 'is' : 'are'} skipped.</b>{' '}
+                You get one notification listing the skipped months; invoice by hand any that still need billing.
               </Banner>
             )}
             {formCatchUp.length === 1 && <div className="faint sm">This date is today or earlier, so the first draft is made on the next run.</div>}
@@ -249,7 +249,7 @@ function RetainerNote({ retainer, today, paused }: { retainer: BillingRetainer; 
   const amount = formatCents(retainer.amountCents)
   const behind = st === 'due' ? retainerDuePeriods(retainer, today) : []
   const catchUp = behind.length > 1
-    ? ` The date is ${behind.length} months behind, so ${behind.length} drafts are made, one each run, for ${retainerSpanLabel(behind)}. Move the date on if those months were billed already.`
+    ? ` The date is ${behind.length} months behind, so only ${retainerSpanLabel(behind.slice(-1))} is drafted, on the next run. ${retainerSpanLabel(behind.slice(0, -1))} ${behind.length === 2 ? 'is' : 'are'} skipped, with one notification listing them; invoice by hand any that still need billing.`
     : ''
   const msg = paused && st !== 'no-date' ? PAUSED[paused] : st === 'no-date'
     ? 'No next invoice date, so no draft is created automatically. Set a date to have the draft made for you.'

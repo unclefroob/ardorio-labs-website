@@ -89,10 +89,10 @@ describe('Deal billing card: retainer automation', () => {
     expect(note()).toContain('never sent automatically')
   })
 
-  it('a date months behind says how many drafts the catch-up makes, one each run', async () => {
+  it('a date months behind says only the latest month is drafted and the rest are skipped', async () => {
     await showCard({ nextInvoiceDate: '2020-01-01', lastDraftedFor: '2019-12-01' })
-    expect(note()).toMatch(/The date is \d+ months behind, so \d+ drafts are made, one each run, for January 2020 to /)
-    expect(note()).toContain('Move the date on if those months were billed already')
+    expect(note()).toMatch(/The date is \d+ months behind, so only \w+ \d{4} is drafted, on the next run\. January 2020 to \w+ \d{4} are skipped, with one notification listing them/)
+    expect(note()).toContain('invoice by hand any that still need billing')
   })
 
   it('a date due this month alone says nothing about catching up', async () => {
@@ -102,12 +102,12 @@ describe('Deal billing card: retainer automation', () => {
     expect(note()).not.toContain('months behind')
   })
 
-  it('the form warns that a past date drafts one invoice per month, and the save button says how many', async () => {
+  it('the form warns that a past date drafts only the latest month and skips the rest', async () => {
     await showCard({ nextInvoiceDate: '2099-11-01' })
     await click(button(host, 'Edit retainer'))
     await type(host.querySelector('[aria-label="Retainer next invoice date"]'), '2020-01-01')
-    expect(text()).toMatch(/This date is in the past, so \d+ draft invoices would be made, one each run, for January 2020 to /)
-    const save = [...host.querySelectorAll('button')].find(b => /^Save and draft \d+ months$/.test(b.textContent ?? ''))
+    expect(text()).toMatch(/This date is \d+ months in the past, so only \w+ \d{4} is drafted, on the next run\. January 2020 to \w+ \d{4} are skipped\./)
+    const save = [...host.querySelectorAll('button')].find(b => /^Save and draft \w+ \d{4} only$/.test(b.textContent ?? ''))
     expect(save).toBeTruthy()
     await type(host.querySelector('[aria-label="Retainer next invoice date"]'), '2099-12-01')
     expect(text()).not.toContain('This date is in the past')

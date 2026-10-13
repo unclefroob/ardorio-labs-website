@@ -105,7 +105,7 @@ export function ArchiveRecord({ kind, id, mode = 'archive' }: { kind: ArchiveKin
       <>
         <P>{name} returns to the pipeline board, forecasts, reports and goals in its current stage, {Q.stage(d)?.name ?? 'a removed stage'}.</P>
         {retainer && d.status === 'won' && (behind.length > 1
-          ? <Banner tone="warn"><b>Retainer drafting resumes, {behind.length} months behind.</b> A draft is made for each of {retainerSpanLabel(behind)}, one each run. Move the next invoice date on first if those months were billed some other way.</Banner>
+          ? <Banner tone="warn"><b>Retainer drafting resumes, {behind.length} months behind.</b> Only {retainerSpanLabel(behind.slice(-1))} is drafted, on the next run. {retainerSpanLabel(behind.slice(0, -1))} {behind.length === 2 ? 'is' : 'are'} skipped, and you get one notification listing {behind.length === 2 ? 'it' : 'them'} so you can bill by hand anything that still needs it.</Banner>
           : <P>Its monthly retainer resumes{behind.length === 1 ? `, and the ${retainerSpanLabel(behind)} draft is made on the next run` : retainer.nextInvoiceDate ? `, with the next draft on ${fmtDay(retainer.nextInvoiceDate)}` : ''}.</P>)}
       </>
     )
