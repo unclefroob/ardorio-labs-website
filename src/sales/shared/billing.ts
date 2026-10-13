@@ -447,13 +447,25 @@ export interface DealMoney {
   overBilled: number | null
 }
 
-type MoneyInvoice = Pick<InvoiceDto, 'status' | 'subtotalCents'> & Partial<Pick<InvoiceDto, 'test' | 'dealId' | 'source'>>
+type MoneyInvoice = Pick<InvoiceDto, 'status' | 'subtotalCents'> & Partial<Pick<InvoiceDto, 'test' | 'dealId' | 'source' | 'milestoneId'>>
+
+/**
+ * Whether an invoice on this deal bills its support retainer rather than the project. A scheduler draft always does.
+ * One made by hand counts as retainer when it carries no milestone and the deal has a retainer, which is how the
+ * billing card has always listed them, unless the engagement is time and materials: there project invoices carry no
+ * milestone either, so only the scheduler's own drafts are retainer.
+ */
+export function isRetainerInvoice(inv: Pick<MoneyInvoice, 'source' | 'milestoneId'>, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined): boolean {
+  if (inv.source === 'retainer') return true
+  if (inv.milestoneId || !plan?.retainer) return false
+  return plan.contract?.engagementType !== 'time-materials'
+}
 
 /**
  * The money of one Ardorio deal, ex GST. Invoices on another deal are ignored, so the deal's own list or the whole
  * list both work. A draft is not invoiced yet and a cancelled or test invoice never counts, as everywhere else.
  */
-export function moneyForDeal(deal: Pick<Deal, 'id' | 'value'>, plan: Pick<BillingPlan, 'contract' | 'variations' | 'milestones'> | undefined, invoices: readonly MoneyInvoice[]): DealMoney {
+export function moneyForDeal(deal: Pick<Deal, 'id' | 'value'>, plan: Pick<BillingPlan, 'contract' | 'variations' | 'milestones'> & Partial<Pick<BillingPlan, 'retainer'>> | undefined, invoices: readonly MoneyInvoice[]): DealMoney {
   const contracted = contractedCents(plan)
   const milestones = plan?.milestones ?? []
   const scheduled = milestones.reduce((a, m) => a + m.amountCents, 0)
@@ -462,7 +474,7 @@ export function moneyForDeal(deal: Pick<Deal, 'id' | 'value'>, plan: Pick<Billin
   for (const i of withoutTest(invoices)) {
     if (i.dealId !== undefined && i.dealId !== deal.id) continue
     if (i.status === 'draft' || i.status === 'void') continue
-    if (i.source === 'retainer') { retainerInvoiced += i.subtotalCents; continue }
+    if (isRetainerInvoice(i, plan)) { retainerInvoiced += i.subtotalCents; continue }
     invoiced += i.subtotalCents
     if (i.status === 'paid') collected += i.subtotalCents
   }
@@ -496,3 +508,44 @@ export function variationEffect(plan: Pick<BillingPlan, 'contract' | 'variations
   const scheduled = (plan?.milestones ?? []).reduce((a, m) => a + m.amountCents, 0)
   return { from, to: from + amount, unscheduledFrom: from - scheduled, unscheduledTo: from + amount - scheduled }
 }
+
+/** Issued project invoices of this deal that are past due: the part of Outstanding that is overdue. Ex GST. */
+export function overdueProjectCents(dealId: string, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined, invoices: ReadonlyArray<MoneyInvoice & Partial<Pick<InvoiceDto, 'overdue'>>>): number {
+  return withoutTest(invoices)
+    .filter(i => (i.dealId === undefined || i.dealId === dealId) && i.status === 'sent' && i.overdue && !isRetainerInvoice(i, plan))
+    .reduce((a, i) => a + i.subtotalCents, 0)
+}
+
+// ── milestone state: Planned / Delivered (stored) and Draft invoice / Invoiced / Paid (from invoices) ──────────
+export type MilestoneState = MilestoneStatus | 'Delivered'
+export const STATE_TONE: Record<MilestoneState, '' | 'info' | 'ok' | 'warn' | 'acc'> = { ...STATUS_TONE, Delivered: 'acc' }
+
+/** How far a milestone has got: an invoice state wins once there is a live one, else Delivered when delivered, else Planned. */
+export function milestoneState(row: Pick<ScheduleRow, 'status' | 'milestone'>): MilestoneState {
+  if (row.status !== 'Planned') return row.status
+  return row.milestone.deliveredOn ? 'Delivered' : 'Planned'
+}
+
+/** A delivered date as a person picks it: a real day, not after today. */
+export function validateDelivered(day: string, today: string): string | null {
+  if (!isDay(day)) return 'Pick the day it was delivered'
+  if (day > today) return 'The delivered date cannot be in the future'
+  return null
+}
+
+/** The estimate on the deal no longer matches what it was when the contract was frozen. */
+export function estimateChanged(deal: Pick<Deal, 'value'>, plan: Pick<BillingPlan, 'contract'> | undefined): boolean {
+  return !!plan?.contract && quotedCents(deal) !== plan.contract.estimateAtWonCents
+}
+
+/**
+ * The scale of the deal money bullet chart: a tenth beyond the largest figure, so the contracted marker and any
+ * overrun both stay inside the track. Nothing is capped at 100% of the contract.
+ */
+export function bulletScale(values: readonly number[]): number {
+  const top = Math.max(0, ...values)
+  return top > 0 ? Math.round(top * 1.1) : 1
+}
+
+/** A figure's share of the bullet scale, as a CSS width or left: "63.3%". */
+export const bulletPct = (n: number, scale: number): string => `${Math.round((Math.max(0, n) / scale) * 1000) / 10}%`

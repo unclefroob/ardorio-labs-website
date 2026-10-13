@@ -2,7 +2,8 @@ import type { BillingContract, BillingMilestone, BillingPlan, BillingRetainer, B
 import { F } from '../F'
 import { uid } from '../ids'
 import {
-  claimedRetainerDate, cleanMilestone, cleanRetainer, planId, retainerPause, redraftProblem, retainerPeriodLabel, validateContract, validateMilestones, validateRetainer, validateVariation,
+  claimedRetainerDate, cleanMilestone, cleanRetainer, planId, retainerPause, redraftProblem, retainerPeriodLabel, validateContract, validateDelivered, validateMilestones, validateRetainer,
+  validateVariation,
 } from '../../shared/billing'
 import { formatCents } from '../../shared/money'
 import { commit } from '../commit'
@@ -44,6 +45,32 @@ export function saveMilestones(dealId: string, milestones: readonly BillingMiles
 }
 
 /** Set or clear (null) the retainer of a deal's plan. Milestones are left alone. */
+/**
+ * Mark a milestone delivered on `day` (not in the future), or undo that with null. Only deliveredOn changes; the
+ * server writes deliveredBy, so the value kept here is only a placeholder it replaces. Admins of Ardorio only.
+ */
+export function markDelivered(dealId: string, milestoneId: string, day: string | null): BillingResult {
+  const g = guard(dealId)
+  if (g) return fail(g)
+  const p = Q.billingPlan(dealId)
+  const cur = p?.milestones.find(m => m.id === milestoneId)
+  if (!p || !cur) return fail('That milestone is no longer on this deal')
+  if (day !== null) {
+    const bad = validateDelivered(day, F.today())
+    if (bad) return fail(bad)
+  } else if (!cur.deliveredOn) return { ok: true }
+  p.milestones = p.milestones.map(m => {
+    if (m.id !== milestoneId) return m
+    const rest: BillingMilestone = { ...m }
+    delete rest.deliveredOn
+    delete rest.deliveredBy
+    return day === null ? rest : { ...rest, deliveredOn: day, deliveredBy: m.deliveredOn === day && m.deliveredBy ? m.deliveredBy : Q.me().name }
+  })
+  audit(day === null ? 'Milestone delivery undone' : 'Milestone delivered', `${Q.deal(dealId)?.title ?? dealId}: ${cur.label}${day ? `, ${day}` : ''}`)
+  commit()
+  return { ok: true }
+}
+
 export function saveRetainer(dealId: string, retainer: BillingRetainer | null): BillingResult {
   const g = guard(dealId)
   if (g) return fail(g)
