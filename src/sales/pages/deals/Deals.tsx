@@ -65,7 +65,10 @@ export function Deals({ route }: { route: Route }) {
     ? archived.length + ' archived · left out of the pipeline, forecasts, reports and goals'
     : (view === 'board' ? pl.name + ' · ' : '') + openDeals.length + ' open · ' + F.money(openDeals.reduce((s, d) => s + d.value, 0), 1) + ' pipeline · ' + F.money(bd.reduce((s, d) => s + Q.weighted(d), 0), 1) + ' weighted'
   const newDeal = (
-    <Btn kind="pri" icon="plus" disabled={!Q.anyEdit()} onClick={() => UI.open('newDeal', { businessId: pb })}>New deal</Btn>
+    <>
+      <Btn icon="star" disabled={!Q.anyEdit()} onClick={() => UI.open('recordWon', { businessId: pb })} title="Record work already won, including past deals, straight in Won">Record won deal</Btn>
+      <Btn kind="pri" icon="plus" disabled={!Q.anyEdit()} onClick={() => UI.open('newDeal', { businessId: pb })}>New deal</Btn>
+    </>
   )
 
   if (!all.length && !archived.length) {

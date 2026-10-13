@@ -122,7 +122,10 @@ export function Company({ route }: { route: Route }) {
           <Menu
             align="right"
             trigger={<Btn icon="more" aria-label="More actions" />}
-            items={[{ label: 'Archive company', icon: 'archive', onClick: () => askArchive('company', c.id) }]}
+            items={[
+              { label: 'Record won deal', icon: 'star', onClick: () => UI.open('recordWon', { companyId: c.id, businessId: b }) },
+              { label: 'Archive company', icon: 'archive', onClick: () => askArchive('company', c.id) },
+            ]}
           />
         )}
       </PageHead>

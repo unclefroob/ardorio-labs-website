@@ -36,7 +36,8 @@ export interface NewCompanyProps {
 
 const stripTld = (d: string): string => d.replace(/\.(com|com\.au)$/, '')
 
-function findDuplicate(name: string, website: string): Company | undefined {
+/** The existing company a new one would duplicate (same name or website domain), if any. */
+export function findDuplicate(name: string, website: string): Company | undefined {
   const n = norm(name)
   const d = domOf(website)
   return S.companies.find(c => !c.archived && (norm(c.name) === n || (!!d && !!c.domain && (c.domain === d || stripTld(c.domain) === stripTld(d)))))
