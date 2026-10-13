@@ -10,7 +10,7 @@ import type {
 } from './types'
 import type { BillingPlan, IntelKind, InvoiceDto } from '../api/contract'
 import { milestoneStatus, type MilestoneStatus } from '../shared/invoices'
-import { wonAt } from '../shared/goalMetrics'
+import { fyDays, quarterDays, wonAt } from '../shared/goalMetrics'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -522,6 +522,10 @@ export const Q = {
     if (g.period === 'month') {
       const t = clock.slice(0, 8)
       return [`${t}01T00:00`, `${t}31T23:59`]
+    }
+    if (g.period === 'quarter' || g.period === 'year') {
+      const r = g.period === 'quarter' ? quarterDays(clock.slice(0, 10)) : fyDays(clock.slice(0, 10))
+      return [`${r.from}T00:00`, `${r.to}T23:59`]
     }
     const ws = F.weekStart()
     return [ws, F.addDays(ws, 7)]

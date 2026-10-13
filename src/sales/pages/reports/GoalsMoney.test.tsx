@@ -49,7 +49,7 @@ const GOALS = [
   goal('g-calls', { metric: 'calls', target: 20 }),
 ]
 
-async function show(o: { role?: Parameters<typeof setArdRole>[1]; routes?: Parameters<typeof fakeApi>[0] } = {}) {
+async function show(o: { role?: Parameters<typeof setArdRole>[1]; routes?: Parameters<typeof fakeApi>[0]; goals?: unknown[] } = {}) {
   m = await loadSales()
   const w = invoicingWorld({
     teams: [rec('t1', { name: 'Ardorio team', businessId: 'ard', managerId: 'u-me', members: ['u-me', 'u-jan'] })],
@@ -67,8 +67,10 @@ async function show(o: { role?: Parameters<typeof setArdRole>[1]; routes?: Param
       ardDeal('d7', { value: 30000, closedAt: '2026-10-06T09:00:00', ownerId: 'u-out' }),
       // Mine, won last week: the previous period.
       ardDeal('d8', { value: 30000, closedAt: '2026-10-02T15:00:00' }),
+      // Mine, won in June: the previous financial year.
+      ardDeal('d9', { value: 15000, closedAt: '2026-06-30T16:00:00' }),
     ],
-    goals: GOALS,
+    goals: (o.goals ?? GOALS) as never,
   })
   w.users.push(user('u-jan', 'Jansen'), user('u-out', 'Outsider'))
   m.bootstrap.hydrate(w)
@@ -139,6 +141,19 @@ describe('Goals: money metrics', () => {
     expect(cells('Team targets', 'Invoiced')[4]).toBe('$12,500.50')
   })
 
+  it('measures a financial year goal from 1 July, against the whole financial year before', async () => {
+    await show({ goals: [...GOALS, goal('g-fy', { metric: 'won_value', target: 600000, period: 'year' }), goal('g-q', { metric: 'calls', target: 300, period: 'quarter' })] })
+    const seg = host.querySelector('.ph [role="group"]') as ParentNode
+    expect([...seg.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Financial year'])
+    // The weekly view leaves the year goal out.
+    expect(cells('Individual targets', 'Won value')[3]).toBe('$50,000')
+    await click(button(seg, 'Financial year'))
+    // d1 + d2 + d8 since 1 July 2026; d9 (30 June) is last financial year.
+    expect(cells('Individual targets', 'Won value').slice(3, 8)).toEqual(['$600,000', '$72,500', '12%', '$527,500', '$15,000 ▲$57,500'])
+    await click(button(seg, 'Quarterly'))
+    expect(cells('Individual targets', 'Calls').slice(3, 5)).toEqual(['300', '0'])
+  })
+
   it('says it is loading while the report is on its way', async () => {
     await show({ routes: { [WEEK]: () => new Promise<Response>(() => {}), [LAST_WEEK]: () => json(200, report(0, 0)) } })
     const inv = cells('Team targets', 'Invoiced')
@@ -204,6 +219,17 @@ describe('Goal form: money metrics', () => {
     await type(field(host, 'Target (A$, ex GST)'), '20000')
     await click(button(host, 'Save'))
     expect(m.store.S.goals.find(g => g.ownerId === 'u-seller')).toMatchObject({ metric: 'collected_cents', target: 2000000 })
+  })
+
+  it('offers quarter and financial year periods and saves a financial year goal', async () => {
+    await form()
+    expect(options('Period')).toEqual(['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Financial year'])
+    await type(field(host, 'Salesperson'), 'u-seller')
+    await type(field(host, 'Metric'), 'won_value')
+    await type(field(host, 'Period'), 'year')
+    await type(field(host, 'Target (A$, ex GST)'), '600000')
+    await click(button(host, 'Save'))
+    expect(m.store.S.goals.find(g => g.ownerId === 'u-seller')).toMatchObject({ metric: 'won_value', target: 600000, period: 'year' })
   })
 
   it('refuses a money target that is not an amount', async () => {

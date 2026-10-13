@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatGoalValue, GOAL_METRIC_LABEL, goalCents, goalDays, isMoneyMetric, isReportMetric, prevGoalDays, realDay, targetFromCents, targetToInput, wonAt } from './goalMetrics'
+import { formatGoalValue, fyDays, GOAL_METRIC_LABEL, GOAL_PERIODS, goalCents, goalDays, isMoneyMetric, isReportMetric, prevGoalDays, quarterDays, realDay, targetFromCents, targetToInput, wonAt } from './goalMetrics'
 
 describe('goal metrics', () => {
   it('labels the money metrics and keeps the activity labels as they were', () => {
@@ -46,6 +46,23 @@ describe('goal metrics', () => {
     expect(prevGoalDays('month', '2026-10-01')).toEqual({ from: '2026-09-01', to: '2026-09-30' })
     expect(prevGoalDays('month', '2026-01-01')).toEqual({ from: '2025-12-01', to: '2025-12-31' })
     expect(prevGoalDays('month', '2028-03-01')).toEqual({ from: '2028-02-01', to: '2028-02-29' })
+    expect(prevGoalDays('quarter', '2026-10-01')).toEqual({ from: '2026-07-01', to: '2026-09-30' })
+    expect(prevGoalDays('quarter', '2026-01-01')).toEqual({ from: '2025-10-01', to: '2025-12-31' })
+    expect(prevGoalDays('year', '2026-07-01')).toEqual({ from: '2025-07-01', to: '2026-06-30' })
+  })
+
+  it('offers quarter and financial year goals, as board 6 does', () => {
+    expect(GOAL_PERIODS.map(p => p[0])).toEqual(['day', 'week', 'month', 'quarter', 'year'])
+    expect(GOAL_PERIODS.find(p => p[0] === 'year')?.[1]).toBe('Financial year')
+  })
+
+  it('finds the calendar quarter and the July to June financial year of a day', () => {
+    expect(quarterDays('2026-10-09')).toEqual({ from: '2026-10-01', to: '2026-12-31' })
+    expect(quarterDays('2026-02-28')).toEqual({ from: '2026-01-01', to: '2026-03-31' })
+    expect(quarterDays('2026-06-30')).toEqual({ from: '2026-04-01', to: '2026-06-30' })
+    expect(fyDays('2026-10-09')).toEqual({ from: '2026-07-01', to: '2027-06-30' })
+    expect(fyDays('2026-06-30')).toEqual({ from: '2025-07-01', to: '2026-06-30' })
+    expect(fyDays('2026-07-01')).toEqual({ from: '2026-07-01', to: '2027-06-30' })
   })
 
   it('takes a deal as won at closedAt, else at the start of its close date', () => {

@@ -5,7 +5,7 @@ import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import type { Goal } from '../../data/types'
 import { Banner, BizDot, Btn, Card, DataTable, Empty, Icon, Owner, Prog, Seg, type Col } from '../../kit'
-import { formatGoalValue, GOAL_METRIC_LABEL, isMoneyMetric, prevGoalDays } from '../../shared/goalMetrics'
+import { formatGoalValue, GOAL_METRIC_LABEL, GOAL_PERIODS, isMoneyMetric, prevGoalDays } from '../../shared/goalMetrics'
 import { PageHead } from '../../shared/PageHead'
 import { useGoalRevenue, type GoalRevenue } from '../../shared/useGoalRevenue'
 import { UI } from '../../ui/store'
@@ -15,11 +15,13 @@ export const METRIC_LABEL: Record<string, string> = GOAL_METRIC_LABEL
 
 function prevActual(g: Goal): number {
   const [f, t] = Q.goalRange(g)
-  if (g.metric === 'won_value') {
-    // Money goals compare with the whole period before: yesterday, last week or last calendar month.
+  if (g.metric === 'won_value' || g.period === 'quarter' || g.period === 'year') {
+    // Money goals, and every quarter and year goal, compare with the whole period before: yesterday, last week, or
+    // the last calendar month, quarter or financial year.
     const p = prevGoalDays(g.period, f.slice(0, 10))
     const ids = g.ownerType === 'team' ? (Q.team(g.ownerId)?.members ?? []) : [g.ownerId]
-    return Q.wonValue(ids, `${p.from}T00:00`, `${p.to}T23:59`, g.businessId)
+    if (g.metric === 'won_value') return Q.wonValue(ids, `${p.from}T00:00`, `${p.to}T23:59`, g.businessId)
+    return Q.metric(ids, g.metric, `${p.from}T00:00`, `${p.to}T23:59`, g.businessId)
   }
   const len = g.period === 'day' ? 1 : g.period === 'week' ? 7 : 30
   const ids = g.ownerType === 'team' ? (Q.team(g.ownerId)?.members ?? []) : [g.ownerId]
@@ -140,7 +142,7 @@ export function Goals() {
   return (
     <div className="page">
       <PageHead title="Sales goals" sub={`Measured from recorded activity only · ${remaining(per)}`}>
-        <Seg value={per} onChange={v => setPer(v as Period)} opts={[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]} />
+        <Seg value={per} onChange={v => setPer(v as Period)} opts={GOAL_PERIODS} />
         {canSet && <Btn kind="pri" icon="plus" onClick={() => UI.open('goal', { period: per })}>Set goal</Btn>}
       </PageHead>
       <Banner tone="info">Drafts, scheduled emails, cancelled calls and duplicates are not counted. Simulated sends and replies are not counted, because no real email has left SalesOS. Meetings booked are tracked separately from meetings completed.{money && ' Won value adds up the deal value of deals won in the period by the salesperson or team. Invoiced and collected are for all of Ardorio, ex GST, as recorded in SalesOS: void and test invoices are left out.'}</Banner>

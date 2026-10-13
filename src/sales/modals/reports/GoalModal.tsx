@@ -3,7 +3,7 @@ import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import type { BusinessId, Goal } from '../../data/types'
 import { Banner, Btn, Fld, Inp, Modal, Sel, Seg } from '../../kit'
-import { ACTIVITY_METRICS, GOAL_METRIC_LABEL, isMoneyMetric, isReportMetric, MONEY_METRICS, targetFromCents, targetToInput } from '../../shared/goalMetrics'
+import { ACTIVITY_METRICS, GOAL_METRIC_LABEL, GOAL_PERIODS, isMoneyMetric, isReportMetric, MONEY_METRICS, targetFromCents, targetToInput } from '../../shared/goalMetrics'
 import { parseCents } from '../../shared/money'
 import { useF } from '../../shared/useF'
 import { UI } from '../../ui/store'
@@ -77,7 +77,7 @@ export function GoalModal({ id, period, ownerType }: Props) {
           <Sel value={f.ownerId} onChange={v => set('ownerId', v)} placeholder="Select…" options={owners} />
         </Fld>
         <Fld label="Metric" hint={METRIC_HINT[f.metric]} style={money ? { gridColumn: '1/-1' } : undefined}><Sel value={f.metric} onChange={v => set('metric', v)} options={metrics} /></Fld>
-        <Fld label="Period"><Sel value={f.period} onChange={v => set('period', v as Goal['period'])} options={[['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']]} /></Fld>
+        <Fld label="Period"><Sel value={f.period} onChange={v => set('period', v as Goal['period'])} options={GOAL_PERIODS} /></Fld>
         {money
           ? <Fld label="Target (A$, ex GST)"><Inp className="money" value={f.target} onChange={v => set('target', v)} inputMode="decimal" /></Fld>
           : <Fld label="Target"><Inp value={f.target} onChange={v => set('target', v)} inputMode="numeric" /></Fld>}

@@ -65,9 +65,28 @@ export function goalDays(range: [string, string], now: string): { from: string; 
   return { from: realDay(f.slice(0, 10)), to: realDay(end.slice(0, 10)) }
 }
 
+/** The goal periods in the order they are offered, with the label the Goals page and the goal form show. */
+export const GOAL_PERIODS: ReadonlyArray<readonly [Goal['period'], string]> = [
+  ['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly'], ['quarter', 'Quarterly'], ['year', 'Financial year'],
+]
+
+/** The calendar quarter holding `day` (YYYY-MM-DD), first and last day. Calendar quarters are also the financial year's. */
+export function quarterDays(day: string): { from: string; to: string } {
+  const [y, m] = day.split('-').map(Number)
+  const q0 = Math.floor((m - 1) / 3) * 3 + 1
+  return { from: `${y}-${pad(q0)}-01`, to: `${y}-${pad(q0 + 2)}-${pad(lastDay(y, q0 + 2))}` }
+}
+
+/** The Australian financial year (1 July to 30 June) holding `day` (YYYY-MM-DD), first and last day. */
+export function fyDays(day: string): { from: string; to: string } {
+  const [y, m] = day.split('-').map(Number)
+  const start = m >= 7 ? y : y - 1
+  return { from: `${start}-07-01`, to: `${start + 1}-06-30` }
+}
+
 /**
- * The period before, for the "Prev. period" column of money goals: yesterday, last week (Monday to Sunday) or the
- * whole previous calendar month. `from` is the first day of the current goal range.
+ * The period before, for the "Prev. period" column of money goals: yesterday, last week (Monday to Sunday), the
+ * whole previous calendar month, quarter or financial year. `from` is the first day of the current goal range.
  */
 export function prevGoalDays(period: Goal['period'], from: string): { from: string; to: string } {
   if (period === 'day') {
@@ -75,6 +94,8 @@ export function prevGoalDays(period: Goal['period'], from: string): { from: stri
     return { from: d, to: d }
   }
   if (period === 'week') return { from: shiftDay(from, -7), to: shiftDay(from, -1) }
+  if (period === 'quarter') return quarterDays(shiftDay(from, -1))
+  if (period === 'year') return fyDays(shiftDay(from, -1))
   const [y, m] = from.split('-').map(Number)
   const py = m === 1 ? y - 1 : y
   const pm = m === 1 ? 12 : m - 1
