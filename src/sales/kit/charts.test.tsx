@@ -45,6 +45,18 @@ describe('chart accessibility', () => {
     expect(host.querySelector('[role="button"]')?.getAttribute('aria-label')).toBe('Jan: 5 (Rosterio 3, Advisory 2)')
   })
 
+  it('a grouped chart draws the parts side by side and names each, without a total that would add unlike things', async () => {
+    await draw(<Bars label="Invoiced and collected" grouped series={['Invoiced', 'Collected']} colors={['red', 'blue']} data={[{ l: 'Oct', v: [5, 3] }]} onBar={() => undefined} />)
+    expect(rows()).toEqual([['Item', 'Invoiced', 'Collected'], ['Oct', '5', '3']])
+    expect(host.querySelector('[role="button"]')?.getAttribute('aria-label')).toBe('Oct: Invoiced 5, Collected 3')
+    const bars = [...host.querySelectorAll('g[role="button"] rect')].slice(1)
+    expect(bars).toHaveLength(2)
+    // Side by side: different x, both standing on the axis; the taller one is the larger value.
+    expect(bars[0].getAttribute('x')).not.toBe(bars[1].getAttribute('x'))
+    expect(Number(bars[0].getAttribute('height'))).toBeGreaterThan(Number(bars[1].getAttribute('height')))
+    expect(Number(bars[0].getAttribute('y')) + Number(bars[0].getAttribute('height'))).toBe(Number(bars[1].getAttribute('y')) + Number(bars[1].getAttribute('height')))
+  })
+
   it('a line chart has a named group, a table, and a different line style for each series', async () => {
     await draw(<Line label="Activity by week" labels={['W1', 'W2']} series={[{ n: 'Emails', c: 'red', v: [1, 2] }, { n: 'Calls', c: 'blue', v: [3, 4] }]} />)
     expect(host.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('Activity by week')
