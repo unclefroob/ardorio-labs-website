@@ -520,6 +520,10 @@ export interface Notification {
   title: string
   body?: string
   link?: NotifLink
+  /** Machine-readable kind, set by the server engine on notifications it writes (see RetainerNotificationKind). */
+  kind?: string
+  /** Kind-specific ids (see the retainer notification data types in api/contract). */
+  data?: Record<string, unknown>
 }
 
 export interface AuditEntry { id: string; actorId: string; action: string; target: string; ts: Iso }

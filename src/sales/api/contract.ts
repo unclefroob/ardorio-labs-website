@@ -470,6 +470,8 @@ export interface InvoiceLine { description: string; detail?: string; qty: number
 export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
 /** Set when an admin marked the invoice as a test. Test invoices are excluded from every list, total and export unless ?includeTest=1. */
 export interface InvoiceTestInfo { markedAt: string; markedBy: string; reason: string }
+// Who made the invoice: a person, or the retainer scheduler (always as a draft). Every existing invoice reads as 'manual'.
+export type InvoiceSource = 'manual' | 'retainer'
 export interface InvoiceDto {
   id: string; invoiceNumber: string; clientSlug: string; clientName: string
   companyId: string | null; dealId: string | null; milestoneId: string | null
@@ -481,6 +483,7 @@ export interface InvoiceDto {
   subtotalCents: number; gstCents: number; totalCents: number; createdAt: string
   voided: InvoiceVoidInfo | null; refundDue: InvoiceRefundDue | null
   test: InvoiceTestInfo | null
+  source: InvoiceSource
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -501,9 +504,20 @@ export interface BillingClientDetails { email?: string; contactName?: string; ab
 export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
 export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
 export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string }
-export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string }
+// lastDraftedFor: YYYY-MM-DD of the retainer period already drafted; written only by the server (a client write
+// never changes it). When a plan's nextInvoiceDate is on or before today (org timezone) and lastDraftedFor differs,
+// the server engine drafts the invoice (source 'retainer', status draft, never issued or sent) and moves
+// nextInvoiceDate on one month, keeping the original day where the month has it (31 Jan -> 28/29 Feb -> 31 Mar).
+export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string; lastDraftedFor?: string }
 // sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
 export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
+// Notifications written by the retainer scheduler (the usual notifications record: userId, ts, read, type, title, body,
+// link) carry two extra keys, kind and data:
+//   kind 'retainer-invoice-drafted'      data { invoiceId, invoiceNumber, dealId }   to the deal owner
+//   kind 'retainer-needs-billing-client' data { dealId, companyId }                  to the deal owner, once per due date
+export type RetainerNotificationKind = 'retainer-invoice-drafted' | 'retainer-needs-billing-client'
+export interface RetainerInvoiceDraftedData { invoiceId: string; invoiceNumber: string; dealId: string }
+export interface RetainerNeedsBillingClientData { dealId: string; companyId: string }
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
