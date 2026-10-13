@@ -10,6 +10,7 @@ import type {
 } from './types'
 import type { BillingPlan, IntelKind, InvoiceDto } from '../api/contract'
 import { milestoneStatus, type MilestoneStatus } from '../shared/invoices'
+import { wonAt } from '../shared/goalMetrics'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -525,10 +526,25 @@ export const Q = {
     const ws = F.weekStart()
     return [ws, F.addDays(ws, 7)]
   },
+  /**
+   * Won value in dollars (deal.value, the estimate): live deals of business `b` won between `from` and `to` (wall
+   * clock, both included; won at closedAt, else the close date) whose owner is one of `ownerIds`.
+   */
+  wonValue(ownerIds: string[], from: string, to: string, b: string): number {
+    return S.deals
+      .filter(d => d.businessId === b && d.status === 'won' && d.archived !== true && ownerIds.includes(d.ownerId))
+      .filter(d => {
+        const at = wonAt(d)
+        return !!at && at >= from && at <= to
+      })
+      .reduce((s, d) => s + (d.value || 0), 0)
+  },
+  /** A goal's actual so far. Invoiced and collected come from the revenue report, not from here (see useGoalRevenue): 0. */
   goalActual(g: Goal): number {
     const [f, t] = Q.goalRange(g)
     const ids = g.ownerType === 'team' ? (Q.team(g.ownerId)?.members ?? []) : [g.ownerId]
     const clock = F.nowIso()
+    if (g.metric === 'won_value') return Q.wonValue(ids, f, t > clock ? clock : t, g.businessId)
     return Q.metric(ids, g.metric, f, t > clock ? clock : t, g.businessId)
   },
   notifs(): Notification[] {
