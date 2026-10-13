@@ -3,7 +3,8 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import type { BusinessId, Company, Contact, ContactRel, Enrolment, Task } from '../../data/types'
-import { BizDot, Btn, BulkBar, Chip, DataTable, Empty, EnrolChip, FilterBar, Icon, Menu, Owner, SearchInp, Sel, download, toCSV, type Col, type MenuItem, type SortState } from '../../kit'
+import { BizDot, Btn, BulkBar, Chip, DataTable, Empty, EnrolChip, FilterBar, Icon, Menu, Owner, SearchInp, Seg, Sel, download, toCSV, type Col, type MenuItem, type SortState } from '../../kit'
+import { ArchivedChip, RestoreRowBtn } from '../../shared/archiveUi'
 import { LEAD_STATUSES, SENIORITY } from '../../modals/entities/options'
 import { INDUSTRIES } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
@@ -26,10 +27,10 @@ type RowCol = Col<Row> & { fixed?: boolean }
 
 const SEQ_LIVE = ['active', 'awaiting_approval', 'awaiting_task', 'paused']
 
-function buildRows(bz: string): Row[] {
+function buildRows(bz: string, arch: boolean): Row[] {
   const sc = Q.scope()
   const out: Row[] = []
-  for (const c of Q.contacts()) {
+  for (const c of arch ? Q.archivedContacts() : Q.contacts()) {
     const bs = Q.contactBiz(c)
     const b = bz && (bs as string[]).includes(bz) ? (bz as BusinessId) : (bs[0] ?? Q.primaryBiz(c))
     if (!b) continue
@@ -54,12 +55,13 @@ export function Contacts({ route }: { route: Route }) {
   const [seqF, setSeqF] = useState('')
   const [minS, setMinS] = useState(qStr(route.q, 'minScore'))
   const [eng, setEng] = useState('')
+  const [arch, setArch] = useState(qStr(route.q, 'archived') === '1')
   const [sel, setSel] = useState<string[]>([])
   const [hid, tog] = useColumns('ct', ['linkedin', 'phone'])
   const [sortInit] = useState<SortState | null>(() => (qStr(route.q, 'minScore') ? ['score', -1] : null))
 
   const needle = q.toLowerCase()
-  const rows = buildRows(bz).filter(c => {
+  const rows = buildRows(bz, arch).filter(c => {
     const hasPhone = !!(c.phone || c.mobile)
     const inSeq = !!c.enr && SEQ_LIVE.includes(c.enr.status)
     return (
@@ -85,7 +87,7 @@ export function Contacts({ route }: { route: Route }) {
   const bd = Q.defaultBiz()
 
   const defs: RowCol[] = [
-    { k: 'name', l: 'Name', fixed: true, r: c => <div><b>{c.name}</b><div className="faint xs">{c.title}</div></div> },
+    { k: 'name', l: 'Name', fixed: true, r: c => <div><span className="row" style={{ gap: 6 }}><b>{c.name}</b>{arch && <ArchivedChip r={c} />}</span><div className="faint xs">{c.title}</div></div> },
     { k: 'co', l: 'Company', r: c => c.co?.name ?? '—', sort: c => c.co?.name },
     {
       k: 'email', l: 'Email',
@@ -116,6 +118,7 @@ export function Contacts({ route }: { route: Route }) {
     { k: 'seq', l: 'Sequence', r: c => (c.enr ? <EnrolChip s={c.enr.status} /> : <span className="faint">—</span>), sort: c => c.enr?.status },
     { k: 'last', l: 'Last contacted', r: c => (c.rel?.lastActivity ? F.rel(c.rel.lastActivity) : '—'), sort: c => c.rel?.lastActivity },
     { k: 'next', l: 'Next action', max: 200, r: c => (c.next ? <span className="trunc" style={{ display: 'block' }}>{c.next.title}</span> : '—'), sort: c => c.next?.due },
+    ...(arch ? [{ k: 'restore', l: 'Restore', fixed: true, nosort: true, r: (c: Row) => <RestoreRowBtn kind="contact" r={c} /> }] : []),
   ]
   const cols = defs.map(c => ({ ...c, hide: hid.includes(c.k) }))
 
@@ -143,13 +146,14 @@ export function Contacts({ route }: { route: Route }) {
 
   return (
     <div className="page">
-      <PageHead title="Contacts" sub={rows.length + ' contacts · one identity per person across the portfolio'}>
+      <PageHead title="Contacts" sub={arch ? rows.length + ' archived contacts · a restore does not restart sequence enrolments' : rows.length + ' contacts · one identity per person across the portfolio'}>
         <Btn icon="download" disabled={!rows.length} onClick={exp}>Export</Btn>
         <Btn icon="upload" disabled={!can} onClick={() => UI.nav('prospecting', { q: { tab: 'import' } })}>Import</Btn>
         <Btn kind="pri" icon="plus" disabled={!can} onClick={() => UI.open('newContact')}>New contact</Btn>
       </PageHead>
       <div className="card">
         <FilterBar>
+          <Seg label="Show contacts" value={arch ? 'archived' : 'active'} onChange={v => { setArch(v === 'archived'); setSel([]) }} opts={[['active', 'Active'], ['archived', 'Archived', 'archive']]} />
           <SearchInp value={q} onChange={setQ} placeholder="Name, email, title, company" />
           {sc.length > 1 && <Sel className="sm" style={{ width: 130 }} aria-label="Business" value={bz} onChange={setBz} placeholder="All businesses" options={sc.map(b => [b, Q.biz(b)?.name ?? b] as const)} />}
           <Sel className="sm" style={{ width: 140 }} aria-label="Industry" value={ind} onChange={setInd} placeholder="Any industry" options={INDUSTRIES} />
@@ -178,12 +182,14 @@ export function Contacts({ route }: { route: Route }) {
         <DataTable
           cols={cols}
           rows={rows}
-          sel={picked}
-          setSel={setSel}
+          sel={arch ? undefined : picked}
+          setSel={arch ? undefined : setSel}
           onRow={c => UI.nav('contact', { id: c.id })}
           sortInit={sortInit}
           empty={
-            filtered
+            arch && !filtered
+              ? <Empty icon="archive" title="No archived contacts" body="Contacts you archive appear here, ready to restore." action={<Btn onClick={() => setArch(false)}>Show active contacts</Btn>} />
+              : filtered
               ? <Empty icon="search" title="No contacts match these filters" body="Try a broader search, or clear the filters to see every contact." action={<Btn onClick={clear}>Clear filters</Btn>} />
               : <Empty icon="user" title="No contacts yet" body={can ? 'Add a contact, or import a CSV from Prospecting.' : 'Contacts your team adds will appear here.'} action={newCt} />
           }

@@ -1,62 +1,41 @@
-import { useState } from 'react'
-import type { BillingClient, InvoiceDto } from '../../api/contract'
-import { createBillingClient, invoiceError, linkBillingClient, listBillingClients, listInvoices } from '../../api/invoices'
+import { useEffect, useRef } from 'react'
+import type { InvoiceDto } from '../../api/contract'
+import { invoiceError, listInvoices } from '../../api/invoices'
 import { useLoad } from '../../data/invoicing'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { Company } from '../../data/types'
 import { Banner, Btn, Card, Chip, Skel } from '../../kit'
-import { companyBilling, latestInvoices, linkSuggestions } from '../../shared/billing'
+import { companyBilling, latestInvoices } from '../../shared/billing'
 import { fmtDay, missingBilling, statusChip } from '../../shared/invoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
 import { UI } from '../../ui/store'
+import { useBillingLink } from './useBillingLink'
 
 /** Billing and billing details for a company in Ardorio, on the Overview tab. Admins of Ardorio only. */
-export function CompanyBilling({ company }: { company: Company }) {
+export function CompanyBilling({ company, focusDetails = false }: { company: Company; focusDetails?: boolean }) {
   useStore()
   const show = Q.canBill() && !!Q.rel(company.id, 'ard')
   const inv = useLoad(s => (show ? listInvoices({ companyId: company.id }, s).then(r => r.invoices) : Promise.resolve([] as InvoiceDto[])), `co:${company.id}:${show}`)
-  const clients = useLoad(s => (show ? listBillingClients(s).then(r => r.clients) : Promise.resolve([] as BillingClient[])), `clients:${show}`)
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
-  const [busy, setBusy] = useState('')
-  const [fail, setFail] = useState('')
+  const { clients, client, suggestions, dismiss, busy, fail, link, create } = useBillingLink(company, show)
+  // Arrived from a "needs a billing client" notification: bring Billing details into view and put focus on it, once.
+  const details = useRef<HTMLDivElement>(null)
+  const focused = useRef(false)
+  const ready = show && !!clients.data
+  useEffect(() => {
+    if (!focusDetails || !ready || focused.current || !details.current) return
+    focused.current = true
+    details.current.scrollIntoView?.({ block: 'start' })
+    details.current.focus()
+  }, [focusDetails, ready])
   if (!show) return null
 
   const list = inv.data ?? []
   const t = companyBilling(list)
-  const client = (clients.data ?? []).find(c => c.linkedCompanyId === company.id)
-  const suggestions = client ? [] : linkSuggestions(company, clients.data ?? [], dismissed)
   const lacks = missingBilling(client)
   const denied = [inv.error, clients.error].some(e => e && invoiceError(e, 'load').kind === 'denied')
   if (denied) return null
 
-  /** Every link is a click: nothing here runs on load. */
-  const link = async (slug: string): Promise<void> => {
-    setBusy(slug)
-    setFail('')
-    try {
-      await linkBillingClient(slug, company.id)
-      clients.reload()
-    } catch (e) {
-      setFail(invoiceError(e, 'save').message)
-    } finally {
-      setBusy('')
-    }
-  }
-  const create = async (): Promise<void> => {
-    setBusy('create')
-    setFail('')
-    try {
-      const c = await createBillingClient({ clientName: company.name, billing: {} })
-      await linkBillingClient(c.slug, company.id)
-      clients.reload()
-    } catch (e) {
-      setFail(invoiceError(e, 'save').message)
-      clients.reload()
-    } finally {
-      setBusy('')
-    }
-  }
   const tile = (label: string, cents: number) => (
     <div><div className="faint sm">{label}</div><div className="b money" style={{ fontSize: 18 }}>{formatCentsTile(cents)}</div></div>
   )
@@ -93,37 +72,39 @@ export function CompanyBilling({ company }: { company: Company }) {
         )}
       </Card>
 
-      <Card
-        title="Billing details"
-        right={client && <Btn size="sm" onClick={() => UI.open('billingDetails', { companyId: company.id, client, onSaved: () => clients.reload() })}>Edit</Btn>}
-      >
-        {clients.loading && !clients.data ? <Skel rows={2} /> : client ? (
-          <div className="col" style={{ gap: 8 }}>
-            <div className="row"><b>{client.clientName}</b><Chip tone={lacks.length ? 'warn' : 'ok'}>{lacks.length ? `Missing ${lacks.join(', ')}` : 'Complete'}</Chip></div>
-            <div className="rowx"><span className="muted">Contact</span><span>{client.billing.contactName || '—'}</span></div>
-            <div className="rowx"><span className="muted">Email</span><span className="mono sm">{client.billing.email || '—'}</span></div>
-            <div className="rowx"><span className="muted">ABN</span><span className="mono">{client.billing.abn || '—'}</span></div>
-            <div className="rowx"><span className="muted">Address</span><span style={{ textAlign: 'right', whiteSpace: 'pre-line' }}>{client.billing.address || '—'}</span></div>
-            <div className="faint sm">Used on invoices. Only Ardorio admins can see this card.</div>
-          </div>
-        ) : (
-          <div className="col" style={{ gap: 10 }}>
-            {fail && <Banner tone="bad">{fail}</Banner>}
-            {clients.error != null && <Banner tone="bad" action={<Btn size="sm" onClick={clients.reload}>Try again</Btn>}>{invoiceError(clients.error, 'load').message}</Banner>}
-            <div className="sm muted">No billing client is linked to {company.name} yet. Invoices need one for the name, email, ABN and address.</div>
-            {suggestions.map(s => (
-              <div key={s.client.slug} className="rowx">
-                <span><b>{s.client.clientName}</b><div className="faint sm">{s.reasons.join(' · ')}</div></span>
-                <span className="row" style={{ gap: 6 }}>
-                  <Btn size="sm" kind="pri" disabled={!!busy} onClick={() => void link(s.client.slug)}>Link</Btn>
-                  <Btn size="sm" disabled={!!busy} onClick={() => setDismissed(new Set([...dismissed, s.client.slug]))}>Not it</Btn>
-                </span>
-              </div>
-            ))}
-            <div><Btn size="sm" disabled={!!busy} onClick={() => void create()}>{busy === 'create' ? 'Creating…' : `Create billing client from "${company.name}"`}</Btn></div>
-          </div>
-        )}
-      </Card>
+      <div ref={details} tabIndex={-1} role="region" aria-label="Billing details" id="billing-details">
+        <Card
+          title="Billing details"
+          right={client && <Btn size="sm" onClick={() => UI.open('billingDetails', { companyId: company.id, client, onSaved: () => clients.reload() })}>Edit</Btn>}
+        >
+          {clients.loading && !clients.data ? <Skel rows={2} /> : client ? (
+            <div className="col" style={{ gap: 8 }}>
+              <div className="row"><b>{client.clientName}</b><Chip tone={lacks.length ? 'warn' : 'ok'}>{lacks.length ? `Missing ${lacks.join(', ')}` : 'Complete'}</Chip></div>
+              <div className="rowx"><span className="muted">Contact</span><span>{client.billing.contactName || '—'}</span></div>
+              <div className="rowx"><span className="muted">Email</span><span className="mono sm">{client.billing.email || '—'}</span></div>
+              <div className="rowx"><span className="muted">ABN</span><span className="mono">{client.billing.abn || '—'}</span></div>
+              <div className="rowx"><span className="muted">Address</span><span style={{ textAlign: 'right', whiteSpace: 'pre-line' }}>{client.billing.address || '—'}</span></div>
+              <div className="faint sm">Used on invoices. Only Ardorio admins can see this card.</div>
+            </div>
+          ) : (
+            <div className="col" style={{ gap: 10 }}>
+              {fail && <Banner tone="bad">{fail}</Banner>}
+              {clients.error != null && <Banner tone="bad" action={<Btn size="sm" onClick={clients.reload}>Try again</Btn>}>{invoiceError(clients.error, 'load').message}</Banner>}
+              <div className="sm muted">No billing client is linked to {company.name} yet. Invoices need one for the name, email, ABN and address.</div>
+              {suggestions.map(s => (
+                <div key={s.client.slug} className="rowx">
+                  <span><b>{s.client.clientName}</b><div className="faint sm">{s.reasons.join(' · ')}</div></span>
+                  <span className="row" style={{ gap: 6 }}>
+                    <Btn size="sm" kind="pri" disabled={!!busy} onClick={() => void link(s.client.slug)}>Link</Btn>
+                    <Btn size="sm" disabled={!!busy} onClick={() => dismiss(s.client.slug)}>Not it</Btn>
+                  </span>
+                </div>
+              ))}
+              <div><Btn size="sm" disabled={!!busy} onClick={() => void create()}>{busy === 'create' ? 'Creating…' : `Create billing client from "${company.name}"`}</Btn></div>
+            </div>
+          )}
+        </Card>
+      </div>
     </>
   )
 }

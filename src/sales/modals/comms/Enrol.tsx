@@ -1,3 +1,4 @@
+import { seqArchived } from '../../data/archive'
 import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
@@ -18,7 +19,7 @@ function EnrolFlow({ p }: { p: Props }) {
   useStore()
   const [step, setStep] = useState(p.contactIds?.length && p.seqId ? 2 : 1)
   const [ids, setIds] = useState<string[]>(p.contactIds ?? [])
-  const seqs = S.sequences.filter(s => Q.editScope().includes(s.businessId) && s.status !== 'archived')
+  const seqs = S.sequences.filter(s => Q.editScope().includes(s.businessId) && !seqArchived(s))
   const [seqId, setSeq] = useState(p.seqId ?? seqs.find(s => s.status === 'active')?.id ?? '')
   const seq = Q.seq(seqId)
   const [mbPick, setMb] = useState('')

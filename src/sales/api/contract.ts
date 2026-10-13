@@ -25,6 +25,20 @@ export type SettingsId = typeof SETTINGS_IDS[number]
 
 export type RecordData = Record<string, unknown>
 
+/**
+ * Simulated mail (additive, data-only): `threads`, `messages` and `activities` records that were never really
+ * sent or received carry `simulated: true`. A message the rep sent by hand keeps the existing `manual: true`
+ * flag instead. Real mail sync must write `simulated: false`. Web legacy rules live in data/simulated.ts.
+ */
+export interface SimulatedFlag { simulated?: boolean }
+
+/**
+ * Archiving (additive, data-only): `deals` and `sequences` records gain these keys. Only admins of that business may
+ * change `archived` on deals and sequences (server-enforced). Companies and contacts keep their existing `archived`
+ * field. Web rules live in data/archive.ts.
+ */
+export interface ArchiveFields { archived?: boolean; archivedAt?: string; archivedBy?: string }
+
 export interface Permissions { read: boolean; edit: boolean; manage: boolean; admin: boolean }
 
 export interface MeDTO {
@@ -463,6 +477,8 @@ export interface InvoiceLine { description: string; detail?: string; qty: number
 export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
 /** Set when an admin marked the invoice as a test. Test invoices are excluded from every list, total and export unless ?includeTest=1. */
 export interface InvoiceTestInfo { markedAt: string; markedBy: string; reason: string }
+// Who made the invoice: a person, or the retainer scheduler (always as a draft). Every existing invoice reads as 'manual'.
+export type InvoiceSource = 'manual' | 'retainer'
 export interface InvoiceDto {
   id: string; invoiceNumber: string; clientSlug: string; clientName: string
   companyId: string | null; dealId: string | null; milestoneId: string | null
@@ -474,6 +490,7 @@ export interface InvoiceDto {
   subtotalCents: number; gstCents: number; totalCents: number; createdAt: string
   voided: InvoiceVoidInfo | null; refundDue: InvoiceRefundDue | null
   test: InvoiceTestInfo | null
+  source: InvoiceSource
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -494,9 +511,24 @@ export interface BillingClientDetails { email?: string; contactName?: string; ab
 export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
 export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
 export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string }
-export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string }
+// lastDraftedFor: YYYY-MM-DD of the retainer period already drafted; written only by the server (a client write
+// never changes it). When a plan's nextInvoiceDate is on or before today (org timezone) and lastDraftedFor differs,
+// the server engine drafts the invoice (source 'retainer', status draft, never issued or sent) and moves
+// nextInvoiceDate on one month, keeping the original day where the month has it (31 Jan -> 28/29 Feb -> 31 Mar).
+// anchorDay: that original day of month, written by the server when it moves the date after its own draft. Read only:
+// the API keeps the value it stored and drops one a client sends (none stored means none kept), and its own contract
+// does not list the key. A client never writes it; a claim by hand moves nextInvoiceDate alone.
+export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string; lastDraftedFor?: string; anchorDay?: number }
 // sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
 export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
+// Notifications written by the retainer scheduler (the usual notifications record: userId, ts, read, type, title, body,
+// link) carry two extra keys, kind and data:
+//   kind 'retainer-invoice-drafted'      data { invoiceId, invoiceNumber, dealId }   to the deal owner
+//   kind 'retainer-needs-billing-client' data { dealId, companyId }                  to the deal owner, once per due date
+//   kind 'retainer-periods-skipped'      a plan more than one period behind: only the latest period is drafted; the months passed over are listed once
+export type RetainerNotificationKind = 'retainer-invoice-drafted' | 'retainer-needs-billing-client' | 'retainer-periods-skipped'
+export interface RetainerInvoiceDraftedData { invoiceId: string; invoiceNumber: string; dealId: string }
+export interface RetainerNeedsBillingClientData { dealId: string; companyId: string }
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */

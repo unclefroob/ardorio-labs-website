@@ -32,7 +32,7 @@ export function Customers({ route }: { route: Route }) {
 
   const count = (b: string): number | undefined => {
     if (b === 'ros') return live ? live.accounts.filter(a => accountTab(a) === 'paid').length : undefined
-    return wonCustomers(S.deals, S.companies, b as 'ard').length
+    return wonCustomers(S.deals.filter(d => d.archived !== true), S.companies, b as 'ard').length
   }
 
   if (!product) {

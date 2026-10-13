@@ -9,7 +9,8 @@ import { UI } from '../../ui/store'
 
 const STATUSES = ['Prospecting', 'Active opportunity', 'Customer', 'Nurture', 'Not applicable']
 
-export function BizRels({ c }: { c: Company }) {
+export function BizRels({ c, readOnly = false }: { c: Company; readOnly?: boolean }) {
+  const editable = (b: string): boolean => !readOnly && Q.canEdit(b)
   const sugg = cross().filter(x => x.companyId === c.id)
   return (
     <div className="col" style={{ gap: 14 }}>
@@ -17,7 +18,7 @@ export function BizRels({ c }: { c: Company }) {
         {S.businesses.map(bz => {
           const r = Q.rel(c.id, bz.id)
           const mem = Q.member(bz.id)
-          const ds = S.deals.filter(d => d.companyId === c.id && d.businessId === bz.id)
+          const ds = S.deals.filter(d => d.companyId === c.id && d.businessId === bz.id && d.archived !== true)
           const op = ds.filter(Q.open)
           const sg = sugg.find(x => x.toBiz === bz.id)
           return (
@@ -36,11 +37,11 @@ export function BizRels({ c }: { c: Company }) {
                     <dt>Owner</dt>
                     <dd className="row">
                       <Owner id={r.ownerId} />
-                      {Q.canManage(bz.id) && <Btn size="xs" kind="ghost" onClick={() => UI.open('reassign', { kind: 'rel', id: r.id, businessId: bz.id })}>Reassign</Btn>}
+                      {!readOnly && Q.canManage(bz.id) && <Btn size="xs" kind="ghost" onClick={() => UI.open('reassign', { kind: 'rel', id: r.id, businessId: bz.id })}>Reassign</Btn>}
                     </dd>
                     <dt>Status</dt>
                     <dd>
-                      {Q.canEdit(bz.id)
+                      {editable(bz.id)
                         ? <Sel className="sm" style={{ width: 180 }} aria-label={bz.name + ' relationship status'} value={r.status} onChange={v => Act.updateRel(r.id, { status: v })} options={STATUSES.includes(r.status) ? STATUSES : [r.status, ...STATUSES]} />
                         : r.status}
                     </dd>
@@ -79,7 +80,7 @@ export function BizRels({ c }: { c: Company }) {
                     <div className="faint sm">{bz.id === 'pth' && !/Education|Career/.test(c.industry) ? 'Not applicable for this organisation type.' : 'No active relationship.'}</div>
                   )}
                   <div className="row wrap" style={{ gap: 6 }}>
-                    {Q.canEdit(bz.id) && <Btn size="sm" icon="plus" onClick={() => { Act.linkCompany(c.id, bz.id); UI.toast(bz.name + ' relationship created — master company reused') }}>Create {bz.name} relationship</Btn>}
+                    {editable(bz.id) && <Btn size="sm" icon="plus" onClick={() => { Act.linkCompany(c.id, bz.id); UI.toast(bz.name + ' relationship created — master company reused') }}>Create {bz.name} relationship</Btn>}
                     {sg && <Btn size="sm" icon="swap" onClick={() => UI.open('crossIntro', { companyId: c.id, toBiz: bz.id, fromBiz: sg.fromBiz })}>Cross-business introduction</Btn>}
                     {sg && <Btn size="sm" kind="ghost" onClick={() => { Act.crossDismiss(sg.key); UI.toast('Suggestion dismissed') }}>Dismiss</Btn>}
                   </div>

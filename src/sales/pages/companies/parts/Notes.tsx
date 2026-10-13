@@ -6,16 +6,16 @@ import type { BusinessId, Note } from '../../../data/types'
 import { Av, BizDot, Btn, Chip, Empty, Icon, Sel, TA } from '../../../kit'
 import { UI } from '../../../ui/store'
 
-export interface NotesProps { kind: 'company' | 'contact' | 'deal'; id: string; b: BusinessId; notes: Note[] }
+export interface NotesProps { kind: 'company' | 'contact' | 'deal'; id: string; b: BusinessId; notes: Note[]; /** An archived record: notes are shown, never added or changed. */ readOnly?: boolean }
 
 interface Editing { id: string; body: string }
 
-export const Notes: FC<NotesProps> = ({ kind, id, b, notes }) => {
+export const Notes: FC<NotesProps> = ({ kind, id, b, notes, readOnly = false }) => {
   const [text, setText] = useState('')
   const [vis, setVis] = useState<'business' | 'private'>('business')
   const [ed, setEd] = useState<Editing | null>(null)
   const me = Q.me()
-  const can = Q.canEdit(b)
+  const can = Q.canEdit(b) && !readOnly
   const all = notes ?? []
   const list = all.filter(n => (n.visibility !== 'private' || n.by === me.id) && (!n.businessId || Q.member(n.businessId)))
   const hidden = all.length - list.length

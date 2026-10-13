@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
 import type { Contact } from '../../data/types'
 import { Av, BizDot, Btn, Card, Chip, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, Icon, Link, Menu, Owner, Tabs, Timeline, type Col } from '../../kit'
+import { askArchive } from '../../shared/archiveActions'
+import { ArchivedBanner } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { LinkBtn } from '../deals/LinkBtn'
 import type { Route } from '../../ui/store'
@@ -42,14 +43,16 @@ export function Company({ route }: { route: Route }) {
       </div>
     )
   }
+  // An archived company stays readable for everyone who could see it; it is read-only until restored.
+  const archived = c.archived === true
   const sc = Q.scope()
   const ws = Q.wsBiz()
   const b = ws && Q.rel(c.id, ws) ? ws : (vis.find(r => sc.includes(r.businessId)) ?? vis[0]).businessId
-  const can = Q.canEdit(b)
+  const can = Q.canEdit(b) && !archived
   const cts = S.contacts.filter(x => x.companyId === c.id && !x.archived)
-  const deals = S.deals.filter(d => d.companyId === c.id && Q.member(d.businessId))
+  const deals = S.deals.filter(d => d.companyId === c.id && Q.member(d.businessId) && d.archived !== true)
   const openDeals = deals.filter(Q.open)
-  const hiddenDeals = S.deals.filter(d => d.companyId === c.id && !Q.member(d.businessId)).length
+  const hiddenDeals = S.deals.filter(d => d.companyId === c.id && !Q.member(d.businessId) && d.archived !== true).length
   const acts = Q.activities().filter(a => a.companyId === c.id).sort((x, y) => y.ts.localeCompare(x.ts))
   const nt = S.tasks.filter(t => t.companyId === c.id && Q.member(t.businessId) && !Q.done(t)).sort((x, y) => x.due.localeCompare(y.due))
   const site = safeHref(c.website)
@@ -119,18 +122,11 @@ export function Company({ route }: { route: Route }) {
           <Menu
             align="right"
             trigger={<Btn icon="more" aria-label="More actions" />}
-            items={[{
-              label: 'Archive company', icon: 'archive',
-              onClick: () => UI.confirm({
-                title: 'Archive ' + c.name + '?',
-                body: 'The company is hidden from lists. Deals, contacts and activity history stay linked and intact.',
-                confirm: 'Archive', danger: true,
-                onConfirm: () => { Act.archiveCompany(c.id); UI.nav('companies') },
-              }),
-            }]}
+            items={[{ label: 'Archive company', icon: 'archive', onClick: () => askArchive('company', c.id) }]}
           />
         )}
       </PageHead>
+      {archived && <ArchivedBanner kind="company" r={c} />}
       <div className="col gap12" style={{ marginBottom: 14 }}>
         <Coord companyId={c.id} />
         {can && (
@@ -189,7 +185,7 @@ export function Company({ route }: { route: Route }) {
               {hiddenDeals > 0 && <div className="faint xs" style={{ marginTop: 6 }}><Icon n="lock" s={11} /> {hiddenDeals} deal{hiddenDeals > 1 ? 's' : ''} in other businesses (restricted)</div>}
             </Card>
             <RosterioCard companyId={c.id} />
-            <CompanyBilling company={c} />
+            <CompanyBilling company={c} focusDetails={qStr(route.q, 'focus') === 'billing-details'} />
             <Card title="Next activity">
               {nt.length
                 ? nt.slice(0, 4).map(t => (
@@ -226,9 +222,9 @@ export function Company({ route }: { route: Route }) {
         </Card>
       )}
       {tab === 'activity' && <Card><ActFilter items={acts} /></Card>}
-      {tab === 'intel' && <CompanyIntel c={c} b={b} />}
-      {tab === 'notes' && <Notes kind="company" id={c.id} b={b} notes={c.notes} />}
-      {tab === 'rels' && <BizRels c={c} />}
+      {tab === 'intel' && <CompanyIntel c={c} b={b} readOnly={archived} />}
+      {tab === 'notes' && <Notes kind="company" id={c.id} b={b} notes={c.notes} readOnly={archived} />}
+      {tab === 'rels' && <BizRels c={c} readOnly={archived} />}
     </div>
   )
 }

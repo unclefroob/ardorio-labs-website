@@ -23,7 +23,7 @@ function coordInfo(companyId: string, contactId?: string): CoordRow[] {
     // A single-business workspace only flags the others; the all-businesses view flags the businesses you do not already work in.
     if (cur.includes(r.businessId) && Q.wsBiz()) continue
     if (!Q.wsBiz() && Q.member(r.businessId)) continue
-    const open = S.deals.some(d => d.companyId === companyId && d.businessId === r.businessId && d.status === 'open')
+    const open = S.deals.some(d => d.companyId === companyId && d.businessId === r.businessId && d.status === 'open' && d.archived !== true)
     const seq = S.enrolments.some(e => e.businessId === r.businessId && LIVE.includes(e.status) && Q.contact(e.contactId)?.companyId === companyId)
     if (open || seq || (r.lastContacted && F.days(r.lastContacted, F.nowIso()) < 30)) out.push({ b: r.businessId, owner: r.ownerId, open, seq, visible: Q.member(r.businessId) })
   }

@@ -36,7 +36,7 @@ const CROSS_RULES: CrossRule[] = [
 
 export function cross(): CrossItem[] {
   const out: CrossItem[] = []
-  const openDeal = (cid: string, b?: string): boolean => S.deals.some(d => d.companyId === cid && (!b || d.businessId === b) && d.status === 'open')
+  const openDeal = (cid: string, b?: string): boolean => S.deals.some(d => d.companyId === cid && (!b || d.businessId === b) && d.status === 'open' && d.archived !== true)
   for (const c of S.companies) {
     if (c.archived) continue
     const rels = Q.relsOf(c.id)
@@ -80,7 +80,7 @@ export function refreshRecs(scope: readonly BusinessId[]): void {
   }
 
   for (const d of S.deals) {
-    if (d.status !== 'open' || !inScope(d.businessId)) continue
+    if (d.status !== 'open' || d.archived === true || !inScope(d.businessId)) continue
     const idle = F.days(d.lastActivity, clock)
     const cts = d.contactIds.map(Q.contact).filter((c): c is NonNullable<typeof c> => !!c)
     const dm = cts.find(c => DM.test(c.buyingRole)) ?? cts[0]
@@ -146,7 +146,7 @@ export function refreshRecs(scope: readonly BusinessId[]): void {
     const c = Q.contact(r.contactId)
     if (!c || !c.email || Q.suppressed(c, r.businessId) || Q.activeEnrol(c.id).length) continue
     if (r.lastActivity && F.days(r.lastActivity, clock) < 21) continue
-    if (S.deals.some(d => d.status === 'open' && d.contactIds.includes(c.id))) continue
+    if (S.deals.some(d => d.status === 'open' && d.archived !== true && d.contactIds.includes(c.id))) continue
     if (!/C-Level|Director|Head/.test(c.seniority)) continue
     const sc = Q.score(c.id, r.businessId)
     if (sc.total < 50) continue
@@ -249,7 +249,7 @@ export interface CompanyInsights {
 
 export function companyInsights(c: Company, b: BusinessId): CompanyInsights {
   const snap = S.research.filter(r => r.companyId === c.id && r.businessId === b).sort((x, y) => y.ts.localeCompare(x.ts))[0]
-  const deals = S.deals.filter(d => d.companyId === c.id && d.businessId === b)
+  const deals = S.deals.filter(d => d.companyId === c.id && d.businessId === b && d.archived !== true)
   const cr = cross().filter(x => x.companyId === c.id)
   const cts = S.contacts.filter(x => x.companyId === c.id)
   const bz = Q.biz(b)

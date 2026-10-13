@@ -65,7 +65,7 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
   const [stage, setStage] = useState('')
   const [openSec, setOpen] = useState(!!ex)
   const deal = f.dealId ? Q.deal(f.dealId) : undefined
-  const deals = S.deals.filter(d => d.companyId === f.companyId && d.businessId === f.businessId && d.status === 'open')
+  const deals = S.deals.filter(d => d.companyId === f.companyId && d.businessId === f.businessId && d.status === 'open' && d.archived !== true)
   const sec = (k: string, v: string): void => set('sections', { ...f.sections, [k]: v })
   const noCompanies = Q.companies().length === 0
 

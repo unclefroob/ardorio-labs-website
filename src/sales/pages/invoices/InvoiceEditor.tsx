@@ -3,30 +3,47 @@ import type { BillingClient, InvoiceDto, InvoiceSettings } from '../../api/contr
 import {
   createInvoice, deleteInvoice, getInvoiceSettings, invoiceError, issueInvoice, listBillingClients, listInvoices, updateInvoice,
 } from '../../api/invoices'
+import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { ardCompanies, ardDeals, billingPlans, useLoad } from '../../data/invoicing'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import { Banner, Btn, Card, Chip, Fld, Inp, Link, Sel, Skel, TA, Toggle } from '../../kit'
 import {
-  activityItems, actionsFor, blankForm, buildInput, emptyLine, formFromInvoice, formTotals, milestoneLine, milestoneStatus,
+  activityItems, actionsFor, blankForm, buildInput, emptyLine, fmtDay, formFromInvoice, formTotals, milestoneLine, milestoneStatus,
   missingBilling, planFor, validateForm, withTerms, type FormErrors, type InvoiceForm,
 } from '../../shared/invoices'
-import { prefillForm } from '../../shared/billing'
+import { claimedRetainerDate, dayOrdinal, prefillForm, retainerAutoState, retainerPause, retainerPeriodLabel } from '../../shared/billing'
 import { formatCents, lineAmountCents, parsePercentBp } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { downloadPdf } from './actions'
 import { MoreMenu } from './MoreMenu'
-import { StatusChip, TestChip } from './parts'
+import { catchUpPlans, ClashBanner, DoubledRetainer, findRetainerDraft, type RetainerClash } from './retainerClash'
+import { RetainerChip, StatusChip, TestChip } from './parts'
 import { TestBanner, testItems, useTestActions } from './testActions'
 import { Activity, Totals } from './rail'
 import { InvoicesDenied } from './states'
 
+/**
+ * The due retainer period a new invoice from the deal's billing card bills, or undefined. Only a period that is still
+ * the plan's due date, and not yet claimed by the server, is offered; otherwise the invoice is an extra one.
+ */
+function claimFor(initial: Props['initial']): string | undefined {
+  const due = initial?.retainer ? initial.retainerFor : undefined
+  if (!due || !initial?.dealId) return undefined
+  // The scheduler drafts nothing for a deal that is not won or is archived, so there is no draft to skip.
+  const deal = Q.deal(initial.dealId)
+  if (!deal || retainerPause(deal)) return undefined
+  const r = planFor(billingPlans(), initial.dealId)?.retainer
+  return r && r.nextInvoiceDate === due && retainerAutoState(r, F.today()) === 'due' ? due : undefined
+}
+
 interface Props {
   /** null: a new invoice. */
   invoice: InvoiceDto | null
-  initial?: { companyId?: string; dealId?: string; milestoneId?: string; retainer?: boolean }
+  /** retainerFor: the due retainer period this new invoice bills; saving it moves the plan's next invoice date on. */
+  initial?: { companyId?: string; dealId?: string; milestoneId?: string; retainer?: boolean; retainerFor?: string }
   onChange?: (inv: InvoiceDto) => void
   /** Set when editing a sent invoice, to go back to the read-only view. */
   onCancel?: () => void
@@ -55,12 +72,23 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
     const base = blankForm(today, { gstPct: settings && !settings.gstRegistered ? '0' : '10', card: !!settings?.offerCardPayments && !stripeOff })
     const co = initial?.companyId && ardCompanies().some(c => c.id === initial.companyId) ? initial.companyId : ''
     const deal = initial?.dealId && ardDeals(co).some(d => d.id === initial.dealId) ? initial.dealId : ''
-    return deal ? prefillForm(base, { companyId: co, dealId: deal, milestoneId: initial?.milestoneId, retainer: initial?.retainer }, planFor(billingPlans(), deal)) : { ...base, companyId: co, dealId: deal }
+    return deal ? prefillForm(base, { companyId: co, dealId: deal, milestoneId: initial?.milestoneId, retainer: initial?.retainer, retainerFor: claimFor(initial) }, planFor(billingPlans(), deal)) : { ...base, companyId: co, dealId: deal }
+  })
+  // Fixed when the editor opens, so the period claimed is the one the card offered.
+  const [claiming] = useState(() => {
+    const due = isNew ? claimFor(initial) : undefined
+    return due && initial?.dealId ? { dealId: initial.dealId, due } : null
   })
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState<'' | 'save' | 'issue' | 'pdf' | 'delete'>('')
   const [fail, setFail] = useState('')
   const [notice, setNotice] = useState('')
+  // The server drafted the period before this was saved: ask before making a second invoice for it.
+  const [clash, setClash] = useState<RetainerClash | null>(null)
+  // The user chose to save an extra invoice after that, so nothing is claimed.
+  const [extra, setExtra] = useState(false)
+  // Saved, but the claim lost to the server's draft: two invoices for one month, shown in place of the form.
+  const [doubled, setDoubled] = useState<{ saved: InvoiceDto; clash: RetainerClash } | null>(null)
   const set = (patch: Partial<InvoiceForm>): void => setF(p => ({ ...p, ...patch }))
 
   const client = clients.find(c => c.linkedCompanyId === f.companyId)
@@ -89,6 +117,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const setLine = (i: number, patch: Partial<InvoiceForm['lines'][number]>): void => set({ lines: f.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) })
 
   const company = f.companyId ? Q.company(f.companyId) : undefined
+  const claimNext = claiming ? claimedRetainerDate(claiming.due, planFor(billingPlans(), claiming.dealId)?.retainer?.anchorDay) : { next: '' }
   const lacks = missingBilling(client)
 
   /** Saves what is on screen. Returns the stored invoice, or null after showing why not. */
@@ -99,9 +128,30 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
       return null
     }
     setFail('')
+    const claim = !invoice && claiming && !extra && form.dealId === claiming.dealId ? claiming : null
     try {
+      if (claim) {
+        // The scheduler runs every 30 seconds, so check the period is still unclaimed against the server, not the
+        // plan as it was when the editor opened.
+        await catchUpPlans()
+        const problem = Act.retainerClaimProblem(claim.dealId, claim.due)
+        if (problem) {
+          setClash({ ...claim, reason: problem, draft: await findRetainerDraft(claim.dealId, claim.due) })
+          return null
+        }
+      }
       const input = buildInput(form)
       const saved = invoice ? await updateInvoice(invoice.id, input) : await createInvoice(input)
+      if (claim && saved.dealId === claim.dealId) {
+        await catchUpPlans()
+        const c = Act.claimRetainerPeriod(claim.dealId, claim.due)
+        if (!c.ok) {
+          // Saved, but the server drafted the same month first. Stop here (no issue, no navigation) and say so.
+          setDoubled({ saved, clash: { ...claim, reason: c.error, draft: await findRetainerDraft(claim.dealId, claim.due) } })
+          return null
+        }
+        UI.toast(`The ${retainerPeriodLabel(claim.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.${c.laterDay ? ` Later drafts fall on the ${dayOrdinal(c.laterDay)}.` : ''}`)
+      }
       if (invoice && invoice.paymentLinkUrl && saved.paymentLinkUrl === '') {
         setNotice('The total changed, so the pasted payment link was cleared. The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.')
       }
@@ -204,10 +254,12 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
   const issuedState = invoice?.status === 'sent'
   const cardOn = f.offerCard && !stripeOff
 
+  if (doubled) return <DoubledRetainer saved={doubled.saved} clash={doubled.clash} />
+
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /><RetainerChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, invoice?.invoiceNumber ?? 'New invoice']}
       >
@@ -220,6 +272,15 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, r
       </PageHead>
       {invoice && <TestBanner inv={invoice} onUnmark={ta.unmarkTest} busy={ta.busy} />}
 
+      {clash && <ClashBanner clash={clash} onExtra={() => { setClash(null); setExtra(true) }} />}
+      {claiming && !clash && !extra && f.dealId === claiming.dealId && (
+        <div style={{ marginBottom: 14 }}>
+          <Banner tone="info">
+            <b>This invoice bills the {retainerPeriodLabel(claiming.due)} retainer.</b> Saving it moves the automatic draft on to {fmtDay(claimNext.next)}, so that month is not drafted twice.
+            {claimNext.laterDay && <> Later drafts then fall on the {dayOrdinal(claimNext.laterDay)} of each month, not the {dayOrdinal(+claiming.due.slice(8, 10))}. Change the next invoice date on the deal afterwards to keep the {dayOrdinal(+claiming.due.slice(8, 10))}.</>}
+          </Banner>
+        </div>
+      )}
       {fail && <div style={{ marginBottom: 14 }}><Banner tone="bad">{fail}</Banner></div>}
       {notice && <div style={{ marginBottom: 14 }}><Banner tone="info"><b>The total changed, so the pasted payment link was cleared.</b> The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.</Banner></div>}
 

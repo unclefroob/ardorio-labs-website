@@ -5,23 +5,26 @@ import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import type { Sequence } from '../../data/types'
 import { BizDot, Btn, Chip, DataTable, Empty, FilterBar, Icon, Menu, Owner, SearchInp, Seg, type Col } from '../../kit'
+import { seqArchived } from '../../data/archive'
+import { askArchive, askRestore } from '../../shared/archiveActions'
+import { ArchivedChip } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { seqStats, type SeqStats } from '../../shared/seqStats'
-import { UI } from '../../ui/store'
+import { UI, type Route } from '../../ui/store'
 
 type Row = Sequence & { st: SeqStats }
 
 const STATUS_TONE: Record<string, string> = { active: 'ok', paused: 'warn' }
 
-export function Sequences() {
+export function Sequences({ route }: { route?: Route }) {
   useStore()
   const [q, setQ] = useState('')
-  const [st, setSt] = useState('')
+  const [st, setSt] = useState(route?.q?.status === 'archived' ? 'archived' : '')
   const canCreate = Q.anyEdit()
 
   const visible = S.sequences.filter(s => Q.inScope(s.businessId))
   const rows: Row[] = visible
-    .filter(s => (!st ? s.status !== 'archived' : s.status === st) && (!q || s.name.toLowerCase().includes(q.toLowerCase())))
+    .filter(s => (st === 'archived' ? seqArchived(s) : !seqArchived(s) && (!st || s.status === st)) && (!q || s.name.toLowerCase().includes(q.toLowerCase())))
     .map(s => ({ ...s, st: seqStats(s) }))
 
   const newSeq = (): void => UI.open('newSeq')
@@ -32,12 +35,12 @@ export function Sequences() {
       k: 'name', l: 'Sequence',
       r: s => (
         <div>
-          <div className="row"><BizDot b={s.businessId} /><b>{s.name}</b></div>
+          <div className="row"><BizDot b={s.businessId} /><b>{s.name}</b>{seqArchived(s) && <ArchivedChip r={s} />}</div>
           <div className="faint xs">Manual send · {Q.mailbox(s.mailboxId)?.address ?? 'No mailbox'}</div>
         </div>
       ),
     },
-    { k: 'status', l: 'Status', r: s => <Chip tone={STATUS_TONE[s.status] ?? ''}>{s.status}</Chip> },
+    { k: 'status', l: 'Status', r: s => (seqArchived(s) ? <span className="faint">—</span> : <Chip tone={STATUS_TONE[s.status] ?? ''}>{s.status}</Chip>) },
     { k: 'ownerId', l: 'Owner', r: s => <Owner id={s.ownerId} /> },
     { k: 'n', l: 'Steps', right: true, r: s => s.steps.length, sort: s => s.steps.length },
     { k: 'e', l: 'Enrolled', right: true, r: s => s.st.enrolled, sort: s => s.st.enrolled },
@@ -64,17 +67,13 @@ export function Sequences() {
                 UI.nav('sequence', { id: c.id })
               },
             },
-            s.status === 'active'
+            !seqArchived(s) && (s.status === 'active'
               ? { label: 'Pause', icon: 'pause', onClick: () => Act.setSeqStatus(s.id, 'paused') }
-              : { label: 'Activate', icon: 'play', disabled: s.status === 'archived', onClick: () => Act.setSeqStatus(s.id, 'active') },
-            { label: 'View analytics', icon: 'chart', onClick: () => UI.nav('sequence', { id: s.id, q: { tab: 'analytics' } }) },
-            {
-              label: 'Archive', icon: 'archive', disabled: s.status === 'archived',
-              onClick: () => UI.confirm({
-                title: 'Archive sequence?', body: 'Active enrolments stop progressing. History is kept.', confirm: 'Archive', danger: true,
-                onConfirm: () => Act.setSeqStatus(s.id, 'archived'),
-              }),
-            },
+              : { label: 'Activate', icon: 'play', onClick: () => Act.setSeqStatus(s.id, 'active') }),
+            !seqArchived(s) && { label: 'View analytics', icon: 'chart', onClick: () => UI.nav('sequence', { id: s.id, q: { tab: 'analytics' } }) },
+            Q.canAdmin(s.businessId) && (seqArchived(s)
+              ? { label: 'Restore', icon: 'refresh', onClick: () => askRestore('sequence', s.id) }
+              : { label: 'Archive', icon: 'archive', onClick: () => askArchive('sequence', s.id) }),
           ]}
         />
       ),
@@ -107,7 +106,7 @@ export function Sequences() {
           <>
             <FilterBar>
               <SearchInp value={q} onChange={setQ} placeholder="Search sequences" />
-              <Seg value={st} onChange={setSt} opts={[['', 'All'], ['active', 'Active'], ['paused', 'Paused'], ['draft', 'Draft'], ['archived', 'Archived']]} />
+              <Seg label="Status" value={st} onChange={setSt} opts={[['', 'All'], ['active', 'Active'], ['paused', 'Paused'], ['draft', 'Draft'], ['archived', 'Archived']]} />
             </FilterBar>
             <DataTable
               rows={rows} cols={cols} onRow={s => UI.nav('sequence', { id: s.id })}
