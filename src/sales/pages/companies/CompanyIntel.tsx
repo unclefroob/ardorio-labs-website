@@ -13,7 +13,7 @@ import { WebIntel } from './parts/WebIntel'
 
 const failed = (v: Research | ResearchError): v is ResearchError => typeof v.error === 'string' && !('companyId' in v)
 
-export function CompanyIntel({ c, b: b0 }: { c: Company; b: BusinessId }) {
+export function CompanyIntel({ c, b: b0, readOnly = false }: { c: Company; b: BusinessId; readOnly?: boolean }) {
   const opts = Q.relsOf(c.id).map(r => r.businessId).filter(x => Q.member(x))
   const [b, setB] = useState<BusinessId>(b0)
   const [busy, setBusy] = useState(false)
@@ -58,13 +58,13 @@ export function CompanyIntel({ c, b: b0 }: { c: Company; b: BusinessId }) {
         <span className="sp" />
         <AiNotConfigured provider="xai" />
         {tag && tag.biz === b && <AiBadge tag={tag.ai} />}
-        <Btn icon="refresh" kind="pri" disabled={busy || !Q.canEdit(b)} onClick={() => void run()}>
+        <Btn icon="refresh" kind="pri" disabled={busy || readOnly || !Q.canEdit(b)} onClick={() => void run()}>
           {busy ? 'Researching…' : snap ? 'Refresh research' : 'Research company'}
         </Btn>
       </div>
       {busy && <Card><Skel rows={6} /></Card>}
       {!busy && err && (
-        <Banner tone="bad" action={Q.canEdit(b) && <Btn size="sm" onClick={() => void run()}>Retry</Btn>}>
+        <Banner tone="bad" action={!readOnly && Q.canEdit(b) && <Btn size="sm" onClick={() => void run()}>Retry</Btn>}>
           Research unavailable. {err} CRM data is still shown below.
         </Banner>
       )}

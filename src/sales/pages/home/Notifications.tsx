@@ -7,8 +7,34 @@ import { Btn, Card, Chip, Empty, Sel, Seg } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
+const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+interface NotifAction { label: string; go: () => void }
+
+/**
+ * Where a notification the server engine wrote by kind should take you. Invoices and billing details are for admins
+ * of Ardorio only, so anyone else falls back to the deal (or the company) link.
+ */
+export function kindAction(n: Pick<Notification, 'kind' | 'data'>, canBill: boolean): NotifAction | null {
+  const d = n.data ?? {}
+  if (n.kind === 'retainer-invoice-drafted') {
+    const id = str(d.invoiceId)
+    if (!id || !canBill) return null
+    const num = str(d.invoiceNumber)
+    return { label: num ? `Open draft ${num}` : 'Open draft invoice', go: () => UI.nav('invoice', { id }) }
+  }
+  if (n.kind === 'retainer-needs-billing-client') {
+    const id = str(d.companyId)
+    if (!id) return null
+    return { label: canBill ? 'Add billing details' : 'Open company', go: () => UI.nav('company', { id, q: canBill ? { tab: 'overview', focus: 'billing-details' } : { tab: 'overview' } }) }
+  }
+  return null
+}
+
 function open(n: Notification): void {
   Act.readNotif(n.id)
+  const k = kindAction(n, Q.canBill())
+  if (k) return k.go()
   const l = n.link
   if (!l) return
   if (l.page === 'deal' && l.id && !Q.member(Q.deal(l.id)?.businessId)) {
@@ -49,6 +75,17 @@ export function Notifications() {
               <div className="row wrap" style={{ gap: 6 }}><b className="sm">{n.title}</b><Chip>{n.type}</Chip></div>
               {n.body && <div className="muted sm">{n.body}</div>}
               <div className="faint xs">{F.dt(n.ts)}</div>
+              {(() => {
+                const k = kindAction(n, Q.canBill())
+                const dealId = str(n.data?.dealId)
+                if (!k) return null
+                return (
+                  <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+                    <Btn size="xs" onClick={e => { e.stopPropagation(); Act.readNotif(n.id); k.go() }}>{k.label}</Btn>
+                    {dealId && <Btn size="xs" kind="ghost" onClick={e => { e.stopPropagation(); open({ ...n, kind: undefined, link: { page: 'deal', id: dealId } }) }}>Open deal</Btn>}
+                  </div>
+                )
+              })()}
             </div>
             {!n.read && <Btn size="xs" kind="ghost" onClick={e => { e.stopPropagation(); Act.readNotif(n.id) }}>Mark read</Btn>}
           </div>

@@ -7,6 +7,8 @@ import type { Deal as DealRec, Thread } from '../../data/types'
 import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Icon, Kpi, Menu, Owner, Tabs, TONE } from '../../kit'
 import { DealFieldInput } from '../../shared/forms'
 import { tryMove } from '../../shared/moves'
+import { askArchive } from '../../shared/archiveActions'
+import { ArchivedState } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import type { Route } from '../../ui/store'
 import { UI } from '../../ui/store'
@@ -54,6 +56,13 @@ export function Deal({ route }: { route: Route }) {
   const d = route.id ? Q.deal(route.id) : undefined
   const qTab = route.q?.tab
   const [tab, setTab] = useState(typeof qTab === 'string' ? qTab : 'overview')
+  // The page is keyed on the deal, not the query, so a link to another tab of the deal already open (the Won
+  // dialog's Add milestones, say) has to switch tabs here rather than by remounting.
+  const [seenTab, setSeenTab] = useState(qTab)
+  if (qTab !== seenTab) {
+    setSeenTab(qTab)
+    if (typeof qTab === 'string') setTab(qTab)
+  }
   const [ef, setEf] = useState<Fields | null>(null)
 
   if (!d) {
@@ -76,6 +85,8 @@ export function Deal({ route }: { route: Route }) {
       </div>
     )
   }
+
+  if (d.archived) return <ArchivedState kind="deal" r={d} />
 
   const pl = Q.pipeline(d.businessId)
   const st = Q.stage(d)
@@ -114,6 +125,13 @@ export function Deal({ route }: { route: Route }) {
         )}
         {can && d.status !== 'open' && (
           <Btn icon="refresh" onClick={() => { Act.reopenDeal(d.id); UI.toast('Deal reopened') }}>Reopen</Btn>
+        )}
+        {Q.canAdmin(d.businessId) && (
+          <Menu
+            align="right"
+            trigger={<Btn icon="more" aria-label="More actions" />}
+            items={[{ label: 'Archive deal', icon: 'archive', onClick: () => askArchive('deal', d.id) }]}
+          />
         )}
       </PageHead>
       <div className="grid g6" style={{ marginBottom: 12 }}>

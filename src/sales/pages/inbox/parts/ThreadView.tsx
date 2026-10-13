@@ -4,9 +4,10 @@ import * as localAi from '../../../ai/local'
 import { Act } from '../../../data/Act'
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
+import { isSimMsg, simThread } from '../../../data/simulated'
 import { S, useStore } from '../../../data/store'
 import type { Thread } from '../../../data/types'
-import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Link, Menu, Owner, RichText, ScoreRing, Sel, Sim, TOKENS } from '../../../kit'
+import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Link, Menu, Owner, RichText, ScoreRing, Sel, Sim, SimChip, TOKENS } from '../../../kit'
 import { UI } from '../../../ui/store'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
@@ -17,6 +18,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
   useStore()
   const me = Q.me()
   const ms = Q.msgs(t.id).filter(m => m.status !== 'discarded')
+  const sim = simThread(t, ms)
   const ct = Q.contact(t.contactId)
   const co = Q.company(t.companyId)
   const d = t.dealId ? Q.deal(t.dealId) : undefined
@@ -128,6 +130,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
         <Chip icon={t.visibility === 'private' ? 'lock' : 'users'}>{t.visibility === 'private' ? 'Private CRM-linked email' : t.sharedWith.length ? 'Shared with team' : 'Shared business inbox'}</Chip>
         {mb && <Chip icon="mail">{mb.address}</Chip>}
         {t.seqId && <Chip icon="send">{Q.seq(t.seqId)?.name}</Chip>}
+        {sim && <SimChip>{sim === 'all' ? 'Simulated conversation' : 'Includes simulated mail'}</SimChip>}
         <span className="sp" />
         <span className="xs faint">Assigned</span>
         {Q.canManage(t.businessId) || t.assigneeId === me.id ? (
@@ -138,6 +141,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
           />
         ) : <Owner id={t.assigneeId} />}
       </div>
+      {sim && <div className="faint xs" style={{ margin: '-6px 0 12px' }}>No real email is sent or received yet. Simulated messages are recorded in SalesOS only and do not count in goals or reports.</div>}
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 260px', gap: 14, alignItems: 'start' }}>
         <div className="col" style={{ gap: 10 }}>
           {ms.length === 0 && <div className="msg faint sm">No messages in this conversation yet.</div>}
@@ -155,7 +159,8 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
                   <span className="faint">{F.dt(m.ts)}</span>
                   {m.status === 'draft' && <Chip>Draft</Chip>}
                   {m.status === 'bounced' && <Chip tone="bad">Bounced</Chip>}
-                  {m.dir === 'out' && m.status === 'sent' && (m.manual ? <Chip tone="ok">Sent by hand</Chip> : <Sim>Sent (simulated)</Sim>)}
+                  {m.dir === 'out' && m.status === 'sent' && m.manual && <Chip tone="ok" icon="check">Sent by hand</Chip>}
+                  {isSimMsg(m) && <SimChip>{m.dir === 'in' ? 'Received (simulated)' : 'Sent (simulated)'}</SimChip>}
                 </div>
                 <div className="sm" style={{ lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: F.body(m.body) }} />
                 {m.status === 'draft' && can && <Btn size="sm" style={{ marginTop: 10 }} onClick={() => UI.open('compose', { threadId: t.id, subject: m.subject, body: m.body, draftId: m.id, contactId: t.contactId })}>Edit draft</Btn>}
@@ -222,7 +227,8 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
               <RichText value={reply.body} onChange={v => setReply(r => (r ? { ...r, body: v } : r))} tokens={TOKENS} minH={120} label="Reply" />
               {aiErr && <div className="sm" style={{ color: 'var(--bad)', marginTop: 6 }} role="alert">{aiErr}</div>}
               <div className="row" style={{ marginTop: 8 }}>
-                <Sim>Sending is simulated</Sim>
+                <SimChip>Sending is simulated</SimChip>
+                <span className="faint xs">No real email is sent yet.</span>
                 <span className="sp" />
                 <Btn size="sm" disabled={!ct || !reply.mailboxId} onClick={saveDraft}>Save draft</Btn>
                 <Btn size="sm" kind="pri" icon="send" disabled={!reply.mailboxId} onClick={send}>Send</Btn>

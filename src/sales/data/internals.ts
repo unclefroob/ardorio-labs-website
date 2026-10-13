@@ -129,7 +129,7 @@ export function threadFor(e: Enrolment, seq: Sequence, mb: Mailbox, subject: str
   if (existing) return existing
   const ct = idx.contacts.get(e.contactId)
   if (!ct) return undefined
-  const deal = S.deals.find(d => d.businessId === seq.businessId && d.contactIds.includes(ct.id) && d.status === 'open')
+  const deal = S.deals.find(d => d.businessId === seq.businessId && d.contactIds.includes(ct.id) && d.status === 'open' && d.archived !== true)
   const t: Thread = {
     id: uid('th'), businessId: seq.businessId, mailboxId: mb.id, subject, contactId: ct.id, companyId: ct.companyId,
     dealId: deal?.id ?? null, seqId: seq.id, enrolmentId: e.id, visibility: mb.type === 'personal' ? 'private' : 'shared',

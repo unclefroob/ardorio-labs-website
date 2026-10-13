@@ -1,7 +1,8 @@
 import type { Activity } from '../data/types'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
-import { BizDot, Chip, Empty } from './basic'
+import { isSimAct } from '../data/simulated'
+import { BizDot, Chip, Empty, SimChip } from './basic'
 import { CoLink, CtLink, DlLink } from './links'
 import { Icon } from './Icon'
 import { AIC } from './util'
@@ -30,6 +31,7 @@ export function Timeline({ items, showCompany }: { items: readonly Activity[]; s
                 <span className="b">{vis ? a.subject : 'Private email'}</span>
                 {!vis && <Chip icon="lock">Content restricted</Chip>}
                 {a.outcome && vis && <Chip>{a.outcome}</Chip>}
+                {isSimAct(a) && <SimChip />}
               </div>
               <div className="faint xs row wrap" style={{ gap: 6, marginTop: 2 }}>
                 <span>{lab}</span>·<span>{F.dt(a.ts)}</span>·<span>{Q.user(a.actorId)?.name || 'System'}</span>

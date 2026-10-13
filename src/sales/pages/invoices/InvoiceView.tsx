@@ -12,7 +12,7 @@ import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
 import { TestBanner, testItems, useTestActions, type TestOps } from './testActions'
 import { MoreMenu, type MoreItem } from './MoreMenu'
-import { milestoneLabel, personName, StatusChip, TestChip } from './parts'
+import { milestoneLabel, personName, RetainerChip, StatusChip, TestChip } from './parts'
 import { Activity, Totals } from './rail'
 
 /** The items of the More menu for an invoice, by status. Drafts have none: they keep Delete in the editor and were never issued. */
@@ -107,7 +107,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{inv.invoiceNumber}<StatusChip inv={inv} /><TestChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{inv.invoiceNumber}<StatusChip inv={inv} /><TestChip inv={inv} /><RetainerChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, inv.invoiceNumber]}
       >

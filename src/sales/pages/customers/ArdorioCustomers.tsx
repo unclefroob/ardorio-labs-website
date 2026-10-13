@@ -31,8 +31,9 @@ export function ArdorioCustomers() {
   if (!sum.data || !list.data) return <Skel rows={5} />
 
   const tiles = ardorioTiles(sum.data.byCompany)
-  const rows = ardorioCustomers(sum.data.byCompany, S.deals, S.companies, S.billingPlans)
-  const unbilled = wonNotInvoiced(S.deals, S.companies, list.data)
+  const deals = S.deals.filter(d => d.archived !== true)
+  const rows = ardorioCustomers(sum.data.byCompany, deals, S.companies, S.billingPlans)
+  const unbilled = wonNotInvoiced(deals, S.companies, list.data)
 
   const cols: Col<ArdorioCustomer>[] = [
     {

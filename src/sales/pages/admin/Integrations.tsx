@@ -6,7 +6,7 @@ import { S } from '../../data/store'
 import { isProviderEnabled } from '../../data/session'
 import type { BusinessId, EnrichUsage } from '../../api/contract'
 import type { Mailbox } from '../../data/types'
-import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, Sim, Spinner, Toggle, type Col } from '../../kit'
+import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, SimChip, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
 import { fmtResets, phoneLeft, usePhoneStatus } from '../../phone/client'
 import { EnrichActivity } from './EnrichActivity'
@@ -15,6 +15,7 @@ import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
 const BOUNDARIES = ['Email provider', 'Email sync', 'Email sending', 'Lead enrichment', 'Company research', 'AI assistant', 'Sequence scheduler', 'Notifications', 'Authentication', 'Audit logging']
+const SIM_NOTE = 'Simulated: no real email is sent yet. Mail from these mailboxes is recorded in SalesOS only and does not count in goals or reports.'
 const LI = ['Saving and opening profile URLs', 'Manual logging of connection requests, messages and responses', 'Manual LinkedIn tasks inside sequences']
 
 export function Integrations() {
@@ -82,20 +83,21 @@ export function Integrations() {
     <div className="page" style={{ maxWidth: 1200 }}>
       <PageHead title="Integrations" sub="All integrations are mock providers. No real credentials are requested or stored." />
       <div className="col" style={{ gap: 14 }}>
-        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<Sim>Mock Gmail provider</Sim>} pad={false}>
+        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<SimChip>Simulated mailbox</SimChip>} pad={false}>
           <DataTable
             rows={personal}
             cols={personalCols}
             empty={<Empty icon="mail" title="No personal mailbox connected" body="Mailboxes are provisioned for your account by an administrator. Once one is added you can connect it here and choose whether sequences may send from it." />}
           />
+          <div className="faint xs" style={{ padding: 10 }}>{SIM_NOTE}</div>
         </Card>
-        <Card title="Shared business inboxes" icon="users" pad={false}>
+        <Card title="Shared business inboxes" icon="users" right={<SimChip>Simulated mailbox</SimChip>} pad={false}>
           <DataTable
             rows={shared}
             cols={sharedCols}
             empty={<Empty icon="inbox" title="No shared inboxes" body="Shared inboxes for your businesses will appear here, with the people who are authorised to use them." />}
           />
-          <div className="faint xs" style={{ padding: 10 }}>Production design: delegated or authorised shared-mailbox access. Knowing an address never grants access.</div>
+          <div className="faint xs" style={{ padding: 10 }}>{SIM_NOTE} Production design: delegated or authorised shared-mailbox access. Knowing an address never grants access.</div>
         </Card>
         <div className="grid g2">
           <EnrichCard />

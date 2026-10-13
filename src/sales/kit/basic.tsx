@@ -79,9 +79,9 @@ export function Tabs({ tabs, value, onChange }: { tabs: readonly TabDef[]; value
 
 export type SegDef = string | readonly [key: string, label: ReactNode, icon?: string]
 
-export function Seg({ opts, value, onChange }: { opts: readonly SegDef[]; value: string; onChange: (k: string) => void }) {
+export function Seg({ opts, value, onChange, label }: { opts: readonly SegDef[]; value: string; onChange: (k: string) => void; label?: string }) {
   return (
-    <div className="seg" role="group">
+    <div className="seg" role="group" aria-label={label}>
       {opts.map(o => {
         const [k, l, ic] = typeof o === 'string' ? [o, o, undefined] : o
         return (
@@ -239,4 +239,9 @@ export function ScoreRing({ v, s = 46 }: { v: number; s?: number }) {
 
 export function Sim({ children }: { children?: ReactNode }) {
   return <span className="sim">{children || 'Simulated'}</span>
+}
+
+/** Marks simulated mail (a message, thread or mailbox): icon plus text, never colour alone. */
+export function SimChip({ children, title }: { children?: ReactNode; title?: string }) {
+  return <Chip icon="zap" title={title ?? 'No real email is sent or received yet. Simulated mail does not count in goals or reports.'}>{children || 'Simulated'}</Chip>
 }

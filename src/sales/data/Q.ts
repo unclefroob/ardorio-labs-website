@@ -1,6 +1,7 @@
 import { F } from './F'
 import { idx, S } from './store'
 import { ageDays, applySignalAdjust, computeSignalAdjust, NO_ADJUST, type PendingClosure, type SignalAdjust, type SignalAdjustPart } from './signalAdjust'
+import { isSimAct, simReplied } from './simulated'
 import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 import type {
   Activity, Business, BusinessId, Company, CompanyRel, Contact, ContactRel, Deal, Enrolment, Goal, Mailbox,
@@ -174,15 +175,33 @@ export const Q = {
     const ids = new Set(S.contactRels.filter(r => sc.includes(r.businessId)).map(r => r.contactId))
     return S.contacts.filter(c => ids.has(c.id) && !c.archived)
   },
+  /** Archived companies in scope, for the Archived filter on Companies. */
+  archivedCompanies(): Company[] {
+    const sc = Q.scope()
+    const ids = new Set(S.companyRels.filter(r => sc.includes(r.businessId)).map(r => r.companyId))
+    return S.companies.filter(c => ids.has(c.id) && c.archived === true)
+  },
+  /** Archived contacts in scope, for the Archived filter on Contacts. */
+  archivedContacts(): Contact[] {
+    const sc = Q.scope()
+    const ids = new Set(S.contactRels.filter(r => sc.includes(r.businessId)).map(r => r.contactId))
+    return S.contacts.filter(c => ids.has(c.id) && c.archived === true)
+  },
   contactBiz(ct: Contact): BusinessId[] {
     const sc = Q.scope()
     return Q.crelsOf(ct.id).map(r => r.businessId).filter(b => sc.includes(b))
   },
   primaryBiz: (ct: Contact): BusinessId | undefined => Q.contactBiz(ct)[0] ?? Q.crelsOf(ct.id)[0]?.businessId,
 
+  /** Deals in scope that count: archived deals are left out (see data/archive.ts). */
   deals(): Deal[] {
     const sc = Q.scope()
-    return S.deals.filter(d => sc.includes(d.businessId))
+    return S.deals.filter(d => sc.includes(d.businessId) && d.archived !== true)
+  },
+  /** Archived deals in scope, for the Archived filter on Deals. */
+  archivedDeals(): Deal[] {
+    const sc = Q.scope()
+    return S.deals.filter(d => sc.includes(d.businessId) && d.archived === true)
   },
   open: (d: Deal): boolean => d.status === 'open',
   stage: (d: Deal): Stage | undefined => Q.pipeline(d.businessId).stages.find(s => s.id === d.stageId),
@@ -381,7 +400,7 @@ export const Q = {
     if (dm >= 16) pos.push(`${ct.title} — likely decision-maker`)
 
     const clock = F.nowIso()
-    const acts = S.activities.filter(a => a.contactId === ctid && a.businessId === b && F.days(a.ts, clock) <= 30)
+    const acts = S.activities.filter(a => a.contactId === ctid && a.businessId === b && F.days(a.ts, clock) <= 30 && !isSimAct(a))
     let eng = 0
     for (const a of acts) {
       const w: Record<string, number> = {
@@ -394,13 +413,13 @@ export const Q = {
     if (eng >= 8) pos.push(`${acts.length} interactions in the last 30 days`)
 
     let sig = 0
-    const dl = S.deals.find(d => d.businessId === b && d.contactIds.includes(ctid) && d.status === 'open')
+    const dl = S.deals.find(d => d.businessId === b && d.contactIds.includes(ctid) && d.status === 'open' && d.archived !== true)
     if (dl) {
       sig += 10
       pos.push(`Stakeholder on open deal “${dl.title}”`)
     }
     const POSITIVE = ['Interested', 'Meeting Requested', 'More Information Requested']
-    const pr = S.threads.find(t => t.contactId === ctid && t.businessId === b && t.classification && POSITIVE.includes(t.classification.cat))
+    const pr = S.threads.find(t => t.contactId === ctid && t.businessId === b && t.classification && POSITIVE.includes(t.classification.cat) && !simReplied(t))
     if (pr?.classification) {
       sig += 6
       pos.push(`Positive reply: ${pr.classification.cat.toLowerCase()}`)
@@ -484,7 +503,8 @@ export const Q = {
 
   metric(userIds: string[], metric: string, from: string, to: string, b?: string): number {
     return S.activities.filter(a => {
-      if (!userIds.includes(a.actorId) || a.ts < from || a.ts > to || (b && a.businessId !== b) || a.dup) return false
+      if (!userIds.includes(a.actorId) || a.ts < from || a.ts > to || (b && a.businessId !== b) || a.dup || isSimAct(a)) return false
+      if (a.dealId && idx.deals.get(a.dealId)?.archived === true) return false
       if (metric === 'calls') return a.type === 'call' && a.outcome !== 'Cancelled'
       if (metric === 'emails') return a.type === 'email_out'
       if (metric === 'meetings') return a.type === 'meeting_booked'

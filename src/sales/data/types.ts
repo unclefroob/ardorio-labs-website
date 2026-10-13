@@ -195,6 +195,10 @@ export interface Deal {
   revenueType?: string
   wonNotes?: string
   lostNotes?: string
+  /** Archived deals leave boards, forecasts, reports and goals. Only admins of the business change it (server-enforced). */
+  archived?: boolean
+  archivedAt?: Iso
+  archivedBy?: string
   [k: string]: unknown
 }
 
@@ -324,6 +328,10 @@ export interface Sequence {
   steps: SeqStep[]
   createdAt: Iso
   updatedAt: Iso
+  /** Archived sequences also carry status 'archived'. Older ones have only the status. Admins only (server-enforced). */
+  archived?: boolean
+  archivedAt?: Iso
+  archivedBy?: string
 }
 
 export interface Enrolment {
@@ -340,6 +348,8 @@ export interface Enrolment {
   threadId: string | null
   history: unknown[]
   reason: string
+  /** Set when `reason` was written by a simulated path (the demo "meeting booked" event), so it never counts. */
+  reasonSimulated?: boolean
   completedAt?: Iso
   pendingMsgId?: string | null
   taskId?: string
@@ -375,6 +385,8 @@ export interface Thread {
   needsReply: boolean
   sharedWith: string[]
   updatedAt: Iso
+  /** True when this thread was started by a simulated path (simulated mail). See data/simulated.ts for legacy records. */
+  simulated?: boolean
   [k: string]: unknown
 }
 export interface Message {
@@ -394,6 +406,8 @@ export interface Message {
   /** True for a message the rep sent by hand and marked as sent (SalesOS never sends email itself). */
   manual?: boolean
   sentAt?: string
+  /** True when this was never really sent or received (simulated mail). See data/simulated.ts for legacy records. */
+  simulated?: boolean
   [k: string]: unknown
 }
 
@@ -501,6 +515,8 @@ export interface Activity {
   desc?: string
   outcome?: string
   dup?: boolean
+  /** True when a simulated path recorded this (no real email, reply or tracking event). Never counted in metrics. */
+  simulated?: boolean
   [k: string]: unknown
 }
 
@@ -514,6 +530,10 @@ export interface Notification {
   title: string
   body?: string
   link?: NotifLink
+  /** Machine-readable kind, set by the server engine on notifications it writes (see RetainerNotificationKind). */
+  kind?: string
+  /** Kind-specific ids (see the retainer notification data types in api/contract). */
+  data?: Record<string, unknown>
 }
 
 export interface AuditEntry { id: string; actorId: string; action: string; target: string; ts: Iso }

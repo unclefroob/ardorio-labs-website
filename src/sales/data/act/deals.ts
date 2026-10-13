@@ -180,3 +180,24 @@ export function reopenDeal(id: string): void {
   act({ type: 'stage', businessId: d.businessId, companyId: d.companyId, dealId: d.id, subject: 'Deal reopened' })
   commit()
 }
+
+/** Admins only (the server rejects anyone else). The deal keeps its stage and history; it just stops counting. */
+export function archiveDeal(id: string): void {
+  const d = idx.deals.get(id)
+  if (!d || d.archived) return
+  d.archived = true
+  d.archivedAt = F.nowIso()
+  d.archivedBy = S.session.userId
+  audit('Record archived', `Deal: ${d.name}`)
+  commit()
+}
+
+export function restoreDeal(id: string): void {
+  const d = idx.deals.get(id)
+  if (!d || !d.archived) return
+  d.archived = false
+  delete d.archivedAt
+  delete d.archivedBy
+  audit('Record restored', `Deal: ${d.name}`)
+  commit()
+}

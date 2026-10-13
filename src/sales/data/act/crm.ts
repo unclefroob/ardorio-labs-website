@@ -1,3 +1,4 @@
+import { STOPPED_BY_ARCHIVE } from '../archive'
 import { F } from '../F'
 import { uid } from '../ids'
 import { act, audit, ensureRels, notify } from '../internals'
@@ -123,6 +124,14 @@ export function archiveCompany(id: string): void {
   if (!c) return
   c.archived = true
   audit('Record archived', `Company: ${c.name}`)
+  commit()
+}
+
+export function restoreCompany(id: string): void {
+  const c = idx.companies.get(id)
+  if (!c || !c.archived) return
+  c.archived = false
+  audit('Record restored', `Company: ${c.name}`)
   commit()
 }
 
@@ -286,12 +295,21 @@ export function archiveContact(id: string): void {
   if (!c) return
   c.archived = true
   for (const e of S.enrolments) {
-    if (e.contactId === id && ['active', 'awaiting_approval', 'awaiting_task'].includes(e.status)) {
+    if (e.contactId === id && STOPPED_BY_ARCHIVE.includes(e.status)) {
       e.status = 'removed'
       e.reason = 'Contact archived'
     }
   }
   audit('Record archived', `Contact: ${c.name}`)
+  commit()
+}
+
+/** Restoring brings the contact back only: enrolments that archiving stopped stay stopped. */
+export function restoreContact(id: string): void {
+  const c = idx.contacts.get(id)
+  if (!c || !c.archived) return
+  c.archived = false
+  audit('Record restored', `Contact: ${c.name}`)
   commit()
 }
 

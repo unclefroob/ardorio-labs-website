@@ -4,6 +4,7 @@ import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { BusinessId, Deal } from '../../data/types'
 import { BizDot, Btn, Chip, Ck, DataTable, Empty, Icon, Owner, SearchInp, Seg, Sel } from '../../kit'
+import { ArchivedChip, RestoreRowBtn } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { tryMove } from '../../shared/moves'
 import { TONE } from '../../kit/util'
@@ -47,21 +48,27 @@ export function Deals({ route }: { route: Route }) {
   const all = Q.deals()
   const today = F.today()
   const closeBy = cl ? F.addDays(F.nowIso(), +cl).slice(0, 10) : ''
-  const base = all.filter(
-    d =>
-      (!own || d.ownerId === own) && (!pri || d.priority === pri) && (!risk || Q.risk(d)) && (!src || d.source === src) &&
-      (!q || d.name.toLowerCase().includes(q.toLowerCase())) && (!closeBy || d.close <= closeBy) && (!minV || d.value >= +minV),
-  )
+  const archived = Q.archivedDeals()
+  const showArch = view === 'list' && status === 'archived'
+  const match = (d: Deal): boolean =>
+    (!own || d.ownerId === own) && (!pri || d.priority === pri) && (!risk || !!Q.risk(d)) && (!src || d.source === src) &&
+    (!q || d.name.toLowerCase().includes(q.toLowerCase())) && (!closeBy || d.close <= closeBy) && (!minV || d.value >= +minV)
+  const base = all.filter(match)
   const bd = base.filter(d => d.businessId === pb)
-  const list = base.filter(d => (view === 'list' && Q.wsBiz() === null ? true : d.businessId === pb) && (status === 'all' || d.status === status) && (!stF || d.stageId === stF))
-  const owners = [...new Set(all.map(d => d.ownerId))]
+  const inView = (d: Deal): boolean => (view === 'list' && Q.wsBiz() === null ? true : d.businessId === pb) && (!stF || d.stageId === stF)
+  const list = showArch
+    ? archived.filter(d => match(d) && inView(d))
+    : base.filter(d => inView(d) && (status === 'all' || d.status === status))
+  const owners = [...new Set([...all, ...(showArch ? archived : [])].map(d => d.ownerId))]
   const openDeals = bd.filter(Q.open)
-  const sub = (view === 'board' ? pl.name + ' · ' : '') + openDeals.length + ' open · ' + F.money(openDeals.reduce((s, d) => s + d.value, 0), 1) + ' pipeline · ' + F.money(bd.reduce((s, d) => s + Q.weighted(d), 0), 1) + ' weighted'
+  const sub = showArch
+    ? archived.length + ' archived · left out of the pipeline, forecasts, reports and goals'
+    : (view === 'board' ? pl.name + ' · ' : '') + openDeals.length + ' open · ' + F.money(openDeals.reduce((s, d) => s + d.value, 0), 1) + ' pipeline · ' + F.money(bd.reduce((s, d) => s + Q.weighted(d), 0), 1) + ' weighted'
   const newDeal = (
     <Btn kind="pri" icon="plus" disabled={!Q.anyEdit()} onClick={() => UI.open('newDeal', { businessId: pb })}>New deal</Btn>
   )
 
-  if (!all.length) {
+  if (!all.length && !archived.length) {
     return (
       <div className="page" style={{ maxWidth: 'none' }}>
         <PageHead title="Deals & Pipeline">{newDeal}</PageHead>
@@ -95,9 +102,12 @@ export function Deals({ route }: { route: Route }) {
         <Sel className="sm" style={{ width: 130 }} aria-label="Source" value={src} onChange={setSrc} placeholder="Any source" options={SOURCES} />
         <Sel className="sm" style={{ width: 130 }} aria-label="Value" value={minV} onChange={setMinV} placeholder="Any value" options={[['10000', 'A$10k+'], ['50000', 'A$50k+'], ['100000', 'A$100k+']]} />
         <Ck checked={risk} onChange={setRisk}>At risk only</Ck>
+        {archived.length > 0 && !showArch && (
+          <Btn size="sm" kind="ghost" icon="archive" onClick={() => { setView('list'); setStatus('archived') }}>Archived ({archived.length})</Btn>
+        )}
         {view === 'list' && (
           <>
-            <Sel className="sm" style={{ width: 120 }} aria-label="Status" value={status} onChange={setStatus} options={[['open', 'Open'], ['won', 'Won'], ['lost', 'Lost'], ['all', 'All statuses']]} />
+            <Sel className="sm" style={{ width: 120 }} aria-label="Status" value={status} onChange={setStatus} options={[['open', 'Open'], ['won', 'Won'], ['lost', 'Lost'], ['all', 'All statuses'], ['archived', 'Archived']]} />
             <Sel className="sm" style={{ width: 150 }} aria-label="Stage" value={stF} onChange={setStF} placeholder="Any stage" options={pl.stages.map(s => [s.id, s.name] as const)} />
           </>
         )}
@@ -158,9 +168,11 @@ export function Deals({ route }: { route: Route }) {
             rows={list}
             onRow={d => UI.nav('deal', { id: d.id })}
             sortInit={['close', 1]}
-            empty={<Empty icon="kanban" title="No deals match" body="Change filters or create a new deal." />}
+            empty={showArch
+              ? <Empty icon="archive" title="No archived deals match" body="Admins can archive a deal from its page. Archived deals appear here, ready to restore." action={<Btn onClick={() => setStatus('open')}>Show open deals</Btn>} />
+              : <Empty icon="kanban" title="No deals match" body="Change filters or create a new deal." />}
             cols={[
-              { k: 'name', l: 'Deal', r: d => <span className="row"><BizDot b={d.businessId} /><div><b>{d.title}</b><div className="faint xs">{Q.company(d.companyId)?.name ?? '—'}</div></div></span> },
+              { k: 'name', l: 'Deal', r: d => <span className="row"><BizDot b={d.businessId} /><div><span className="row" style={{ gap: 6 }}><b>{d.title}</b>{d.archived && <ArchivedChip r={d} />}</span><div className="faint xs">{Q.company(d.companyId)?.name ?? '—'}</div></div></span> },
               { k: 'stage', l: 'Stage', r: d => <Chip tone={d.status === 'won' ? 'ok' : d.status === 'lost' ? 'bad' : ''}>{Q.stage(d)?.name ?? 'Removed stage'}</Chip>, sort: d => d.probability },
               { k: 'value', l: 'Value', right: true, r: d => <span className="num">{F.money(d.value)}</span> },
               { k: 'mrr', l: 'MRR', right: true, r: d => (d.mrr ? <span className="num">{F.money(d.mrr)}</span> : '—') },
@@ -173,6 +185,7 @@ export function Deals({ route }: { route: Route }) {
               { k: 'r', l: 'Risk', r: d => { const r = Q.risk(d); return r ? <Chip tone={r.level === 'high' ? 'bad' : 'warn'} title={r.reasons.join(' · ')}>{r.reasons[0]}</Chip> : '—' }, sort: d => Q.risk(d)?.reasons.length ?? 0 },
               { k: 'source', l: 'Source' },
               { k: 'priority', l: 'Priority', r: d => <Chip tone={TONE[d.priority]}>{d.priority}</Chip> },
+              ...(showArch ? [{ k: 'restore', l: 'Restore', nosort: true, r: (d: Deal) => <RestoreRowBtn kind="deal" r={d} /> }] : []),
             ]}
           />
         </div>

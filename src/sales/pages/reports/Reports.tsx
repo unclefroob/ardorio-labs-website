@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { countableActs, liveDeal } from '../../data/archive'
+import { simReplied } from '../../data/simulated'
 import { S } from '../../data/store'
 import type { BusinessId, Deal } from '../../data/types'
 import {
@@ -36,8 +38,8 @@ export function Reports() {
   const ids: string[] | null = u ? [u] : tm ? (Q.team(tm)?.members ?? []) : null
   const inIds = (id: string | null | undefined): boolean => !ids || (!!id && ids.includes(id))
 
-  const deals = S.deals.filter(d => bs.includes(d.businessId) && inIds(d.ownerId) && (!src || d.source === src) && (!ind || Q.company(d.companyId)?.industry === ind) && (!ds || d.status === ds))
-  const acts = S.activities.filter(a => bs.includes(a.businessId) && a.ts >= from && a.ts <= clock && inIds(a.actorId) && (!ind || Q.company(a.companyId)?.industry === ind))
+  const deals = S.deals.filter(d => liveDeal(d) && bs.includes(d.businessId) && inIds(d.ownerId) && (!src || d.source === src) && (!ind || Q.company(d.companyId)?.industry === ind) && (!ds || d.status === ds))
+  const acts = countableActs(S.activities).filter(a => bs.includes(a.businessId) && a.ts >= from && a.ts <= clock && inIds(a.actorId) && (!ind || Q.company(a.companyId)?.industry === ind))
   const c = (t: string): number => acts.filter(a => a.type === t).length
 
   const open = deals.filter(Q.open)
@@ -45,7 +47,7 @@ export function Reports() {
   const lost = deals.filter(d => d.status === 'lost' && (d.closedAt ?? '') >= from)
   const emailed = new Set(acts.filter(a => a.type === 'email_out').map(a => a.contactId))
   const replied = new Set(acts.filter(a => a.type === 'email_in' && emailed.has(a.contactId)).map(a => a.contactId))
-  const posC = new Set(S.threads.filter(t => bs.includes(t.businessId) && POSITIVE.includes(t.classification?.cat ?? '') && replied.has(t.contactId)).map(t => t.contactId))
+  const posC = new Set(S.threads.filter(t => bs.includes(t.businessId) && POSITIVE.includes(t.classification?.cat ?? '') && replied.has(t.contactId) && !simReplied(t)).map(t => t.contactId))
   const meetC = new Set(acts.filter(a => a.type === 'meeting_booked').map(a => a.contactId))
   const repMeet = [...replied].filter(x => meetC.has(x)).length
   const newDeals = deals.filter(d => d.createdAt >= from)
@@ -59,7 +61,7 @@ export function Reports() {
     const s = F.addDays(F.weekStart(), -7 * (9 - i))
     return { s, e: F.addDays(s, 7), l: F.date(s) }
   })
-  const wa = S.activities.filter(a => bs.includes(a.businessId) && inIds(a.actorId))
+  const wa = countableActs(S.activities).filter(a => bs.includes(a.businessId) && inIds(a.actorId))
   const w = (t: string): number[] => weeks.map(x => wa.filter(a => a.type === t && a.ts >= x.s && a.ts < x.e).length)
   const fm = Array.from({ length: 6 }).map((_, i) => {
     const d = F.now()
@@ -91,7 +93,7 @@ export function Reports() {
     e: acts.filter(a => a.actorId === x && a.type === 'email_out').length,
     c: acts.filter(a => a.actorId === x && a.type === 'call').length,
     m: acts.filter(a => a.actorId === x && a.type === 'meeting_booked').length,
-    w: sum(S.deals.filter(d => d.ownerId === x && d.status === 'won' && (d.closedAt ?? '') >= from && bs.includes(d.businessId)), d => d.value),
+    w: sum(S.deals.filter(d => liveDeal(d) && d.ownerId === x && d.status === 'won' && (d.closedAt ?? '') >= from && bs.includes(d.businessId)), d => d.value),
   }))
   const userCols: Col<UserRow>[] = [
     { k: 'u', l: 'User', r: r => <Owner id={r.id} />, sort: r => Q.user(r.id)?.name },
@@ -111,7 +113,7 @@ export function Reports() {
 
   return (
     <div className="page">
-      <PageHead title="Reports" sub={`${PER[per][0]} · recalculated from live records`}>
+      <PageHead title="Reports" sub={`${PER[per][0]} · recalculated from live records · simulated email and archived deals excluded`}>
         <Btn icon="download" disabled={empty} onClick={exp}>Export CSV</Btn>
       </PageHead>
       <div className="card" style={{ marginBottom: 14 }}>

@@ -8,11 +8,15 @@ import { uid } from '../../data/ids'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
-import { Banner, Btn, Card, Chip, Fld, Inp, Skel } from '../../kit'
-import { billingProgress, quotedCents, scheduleRows, STATUS_TONE, unbilledRows, type ScheduleRow } from '../../shared/billing'
+import { Banner, Btn, Card, Chip, Fld, Icon, Inp, Skel } from '../../kit'
+import {
+  billingProgress, quotedCents, redraftProblem, retainerAutoState, retainerPause, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows, STATUS_TONE,
+  unbilledRows, type RetainerPause, type ScheduleRow,
+} from '../../shared/billing'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
+import { RetainerChip } from '../invoices/parts'
 import { createDraftsForUnbilled } from './billingActions'
 
 /** Billing schedule of an Ardorio deal. Rendered only for admins of Ardorio; the server enforces the same. */
@@ -41,9 +45,10 @@ function Schedule({ deal }: { deal: Deal }) {
   const e = inv.error ? invoiceError(inv.error, 'load') : null
   const retainerInvoices = list.filter(i => !i.milestoneId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   const today = F.today()
+  const paused = retainerPause(deal)
 
   const open = (id: string): void => UI.nav('invoice', { id })
-  const create = (q: { milestoneId?: string; retainer?: boolean }): void => UI.nav('invoice', { id: 'new', q: { companyId: deal.companyId, dealId: deal.id, ...q } })
+  const create = (q: { milestoneId?: string; retainer?: boolean; retainerFor?: string }): void => UI.nav('invoice', { id: 'new', q: { companyId: deal.companyId, dealId: deal.id, ...q } })
 
   const startAdd = (): void => { setErr(''); setForm({ id: null, label: '', amount: '', date: '' }) }
   const startEdit = (m: BillingMilestone): void => { setErr(''); setForm({ id: m.id, label: m.label, amount: centsToInput(m.amountCents), date: m.plannedDate ?? '' }) }
@@ -84,6 +89,11 @@ function Schedule({ deal }: { deal: Deal }) {
   }
 
   const retainer = plan?.retainer
+  // What saving the retainer form would make the server do: a date in the past drafts one invoice per run until it
+  // passes today, and a date on or before the last drafted period drafts that month again.
+  const formDate = retainerForm?.date || undefined
+  const formRedraft = retainerForm ? redraftProblem(formDate, retainer) : null
+  const formCatchUp = retainerForm && !formRedraft ? retainerDuePeriods({ nextInvoiceDate: formDate, lastDraftedFor: retainer?.lastDraftedFor, anchorDay: formDate === retainer?.nextInvoiceDate ? retainer?.anchorDay : undefined }, today) : []
   const statusLine = (r: ScheduleRow): string => (r.invoice ? (r.invoice.status === 'draft' ? 'Not issued' : r.invoice.status === 'paid' ? `Paid ${fmtDay(r.invoice.payment?.paidAt)}` : `Due ${fmtDay(r.invoice.dueDate)}`) : '')
 
   return (
@@ -159,10 +169,23 @@ function Schedule({ deal }: { deal: Deal }) {
         ) : !retainer && !form && <div className="faint sm">No milestones yet. Add the agreed payments for this deal, or set up a monthly retainer.</div>}
 
         {retainerForm && (
-          <div className="grid g3" style={{ alignItems: 'end' }}>
-            <Fld label="Monthly amount (ex GST)"><Inp aria-label="Retainer amount" className="mono" value={retainerForm.amount} onChange={v => setRetainerForm({ ...retainerForm, amount: v })} /></Fld>
-            <Fld label="Next invoice date"><Inp aria-label="Retainer next invoice date" type="date" value={retainerForm.date} onChange={v => setRetainerForm({ ...retainerForm, date: v })} /></Fld>
-            <span className="row" style={{ gap: 6 }}><Btn size="sm" kind="pri" onClick={saveRetainer}>Save retainer</Btn><Btn size="sm" onClick={() => { setRetainerForm(null); setErr('') }}>Cancel</Btn></span>
+          <div className="col" style={{ gap: 8 }}>
+            <div className="grid g3" style={{ alignItems: 'end' }}>
+              <Fld label="Monthly amount (ex GST)"><Inp aria-label="Retainer amount" className="mono" value={retainerForm.amount} onChange={v => setRetainerForm({ ...retainerForm, amount: v })} /></Fld>
+              <Fld label="Next invoice date"><Inp aria-label="Retainer next invoice date" type="date" value={retainerForm.date} onChange={v => setRetainerForm({ ...retainerForm, date: v })} /></Fld>
+              <span className="row" style={{ gap: 6 }}>
+                <Btn size="sm" kind="pri" onClick={saveRetainer}>{formCatchUp.length > 1 ? `Save and draft ${retainerSpanLabel(formCatchUp.slice(-1))} only` : 'Save retainer'}</Btn>
+                <Btn size="sm" onClick={() => { setRetainerForm(null); setErr('') }}>Cancel</Btn>
+              </span>
+            </div>
+            {formRedraft && <Banner tone="bad">{formRedraft}.</Banner>}
+            {formCatchUp.length > 1 && (
+              <Banner tone="warn">
+                <b>This date is {formCatchUp.length} months in the past, so only {retainerSpanLabel(formCatchUp.slice(-1))} is drafted, on the next run. {retainerSpanLabel(formCatchUp.slice(0, -1))} {formCatchUp.length === 2 ? 'is' : 'are'} skipped.</b>{' '}
+                You get one notification listing the skipped months; invoice by hand any that still need billing.
+              </Banner>
+            )}
+            {formCatchUp.length === 1 && <div className="faint sm">This date is today or earlier, so the first draft is made on the next run.</div>}
           </div>
         )}
 
@@ -172,12 +195,20 @@ function Schedule({ deal }: { deal: Deal }) {
             <div className="grid g3">
               <div><div className="faint sm">Monthly amount (ex GST)</div><div className="b money" style={{ fontSize: 18 }}>{formatCents(retainer.amountCents)}</div></div>
               <div><div className="faint sm">Next invoice date</div><div className="b" style={{ fontSize: 18 }}>{fmtDay(retainer.nextInvoiceDate)}</div></div>
+              <div>
+                <div className="faint sm">Last drafted period</div>
+                {retainer.lastDraftedFor
+                  ? <><div className="b" style={{ fontSize: 18 }}>{retainerPeriodLabel(retainer.lastDraftedFor) || '—'}</div><div className="faint sm">Drafted for {fmtDay(retainer.lastDraftedFor)}</div></>
+                  : <div className="b" style={{ fontSize: 18 }}>None yet</div>}
+              </div>
             </div>
+            <RetainerNote retainer={retainer} today={today} paused={paused} />
             {retainerInvoices.map(i => (
-              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span>{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</div>
+              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
+            <ManualRetainerNote retainer={retainer} today={today} paused={paused} />
             <div className="row" style={{ gap: 6 }}>
-              <Btn size="sm" onClick={() => create({ retainer: true })}>Create invoice</Btn>
+              <Btn size="sm" onClick={() => create(!paused && retainerAutoState(retainer, today) === 'due' && retainer.nextInvoiceDate ? { retainer: true, retainerFor: retainer.nextInvoiceDate } : { retainer: true })}>Create invoice</Btn>
               <Btn size="sm" kind="ghost" onClick={() => setRetainerForm({ amount: centsToInput(retainer.amountCents), date: retainer.nextInvoiceDate ?? '' })}>Edit retainer</Btn>
               <Btn size="sm" kind="ghost" onClick={() => { const r = Act.saveRetainer(deal.id, null); if (!r.ok) setErr(r.error) }}>Remove retainer</Btn>
             </div>
@@ -186,5 +217,51 @@ function Schedule({ deal }: { deal: Deal }) {
         <div className="faint sm">Milestones are agreed amounts, not forecasts. Creating an invoice makes a draft with the milestone as its line; you still review and issue it.</div>
       </div>
     </Card>
+  )
+}
+
+const PAUSED: Record<RetainerPause, string> = {
+  'archived': 'The deal is archived, so no retainer invoice is drafted automatically. Drafting resumes from the next invoice date when the deal is restored.',
+  'not-won': 'The deal is not won, so no retainer invoice is drafted automatically. Drafting starts from the next invoice date once the deal is won.',
+}
+
+/**
+ * What Create invoice does next to the scheduler. While a period is due, the invoice made here bills it and the
+ * automatic draft moves on a month. Before then, an invoice made here is an extra one: the scheduled draft still comes.
+ */
+function ManualRetainerNote({ retainer, today, paused }: { retainer: BillingRetainer; today: string; paused: RetainerPause | null }) {
+  const st = retainerAutoState(retainer, today)
+  if (st === 'no-date') return null
+  // Nothing is drafted for a paused deal, so an invoice made here claims no period and moves no date.
+  if (paused) return <div className="faint sm" aria-label="Create invoice by hand">An invoice created here is an extra one and leaves the next invoice date as it is.</div>
+  const period = retainerPeriodLabel(retainer.nextInvoiceDate)
+  const msg = st === 'due'
+    ? `Create invoice bills ${period} by hand: once it is saved, the automatic draft for ${period} is skipped and the date moves on a month.`
+    : st === 'drafted'
+      ? `The ${period} draft is already being made, so an invoice created here is an extra one.`
+      : `An invoice created here is an extra one: the ${period} draft is still made automatically on ${fmtDay(retainer.nextInvoiceDate)}. If this invoice replaces it, move the next invoice date on first.`
+  return <div className="faint sm" aria-label="Create invoice by hand">{msg}</div>
+}
+
+/** What the server scheduler will do with this retainer. Drafts only: nothing is ever issued or sent automatically. */
+function RetainerNote({ retainer, today, paused }: { retainer: BillingRetainer; today: string; paused: RetainerPause | null }) {
+  const st = retainerAutoState(retainer, today)
+  const amount = formatCents(retainer.amountCents)
+  const behind = st === 'due' ? retainerDuePeriods(retainer, today) : []
+  const catchUp = behind.length > 1
+    ? ` The date is ${behind.length} months behind, so only ${retainerSpanLabel(behind.slice(-1))} is drafted, on the next run. ${retainerSpanLabel(behind.slice(0, -1))} ${behind.length === 2 ? 'is' : 'are'} skipped, with one notification listing them; invoice by hand any that still need billing.`
+    : ''
+  const msg = paused && st !== 'no-date' ? PAUSED[paused] : st === 'no-date'
+    ? 'No next invoice date, so no draft is created automatically. Set a date to have the draft made for you.'
+    : st === 'due'
+      ? `Due ${fmtDay(retainer.nextInvoiceDate)}. A draft invoice for ${amount} is created automatically on the next run, as long as the company has a billing client.${catchUp} It is never sent automatically.`
+      : st === 'drafted'
+        ? `The draft invoice for ${retainerPeriodLabel(retainer.lastDraftedFor)} is being created. It is never sent automatically.`
+        : `A draft invoice for ${amount} is created automatically on ${fmtDay(retainer.nextInvoiceDate)}, then the date moves on a month. It is never sent automatically: you review and issue each one.`
+  return (
+    <div className="row sm muted" role="note" aria-label="Retainer automation" style={{ gap: 6, alignItems: 'flex-start' }}>
+      <Icon n={st === 'no-date' || paused ? 'info' : 'refresh'} s={14} style={{ marginTop: 2, flexShrink: 0 }} />
+      <span>{msg}</span>
+    </div>
   )
 }

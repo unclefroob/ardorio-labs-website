@@ -10,9 +10,10 @@ import { UI } from '../../ui/store'
 export function WonCustomers({ business }: { business: BusinessId }) {
   useStore()
   const name = Q.biz(business)?.name ?? business
-  const rows = wonCustomers(S.deals, S.companies, business)
+  const deals = S.deals.filter(d => d.archived !== true)
+  const rows = wonCustomers(deals, S.companies, business)
   const total = rows.reduce((n, r) => n + r.value, 0)
-  const quarter = wonThisQuarter(S.deals, S.companies, business)
+  const quarter = wonThisQuarter(deals, S.companies, business)
 
   if (!rows.length) {
     return (

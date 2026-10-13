@@ -1,11 +1,11 @@
-import { archiveCompany, archiveContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
-import { saveMilestones, saveRetainer } from './act/billing'
-import { createDeal, markLost, markWon, moveStage, reopenDeal, updateDeal } from './act/deals'
+import { archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
+import { claimRetainerPeriod, retainerClaimProblem, saveMilestones, saveRetainer } from './act/billing'
+import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
 import { applyPhoneLookup } from './act/phone'
 import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, refreshRecs, saveResearch, confirmResearchIdentity, enrichLog } from './act/recs'
 import { addKnownTech, reviewClosure, saveIntel } from './act/intel'
-import { dupSequence, enrol, saveSequence, setEnrol, setSeqStatus } from './act/seq'
+import { archiveSequence, dupSequence, enrol, restoreSequence, saveSequence, setEnrol, setSeqStatus } from './act/seq'
 import { cancelTask, completeTask, createTask, deleteTask, skipEmailTask, snoozeTask, stopEmailing, updateTask } from './act/tasks'
 import {
   deleteGoal, deleteTeam, deleteView, readAll, readNotif, removeStage, runSequences, sampleNotif, saveGoal, savePipeline, saveTeam,
@@ -25,15 +25,15 @@ export type { GoalInput, TeamInput, UserForm } from './act/admin'
  */
 export const Act = {
   setSession, setTheme, runSequences,
-  createCompany, updateCompany, linkCompany, updateRel, bulkCompanies, archiveCompany,
+  createCompany, updateCompany, linkCompany, updateRel, bulkCompanies, archiveCompany, restoreCompany,
   addNote, editNote, deleteNote,
-  createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, assignContacts,
-  saveMilestones, saveRetainer,
-  createDeal, updateDeal, moveStage, markWon, markLost, reopenDeal,
+  createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, restoreContact, assignContacts,
+  saveMilestones, saveRetainer, claimRetainerPeriod, retainerClaimProblem,
+  createDeal, updateDeal, moveStage, markWon, markLost, reopenDeal, archiveDeal, restoreDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   logCall, saveMeeting,
   sendEmail, markEmailSent, skipEmailTask, stopEmailing, markThread, shareThread,
-  saveSequence, setSeqStatus, dupSequence, enrol, setEnrol,
+  saveSequence, setSeqStatus, archiveSequence, restoreSequence, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,
   addSuppression, removeSuppression,
   recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, confirmResearchIdentity, saveIntel, reviewClosure, addKnownTech, applyEnrichment, applyPhoneLookup, enrichLog, markVerified,

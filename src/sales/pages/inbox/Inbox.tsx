@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { simThread } from '../../data/simulated'
 import { S, useStore } from '../../data/store'
 import type { Thread } from '../../data/types'
-import { BizDot, Btn, Chip, CLS_TONE, Empty, Icon, SearchInp, Sel } from '../../kit'
+import { BizDot, Btn, Chip, CLS_TONE, Empty, Icon, SearchInp, Sel, SimChip } from '../../kit'
 import { UI, type Route } from '../../ui/store'
 import { RowBtn } from './parts/RowBtn'
 import { ThreadView } from './parts/ThreadView'
@@ -120,7 +121,7 @@ export function Inbox({ route }: { route: Route }) {
           </button>
         ))}
         {mbs.length === 0 && <div className="faint xs" style={{ padding: '6px 10px' }}>No mailboxes connected. Connect one in Integrations.</div>}
-        <div className="faint xs" style={{ padding: '12px 10px' }}>CRM-relevant conversations only. Gmail sync is simulated.</div>
+        <div className="faint xs" style={{ padding: '12px 10px' }}>CRM-relevant conversations only. No real email is sent or received yet: mail here is simulated and marked Simulated.</div>
       </div>
       <div className="ib-m">
         <div style={{ padding: 10, borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surf)', zIndex: 2 }}>
@@ -137,7 +138,9 @@ export function Inbox({ route }: { route: Route }) {
           <SearchInp value={q} onChange={setQ} w={400} placeholder="Search conversations" />
         </div>
         {rows.length ? rows.map(x => {
-          const last = msgsOf(x).filter(m => m.status !== 'discarded').sort((a, b) => a.ts.localeCompare(b.ts)).pop()
+          const ms = msgsOf(x)
+          const last = ms.filter(m => m.status !== 'discarded').sort((a, b) => a.ts.localeCompare(b.ts)).pop()
+          const sim = simThread(x, ms)
           const c = Q.contact(x.contactId)
           const prefix = last ? (last.status === 'draft' ? 'Draft — ' : last.dir === 'out' ? 'You: ' : '') : ''
           return (
@@ -155,6 +158,7 @@ export function Inbox({ route }: { route: Route }) {
                 {x.classification && <Chip tone={CLS_TONE(x.classification.cat)}>{x.classification.cat}</Chip>}
                 {x.seqId && <Chip>Sequence</Chip>}
                 {x.needsReply && <Chip tone="warn">Needs reply</Chip>}
+                {sim && <SimChip>{sim === 'all' ? 'Simulated' : 'Includes simulated'}</SimChip>}
               </span>
             </RowBtn>
           )

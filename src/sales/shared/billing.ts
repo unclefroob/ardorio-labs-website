@@ -46,10 +46,122 @@ export function cleanMilestone(m: BillingMilestone): BillingMilestone {
 export function cleanRetainer(r: BillingRetainer): BillingRetainer {
   const out: BillingRetainer = { amountCents: r.amountCents, interval: 'monthly' }
   if (r.nextInvoiceDate) out.nextInvoiceDate = r.nextInvoiceDate
+  // Server-owned: kept as it was so an edit does not hide the last drafted period (the server ignores a client value).
+  if (r.lastDraftedFor && isDay(r.lastDraftedFor)) out.lastDraftedFor = r.lastDraftedFor
+  // Server-owned too: the day of month the retainer started on, so 31 Jan -> 28 Feb -> 31 Mar survives an edit.
+  if (typeof r.anchorDay === 'number' && Number.isInteger(r.anchorDay) && r.anchorDay >= 1 && r.anchorDay <= 31) out.anchorDay = r.anchorDay
   return out
 }
 
 export const planId = (dealId: string): string => `bp_${dealId}`
+
+// ── retainer automation ──────────────────────────────────────────────────────────────────────────
+const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+/** "October 2026" for 2026-10-01, the way the server names a retainer period. '' for anything that is not a day. */
+export function retainerPeriodLabel(day: string | null | undefined): string {
+  if (!day || !isDay(day)) return ''
+  return `${FULL_MONTHS[+day.slice(5, 7) - 1]} ${day.slice(0, 4)}`
+}
+
+const daysIn = (y: number, m: number): number => new Date(Date.UTC(y, m, 0)).getUTCDate()
+const p2 = (n: number): string => String(n).padStart(2, '0')
+
+/**
+ * The retainer date one month after `due`, the way the server moves it after a draft. `anchorDay` is the day of month
+ * the retainer started on; it is used only while `due` still agrees with it. 31 Jan -> 28/29 Feb -> 31 Mar.
+ */
+export function nextRetainerDate(due: string, anchorDay?: number): { next: string; anchorDay: number } {
+  const y0 = +due.slice(0, 4), m0 = +due.slice(5, 7), d0 = +due.slice(8, 10)
+  const a = typeof anchorDay === 'number' && Number.isInteger(anchorDay) && anchorDay >= 1 && anchorDay <= 31 && d0 === Math.min(anchorDay, daysIn(y0, m0)) ? anchorDay : d0
+  const y = m0 === 12 ? y0 + 1 : y0
+  const m = m0 === 12 ? 1 : m0 + 1
+  return { next: `${y}-${p2(m)}-${p2(Math.min(a, daysIn(y, m)))}`, anchorDay: a }
+}
+
+/**
+ * The plan's next invoice date after a retainer period is billed by hand. The server keeps the anchorDay it stored
+ * and drops one a client sends, so only the stored anchor counts. With no stored anchor, a claim from the 29th to
+ * the 31st into a shorter month moves every later date to that shorter day: `laterDay` is then that day.
+ */
+export function claimedRetainerDate(due: string, storedAnchor?: number): { next: string; laterDay?: number } {
+  const { next, anchorDay } = nextRetainerDate(due, storedAnchor)
+  const after = nextRetainerDate(next, storedAnchor).anchorDay
+  return after === anchorDay ? { next } : { next, laterDay: after }
+}
+
+/** "1st", "28th", "31st". */
+export function dayOrdinal(d: number): string {
+  const t = d % 100
+  const s = t >= 11 && t <= 13 ? 'th' : d % 10 === 1 ? 'st' : d % 10 === 2 ? 'nd' : d % 10 === 3 ? 'rd' : 'th'
+  return `${d}${s}`
+}
+
+/** Never list more than this many catch-up periods; a date this far back is a mistake either way. */
+export const MAX_CATCH_UP = 240
+
+/**
+ * The periods the server would draft, one per run, before the retainer reaches a date after today: the next invoice
+ * date and every month after it up to today. Empty for a future date, no date, or a date the server already claimed.
+ */
+export function retainerDuePeriods(r: Pick<BillingRetainer, 'nextInvoiceDate' | 'lastDraftedFor' | 'anchorDay'>, today: string): string[] {
+  const start = r.nextInvoiceDate
+  if (!start || !isDay(start) || start > today) return []
+  const out: string[] = []
+  let cur = start
+  let anchor = r.anchorDay
+  while (cur <= today && out.length < MAX_CATCH_UP) {
+    if (cur !== r.lastDraftedFor) out.push(cur)
+    const n = nextRetainerDate(cur, anchor)
+    cur = n.next
+    anchor = n.anchorDay
+  }
+  return out
+}
+
+/** "January 2020 to October 2026", or the one period, for a list of retainer dates. */
+export function retainerSpanLabel(days: readonly string[]): string {
+  if (!days.length) return ''
+  const a = retainerPeriodLabel(days[0])
+  const b = retainerPeriodLabel(days[days.length - 1])
+  return a === b ? a : `${a} to ${b}`
+}
+
+/**
+ * A next invoice date that would draft a period again: on or before the last period the server drafted. Only a date
+ * that changed counts, so an amount edit while the server is between its claim and its move never fails.
+ */
+export function redraftProblem(next: string | undefined, previous: Pick<BillingRetainer, 'nextInvoiceDate' | 'lastDraftedFor'> | undefined): string | null {
+  const last = previous?.lastDraftedFor
+  if (!next || !last || !isDay(last) || next === previous?.nextInvoiceDate || next > last) return null
+  return `The next invoice date must be after ${retainerPeriodLabel(last)}, the last period already drafted, or that month is drafted again`
+}
+
+/**
+ * Why the server scheduler drafts nothing for this deal's retainer, or null when it does. It drafts only for a won
+ * deal that is not archived, and leaves the plan exactly as it is otherwise, so drafting resumes where it stopped.
+ */
+export type RetainerPause = 'archived' | 'not-won'
+
+export function retainerPause(deal: { status: string; archived?: boolean }): RetainerPause | null {
+  if (deal.archived) return 'archived'
+  return deal.status === 'won' ? null : 'not-won'
+}
+
+export type RetainerAutoState = 'no-date' | 'scheduled' | 'due' | 'drafted'
+
+/**
+ * Where the server scheduler is with a retainer, as far as the plan record shows:
+ * no-date (nothing will be drafted), scheduled (a future date), due (on or before today and not yet drafted, the
+ * next engine run drafts it, or notifies when the company has no billing client), drafted (the server has claimed
+ * this date and is moving it on; seen only for a moment).
+ */
+export function retainerAutoState(r: Pick<BillingRetainer, 'nextInvoiceDate' | 'lastDraftedFor'>, today: string): RetainerAutoState {
+  const next = r.nextInvoiceDate
+  if (!next || !isDay(next)) return 'no-date'
+  if (r.lastDraftedFor === next) return 'drafted'
+  return next <= today ? 'due' : 'scheduled'
+}
 
 // ── progress ─────────────────────────────────────────────────────────────────────────────────────
 /** A deal's value is stored in dollars; billing works in cents. */
@@ -115,14 +227,18 @@ export const unbilledRows = (rows: readonly ScheduleRow[]): ScheduleRow[] => row
 export const STATUS_TONE: Record<MilestoneStatus, '' | 'info' | 'ok' | 'warn'> = { Planned: '', 'Draft invoice': 'warn', Invoiced: 'info', Paid: 'ok' }
 
 // ── the editor, prefilled ────────────────────────────────────────────────────────────────────────
-export interface Prefill { companyId: string; dealId: string; milestoneId?: string; retainer?: boolean }
+export interface Prefill { companyId: string; dealId: string; milestoneId?: string; retainer?: boolean; /** The due period this retainer invoice bills, when it claims one. */ retainerFor?: string }
 
 /** A new invoice for one milestone: company, deal, milestone, and one line for the milestone amount. */
 export function prefillForm(base: InvoiceForm, d: Prefill, plan: BillingPlan | undefined): InvoiceForm {
   const next: InvoiceForm = { ...base, companyId: d.companyId, dealId: d.dealId, milestoneId: '' }
   const m = d.milestoneId ? plan?.milestones.find(x => x.id === d.milestoneId) : undefined
   if (m) return { ...next, milestoneId: m.id, lines: [{ ...emptyLine(), ...milestoneLine(m) }] }
-  if (d.retainer && plan?.retainer) return { ...next, lines: [{ ...emptyLine(), description: 'Monthly retainer', unitPrice: centsToInput(plan.retainer.amountCents) }] }
+  if (d.retainer && plan?.retainer) {
+    // Named like the server's own retainer drafts when it bills a known period.
+    const period = retainerPeriodLabel(d.retainerFor)
+    return { ...next, lines: [{ ...emptyLine(), description: period ? `Retainer, ${period}` : 'Monthly retainer', unitPrice: centsToInput(plan.retainer.amountCents) }] }
+  }
   return next
 }
 

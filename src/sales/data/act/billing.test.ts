@@ -96,6 +96,59 @@ describe('Act.saveRetainer', () => {
     expect(m.Q.billingPlan('dl1')?.retainer).toBeUndefined()
     m.stop()
   })
+  it('refuses a new date on or before the last drafted period, and keeps the server-owned fields on an edit', async () => {
+    const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-11-30', lastDraftedFor: '2026-10-31', anchorDay: 31 } })] })
+    expect(m.Act.saveRetainer('dl1', { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-10-31' })).toMatchObject({ ok: false, error: expect.stringMatching(/after October 2026/) })
+    expect(m.Q.billingPlan('dl1')?.retainer?.nextInvoiceDate).toBe('2026-11-30')
+    expect(m.Act.saveRetainer('dl1', { amountCents: 500000, interval: 'monthly', nextInvoiceDate: '2026-11-30' })).toEqual({ ok: true })
+    expect(m.Q.billingPlan('dl1')?.retainer).toEqual({ amountCents: 500000, interval: 'monthly', nextInvoiceDate: '2026-11-30', lastDraftedFor: '2026-10-31', anchorDay: 31 })
+    m.stop()
+  })
+  it('claimRetainerPeriod moves a due period on a month, keeping the anchor day the server stored, and refuses any other period', async () => {
+    const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2027-01-31', lastDraftedFor: '2026-12-31', anchorDay: 31 } })] })
+    expect(m.Act.claimRetainerPeriod('dl1', '2026-12-31')).toMatchObject({ ok: false })
+    expect(m.Act.claimRetainerPeriod('dl1', '2027-01-31')).toEqual({ ok: true, next: '2027-02-28' })
+    expect(m.Q.billingPlan('dl1')?.retainer).toEqual({ amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2027-02-28', lastDraftedFor: '2026-12-31', anchorDay: 31 })
+    expect(m.Act.claimRetainerPeriod('dl1', '2027-01-31')).toMatchObject({ ok: false })
+    expect(m.Act.claimRetainerPeriod('dl1', '2027-02-28')).toEqual({ ok: true, next: '2027-03-31' })
+    m.stop()
+  })
+  it('claimRetainerPeriod never sends an anchorDay: the server drops it, so a claim into a short month says later dates move', async () => {
+    // Never drafted by the server, so no anchor is stored. The API would drop one sent now, and then carry on from 28 Feb.
+    const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2027-01-31' } }, 3)] })
+    expect(m.Act.claimRetainerPeriod('dl1', '2027-01-31')).toEqual({ ok: true, next: '2027-02-28', laterDay: 28 })
+    expect(m.Q.billingPlan('dl1')?.retainer).toEqual({ amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2027-02-28' })
+    await vi.advanceTimersByTimeAsync(300)
+    expect(m.post).toHaveBeenCalledTimes(1)
+    const [op] = plansIn(m.post.mock.calls[0][0])
+    expect(op).toMatchObject({ op: 'put', collection: 'billingPlans', id: 'bp_dl1', baseRev: 3, set: { retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2027-02-28' } } })
+    expect(op.op === 'put' ? (op.set?.retainer as Record<string, unknown>) : {}).not.toHaveProperty('anchorDay')
+    // What the server then does with 28 Feb and no anchor, which the client now agrees with.
+    const { claimedRetainerDate, nextRetainerDate } = await import('../../shared/billing')
+    expect(nextRetainerDate('2027-02-28').next).toBe('2027-03-28')
+    expect(claimedRetainerDate('2027-02-28')).toEqual({ next: '2027-03-28' })
+    m.stop()
+  })
+  it('claimRetainerPeriod on a day every month has says nothing about later dates', async () => {
+    const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2027-01-15' } })] })
+    expect(m.Act.claimRetainerPeriod('dl1', '2027-01-15')).toEqual({ ok: true, next: '2027-02-15' })
+    m.stop()
+  })
+  it('claimRetainerPeriod refuses a deal the scheduler skips: not won, or archived', async () => {
+    const retainer = { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-10-01' }
+    for (const over of [{ status: 'open' }, { status: 'lost' }, { archived: true }]) {
+      const m = await setup('admin', { deals: [rec('dl1', { ...ardDeal('dl1').data, ...over })], billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer })] })
+      expect(m.Act.claimRetainerPeriod('dl1', '2026-10-01')).toMatchObject({ ok: false, error: expect.stringMatching(/not won|archived/) })
+      expect(m.Q.billingPlan('dl1')?.retainer?.nextInvoiceDate).toBe('2026-10-01')
+      m.stop()
+    }
+  })
+  it('claimRetainerPeriod leaves a period the server already claimed alone', async () => {
+    const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-10-01' } })] })
+    expect(m.Act.claimRetainerPeriod('dl1', '2026-10-01')).toMatchObject({ ok: false, error: expect.stringMatching(/already being drafted/) })
+    expect(m.Q.billingPlan('dl1')?.retainer?.nextInvoiceDate).toBe('2026-10-01')
+    m.stop()
+  })
   it('clearing a retainer that is not there creates no plan', async () => {
     const m = await setup()
     expect(m.Act.saveRetainer('dl1', null)).toEqual({ ok: true })

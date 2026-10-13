@@ -60,7 +60,7 @@ function NewTaskForm({ b0, p }: { b0: BusinessId; p: NewTaskProps }) {
   const canAssign = Q.canManage(f.businessId)
   const title = f.title.trim().toLowerCase()
   const dup = title ? S.tasks.find(t => !Q.done(t) && t.title.toLowerCase() === title && (t.contactId || '') === (f.contactId || '')) : undefined
-  const deals = S.deals.filter(d => d.companyId === f.companyId && d.businessId === f.businessId)
+  const deals = S.deals.filter(d => d.companyId === f.companyId && d.businessId === f.businessId && d.archived !== true)
 
   const save = (): void => {
     if (!f.title.trim()) return setErr('Title is required')
