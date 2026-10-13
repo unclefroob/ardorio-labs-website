@@ -3,7 +3,7 @@ import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import { accountTab, defaultProduct, isRosterioTab, wonCustomers, type RosterioTab } from '../../shared/customers'
 import { useRosterioAccounts } from '../../data/rosterio'
-import { Empty, Seg } from '../../kit'
+import { Btn, Empty, Seg } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
 import { RosterioCustomers } from '../rosterio/RosterioCustomers'
@@ -47,12 +47,14 @@ export function Customers({ route }: { route: Route }) {
   const sub = product === 'ros'
     ? 'Who is paying us, by product. Rosterio accounts are read live from Rosterio. Nothing is copied into SalesOS.'
     : product === 'ard' && Q.canBill()
-      ? 'Who is paying us, by product. Ardorio revenue comes from your invoices, ex GST.'
+      ? 'Who is paying us, by product. Ardorio customers are companies with won projects. Money is counted per deal, ex GST.'
       : 'Who is paying us, by product. Customers are companies with a won deal in this product.'
 
   return (
     <div className="page">
-      <PageHead title="Customers" sub={sub} />
+      <PageHead title="Customers" sub={sub}>
+        {product === 'ard' && Q.canBill() && <Btn onClick={() => UI.nav('reports', { q: { tab: 'ardorio' } })}>Ardorio revenue report</Btn>}
+      </PageHead>
       <div className="row wrap" style={{ marginBottom: 16, gap: 12 }}>
         <Seg value={product} onChange={choose} opts={mine.map(b => [b, `${Q.biz(b)?.name ?? b}${count(b) === undefined ? '' : ` ${count(b)}`}`] as const)} />
         <span className="faint sm">Counts are paying customers. You only see products you belong to.</span>
