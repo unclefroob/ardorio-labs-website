@@ -134,6 +134,11 @@
 .sos .tbl tr.sel td{background-image:linear-gradient(var(--acc-soft),var(--acc-soft))}
 .sos .tbl td.w{white-space:normal;min-width:220px}
 .sos .tbl tr:last-child td{border-bottom:0}
+.sos .tbl tfoot td{border-top:1px solid var(--line2);border-bottom:0;font-weight:600}
+.sos .tbl .struck{text-decoration:line-through;color:var(--fg3)}
+.sos .steps{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;padding:0;list-style:none;font-size:12px;color:var(--fg3)}
+.sos .steps li{padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.sos .steps li[aria-current=step]{border-color:var(--acc-line);background:var(--acc-soft);color:var(--acc-ink);font-weight:600}
 .sos .kpi{padding:12px 14px;text-align:left;border:1px solid var(--line);background:var(--surf);border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;gap:2px;box-shadow:var(--sh);min-width:0}
 .sos .kpi:hover{border-color:var(--acc-line)}
 .sos .kpi .l{font-size:12px;color:var(--fg2);font-weight:500}
