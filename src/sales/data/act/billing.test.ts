@@ -96,6 +96,14 @@ describe('Act.saveRetainer', () => {
     expect(m.Q.billingPlan('dl1')?.retainer).toBeUndefined()
     m.stop()
   })
+  it('refuses a new date on or before the last drafted period, and keeps the server-owned fields on an edit', async () => {
+    const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-11-30', lastDraftedFor: '2026-10-31', anchorDay: 31 } })] })
+    expect(m.Act.saveRetainer('dl1', { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-10-31' })).toMatchObject({ ok: false, error: expect.stringMatching(/after October 2026/) })
+    expect(m.Q.billingPlan('dl1')?.retainer?.nextInvoiceDate).toBe('2026-11-30')
+    expect(m.Act.saveRetainer('dl1', { amountCents: 500000, interval: 'monthly', nextInvoiceDate: '2026-11-30' })).toEqual({ ok: true })
+    expect(m.Q.billingPlan('dl1')?.retainer).toEqual({ amountCents: 500000, interval: 'monthly', nextInvoiceDate: '2026-11-30', lastDraftedFor: '2026-10-31', anchorDay: 31 })
+    m.stop()
+  })
   it('clearing a retainer that is not there creates no plan', async () => {
     const m = await setup()
     expect(m.Act.saveRetainer('dl1', null)).toEqual({ ok: true })

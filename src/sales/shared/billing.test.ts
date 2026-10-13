@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { BillingClient, BillingPlan, InvoiceCompanyTotals } from '../api/contract'
 import { dto } from '../testing/invoicingWorld'
 import {
-  ardorioCustomers, ardorioTiles, billingProgress, cleanMilestone, companyBilling, latestInvoices, linkSuggestions, planId, prefillForm, quotedCents, scheduleRows,
-  unbilledRows, validateMilestones, validateRetainer, wonNotInvoiced,
+  ardorioCustomers, ardorioTiles, billingProgress, cleanMilestone, cleanRetainer, companyBilling, latestInvoices, linkSuggestions, MAX_CATCH_UP, nextRetainerDate, planId,
+  prefillForm, quotedCents, redraftProblem, retainerDuePeriods, retainerSpanLabel, scheduleRows, unbilledRows, validateMilestones, validateRetainer, wonNotInvoiced,
 } from './billing'
 import { blankForm, buildInput, milestoneStatus, validateForm } from './invoices'
 import type { Company, Deal } from '../data/types'
@@ -121,6 +121,48 @@ describe('billingPlans validation (as the API)', () => {
   it('cleaning trims the label and drops an empty date; the plan id is bp_<dealId>', () => {
     expect(cleanMilestone({ id: 'a', label: '  Kickoff ', amountCents: 5, plannedDate: '' })).toEqual({ id: 'a', label: 'Kickoff', amountCents: 5 })
     expect(planId('dl9')).toBe('bp_dl9')
+  })
+})
+
+describe('retainer dates', () => {
+  it('moves on one month the way the server does, keeping the anchor day where the month has it', () => {
+    expect(nextRetainerDate('2026-10-01')).toEqual({ next: '2026-11-01', anchorDay: 1 })
+    expect(nextRetainerDate('2026-12-15')).toEqual({ next: '2027-01-15', anchorDay: 15 })
+    expect(nextRetainerDate('2027-01-31')).toEqual({ next: '2027-02-28', anchorDay: 31 })
+    expect(nextRetainerDate('2027-02-28', 31)).toEqual({ next: '2027-03-31', anchorDay: 31 })
+    // A hand-edited date that no longer agrees with the anchor becomes the new anchor.
+    expect(nextRetainerDate('2027-02-10', 31)).toEqual({ next: '2027-03-10', anchorDay: 10 })
+  })
+  it('lists every period a past date would draft, one per run, up to today', () => {
+    expect(retainerDuePeriods({ nextInvoiceDate: '2026-07-01' }, '2026-10-13')).toEqual(['2026-07-01', '2026-08-01', '2026-09-01', '2026-10-01'])
+    expect(retainerDuePeriods({ nextInvoiceDate: '2026-10-13' }, '2026-10-13')).toEqual(['2026-10-13'])
+    expect(retainerDuePeriods({ nextInvoiceDate: '2026-10-14' }, '2026-10-13')).toEqual([])
+    expect(retainerDuePeriods({}, '2026-10-13')).toEqual([])
+    expect(retainerDuePeriods({ nextInvoiceDate: '2026-01-31', anchorDay: 31 }, '2026-04-01')).toEqual(['2026-01-31', '2026-02-28', '2026-03-31'])
+  })
+  it('leaves out the period the server has already claimed, and never runs away', () => {
+    expect(retainerDuePeriods({ nextInvoiceDate: '2026-09-01', lastDraftedFor: '2026-09-01' }, '2026-10-13')).toEqual(['2026-10-01'])
+    expect(retainerDuePeriods({ nextInvoiceDate: '1900-01-01' }, '2026-10-13')).toHaveLength(MAX_CATCH_UP)
+  })
+  it('names the span of periods', () => {
+    expect(retainerSpanLabel(['2026-07-01', '2026-08-01', '2026-10-01'])).toBe('July 2026 to October 2026')
+    expect(retainerSpanLabel(['2026-10-01'])).toBe('October 2026')
+    expect(retainerSpanLabel([])).toBe('')
+  })
+  it('refuses a changed date on or before the last drafted period, which would draft that month again', () => {
+    const prev = { nextInvoiceDate: '2026-11-01', lastDraftedFor: '2026-10-01' }
+    expect(redraftProblem('2026-10-01', prev)).toMatch(/after October 2026/)
+    expect(redraftProblem('2026-09-01', prev)).toMatch(/drafted again/)
+    expect(redraftProblem('2026-10-02', prev)).toBeNull()
+    expect(redraftProblem('2026-11-01', prev)).toBeNull()
+    // Unchanged (the server is between its claim and its move): an amount edit still saves.
+    expect(redraftProblem('2026-10-01', { nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-10-01' })).toBeNull()
+    expect(redraftProblem('2020-01-01', { nextInvoiceDate: '2026-11-01' })).toBeNull()
+    expect(redraftProblem(undefined, prev)).toBeNull()
+  })
+  it('cleaning keeps the server-owned anchor day', () => {
+    expect(cleanRetainer({ amountCents: 1, interval: 'monthly', nextInvoiceDate: '2026-02-28', anchorDay: 31 })).toEqual({ amountCents: 1, interval: 'monthly', nextInvoiceDate: '2026-02-28', anchorDay: 31 })
+    expect(cleanRetainer({ amountCents: 1, interval: 'monthly', anchorDay: 40 })).toEqual({ amountCents: 1, interval: 'monthly' })
   })
 })
 

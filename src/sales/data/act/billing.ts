@@ -1,5 +1,5 @@
 import type { BillingMilestone, BillingPlan, BillingRetainer } from '../../api/contract'
-import { cleanMilestone, cleanRetainer, planId, validateMilestones, validateRetainer } from '../../shared/billing'
+import { cleanMilestone, cleanRetainer, planId, redraftProblem, validateMilestones, validateRetainer } from '../../shared/billing'
 import { commit } from '../commit'
 import { audit } from '../internals'
 import { Q } from '../Q'
@@ -43,14 +43,13 @@ export function saveRetainer(dealId: string, retainer: BillingRetainer | null): 
   const g = guard(dealId)
   if (g) return fail(g)
   if (retainer) {
-    const bad = validateRetainer(retainer)
+    const bad = validateRetainer(retainer) ?? redraftProblem(retainer.nextInvoiceDate, Q.billingPlan(dealId)?.retainer)
     if (bad) return fail(bad)
   } else if (!Q.billingPlan(dealId)?.retainer) return { ok: true }
   const p = plan(dealId)
-  // lastDraftedFor belongs to the server: an edit keeps whatever the plan already had, never what the form says.
+  // lastDraftedFor and anchorDay belong to the server: an edit keeps whatever the plan already had, never what the form says.
   if (retainer) {
-    const kept = p.retainer?.lastDraftedFor
-    p.retainer = cleanRetainer({ ...retainer, lastDraftedFor: kept })
+    p.retainer = cleanRetainer({ ...retainer, lastDraftedFor: p.retainer?.lastDraftedFor, anchorDay: p.retainer?.anchorDay })
   }
   else delete p.retainer
   audit('Billing retainer saved', Q.deal(dealId)?.title ?? dealId)

@@ -85,6 +85,40 @@ describe('Deal billing card: retainer automation', () => {
     expect(note()).toContain('never sent automatically')
   })
 
+  it('a date months behind says how many drafts the catch-up makes, one each run', async () => {
+    await showCard({ nextInvoiceDate: '2020-01-01', lastDraftedFor: '2019-12-01' })
+    expect(note()).toMatch(/The date is \d+ months behind, so \d+ drafts are made, one each run, for January 2020 to /)
+    expect(note()).toContain('Move the date on if those months were billed already')
+  })
+
+  it('a date due this month alone says nothing about catching up', async () => {
+    // The fixture clock is 9 Oct 2026: 1 Oct is due, and 1 Nov is still ahead.
+    await showCard({ nextInvoiceDate: '2026-10-01' })
+    expect(note()).toContain('on the next run')
+    expect(note()).not.toContain('months behind')
+  })
+
+  it('the form warns that a past date drafts one invoice per month, and the save button says how many', async () => {
+    await showCard({ nextInvoiceDate: '2099-11-01' })
+    await click(button(host, 'Edit retainer'))
+    await type(host.querySelector('[aria-label="Retainer next invoice date"]'), '2020-01-01')
+    expect(text()).toMatch(/This date is in the past, so \d+ draft invoices would be made, one each run, for January 2020 to /)
+    const save = [...host.querySelectorAll('button')].find(b => /^Save and draft \d+ months$/.test(b.textContent ?? ''))
+    expect(save).toBeTruthy()
+    await type(host.querySelector('[aria-label="Retainer next invoice date"]'), '2099-12-01')
+    expect(text()).not.toContain('This date is in the past')
+    expect(button(host, 'Save retainer')).toBeTruthy()
+  })
+
+  it('the form refuses a date on or before the last drafted period', async () => {
+    await showCard({ nextInvoiceDate: '2099-11-01', lastDraftedFor: '2099-10-01' })
+    await click(button(host, 'Edit retainer'))
+    await type(host.querySelector('[aria-label="Retainer next invoice date"]'), '2099-10-01')
+    expect(text()).toContain('The next invoice date must be after October 2099, the last period already drafted')
+    await click(button(host, 'Save retainer'))
+    expect(m.store.S.billingPlans[0].retainer?.nextInvoiceDate).toBe('2099-11-01')
+  })
+
   it('without a next invoice date nothing is drafted, and it says so', async () => {
     await showCard({})
     expect(note()).toContain('No next invoice date, so no draft is created automatically')

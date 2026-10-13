@@ -9,7 +9,10 @@ import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
 import { Banner, Btn, Card, Chip, Fld, Icon, Inp, Skel } from '../../kit'
-import { billingProgress, quotedCents, retainerAutoState, retainerPeriodLabel, scheduleRows, STATUS_TONE, unbilledRows, type ScheduleRow } from '../../shared/billing'
+import {
+  billingProgress, quotedCents, redraftProblem, retainerAutoState, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows, STATUS_TONE,
+  unbilledRows, type ScheduleRow,
+} from '../../shared/billing'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
@@ -85,6 +88,11 @@ function Schedule({ deal }: { deal: Deal }) {
   }
 
   const retainer = plan?.retainer
+  // What saving the retainer form would make the server do: a date in the past drafts one invoice per run until it
+  // passes today, and a date on or before the last drafted period drafts that month again.
+  const formDate = retainerForm?.date || undefined
+  const formRedraft = retainerForm ? redraftProblem(formDate, retainer) : null
+  const formCatchUp = retainerForm && !formRedraft ? retainerDuePeriods({ nextInvoiceDate: formDate, lastDraftedFor: retainer?.lastDraftedFor, anchorDay: formDate === retainer?.nextInvoiceDate ? retainer?.anchorDay : undefined }, today) : []
   const statusLine = (r: ScheduleRow): string => (r.invoice ? (r.invoice.status === 'draft' ? 'Not issued' : r.invoice.status === 'paid' ? `Paid ${fmtDay(r.invoice.payment?.paidAt)}` : `Due ${fmtDay(r.invoice.dueDate)}`) : '')
 
   return (
@@ -160,10 +168,23 @@ function Schedule({ deal }: { deal: Deal }) {
         ) : !retainer && !form && <div className="faint sm">No milestones yet. Add the agreed payments for this deal, or set up a monthly retainer.</div>}
 
         {retainerForm && (
-          <div className="grid g3" style={{ alignItems: 'end' }}>
-            <Fld label="Monthly amount (ex GST)"><Inp aria-label="Retainer amount" className="mono" value={retainerForm.amount} onChange={v => setRetainerForm({ ...retainerForm, amount: v })} /></Fld>
-            <Fld label="Next invoice date"><Inp aria-label="Retainer next invoice date" type="date" value={retainerForm.date} onChange={v => setRetainerForm({ ...retainerForm, date: v })} /></Fld>
-            <span className="row" style={{ gap: 6 }}><Btn size="sm" kind="pri" onClick={saveRetainer}>Save retainer</Btn><Btn size="sm" onClick={() => { setRetainerForm(null); setErr('') }}>Cancel</Btn></span>
+          <div className="col" style={{ gap: 8 }}>
+            <div className="grid g3" style={{ alignItems: 'end' }}>
+              <Fld label="Monthly amount (ex GST)"><Inp aria-label="Retainer amount" className="mono" value={retainerForm.amount} onChange={v => setRetainerForm({ ...retainerForm, amount: v })} /></Fld>
+              <Fld label="Next invoice date"><Inp aria-label="Retainer next invoice date" type="date" value={retainerForm.date} onChange={v => setRetainerForm({ ...retainerForm, date: v })} /></Fld>
+              <span className="row" style={{ gap: 6 }}>
+                <Btn size="sm" kind="pri" onClick={saveRetainer}>{formCatchUp.length > 1 ? `Save and draft ${formCatchUp.length} months` : 'Save retainer'}</Btn>
+                <Btn size="sm" onClick={() => { setRetainerForm(null); setErr('') }}>Cancel</Btn>
+              </span>
+            </div>
+            {formRedraft && <Banner tone="bad">{formRedraft}.</Banner>}
+            {formCatchUp.length > 1 && (
+              <Banner tone="warn">
+                <b>This date is in the past, so {formCatchUp.length} draft invoices would be made, one each run, for {retainerSpanLabel(formCatchUp)}.</b>{' '}
+                Choose today or a later date unless every one of those months still needs billing.
+              </Banner>
+            )}
+            {formCatchUp.length === 1 && <div className="faint sm">This date is today or earlier, so the first draft is made on the next run.</div>}
           </div>
         )}
 
@@ -201,10 +222,14 @@ function Schedule({ deal }: { deal: Deal }) {
 function RetainerNote({ retainer, today }: { retainer: BillingRetainer; today: string }) {
   const st = retainerAutoState(retainer, today)
   const amount = formatCents(retainer.amountCents)
+  const behind = st === 'due' ? retainerDuePeriods(retainer, today) : []
+  const catchUp = behind.length > 1
+    ? ` The date is ${behind.length} months behind, so ${behind.length} drafts are made, one each run, for ${retainerSpanLabel(behind)}. Move the date on if those months were billed already.`
+    : ''
   const msg = st === 'no-date'
     ? 'No next invoice date, so no draft is created automatically. Set a date to have the draft made for you.'
     : st === 'due'
-      ? `Due ${fmtDay(retainer.nextInvoiceDate)}. A draft invoice for ${amount} is created automatically on the next run, as long as the company has a billing client. It is never sent automatically.`
+      ? `Due ${fmtDay(retainer.nextInvoiceDate)}. A draft invoice for ${amount} is created automatically on the next run, as long as the company has a billing client.${catchUp} It is never sent automatically.`
       : st === 'drafted'
         ? `The draft invoice for ${retainerPeriodLabel(retainer.lastDraftedFor)} is being created. It is never sent automatically.`
         : `A draft invoice for ${amount} is created automatically on ${fmtDay(retainer.nextInvoiceDate)}, then the date moves on a month. It is never sent automatically: you review and issue each one.`
