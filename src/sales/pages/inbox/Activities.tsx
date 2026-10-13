@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { isSimAct } from '../../data/simulated'
 import { S, useStore } from '../../data/store'
 import type { Activity } from '../../data/types'
-import { AIC, BizDot, Btn, Card, Chip, DataTable, DlLink, Empty, FilterBar, Fld, Icon, Inp, Owner, SearchInp, Sel, download, toCSV, type Col } from '../../kit'
+import { AIC, BizDot, Btn, Card, Chip, DataTable, DlLink, Empty, FilterBar, Fld, Icon, Inp, Owner, SearchInp, Sel, SimChip, download, toCSV, type Col } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
 import { includesCI, str } from './parts/util'
@@ -46,6 +47,7 @@ export function Activities({ route }: { route: Route }) {
           <span className="row">
             <Icon n={ic} s={13} style={{ color: 'var(--fg3)' }} />
             <span className="trunc" style={{ maxWidth: 340 }}>{Q.actVisible(a) ? a.subject : <><Icon n="lock" s={11} /> Private email: content restricted</>}</span>
+            {isSimAct(a) && <SimChip />}
           </span>
         )
       },

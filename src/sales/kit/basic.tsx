@@ -240,3 +240,8 @@ export function ScoreRing({ v, s = 46 }: { v: number; s?: number }) {
 export function Sim({ children }: { children?: ReactNode }) {
   return <span className="sim">{children || 'Simulated'}</span>
 }
+
+/** Marks simulated mail (a message, thread or mailbox): icon plus text, never colour alone. */
+export function SimChip({ children, title }: { children?: ReactNode; title?: string }) {
+  return <Chip icon="zap" title={title ?? 'No real email is sent or received yet. Simulated mail does not count in goals or reports.'}>{children || 'Simulated'}</Chip>
+}
