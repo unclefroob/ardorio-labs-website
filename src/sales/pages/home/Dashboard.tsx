@@ -112,7 +112,7 @@ export function Dashboard() {
     d.setDate(1)
     d.setMonth(d.getMonth() - 5 + i)
     const k = F.iso(d).slice(0, 7)
-    return { l: F.M[d.getMonth()], v: bizs.map(b => sum(deals.filter(x => x.status === 'won' && x.businessId === b.id && !!x.closedAt && x.closedAt.slice(0, 7) === k), x => x.value)) }
+    return { l: F.M[d.getMonth()], v: bizs.map(b => sum(deals.filter(x => x.status === 'won' && x.businessId === b.id && !!x.closedAt && x.closedAt.slice(0, 7) === k), Q.wonAmount)) }
   })
   const weeks = Array.from({ length: 8 }).map((_, i) => {
     const s = F.addDays(F.weekStart(), -7 * (7 - i))
@@ -172,7 +172,7 @@ export function Dashboard() {
           <div className="grid g6" style={{ marginBottom: 14 }}>
             <Kpi label="Open pipeline" value={F.money(tot, 1)} sub={`${open.length} deals`} onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label="Weighted pipeline" value={F.money(wt, 1)} sub="Value × stage probability" onClick={() => go('deals', { status: 'open', view: 'list' })} />
-            <Kpi label={`Won · ${PER[per][0].toLowerCase()}`} value={F.money(sum(won, d => d.value), 1)} sub={`${won.length} deals`} tone="ok" onClick={() => go('deals', { status: 'won', view: 'list' })} />
+            <Kpi label={`Won · ${PER[per][0].toLowerCase()}`} value={F.money(sum(won, Q.wonAmount), 1)} sub={`${won.length} deals`} tone="ok" onClick={() => go('deals', { status: 'won', view: 'list' })} />
             {!ardOnly && <Kpi label="Recurring revenue (ARR)" value={F.money(arr, 1)} sub="Won subscription deals" onClick={() => go('deals', { status: 'won', view: 'list' })} />}
             <Kpi label="New leads" value={leads} sub={PER[per][0]} onClick={() => go('contacts')} />
             <Kpi label="Deals at risk" value={risk.length} tone={risk.length ? 'bad2' : undefined} sub="High-risk signals" onClick={() => go('deals', { risk: 1, view: 'list' })} />

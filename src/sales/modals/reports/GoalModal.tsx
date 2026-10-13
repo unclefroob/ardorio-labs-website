@@ -10,7 +10,7 @@ import { UI } from '../../ui/store'
 
 /** What each money metric measures, under the Metric field. */
 const METRIC_HINT: Record<string, string> = {
-  won_value: 'Adds up the deal value of deals won in the period by this salesperson or team, on the day each was won.',
+  won_value: 'Won value counts contracted amounts on the day a deal is won: deals won in the period by this salesperson or team. A deal with no contract recorded counts its deal value.',
   invoiced_cents: 'Business-wide: every Ardorio invoice by issue date, whoever owns the deal. The salesperson or team is not used. Void and test invoices are left out.',
   collected_cents: 'Business-wide: every Ardorio payment by paid date, whoever owns the deal. The salesperson or team is not used. Void and test invoices are left out.',
 }

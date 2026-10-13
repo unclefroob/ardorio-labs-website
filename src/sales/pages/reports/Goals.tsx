@@ -145,7 +145,7 @@ export function Goals() {
         <Seg value={per} onChange={v => setPer(v as Period)} opts={GOAL_PERIODS} />
         {canSet && <Btn kind="pri" icon="plus" onClick={() => UI.open('goal', { period: per })}>Set goal</Btn>}
       </PageHead>
-      <Banner tone="info">Drafts, scheduled emails, cancelled calls and duplicates are not counted. Simulated sends and replies are not counted, because no real email has left SalesOS. Meetings booked are tracked separately from meetings completed.{money && ' Won value adds up the deal value of deals won in the period by the salesperson or team. Invoiced and collected are for all of Ardorio, ex GST, as recorded in SalesOS: void and test invoices are left out.'}</Banner>
+      <Banner tone="info">Drafts, scheduled emails, cancelled calls and duplicates are not counted. Simulated sends and replies are not counted, because no real email has left SalesOS. Meetings booked are tracked separately from meetings completed.{money && ' Won value counts contracted amounts on the day a deal is won, for deals won in the period by the salesperson or team; a deal with no contract recorded counts its deal value. Invoiced and collected are for all of Ardorio, ex GST, as recorded in SalesOS: void and test invoices are left out.'}</Banner>
       <div className="col" style={{ gap: 14, marginTop: 14 }}>
         <GoalTable title="Individual targets" rows={gs.filter(g => g.ownerType === 'user')} period={per} />
         <GoalTable title="Team targets" rows={gs.filter(g => g.ownerType === 'team')} period={per} />

@@ -49,7 +49,7 @@ const GOALS = [
   goal('g-calls', { metric: 'calls', target: 20 }),
 ]
 
-async function show(o: { role?: Parameters<typeof setArdRole>[1]; routes?: Parameters<typeof fakeApi>[0]; goals?: unknown[] } = {}) {
+async function show(o: { role?: Parameters<typeof setArdRole>[1]; routes?: Parameters<typeof fakeApi>[0]; goals?: unknown[]; plans?: unknown[] } = {}) {
   m = await loadSales()
   const w = invoicingWorld({
     teams: [rec('t1', { name: 'Ardorio team', businessId: 'ard', managerId: 'u-me', members: ['u-me', 'u-jan'] })],
@@ -71,6 +71,7 @@ async function show(o: { role?: Parameters<typeof setArdRole>[1]; routes?: Param
       ardDeal('d9', { value: 15000, closedAt: '2026-06-30T16:00:00' }),
     ],
     goals: (o.goals ?? GOALS) as never,
+    ...(o.plans ? { billingPlans: o.plans as never } : {}),
   })
   w.users.push(user('u-jan', 'Jansen'), user('u-out', 'Outsider'))
   m.bootstrap.hydrate(w)
@@ -139,6 +140,16 @@ describe('Goals: money metrics', () => {
     await settle(4)
     expect(api.count(WEEK)).toBe(2)
     expect(cells('Team targets', 'Invoiced')[4]).toBe('$12,500.50')
+  })
+
+  it('counts the contract frozen at won rather than the estimate, as board 6 defines won value', async () => {
+    // d1 was estimated at $40,000 and contracted at $45,000; a variation approved later is not a booking.
+    const contract = { baselineCents: 4500000, engagementType: 'fixed-price', contractedOn: '2026-10-06', contractedBy: 'Me Myself', estimateAtWonCents: 4000000 }
+    const vo = { id: 'v1', label: 'v1', amountCents: 900000, reason: 'scope', status: 'approved', createdAt: '2026-10-07T01:00:00.000Z', createdBy: 'Me Myself', decidedAt: '2026-10-07T01:00:00.000Z', decidedBy: 'Me Myself' }
+    await show({ plans: [rec('bp_d1', { dealId: 'd1', businessId: 'ard', milestones: [], contract, variations: [vo] })] })
+    // $45,000 (d1's contract) + $2,500 (d2 has no contract: its deal value).
+    expect(cells('Individual targets', 'Won value').slice(3, 5)).toEqual(['$50,000', '$47,500'])
+    expect(cells('Team targets', 'Won value').slice(3, 5)).toEqual(['$100,000', '$57,500'])
   })
 
   it('measures a financial year goal from 1 July, against the whole financial year before', async () => {
@@ -226,6 +237,7 @@ describe('Goal form: money metrics', () => {
     expect(options('Period')).toEqual(['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Financial year'])
     await type(field(host, 'Salesperson'), 'u-seller')
     await type(field(host, 'Metric'), 'won_value')
+    expect(host.textContent).toContain('Won value counts contracted amounts on the day a deal is won')
     await type(field(host, 'Period'), 'year')
     await type(field(host, 'Target (A$, ex GST)'), '600000')
     await click(button(host, 'Save'))

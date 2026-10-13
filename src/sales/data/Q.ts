@@ -531,8 +531,18 @@ export const Q = {
     return [ws, F.addDays(ws, 7)]
   },
   /**
-   * Won value in dollars (deal.value, the estimate): live deals of business `b` won between `from` and `to` (wall
-   * clock, both included; won at closedAt, else the close date) whose owner is one of `ownerIds`.
+   * What a won deal adds to won value, in dollars: the contracted amount frozen when an Ardorio deal was won
+   * (contract.baselineCents; variations approved later are not bookings), else deal.value. Board 6: "Won value
+   * counts contracted amounts on the day a deal is won." Plans are synced to Ardorio admins only, so for anyone else
+   * every deal falls back to deal.value.
+   */
+  wonAmount(d: Pick<Deal, 'id' | 'businessId' | 'value'>): number {
+    const c = d.businessId === 'ard' ? Q.billingPlan(d.id)?.contract : undefined
+    return c ? c.baselineCents / 100 : (d.value || 0)
+  },
+  /**
+   * Won value in dollars (Q.wonAmount: the contract at won, else deal.value): live deals of business `b` won between
+   * `from` and `to` (wall clock, both included; won at closedAt, else the close date) whose owner is one of `ownerIds`.
    */
   wonValue(ownerIds: string[], from: string, to: string, b: string): number {
     return S.deals
@@ -541,7 +551,7 @@ export const Q = {
         const at = wonAt(d)
         return !!at && at >= from && at <= to
       })
-      .reduce((s, d) => s + (d.value || 0), 0)
+      .reduce((s, d) => s + Q.wonAmount(d), 0)
   },
   /** A goal's actual so far. Invoiced and collected come from the revenue report, not from here (see useGoalRevenue): 0. */
   goalActual(g: Goal): number {

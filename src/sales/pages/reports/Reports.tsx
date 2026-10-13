@@ -87,7 +87,7 @@ export function Reports() {
   const exp = (): void => {
     download('salesos_report.csv', toCSV([
       ['Metric', 'Value'], ['Emails sent', c('email_out')], ['Calls', c('call')], ['Meetings booked', c('meeting_booked')], ['Meetings completed', c('meeting')],
-      ['Open pipeline', sum(open, d => d.value)], ['Weighted', sum(open, Q.weighted)], ['Won', sum(won, d => d.value)], ['Lost', sum(lost, d => d.value)],
+      ['Open pipeline', sum(open, d => d.value)], ['Weighted', sum(open, Q.weighted)], ['Won', sum(won, Q.wonAmount)], ['Lost', sum(lost, d => d.value)],
     ]))
   }
   const reset = (): void => { setPer('d90'); setBz(''); setU(''); setTm(''); setSrc(''); setInd(''); setDs('') }
@@ -98,7 +98,7 @@ export function Reports() {
     e: acts.filter(a => a.actorId === x && a.type === 'email_out').length,
     c: acts.filter(a => a.actorId === x && a.type === 'call').length,
     m: acts.filter(a => a.actorId === x && a.type === 'meeting_booked').length,
-    w: sum(S.deals.filter(d => liveDeal(d) && d.ownerId === x && d.status === 'won' && (d.closedAt ?? '') >= from && bs.includes(d.businessId)), d => d.value),
+    w: sum(S.deals.filter(d => liveDeal(d) && d.ownerId === x && d.status === 'won' && (d.closedAt ?? '') >= from && bs.includes(d.businessId)), Q.wonAmount),
   }))
   const userCols: Col<UserRow>[] = [
     { k: 'u', l: 'User', r: r => <Owner id={r.id} />, sort: r => Q.user(r.id)?.name },
@@ -169,7 +169,7 @@ export function Reports() {
           <div className="grid g6" style={{ marginBottom: 16 }}>
             <Kpi label="Open pipeline" value={F.money(sum(open, d => d.value), 1)} />
             <Kpi label="Weighted pipeline" value={F.money(sum(open, Q.weighted), 1)} />
-            <Kpi label="Won value" value={F.money(sum(won, d => d.value), 1)} tone="ok" />
+            <Kpi label="Won value" value={F.money(sum(won, Q.wonAmount), 1)} tone="ok" />
             <Kpi label="Lost revenue" value={F.money(sum(lost, d => d.value), 1)} />
             <Kpi label="Forecast (commit)" value={F.money(sum(open.filter(d => d.forecast === 'Commit'), Q.weighted), 1)} />
             {!ardOnly && <Kpi label="Recurring (won ARR)" value={F.money(sum(deals.filter(d => d.status === 'won' && d.recurring), d => d.value), 1)} />}
