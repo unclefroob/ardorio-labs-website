@@ -11,7 +11,7 @@ import { UI } from '../../ui/store'
 import { RosterioWinPrompt } from '../../pages/deals/RosterioCard'
 import { WonBilling } from '../../pages/deals/WonBilling'
 import { MissingModal } from './guards'
-import { quotedCents } from '../../shared/billing'
+import { contractedCents, quotedCents, validateContract } from '../../shared/billing'
 import { centsToInput, formatCents } from '../../shared/money'
 import { checkContract, ContractStep, newPlanRow, type ContractDraft } from './WonContract'
 
@@ -31,10 +31,14 @@ function WonForm({ d }: { d: Deal }) {
   })
   const [done, setDone] = useState(false)
   // Ardorio admins: Outcome, then Contract. The deal is won only from the Contract step (or Confirm won, without one).
-  const ledger = d.businessId === 'ard' && Q.canBill()
+  // A deal that already has a contract (reopened and won again) keeps it: it changes only by a variation, so there
+  // is no Contract step to fill in and lose.
+  const ard = d.businessId === 'ard' && Q.canBill()
+  const existing = ard ? contractedCents(Q.billingPlan(d.id)) : null
+  const ledger = ard && existing === null
   const [step, setStep] = useState<'outcome' | 'contract'>('outcome')
   const [contract, setContract] = useState<ContractDraft>({ amount: '', engagementType: 'fixed-price', rows: [newPlanRow()] })
-  const [contractErrs, setContractErrs] = useState<{ amountErr?: string; planErr?: string }>({})
+  const [contractErrs, setContractErrs] = useState<{ amountErr?: string; planErr?: string; dateErr?: string }>({})
   const [pick, setPick] = useState<number[]>([0, 1, 2])
   // Ardorio only: open the deal Billing tab once this dialog closes, however it closes.
   const [milestones, setMilestones] = useState(false)
@@ -62,10 +66,16 @@ function WonForm({ d }: { d: Deal }) {
   const winWithContract = (): void => {
     const c = checkContract(contract)
     if (!c.ok) return setContractErrs({ amountErr: c.amountErr, planErr: c.planErr })
+    // The same checks setContract runs, before the deal is won: a contract refused afterwards would leave the deal
+    // won and the typed contract and plan lost. The contract is dated by the close date, which cannot be later than today.
+    const input = { baselineCents: c.baselineCents, engagementType: c.engagementType, contractedOn: f.close, estimateAtWonCents: quotedCents(d) }
+    const bad = validateContract(input, F.today())
+    if (bad) return setContractErrs({ dateErr: `${bad} Go back and change the close date.` })
+    if (Q.billingPlan(d.id)?.contract) return setContractErrs({ dateErr: 'This deal already has a contract. Change it with a variation.' })
     setContractErrs({})
     if (!UI.guard(d.businessId, 'Closing deals')) return
     Act.markWon(d.id, f)
-    const r = Act.setContract(d.id, { baselineCents: c.baselineCents, engagementType: c.engagementType, contractedOn: f.close, estimateAtWonCents: quotedCents(d) }, c.milestones)
+    const r = Act.setContract(d.id, input, c.milestones)
     UI.close()
     UI.nav('deal', { id: d.id, q: { tab: 'billing' } })
     if (r.ok) UI.toast(`Deal won. Contract of ${formatCents(c.baselineCents)} ex GST set${c.milestones.length ? ` with ${c.milestones.length} milestone${c.milestones.length === 1 ? '' : 's'}` : ''}.`)
@@ -132,6 +142,7 @@ function WonForm({ d }: { d: Deal }) {
   if (ledger && step === 'contract') {
     return (
       <Modal
+        key="contract"
         title="Mark as Closed Won"
         icon="star"
         sub={d.name}
@@ -146,13 +157,16 @@ function WonForm({ d }: { d: Deal }) {
         }
       >
         {steps}
+        {contractErrs.dateErr && <Banner tone="bad">{contractErrs.dateErr}</Banner>}
         <ContractStep draft={contract} onChange={setContract} errs={contractErrs} company={Q.company(d.companyId)} />
       </Modal>
     )
   }
 
   return (
+    // Keyed by step so each step mounts afresh and focus starts inside it, never on a footer button of the other step.
     <Modal
+      key="outcome"
       title="Mark as Closed Won"
       icon="star"
       sub={d.name}
@@ -161,9 +175,12 @@ function WonForm({ d }: { d: Deal }) {
         : <><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" onClick={confirm}>Confirm won</Btn></>}
     >
       {steps}
+      {existing !== null && (
+        <Banner tone="info">This deal already has a contract of <b>{formatCents(existing)}</b> ex GST. It stays as it is; change it with a variation on the Billing tab.</Banner>
+      )}
       <div className="grid g2">
-        {ledger
-          ? <Fld label="Estimate (A$, ex GST)" req hint="Stays the estimate. The contract is set in the next step."><Inp value={f.value} onChange={v => set('value', v.replace(/[^0-9.]/g, ''))} /></Fld>
+        {ard
+          ? <Fld label="Estimate (A$, ex GST)" req hint={ledger ? 'Stays the estimate. The contract is set in the next step.' : 'Stays the estimate. The contract is unchanged.'}><Inp value={f.value} onChange={v => set('value', v.replace(/[^0-9.]/g, ''))} /></Fld>
           : <Fld label="Final contract value (A$)" req hint={d.recurring ? 'Annual value; MRR is derived' : null}><Inp value={f.value} onChange={v => set('value', v.replace(/[^0-9.]/g, ''))} /></Fld>}
         <Fld label="Close date" req><Inp type="date" value={f.close} onChange={v => set('close', v)} /></Fld>
         <Fld label="Contract term (months)"><Inp value={f.term} onChange={v => set('term', v)} /></Fld>

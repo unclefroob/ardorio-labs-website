@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingClient } from '../../api/contract'
 import { changes, rec } from '../../testing/fixtures'
 import { button, click, field, settle, type } from '../../testing/dom'
-import { ardDeal, CLIENT, invoicingWorld, setArdRole } from '../../testing/invoicingWorld'
+import { ardDeal, CLIENT, invoicingWorld, PLAN_DATA, setArdRole } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
 import { fakeApi, json } from '../../testing/rosterioWorld'
 import { formatCents } from '../../shared/money'
@@ -43,11 +43,12 @@ const stages = [
 ]
 
 /** Open the Won dialog on an open Ardorio deal with an estimate of $60,000, without confirming. */
-async function open(clients: BillingClient[] = [CLIENT], role: Parameters<typeof setArdRole>[1] = 'admin', routes: Parameters<typeof fakeApi>[0] = {}) {
+async function open(clients: BillingClient[] = [CLIENT], role: Parameters<typeof setArdRole>[1] = 'admin', routes: Parameters<typeof fakeApi>[0] = {}, plan?: Record<string, unknown>) {
   m = await loadSales()
   m.bootstrap.hydrate(invoicingWorld({
     pipelines: [rec('pl1', { businessId: 'ard', name: 'Pipeline', recurring: false, lostReasons: ['Price'], forecast: [], card: [], stages, fields: [] })],
     deals: [ardDeal('dl1', { status: 'open', stageId: 'sg1', probability: 50, forecast: 'Pipeline', closedAt: null })],
+    ...(plan ? { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, ...plan })] } : {}),
   }))
   setArdRole(m, role)
   const nav = vi.fn()
@@ -93,7 +94,7 @@ describe('Won dialog, Contract step (Ardorio admins)', () => {
 
   it('Win and set up billing wins the deal, freezes the contract with the milestones, and opens the Billing tab', async () => {
     const { deal, plan, nav } = await open()
-    await type(field(host, 'Close date'), '2026-10-10')
+    await type(field(host, 'Close date'), '2026-10-08')
     await click(button(host, 'Next: contract'))
     await type(amountField(), '48,000')
     await type(field(host, 'Engagement type'), 'time-materials')
@@ -108,7 +109,7 @@ describe('Won dialog, Contract step (Ardorio admins)', () => {
     expect(deal()?.status).toBe('won')
     // The estimate is left as it was: the contract lives on the plan.
     expect(deal()?.value).toBe(60000)
-    expect(plan()?.contract).toEqual({ baselineCents: 4800000, engagementType: 'time-materials', contractedOn: '2026-10-10', contractedBy: 'u-me', estimateAtWonCents: 6000000 })
+    expect(plan()?.contract).toEqual({ baselineCents: 4800000, engagementType: 'time-materials', contractedOn: '2026-10-08', contractedBy: 'Me Myself', estimateAtWonCents: 6000000 })
     // The third row was left blank and is not a milestone.
     expect(plan()?.milestones.map(x => [x.label, x.amountCents, x.plannedDate])).toEqual([['Discovery and design', 800000, '2026-10-31'], ['Build', 2400000, undefined]])
     expect(m.ui.UI.get().modals).toEqual([])
@@ -137,6 +138,54 @@ describe('Won dialog, Contract step (Ardorio admins)', () => {
     expect(text()).toContain('Milestone 1: the label is 1 to 120 characters')
     expect(deal()?.status).toBe('open')
     expect(plan()).toBeUndefined()
+  })
+
+  it('refuses a future close date before winning, so the typed contract and plan are kept', async () => {
+    // The fixture clock is 9 Oct 2026; the API refuses a contract dated after today.
+    const { deal, plan } = await open()
+    await type(field(host, 'Close date'), '2026-10-20')
+    await click(button(host, 'Next: contract'))
+    await type(host.querySelector('[aria-label="Milestone 1 label"]'), 'Discovery')
+    await type(host.querySelector('[aria-label="Milestone 1 amount"]'), '8000')
+    await click(button(host, 'Win and set up billing'))
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('The contract date cannot be in the future')
+    expect(deal()?.status).toBe('open')
+    expect(plan()).toBeUndefined()
+    expect((host.querySelector('[aria-label="Milestone 1 amount"]') as HTMLInputElement).value).toBe('8000')
+    await click(button(host, 'Back'))
+    await type(field(host, 'Close date'), '2026-10-09')
+    await click(button(host, 'Next: contract'))
+    await click(button(host, 'Win and set up billing'))
+    expect(deal()?.status).toBe('won')
+    expect(plan()?.contract?.contractedOn).toBe('2026-10-09')
+    expect(plan()?.milestones.map(x => x.label)).toContain('Discovery')
+  })
+
+  it('moves focus into each step when it changes, never onto the other step\'s footer button', async () => {
+    await open()
+    const next = button(host, 'Next: contract') as HTMLButtonElement
+    next.focus()
+    await click(next)
+    // The Outcome footer's third button would otherwise be reused as Later, which wins the deal without a contract.
+    expect(document.activeElement).toBe(amountField())
+    expect(document.activeElement?.textContent).not.toBe('Later')
+    const back = button(host, 'Back') as HTMLButtonElement
+    back.focus()
+    await click(back)
+    expect(document.activeElement).toBe(field(host, 'Estimate (A$, ex GST)'))
+  })
+
+  it('a deal that already has a contract (reopened, won again) skips the Contract step and keeps its contract', async () => {
+    const CONTRACT = { baselineCents: 4800000, engagementType: 'fixed-price', contractedOn: '2026-09-03', contractedBy: 'Dana Ortiz', estimateAtWonCents: 4800000 }
+    const { deal, plan } = await open([CLIENT], 'admin', {}, { contract: CONTRACT })
+    expect(button(host, 'Next: contract')).toBeUndefined()
+    expect(host.querySelector('ol[aria-label="Steps"]')).toBeNull()
+    expect(text()).toContain(`This deal already has a contract of ${formatCents(4800000)} ex GST`)
+    expect(field(host, 'Estimate (A$, ex GST)')).not.toBeNull()
+    await click(button(host, 'Confirm won'))
+    expect(deal()?.status).toBe('won')
+    expect(plan()?.contract).toEqual(CONTRACT)
+    expect(text()).toContain('Deal won')
   })
 
   it('Later wins the deal without a contract and shows the usual won screen', async () => {
