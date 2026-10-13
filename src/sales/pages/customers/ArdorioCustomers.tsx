@@ -7,7 +7,8 @@ import { S, useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
 import { Banner, Btn, Card, Chip, CoLink, DataTable, DlLink, Empty, Skel, Tabs, type Col } from '../../kit'
 import { ardorioCustomers, ardorioTiles, wonNotInvoiced, type ArdorioCustomer } from '../../shared/billing'
-import { METHOD_LABELS, fmtDay } from '../../shared/invoices'
+import { METHOD_LABELS, fmtDay, withoutTest } from '../../shared/invoices'
+import { EXTERNAL_CHIP, invoiceRef } from '../../shared/externalInvoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
 import { UI } from '../../ui/store'
 
@@ -34,11 +35,30 @@ export function ArdorioCustomers() {
   const deals = S.deals.filter(d => d.archived !== true)
   const rows = ardorioCustomers(sum.data.byCompany, deals, S.companies, S.billingPlans)
   const unbilled = wonNotInvoiced(deals, S.companies, list.data)
+  // Invoices and payments recorded outside SalesOS count in the figures like any other; each customer row names them.
+  const external = new Map<string, string[]>()
+  for (const i of withoutTest(list.data)) {
+    if (i.source !== 'external' || i.status === 'void' || !i.companyId) continue
+    external.set(i.companyId, [...(external.get(i.companyId) ?? []), invoiceRef(i)])
+  }
 
   const cols: Col<ArdorioCustomer>[] = [
     {
       k: 'name', l: 'Customer', sort: r => r.name.toLowerCase(),
-      r: r => <span><b><CoLink id={r.companyId} /></b>{r.overdueCents > 0 && <> <Chip tone="bad">Overdue</Chip></>}</span>,
+      r: r => {
+        const refs = external.get(r.companyId) ?? []
+        return (
+          <span>
+            <b><CoLink id={r.companyId} /></b>{r.overdueCents > 0 && <> <Chip tone="bad">Overdue</Chip></>}
+            {refs.length > 0 && (
+              <span className="row wrap" style={{ gap: 6, marginTop: 2 }}>
+                <Chip tone="info" icon="ext">{EXTERNAL_CHIP}</Chip>
+                <span className="faint sm mono">{refs.slice(0, 2).join(', ')}{refs.length > 2 ? ` and ${refs.length - 2} more` : ''}</span>
+              </span>
+            )}
+          </span>
+        )
+      },
     },
     {
       k: 'won', l: 'Won deals', right: true, sort: r => r.wonDeals,
@@ -75,7 +95,7 @@ export function ArdorioCustomers() {
       ) : (
         <Card pad={false}><DataTable cols={uCols} rows={unbilled} page={50} empty={<Empty icon="check" title="Every won deal has an invoice" body="Won Ardorio deals with no invoice at all appear here." />} /></Card>
       )}
-      <div className="faint sm" style={{ marginTop: 10 }}>Customers are CRM companies with at least one issued invoice or a won deal. Invoice figures cover issued invoices only, not drafts, ex GST.</div>
+      <div className="faint sm" style={{ marginTop: 10 }}>Customers are CRM companies with at least one issued invoice or a won deal. Invoice figures cover issued invoices only, not drafts, ex GST, including invoices and payments recorded externally.</div>
       {list.error != null && <Banner tone="bad">{invoiceError(list.error, 'load').message}</Banner>}
     </>
   )

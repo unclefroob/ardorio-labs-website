@@ -85,7 +85,7 @@ export function expireSession(): void {
   if (timer) clearTimeout(timer)
   timer = null
   const plan = collectPlan()
-  rollbackPlan(plan)
+  rollbackPlan(plan, 'Your session expired before it was saved')
   publish()
   dirty = false
   backoffMs = 0
@@ -144,7 +144,7 @@ export async function sendPlan(plan: Planned[]): Promise<SendOutcome> {
             size = Math.max(1, Math.floor(chunk.items.length / 2))
             continue
           }
-          rollbackPlan(chunk.items)
+          rollbackPlan(chunk.items, 'That record is too large')
           publish()
           UI.toast("Couldn't save: that record is too large.", 'bad')
           logSales('too-large', chunk.items[0]?.id)
@@ -155,7 +155,7 @@ export async function sendPlan(plan: Planned[]): Promise<SendOutcome> {
           setStatus({ message: e.message })
           return { ok: false, contention, unsent: unsentFrom(i) }
         }
-        rollbackPlan(chunk.items)
+        rollbackPlan(chunk.items, e.status === 403 ? "You don't have permission to do that" : e.message)
         publish()
         UI.toast(e.status === 403 ? "You don't have permission to do that." : `Couldn't save: ${e.message}`, 'bad')
         logSales('batch-refused', { status: e.status, code: e.code, message: e.message })

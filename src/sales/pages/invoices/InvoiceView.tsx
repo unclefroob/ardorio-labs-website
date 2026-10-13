@@ -5,6 +5,7 @@ import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import { Banner, Btn, Card, Chip, DlLink, Icon, Link } from '../../kit'
 import { activityItems, actionsFor, cardChip, cardLinkMissing, fmtDay, METHOD_LABELS, daysBetween, needsRefund, PAID_CANCEL_HINT, voidSummary } from '../../shared/invoices'
+import { EXTERNAL_SOURCE_LABEL, invoiceRef } from '../../shared/externalInvoices'
 import { formatCents } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { F } from '../../data/F'
@@ -12,7 +13,7 @@ import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
 import { TestBanner, testItems, useTestActions, type TestOps } from './testActions'
 import { MoreMenu, type MoreItem } from './MoreMenu'
-import { milestoneLabel, personName, RetainerChip, StatusChip, TestChip } from './parts'
+import { ExternalChip, milestoneLabel, personName, RetainerChip, StatusChip, TestChip } from './parts'
 import { Activity, Totals } from './rail'
 
 /** The items of the More menu for an invoice, by status. Drafts have none: they keep Delete in the editor and were never issued. */
@@ -54,6 +55,8 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
   const voided = inv.voided
   const linkLive = voided?.linkDeactivated === false || (voided != null && voided.linkDeactivated == null && !!inv.paymentLinkUrl)
   const paid = inv.status === 'paid'
+  const ext = inv.source === 'external' ? inv.external : null
+  const name = invoiceRef(inv)
   // Just cancelled: the dialog closed and the button that started it is gone, so land on the banner that says what happened.
   useEffect(() => {
     if (a.voided && !wasVoid.current) banner.current?.focus()
@@ -102,27 +105,33 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
     cancel: () => UI.open('cancelInvoice', { invoice: inv, onDone: onChange, onRefresh: refresh }),
   })
   const money = (cents: number): string => formatCents(cents)
+  const editExternal = (): void => UI.open('recordExternal', { invoice: inv, onDone: onChange })
   const sub = [company?.name ?? inv.clientName, inv.dealId ? Q.deal(inv.dealId)?.name : '', ms].filter(Boolean).join(' · ')
 
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{inv.invoiceNumber}<StatusChip inv={inv} /><TestChip inv={inv} /><RetainerChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{name}<StatusChip inv={inv} /><TestChip inv={inv} /><RetainerChip inv={inv} /><ExternalChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
         sub={sub}
-        crumb={[<Link key="i" to="invoices">Invoices</Link>, inv.invoiceNumber]}
+        crumb={[<Link key="i" to="invoices">Invoices</Link>, name]}
       >
-        <Btn onClick={() => void downloadPdf(inv)}>Download PDF</Btn>
+        {/* An external record has no PDF, hosted link, issue, reissue, mark paid or card controls: only Edit, Cancel and Mark as test. */}
+        {!ext && <Btn onClick={() => void downloadPdf(inv)}>Download PDF</Btn>}
+        {ext && a.edit && <Btn icon="edit" onClick={editExternal}>Edit</Btn>}
         {a.reissue && <Btn onClick={onEdit}>Edit and reissue</Btn>}
         {a.markPaid && <Btn kind="pri" onClick={() => UI.open('markPaid', { invoice: inv, onDone: onChange })}>Mark paid</Btn>}
-        {a.voided && <Btn kind="pri" icon="layers" onClick={() => void duplicate()} disabled={dupBusy}>{dupBusy ? 'Duplicating…' : 'Duplicate as new draft'}</Btn>}
-        {more.length > 0 && <><span aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: 'var(--line2)', margin: '0 4px' }} /><MoreMenu label={`More actions for ${inv.invoiceNumber}`} items={more} /></>}
+        {a.voided && !ext && <Btn kind="pri" icon="layers" onClick={() => void duplicate()} disabled={dupBusy}>{dupBusy ? 'Duplicating…' : 'Duplicate as new draft'}</Btn>}
+        {more.length > 0 && <><span aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: 'var(--line2)', margin: '0 4px' }} /><MoreMenu label={`More actions for ${name}`} items={more} /></>}
       </PageHead>
 
       <TestBanner inv={inv} onUnmark={ta.unmarkTest} busy={ta.busy} />
       {voided && (
         <div ref={banner} tabIndex={-1} style={{ marginBottom: 14, outline: 'none' }}>
           <Banner icon="x">
-            <b>{voidSummary(voided, personName(voided.voidedBy))}.</b> The invoice and its number are kept. It can’t be reopened; duplicate it to start a corrected draft.
+            <b>{voidSummary(voided, personName(voided.voidedBy))}.</b>{' '}
+            {ext
+              ? 'This record was cancelled. Its reference can be recorded again.'
+              : 'The invoice and its number are kept. It can’t be reopened; duplicate it to start a corrected draft.'}
           </Banner>
         </div>
       )}
@@ -139,11 +148,18 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
           <Icon n="check" s={12} /> Refund of {money(inv.refundDue.amountCents)} confirmed{inv.refundDue.acknowledgedBy ? ` by ${personName(inv.refundDue.acknowledgedBy)}` : ''} on {fmtDay(inv.refundDue.acknowledgedAt)}. The history is kept.
         </div>
       )}
-      {paid && <div style={{ marginBottom: 14 }}><Banner icon="lock">This invoice is paid, so it is read-only. To change something, raise a credit or a new invoice.</Banner></div>}
+      {paid && !ext && <div style={{ marginBottom: 14 }}><Banner icon="lock">This invoice is paid, so it is read-only. To change something, raise a credit or a new invoice.</Banner></div>}
+      {ext && !a.voided && (
+        <div style={{ marginBottom: 14 }}>
+          <Banner icon="info" tone="info">
+            <b>Recorded externally from {EXTERNAL_SOURCE_LABEL[ext.source]}.</b> It counts as Invoiced in its issue month{inv.payment ? ' and Collected in its paid month' : ''}. Its details are read-only here: use Edit to correct them.
+          </Banner>
+        </div>
+      )}
       {cardLinkMissing(inv) && (
         <div style={{ marginBottom: 14 }}>
           <Banner tone="warn" action={<Btn size="sm" onClick={() => void retry()}>Try the card link again</Btn>}>
-            <b>{inv.invoiceNumber} was issued, but the card link couldn&apos;t be created.</b> The client can still pay by transfer or PayID. Retrying creates the link and leaves the invoice as it is.
+            <b>{name} was issued, but the card link couldn&apos;t be created.</b> The client can still pay by transfer or PayID. Retrying creates the link and leaves the invoice as it is.
           </Banner>
         </div>
       )}
@@ -159,7 +175,15 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
               {ms && <div className="rowx"><span className="muted">Milestone</span><span>{ms} <Chip tone="ok">Paid</Chip></span></div>}
             </Card>
           )}
-          <Card title="Invoice" right={a.voided ? <span className="faint sm">Read-only</span> : undefined}>
+          {ext && (
+            <Card title="Recorded externally" right={<span className="faint sm">Read-only</span>}>
+              <div className="rowx"><span className="muted">Source</span><span>{EXTERNAL_SOURCE_LABEL[ext.source]}</span></div>
+              <div className="rowx"><span className="muted">External reference</span><span className="mono">{name}</span></div>
+              <div className="rowx"><span className="muted">Recorded</span><span>{fmtDay(ext.recordedAt)}{ext.recordedBy ? ` by ${ext.recordedBy}` : ''}</span></div>
+              <div className="faint sm" style={{ marginTop: 8 }}>No SalesOS invoice number, PDF, card link or pay page. Xero or the other system holds the invoice itself.</div>
+            </Card>
+          )}
+          <Card title="Invoice" right={a.voided || ext ? <span className="faint sm">Read-only</span> : undefined}>
             <div className="grid g2" style={{ marginBottom: 12 }}>
               <div><div className="faint sm">Customer</div>{company ? <Link to="company" id={company.id}>{company.name}</Link> : <span>{inv.clientName}</span>}</div>
               <div><div className="faint sm">Deal</div>{inv.dealId ? <DlLink id={inv.dealId} /> : <span className="faint">No deal</span>}</div>
@@ -186,7 +210,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
             </div>
             {inv.notes && <div className="muted sm" style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>{inv.notes}</div>}
           </Card>
-          {a.voided && (
+          {a.voided && !ext && (
             <Card title="Sharing and payment">
               <div className="col" style={{ gap: 14 }}>
                 <div className="rowx">
@@ -217,7 +241,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
         <div className="inv-rail">
           <Totals subtotal={inv.subtotalCents} gst={inv.gstCents} total={inv.totalCents} gstPct={gstPct} struck={a.voided} note={a.voided ? 'Removed from Outstanding and Invoiced.' : a.readOnly ? undefined : 'Revenue reports use the ex-GST figure.'} />
           <Activity items={activityItems(inv, personName)} />
-          {paid && <div className="faint sm"><Icon n="info" s={12} /> The public invoice page shows a Paid stamp. Any unused card link was switched off when the invoice was marked paid.</div>}
+          {paid && !ext && <div className="faint sm"><Icon n="info" s={12} /> The public invoice page shows a Paid stamp. Any unused card link was switched off when the invoice was marked paid.</div>}
         </div>
       </div>
     </div>

@@ -109,7 +109,7 @@ export function filterInvoices(list: readonly InvoiceDto[], f: InvoiceFilter, de
     .filter(i => inTab(i, f.tab))
     .filter(i => !f.companyId || i.companyId === f.companyId)
     .filter(i => !f.refundOnly || needsRefund(i))
-    .filter(i => !q || [i.invoiceNumber, i.clientName, dealName(i.dealId)].some(s => s.toLowerCase().includes(q)))
+    .filter(i => !q || [i.source === 'external' ? '' : i.invoiceNumber, i.external?.reference ?? '', i.clientName, dealName(i.dealId)].some(s => s.toLowerCase().includes(q)))
     .slice()
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : b.invoiceNumber.localeCompare(a.invoiceNumber)))
 }
@@ -266,8 +266,14 @@ export interface Actions {
 
 export const PAID_CANCEL_HINT = 'Paid invoices cannot be cancelled. Refund or issue a credit instead.'
 
-export function actionsFor(inv: Pick<InvoiceDto, 'status'> | null): Actions {
+export function actionsFor(inv: Pick<InvoiceDto, 'status'> & Partial<Pick<InvoiceDto, 'source'>> | null): Actions {
   if (!inv) return { edit: true, issue: false, reissue: false, markPaid: false, delete: false, copyLink: false, pdf: false, readOnly: false, cancel: false, cancelBlockedPaid: false, duplicate: false, voided: false }
+  if (inv.source === 'external') {
+    // A record of an invoice made outside SalesOS: edited in its own dialog, and cancelled whether it reads as sent or
+    // paid. No PDF, hosted link, issue, reissue, mark paid, card link or duplicate: the server refuses all of them.
+    const voided = inv.status === 'void'
+    return { edit: !voided, issue: false, reissue: false, markPaid: false, delete: false, copyLink: false, pdf: false, readOnly: true, cancel: !voided, cancelBlockedPaid: false, duplicate: false, voided }
+  }
   const draft = inv.status === 'draft'
   const sent = inv.status === 'sent'
   const paid = inv.status === 'paid'
@@ -388,10 +394,25 @@ export function linkOutcome(linkDeactivated: boolean | null, paymentLinkUrl?: st
 }
 
 export function activityItems(
-  inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'issuedCount' | 'status' | 'payment'> & Partial<Pick<InvoiceDto, 'voided' | 'refundDue' | 'paymentLinkUrl'>> | null,
+  inv: Pick<InvoiceDto, 'createdAt' | 'sentAt' | 'issuedCount' | 'status' | 'payment'> & Partial<Pick<InvoiceDto, 'voided' | 'refundDue' | 'paymentLinkUrl' | 'source' | 'external' | 'issueDate'>> | null,
   nameOf: (id: string) => string = id => id,
 ): ActivityItem[] {
   if (!inv) return [{ label: 'Created', when: '', note: 'Not saved yet', done: false }, { label: 'Issued', when: '', note: 'Not yet', done: false }, { label: 'Paid', when: '', note: 'Not yet', done: false }]
+  const ext = inv.source === 'external' ? inv.external : null
+  if (ext) {
+    // Recorded from another system: it was issued there, so the steps are the record, its issue date and its payment.
+    const out: ActivityItem[] = [
+      { label: 'Recorded externally', when: fmtDay(ext.recordedAt), note: ext.recordedBy, done: true },
+      { label: 'Issued', when: fmtDay(inv.issueDate), note: 'outside SalesOS', done: true },
+    ]
+    if (inv.status === 'void' && inv.voided) {
+      const v = inv.voided
+      out.push({ label: 'Cancelled', when: fmtDay(v.voidedAt), note: nameOf(v.voidedBy), done: true, tone: 'bad', lines: [`Reason: ${voidReasonLabel(v.reason)}`, ...(v.note ? [`Note: ${v.note}`] : [])] })
+    } else {
+      out.push({ label: 'Paid', when: inv.payment ? fmtDay(inv.payment.paidAt) : '', note: inv.payment ? METHOD_LABELS[inv.payment.method] : 'Not yet', done: !!inv.payment })
+    }
+    return out
+  }
   const issued = inv.status !== 'draft'
   const issuedItem: ActivityItem = {
     label: issued && inv.issuedCount > 1 ? `Issued, reissued ${inv.issuedCount - 1} time${inv.issuedCount === 2 ? '' : 's'}` : 'Issued',
@@ -442,10 +463,18 @@ export interface Consequence { icon: string; text: string }
 
 /** The consequences list of the cancel dialog, built from the invoice. `milestone` is the milestone's label, when known. */
 export function cancelConsequences(
-  inv: Pick<InvoiceDto, 'paymentLinkUrl' | 'paymentLinkIsAutomatic' | 'subtotalCents' | 'totalCents' | 'overdue' | 'milestoneId'>,
+  inv: Pick<InvoiceDto, 'paymentLinkUrl' | 'paymentLinkIsAutomatic' | 'subtotalCents' | 'totalCents' | 'overdue' | 'milestoneId'> & Partial<Pick<InvoiceDto, 'source' | 'status'>>,
   milestone: string,
 ): Consequence[] {
   const out: Consequence[] = []
+  if (inv.source === 'external') {
+    // Only the record is withdrawn: nothing changes in the other system, and there is no client page or card link.
+    const paid = inv.status === 'paid'
+    out.push({ icon: 'chart', text: `${formatCents(inv.subtotalCents)} ex GST (${formatCents(inv.totalCents)} with GST) leaves Invoiced${paid ? ' and Collected' : ', Outstanding'}${!paid && inv.overdue ? ', Overdue' : ''}.` })
+    if (inv.milestoneId) out.push({ icon: 'flag', text: `${milestone ? `Milestone “${milestone}”` : 'The milestone'} goes back to Planned, and the billing progress on the deal drops.` })
+    out.push({ icon: 'refresh', text: 'The reference is freed, so it can be recorded again. Nothing changes in the other system.' })
+    return out
+  }
   if (inv.paymentLinkUrl) {
     out.push(inv.paymentLinkIsAutomatic
       ? { icon: 'dollar', text: 'The card payment link stops working. It is switched off, so the client can no longer pay this invoice by card.' }

@@ -14,7 +14,7 @@ function inv(over: Partial<InvoiceDto> = {}): InvoiceDto {
     lineItems: [{ description: 'Milestone 2', qty: 1, unitPriceCents: 1800000, amountCents: 1800000 }], gstRate: 0.1, notes: '',
     issueDate: '2026-10-03', paymentTermsDays: 45, dueDate: '2026-11-17', status: 'sent', overdue: false, payment: null,
     offerCardPayment: false, paymentLinkUrl: '', paymentLinkIsAutomatic: false, publicToken: 't', hostedUrl: 'https://ardorio.co/invoice/t',
-    sentAt: '2026-10-03T01:00:00.000Z', issuedCount: 1, subtotalCents: 1800000, gstCents: 180000, totalCents: 1980000, createdAt: '2026-10-01T01:00:00.000Z', voided: null, refundDue: null, test: null, source: 'manual', ...over,
+    sentAt: '2026-10-03T01:00:00.000Z', issuedCount: 1, subtotalCents: 1800000, gstCents: 180000, totalCents: 1980000, createdAt: '2026-10-01T01:00:00.000Z', voided: null, refundDue: null, test: null, source: 'manual', external: null, ...over,
   }
 }
 const paid = (over: Partial<InvoiceDto> = {}) => inv({ status: 'paid', payment: { method: 'bank-transfer', paidAt: '2026-10-06', amountCents: 1056000, reference: 'R' }, ...over })

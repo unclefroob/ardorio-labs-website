@@ -1,5 +1,6 @@
 import { archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
 import { addVariation, claimRetainerPeriod, decideVariation, markDelivered, retainerClaimProblem, saveMilestones, saveRetainer, setContract } from './act/billing'
+import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
 import { applyPhoneLookup } from './act/phone'
@@ -14,6 +15,7 @@ import {
 
 export type { CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
 export type { DealForm, LostForm, WonForm } from './act/deals'
+export type { RecordWonInput, RecordWonResult, RecordWonSaved } from './act/recordWon'
 export type { CallForm, MeetingInput, MarkSentResult, SendEmailForm, SendResult, SimulateReplyOpts } from './act/mail'
 export type { EnrolOpts, EnrolResult, SequenceInput } from './act/seq'
 export type { CompleteOpts, EmailTaskResult, TaskInput } from './act/tasks'
@@ -29,7 +31,7 @@ export const Act = {
   addNote, editNote, deleteNote,
   createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, restoreContact, assignContacts,
   saveMilestones, saveRetainer, claimRetainerPeriod, retainerClaimProblem, setContract, addVariation, decideVariation, markDelivered,
-  createDeal, updateDeal, moveStage, markWon, markLost, reopenDeal, archiveDeal, restoreDeal,
+  createDeal, recordWonDeal, recordWonOutcome, updateDeal, moveStage, markWon, markLost, reopenDeal, archiveDeal, restoreDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   logCall, saveMeeting,
   sendEmail, markEmailSent, skipEmailTask, stopEmailing, markThread, shareThread,

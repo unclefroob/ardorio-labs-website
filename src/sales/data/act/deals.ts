@@ -5,7 +5,7 @@ import { act, audit, ensureRels, mgrsOf, notify } from '../internals'
 import { Q } from '../Q'
 import { commit } from '../commit'
 import { idx, reindex, S } from '../store'
-import type { BusinessId, Deal } from '../types'
+import type { BusinessId, Company, Deal, Pipeline, Stage } from '../types'
 import { createTask } from './tasks'
 
 export interface DealForm {
@@ -37,14 +37,11 @@ const STAGE_SUGGESTION: Record<string, string> = {
   'Solution Scoping': 'Map integrations and technical stakeholders',
 }
 
-export function createDeal(f: DealForm): Deal | undefined {
-  const pl = Q.pipeline(f.businessId)
-  const st = pl.stages.find(s => s.id === f.stageId) ?? pl.stages[0]
-  const co = Q.company(f.companyId)
-  if (!st || !co) return undefined
+/** A new open deal record in stage `st`, before it is stored. */
+export function dealRecord(f: DealForm, pl: Pipeline, st: Stage, co: Company): Deal {
   const now = F.nowIso()
   const contactIds = f.contactIds || []
-  const d: Deal = {
+  return {
     id: uid('dl'), name: `${co.name.split(' ').slice(0, 2).join(' ')} — ${f.title}`, title: f.title, businessId: f.businessId, companyId: f.companyId,
     pipelineId: pl.id, stageId: st.id, ownerId: f.ownerId || S.session.userId, type: f.type || 'New business', value: +(f.value ?? 0) || 0, mrr: null,
     recurring: f.businessId !== 'ard', contractMonths: +(f.contractMonths ?? 0) || 12, close: f.close, probability: st.prob, forecast: 'Pipeline',
@@ -52,6 +49,15 @@ export function createDeal(f: DealForm): Deal | undefined {
     status: 'open', createdAt: now, stageChangedAt: now, lastActivity: now, closedAt: null, priority: f.priority || 'Medium', fields: f.fields || {},
     stageHistory: [{ stageId: st.id, ts: now }], notes: [],
   }
+}
+
+export function createDeal(f: DealForm): Deal | undefined {
+  const pl = Q.pipeline(f.businessId)
+  const st = pl.stages.find(s => s.id === f.stageId) ?? pl.stages[0]
+  const co = Q.company(f.companyId)
+  if (!st || !co) return undefined
+  const contactIds = f.contactIds || []
+  const d = dealRecord(f, pl, st, co)
   if (d.businessId === 'ros') {
     d.mrr = Q.rosMrr(d.fields)
     d.value = d.mrr * 12

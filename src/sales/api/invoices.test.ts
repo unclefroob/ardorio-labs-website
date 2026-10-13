@@ -138,4 +138,17 @@ describe('test invoice calls', () => {
     expect(invoiceError(e(409, 'INVOICE_DELETING'), 'test').message).toContain('deleting this invoice')
     expect(invoiceError(e(409, 'REFUND_DUE_UNACKNOWLEDGED'), 'test').message).toContain('Acknowledge the refund')
   })
+
+  it('reads the billing clients to choose between from a needsBillingLink conflict, and nothing else', async () => {
+    const { billingLinkNeeded } = await import('./invoices')
+    const { SalesHttpError } = await import('./http')
+    const conflict = (details?: Record<string, unknown>) => new SalesHttpError(409, { error: 'x', code: 'CONFLICT', details })
+    expect(billingLinkNeeded(conflict({ field: 'companyId', clientSlugs: ['a', 'b'], needsBillingLink: true }))).toEqual(['a', 'b'])
+    expect(billingLinkNeeded(conflict({ needsBillingLink: true, clientSlugs: ['a', 3, ''] }))).toEqual(['a'])
+    expect(billingLinkNeeded(conflict({ needsBillingLink: true }))).toEqual([])
+    expect(billingLinkNeeded(conflict({ linkedElsewhere: true }))).toBeNull()
+    expect(billingLinkNeeded(conflict())).toBeNull()
+    expect(billingLinkNeeded(new SalesHttpError(400, { error: 'x', code: 'VALIDATION', details: { needsBillingLink: true } }))).toBeNull()
+    expect(billingLinkNeeded(new Error('x'))).toBeNull()
+  })
 })

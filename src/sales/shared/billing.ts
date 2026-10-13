@@ -469,10 +469,12 @@ type MoneyInvoice = Pick<InvoiceDto, 'status' | 'subtotalCents'> & Partial<Pick<
  * Whether an invoice on this deal bills its support retainer rather than the project. A scheduler draft always does.
  * One made by hand counts as retainer when it carries no milestone and the deal has a retainer, which is how the
  * billing card has always listed them, unless the engagement is time and materials: there project invoices carry no
- * milestone either, so only the scheduler's own drafts are retainer.
+ * milestone either, so only the scheduler's own drafts are retainer. An external record is never retainer.
  */
 export function isRetainerInvoice(inv: Pick<MoneyInvoice, 'source' | 'milestoneId'>, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined): boolean {
   if (inv.source === 'retainer') return true
+  // A record of money invoiced outside SalesOS is project money: it adds to Invoiced and Collected (boards 9 and 10).
+  if (inv.source === 'external') return false
   if (inv.milestoneId || !plan?.retainer) return false
   return plan.contract?.engagementType !== 'time-materials'
 }

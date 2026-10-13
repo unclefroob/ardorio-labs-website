@@ -40,7 +40,8 @@ function Existing({ id }: { id: string }) {
   }
   if (!inv) return <div className="page"><Skel rows={6} /></div>
 
-  if (inv.status === 'draft' || (inv.status === 'sent' && editing)) {
+  // An external record is never opened in the editor: it is edited in its own dialog from the view.
+  if (inv.source !== 'external' && (inv.status === 'draft' || (inv.status === 'sent' && editing))) {
     return <InvoiceEditor invoice={inv} onChange={i => { setChanged(i); if (i.status === 'paid') setEditing(false) }} onCancel={inv.status === 'sent' ? () => setEditing(false) : undefined} />
   }
   return <InvoiceView invoice={inv} onChange={setChanged} onEdit={() => setEditing(true)} />

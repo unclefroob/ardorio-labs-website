@@ -4,6 +4,7 @@ import { getInvoice, invoiceError, unmarkTest } from '../../api/invoices'
 import { Q } from '../../data/Q'
 import { Banner, Btn } from '../../kit'
 import { fmtDay, testMenu } from '../../shared/invoices'
+import { invoiceRef } from '../../shared/externalInvoices'
 import { UI } from '../../ui/store'
 import type { MoreItem } from './MoreMenu'
 import { personName } from './parts'
@@ -41,7 +42,7 @@ export function useTestActions(inv: InvoiceDto | null, onChange: (i: InvoiceDto)
     setBusy(true)
     try {
       onChange(await unmarkTest(inv.id))
-      UI.toast(`${inv?.invoiceNumber ?? 'Invoice'} is a real invoice again`)
+      UI.toast(`${inv ? invoiceRef(inv) : 'Invoice'} is a real invoice again`)
     } catch (e) {
       const r = invoiceError(e, 'test')
       UI.toast(r.message, 'bad')
