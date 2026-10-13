@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BillingPlan } from '../api/contract'
 import type { Goal } from '../data/types'
 import { formatCentsTile } from './money'
-import { contractedInRange, coverageText, monthBars, monthName, pipelineCoverage, recordedLateLine, wonValueTarget } from './revenueReport'
+import { ARD_PERIODS, contractedInRange, coverageText, goalTarget, monthBars, monthName, monthsBetween, periodProgress, pipelineCoverage, recordedLateLine, reportRange, wonByMonth, wonValueTarget } from './revenueReport'
 
 const contract = (contractedOn: string, baselineCents: number) => ({ baselineCents, engagementType: 'fixed-price' as const, contractedOn, contractedBy: 'Me', estimateAtWonCents: baselineCents })
 const vo = (id: string, amountCents: number, status: 'approved' | 'proposed' | 'rejected', decidedAt?: string) =>
@@ -64,5 +64,50 @@ describe('month labels and the recorded-later note', () => {
   })
   it('turns months into Invoiced and Collected bars in dollars', () => {
     expect(monthBars([{ month: '2026-07', invoicedCents: 5800000, collectedCents: 6150000, externalInvoicedCents: 0, externalCollectedCents: 0 }])).toEqual([{ l: 'Jul 2026', v: [58000, 61500] }])
+  })
+})
+
+describe('Ardorio revenue report periods (boards 5 and 11)', () => {
+  it('offers the financial year, the year before, the quarter and the month', () => {
+    expect(ARD_PERIODS.map(p => p[1])).toEqual(['This financial year', 'Previous financial year', 'Quarter', 'Month'])
+  })
+
+  it('runs each period to today, compared with its own goal period; the previous year is whole and has no goal', () => {
+    expect(reportRange('fy', '2026-10-09')).toEqual({ from: '2026-07-01', to: '2026-10-09', goal: 'year', noun: 'year', total: 'Year to date' })
+    expect(reportRange('fy', '2026-03-02').from).toBe('2025-07-01')
+    expect(reportRange('prevfy', '2026-10-09')).toEqual({ from: '2025-07-01', to: '2026-06-30', goal: null, noun: 'year', total: 'Jul 2025 to Jun 2026' })
+    expect(reportRange('prevfy', '2026-06-30')).toMatchObject({ from: '2024-07-01', to: '2025-06-30' })
+    expect(reportRange('quarter', '2026-10-09')).toEqual({ from: '2026-10-01', to: '2026-10-09', goal: 'quarter', noun: 'quarter', total: 'Quarter to date' })
+    expect(reportRange('month', '2026-10-09')).toEqual({ from: '2026-10-01', to: '2026-10-09', goal: 'month', noun: 'month', total: 'Month to date' })
+  })
+
+  it('lists every month of a range, across a year end', () => {
+    expect(monthsBetween('2025-11-15', '2026-02-01')).toEqual(['2025-11', '2025-12', '2026-01', '2026-02'])
+    expect(monthsBetween('2026-10-01', '2026-10-09')).toEqual(['2026-10'])
+  })
+
+  it('says how far into the period today is, as the board does', () => {
+    expect(periodProgress(reportRange('fy', '2026-10-09'), '2026-10-09')).toBe('The year is 4 of 12 months in (33%).')
+    expect(periodProgress(reportRange('quarter', '2026-11-20'), '2026-11-20')).toBe('The quarter is 2 of 3 months in (67%).')
+    expect(periodProgress(reportRange('month', '2026-10-09'), '2026-10-09')).toBe('The month is 9 of 31 days in (29%).')
+  })
+
+  it('adds up won value per month in cents, and the part recorded directly as won', () => {
+    const won = [
+      { closedAt: '2026-07-28T09:00:00', close: '2026-12-01', recordedWonDirectly: false, v: 90000 },
+      { closedAt: null, close: '2026-08-14', recordedWonDirectly: true, v: 12000.5 },
+      { closedAt: '2026-08-02T10:00:00', close: '2026-08-02', v: 1000 },
+    ]
+    const out = wonByMonth(won, d => d.v)
+    expect(out.get('2026-07')).toEqual({ cents: 9000000, recordedCents: 0 })
+    expect(out.get('2026-08')).toEqual({ cents: 1300050, recordedCents: 1200050 })
+  })
+
+  it('reads any metric’s goal target for a goal period, the team before individuals', () => {
+    const gs = [goal({ id: 'a', metric: 'invoiced_cents', period: 'year', target: 4500000 }), goal({ id: 'b', metric: 'invoiced_cents', period: 'year', ownerType: 'user', ownerId: 'u1', target: 1 }), goal({ id: 'c', period: 'year', target: 600000 })]
+    expect(goalTarget(gs, 'invoiced_cents', 'year')).toBe(4500000)
+    expect(goalTarget(gs, 'collected_cents', 'year')).toBeNull()
+    expect(wonValueTarget(gs, 'year')).toBe(600000)
+    expect(wonValueTarget(gs, 'quarter')).toBeNull()
   })
 })

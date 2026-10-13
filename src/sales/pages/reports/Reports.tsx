@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { countableActs, liveDeal } from '../../data/archive'
@@ -6,12 +6,12 @@ import { simReplied } from '../../data/simulated'
 import { S } from '../../data/store'
 import type { BusinessId, Deal } from '../../data/types'
 import {
-  Bars, BizDot, Btn, Card, DataTable, Empty, FilterBar, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, download, toCSV, type Col,
+  Bars, BizDot, Btn, Card, DataTable, Empty, FilterBar, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, Tabs, download, toCSV, type Col,
 } from '../../kit'
 import { INDUSTRIES, PER, type PeriodKey } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import { seqStats, type SeqStats } from '../../shared/seqStats'
-import { UI } from '../../ui/store'
+import { UI, type Route } from '../../ui/store'
 import { ArdorioRevenue } from './ArdorioRevenue'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner', 'Cross-business introduction']
@@ -23,7 +23,24 @@ const R: { textAlign: 'right' } = { textAlign: 'right' }
 interface UserRow { id: string; e: number; c: number; m: number; w: number }
 type SeqRow = SeqStats & { id: string; seqId: string }
 
-export function Reports() {
+const TABS = [['overview', 'Overview'], ['ardorio', 'Ardorio revenue']] as const
+
+/** Reports: the Overview, and for admins of Ardorio (or super) with Ardorio in view, the Ardorio revenue tab (board 5). */
+export function Reports({ route }: { route?: Route } = {}) {
+  const sc = Q.scope()
+  // Ardorio money is for admins of Ardorio (or super) only; everyone else sees no tab, not an error.
+  const ardTab = sc.includes('ard') && Q.canBill()
+  const [tab, setTab] = useState(route?.q?.tab === 'ardorio' ? 'ardorio' : 'overview')
+  const chooseTab = (t: string): void => {
+    setTab(t)
+    UI.setRoute({ q: t === 'ardorio' ? { tab: t } : {} })
+  }
+  const tabs = ardTab ? <Tabs tabs={TABS} value={tab} onChange={chooseTab} /> : null
+  if (ardTab && tab === 'ardorio') return <div className="page"><ArdorioRevenue tabs={tabs} /></div>
+  return <ReportsOverview tabs={tabs} />
+}
+
+function ReportsOverview({ tabs }: { tabs: ReactNode }) {
   const sc = Q.scope()
   const [per, setPer] = useState<PeriodKey>('quarter')
   const [bz, setBz] = useState('')
@@ -81,8 +98,6 @@ export function Reports() {
   const empty = !deals.length && !acts.length
   // Ardorio is one-off project work: no recurring tiles when it is the only business in view.
   const ardOnly = bs.length === 1 && bs[0] === 'ard'
-  // Ardorio money is for admins of Ardorio (or super) only; everyone else sees nothing here, not an error.
-  const ardSection = bs.includes('ard') && Q.canBill() ? <ArdorioRevenue from={from} to={clock} period={per} periodLabel={PER[per][0]} /> : null
 
   const exp = (): void => {
     download('salesos_report.csv', toCSV([
@@ -121,6 +136,7 @@ export function Reports() {
       <PageHead title="Reports" sub={`${PER[per][0]} · recalculated from live records · simulated email and archived deals excluded`}>
         <Btn icon="download" disabled={empty} onClick={exp}>Export CSV</Btn>
       </PageHead>
+      {tabs}
       <div className="card" style={{ marginBottom: 14 }}>
         <FilterBar>
           <Sel className="sm" style={{ width: 130 }} value={per} onChange={v => setPer(v as PeriodKey)} aria-label="Period" options={(Object.keys(PER) as PeriodKey[]).map(k => [k, PER[k][0]] as const)} />
@@ -137,7 +153,6 @@ export function Reports() {
           <Card>
             <Empty icon="chart" title="No reports available for these filters" body="There is no recorded activity or deal data for this combination. Widen the date range or clear filters." action={<Btn onClick={reset}>Reset filters</Btn>} />
           </Card>
-          {ardSection && <div style={{ marginTop: 16 }}>{ardSection}</div>}
         </>
       ) : (
         <>
@@ -174,7 +189,6 @@ export function Reports() {
             <Kpi label="Forecast (commit)" value={F.money(sum(open.filter(d => d.forecast === 'Commit'), Q.weighted), 1)} />
             {!ardOnly && <Kpi label="Recurring (won ARR)" value={F.money(sum(deals.filter(d => d.status === 'won' && d.recurring), d => d.value), 1)} />}
           </div>
-          {ardSection}
           <div className="grid g2" style={{ marginBottom: 14 }}>
             <Card title="Sales activity trend" right={<Legend items={[['Emails', 'var(--acc)', LINE_DASH[0]], ['Calls', '#0E8A7E', LINE_DASH[1]], ['Meetings', '#D9572B', LINE_DASH[2]], ['LinkedIn', '#8E8897', LINE_DASH[3]]]} />}>
               <Line label="Sales activity trend by week" labels={weeks.map(x => x.l)} series={[

@@ -123,6 +123,7 @@ describe('Goals: money metrics', () => {
     expect(inv.slice(3, 8)).toEqual(['$20,000', '—', 'Only Ardorio admins can see invoiced and collected.', '—', '—'])
     // Won value is not report money: it still shows.
     expect(cells('Individual targets', 'Won value')[4]).toBe('$42,500')
+    expect(button(host, 'Ardorio revenue report')).toBeUndefined()
   })
 
   it('says why when the server refuses, and offers a retry when it fails', async () => {
@@ -150,6 +151,14 @@ describe('Goals: money metrics', () => {
     // $45,000 (d1's contract) + $2,500 (d2 has no contract: its deal value).
     expect(cells('Individual targets', 'Won value').slice(3, 5)).toEqual(['$50,000', '$47,500'])
     expect(cells('Team targets', 'Won value').slice(3, 5)).toEqual(['$100,000', '$57,500'])
+  })
+
+  it('links an Ardorio admin to the Ardorio revenue tab of Reports, as board 6 does', async () => {
+    await show()
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, 'Ardorio revenue report'))
+    expect(nav.mock.calls[0]?.[0]).toBe(`/sales/reports?q=${encodeURIComponent(JSON.stringify({ tab: 'ardorio' }))}`)
   })
 
   it('measures a financial year goal from 1 July, against the whole financial year before', async () => {
