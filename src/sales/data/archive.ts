@@ -1,5 +1,6 @@
 import { F } from './F'
 import { Q } from './Q'
+import { realActs } from './simulated'
 import { idx, S } from './store'
 import type { Activity, Company, Contact, Deal, Sequence } from './types'
 
@@ -29,6 +30,12 @@ export const seqArchived = (s: Sequence): boolean => s.archived === true || s.st
 export function onArchivedDeal(a: Pick<Activity, 'dealId'>): boolean {
   return !!a.dealId && idx.deals.get(a.dealId)?.archived === true
 }
+
+/**
+ * Activities that count anywhere numbers are shown (dashboard, reports, goals): really happened, and not logged on
+ * an archived deal.
+ */
+export const countableActs = <T extends Activity>(acts: readonly T[]): T[] => realActs(acts).filter(a => !onArchivedDeal(a))
 
 /** Enrolments of a contact that archiving would stop, across every business. */
 export function stoppableEnrolments(contactId: string): number {

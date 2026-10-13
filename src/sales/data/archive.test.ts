@@ -79,6 +79,16 @@ describe('archiving a deal', () => {
     expect(m.A.onArchivedDeal({ dealId: null })).toBe(false)
   })
 
+  it('countableActs drops activity on an archived deal and simulated activity, the same set every screen counts', async () => {
+    const m = await setup({
+      activities: [call('a1', 'dl1'), call('a2', 'dl2'), call('a3', null), rec('a4', { type: 'meeting_booked', businessId: 'ros', actorId: 'u-me', ts: '2026-10-09T12:00', visibility: 'business', dealId: 'dl2', simulated: true })],
+    })
+    const ids = () => m.A.countableActs(m.store.S.activities).map(a => a.id).sort()
+    expect(ids()).toEqual(['a1', 'a2', 'a3'])
+    m.Act.archiveDeal('dl1')
+    expect(ids()).toEqual(['a2', 'a3'])
+  })
+
   it('only admins of the business may archive or restore deals and sequences', async () => {
     const m = await setup()
     const d = m.Q.deal('dl1')
