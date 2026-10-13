@@ -213,3 +213,49 @@ describe('rollback', () => {
     expect(store.S.companies[0].name).toBe('Acme')
   })
 })
+
+describe('op outcomes for watchers (watch.ts)', () => {
+  async function watched() {
+    const m = await seeded()
+    const watch = await import('./watch')
+    m.store.S.companies.push({ ...CO, id: 'co2' } as never)
+    m.store.S.companies.push({ ...CO, id: 'co3' } as never)
+    const plans = m.plan.collectPlan()
+    const p2 = plans.find(p => p.id === 'co2')!
+    const p3 = plans.find(p => p.id === 'co3')!
+    return { ...m, watch, p2, p3 }
+  }
+
+  it('resolves ok once every watched create is accepted', async () => {
+    const { results, watch, p2, p3 } = await watched()
+    let out: unknown = null
+    void watch.watchAll([['companies', 'co2'], ['companies', 'co3']]).then(o => { out = o })
+    results.applyResult(p2, result({ id: 'co2', record: envelope({ id: 'co2', data: { ...CO, id: 'co2' } }) }))
+    await Promise.resolve()
+    expect(out).toBeNull()
+    results.applyResult(p3, result({ id: 'co3', record: envelope({ id: 'co3', data: { ...CO, id: 'co3' } }) }))
+    await Promise.resolve()
+    expect(out).toEqual({ ok: true })
+  })
+
+  it('resolves with the refusal at the first rejected create, but not on CONTENTION', async () => {
+    const { results, watch, p2, p3 } = await watched()
+    let out: unknown = null
+    void watch.watchAll([['companies', 'co2'], ['companies', 'co3']]).then(o => { out = o })
+    expect(results.applyResult(p2, result({ id: 'co2', status: 'rejected', rev: null, record: null, error: { code: 'CONTENTION', message: 'busy' } }))).toBe(true)
+    await Promise.resolve()
+    expect(out).toBeNull()
+    results.applyResult(p3, result({ id: 'co3', status: 'rejected', rev: null, record: null, error: { code: 'ROLE_REQUIRED', message: 'role required' } }))
+    await Promise.resolve()
+    expect(out).toEqual({ ok: false, error: "You don't have permission to do that" })
+  })
+
+  it('a rolled-back request is a refusal with its reason', async () => {
+    const { results, watch, p2 } = await watched()
+    let out: unknown = null
+    void watch.watchAll([['companies', 'co2']]).then(o => { out = o })
+    results.rollbackPlan([p2], 'That record is too large')
+    await Promise.resolve()
+    expect(out).toEqual({ ok: false, error: 'That record is too large' })
+  })
+})

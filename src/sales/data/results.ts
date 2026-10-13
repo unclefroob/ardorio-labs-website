@@ -7,6 +7,7 @@ import { fieldLabel } from './fieldLabels'
 import { getMyProfile } from './session'
 import { localData, removeLocal, writeLocal, type Planned } from './plan'
 import { metaMap, normalise, type RecMeta, type SyncedCollection } from './store'
+import { settleOp, type OpOutcome } from './watch'
 
 const PERMISSION_CODES = new Set(['ROLE_REQUIRED', 'READ_ONLY', 'APPEND_ONLY', 'IMMUTABLE_FIELD'])
 
@@ -54,8 +55,12 @@ export function rollback(p: Planned): void {
   mm.set(p.id, { ...m, base: stable(merged) === m.snapStr ? null : m.base })
 }
 
-export function rollbackPlan(items: readonly Planned[]): void {
-  for (const p of items) rollback(p)
+/** Undo ops the server never accepted (a refused or abandoned request). `reason` is told to anyone watching them. */
+export function rollbackPlan(items: readonly Planned[], reason = 'It was not saved'): void {
+  for (const p of items) {
+    rollback(p)
+    if (p.kind !== 'delete') settleOp(p.c, p.id, { ok: false, error: reason })
+  }
 }
 
 function reject(p: Planned, r: OpResult): void {
@@ -86,6 +91,24 @@ function reject(p: Planned, r: OpResult): void {
 
 /** Apply one OpResult (contract 5.2). Returns true when the op must stay queued for a later flush. */
 export function applyResult(p: Planned, r: OpResult): boolean {
+  const keep = applyOne(p, r)
+  if (!keep && p.kind !== 'delete') settleOp(p.c, p.id, outcome(r))
+  return keep
+}
+
+/** What a watcher of this record hears about the op (see watch.ts). */
+function outcome(r: OpResult): OpOutcome {
+  if (r.status === 'rejected') {
+    // Sent twice: the server already has it.
+    if (r.error?.code === 'DUPLICATE_SEND') return { ok: true }
+    if (r.error?.code && PERMISSION_CODES.has(r.error.code)) return { ok: false, error: "You don't have permission to do that" }
+    return { ok: false, error: r.error?.message || 'It was not saved' }
+  }
+  if (r.status === 'conflict' && r.conflict?.kind === 'deleted') return { ok: false, error: 'It was removed by a teammate' }
+  return { ok: true }
+}
+
+function applyOne(p: Planned, r: OpResult): boolean {
   const { c, id } = p
   const mm = metaMap(c)
   const env = r.record
