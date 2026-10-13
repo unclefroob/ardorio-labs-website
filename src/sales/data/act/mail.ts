@@ -117,6 +117,8 @@ export function sendEmail(f: SendEmailForm): SendResult {
       id: uid('th'), businessId: f.businessId, mailboxId: mb.id, subject: f.subject, contactId: f.contactId, companyId: f.companyId || ct?.companyId,
       dealId: f.dealId || null, visibility: mb.type === 'personal' ? 'private' : 'shared', ownerId: S.session.userId, assigneeId: S.session.userId,
       unread: false, archived: false, classification: null, needsReply: false, sharedWith: [], updatedAt: now,
+      // Nothing leaves SalesOS from this path yet, so a thread it starts is simulated (see data/simulated.ts).
+      simulated: true,
     }
     S.threads.push(t)
     idx.threads.set(t.id, t)
@@ -127,6 +129,7 @@ export function sendEmail(f: SendEmailForm): SendResult {
     S.messages.push(m)
   }
   Object.assign(m, { dir: 'out', from: mb.address, to: f.to, cc: f.cc || '', subject: f.subject, body: f.body, ts: now, status: f.draft ? 'draft' : 'sent', mailboxId: mb.id })
+  if (!f.draft) m.simulated = true
   t.updatedAt = now
   if (!f.draft) {
     t.needsReply = false
@@ -134,6 +137,7 @@ export function sendEmail(f: SendEmailForm): SendResult {
     act({
       type: 'email_out', businessId: f.businessId, companyId: t.companyId, contactId: t.contactId, dealId: t.dealId, messageId: m.id, subject: f.subject,
       desc: `Sent from ${mb.address} (simulated)`, visibility: t.visibility === 'private' ? 'private' : 'business', ownerId: t.ownerId,
+      simulated: true,
     })
     audit('Email simulated as sent', `${f.subject} → ${f.to}`)
   }
@@ -240,6 +244,7 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
     t = {
       id: uid('th'), businessId: b, mailboxId: mb.id, subject: `Enquiry from ${ct.name}`, contactId: ct.id, companyId: ct.companyId, dealId: null,
       visibility: 'shared', ownerId: owner, assigneeId: owner, unread: true, archived: false, classification: null, needsReply: true, sharedWith: [], updatedAt: ts,
+      simulated: true,
     }
     S.threads.push(t)
     idx.threads.set(t.id, t)
@@ -247,7 +252,7 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
   const mb = idx.mailboxes.get(t.mailboxId)
   const m: Message = {
     id: uid('em'), threadId: t.id, dir: 'in', from: ct.email || 'unknown@example', to: mb?.address ?? '', cc: '',
-    subject: `Re: ${t.subject.replace(/^Re: /, '')}`, body: o.text, ts, status: 'received',
+    subject: `Re: ${t.subject.replace(/^Re: /, '')}`, body: o.text, ts, status: 'received', simulated: true,
   }
   S.messages.push(m)
   const cl = o.classification ?? classify(o.text)
@@ -261,7 +266,7 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
   const vis = t.visibility === 'private' ? 'private' : 'business'
   act({
     type: 'email_in', businessId: b, actorId: owner, companyId: ct.companyId, contactId: ct.id, dealId: t.dealId, messageId: m.id, seqId: t.seqId,
-    subject: `Reply: ${cl.cat}`, desc: o.text.slice(0, 160), ts, visibility: vis, ownerId: owner,
+    subject: `Reply: ${cl.cat}`, desc: o.text.slice(0, 160), ts, visibility: vis, ownerId: owner, simulated: true,
   })
   const live = S.enrolments.filter(x => x.contactId === ct.id && x.businessId === b && LIVE.includes(x.status))
   const discardPending = (list: typeof live): void => {
@@ -292,7 +297,7 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
     })
     ct.deliverability = 'Bounced'
     ct.verification = 'Invalid'
-    act({ type: 'bounce', businessId: b, actorId: owner, contactId: ct.id, companyId: ct.companyId, subject: `Email bounced — ${ct.email}`, ts })
+    act({ type: 'bounce', businessId: b, actorId: owner, contactId: ct.id, companyId: ct.companyId, subject: `Email bounced — ${ct.email}`, ts, simulated: true })
     notify([owner], { type: 'Sequence failure', title: `Email to ${ct.name} bounced`, body: 'Address suppressed; outreach stopped.', link: { page: 'contact', id: ct.id } })
     impact = 'Stopped — bounced · address suppressed'
   } else {
@@ -304,7 +309,7 @@ export function simulateReply(o: SimulateReplyOpts): Thread | undefined {
     discardPending(live)
     if (live.length) {
       impact = 'Sequence paused — reply needs review'
-      act({ type: 'seq_paused', businessId: b, actorId: owner, contactId: ct.id, companyId: ct.companyId, seqId: live[0].seqId, subject: 'Sequence paused after reply', ts })
+      act({ type: 'seq_paused', businessId: b, actorId: owner, contactId: ct.id, companyId: ct.companyId, seqId: live[0].seqId, subject: 'Sequence paused after reply', ts, simulated: true })
     }
     const r = Q.crel(ct.id, b)
     if (r && ['Interested', 'Meeting Requested', 'More Information Requested', 'Referral'].includes(cl.cat)) r.leadStatus = 'Engaged'
@@ -351,7 +356,7 @@ export function simEvent(kind: 'email_open' | 'link_click' | 'meeting_booked', c
   const b = e?.businessId ?? Q.primaryBiz(ct)
   if (!b) return
   const subject = kind === 'email_open' ? 'Email opened (simulated tracking — unreliable signal)' : kind === 'link_click' ? 'Tracked link clicked (simulated)' : 'Meeting booked via scheduling link'
-  act({ type: kind, businessId: b, contactId: ctid, companyId: ct.companyId, seqId: e?.seqId, subject, actorId: e ? e.ownerId : S.session.userId })
+  act({ type: kind, businessId: b, contactId: ctid, companyId: ct.companyId, seqId: e?.seqId, subject, actorId: e ? e.ownerId : S.session.userId, simulated: true })
   if (kind === 'meeting_booked' && e && ['active', 'awaiting_approval', 'awaiting_task'].includes(e.status)) {
     e.status = 'completed'
     e.reason = 'Meeting booked'

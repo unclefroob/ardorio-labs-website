@@ -375,6 +375,8 @@ export interface Thread {
   needsReply: boolean
   sharedWith: string[]
   updatedAt: Iso
+  /** True when this thread was started by a simulated path (simulated mail). See data/simulated.ts for legacy records. */
+  simulated?: boolean
   [k: string]: unknown
 }
 export interface Message {
@@ -394,6 +396,8 @@ export interface Message {
   /** True for a message the rep sent by hand and marked as sent (SalesOS never sends email itself). */
   manual?: boolean
   sentAt?: string
+  /** True when this was never really sent or received (simulated mail). See data/simulated.ts for legacy records. */
+  simulated?: boolean
   [k: string]: unknown
 }
 
@@ -501,6 +505,8 @@ export interface Activity {
   desc?: string
   outcome?: string
   dup?: boolean
+  /** True when a simulated path recorded this (no real email, reply or tracking event). Never counted in metrics. */
+  simulated?: boolean
   [k: string]: unknown
 }
 

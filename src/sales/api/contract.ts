@@ -25,6 +25,13 @@ export type SettingsId = typeof SETTINGS_IDS[number]
 
 export type RecordData = Record<string, unknown>
 
+/**
+ * Simulated mail (additive, data-only): `threads`, `messages` and `activities` records that were never really
+ * sent or received carry `simulated: true`. A message the rep sent by hand keeps the existing `manual: true`
+ * flag instead. Real mail sync must write `simulated: false`. Web legacy rules live in data/simulated.ts.
+ */
+export interface SimulatedFlag { simulated?: boolean }
+
 export interface Permissions { read: boolean; edit: boolean; manage: boolean; admin: boolean }
 
 export interface MeDTO {
