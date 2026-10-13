@@ -7,7 +7,8 @@ import type { Activity, Message, Thread } from './types'
  * SalesOS has no real mail send or inbound sync yet. The composer and Inbox reply (`sendEmail`) and the
  * "Simulate reply" demo control (`simulateReply`) only write records, so those records carry
  * `simulated: true`: the message, the thread they create, and the `email_out` / `email_in` activity.
- * The demo tracking events (`simEvent`) carry it on their activity too. A message the rep sent from their
+ * The demo tracking events (`simEvent`) carry it on their activity too, and a demo "meeting booked" that ends an
+ * enrolment marks the enrolment `reasonSimulated: true`, so its "Meeting booked" exit is not counted either. A message the rep sent from their
  * own mail client and marked as sent (`markEmailSent`) is real and keeps the existing `manual: true` flag.
  *
  * Simulated records are shown with a Simulated chip and never count in Goals, Reports, the dashboard,

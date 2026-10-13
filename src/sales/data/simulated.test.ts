@@ -153,3 +153,38 @@ describe('simulated paths write the flag', () => {
     expect(after?.parts.find(p => p[0] === 'Buying signals')?.[1]).toBe(before?.parts.find(p => p[0] === 'Buying signals')?.[1])
   })
 })
+
+describe('a simulated meeting booked never counts in sequence stats', () => {
+  const ended = (over: Record<string, unknown> = {}) => rec('en1', {
+    seqId: 'sq1', contactId: 'ct1', businessId: 'ros', ownerId: 'u-me', mailboxId: 'mb1', status: 'completed', stepIdx: 0, nextDue: null,
+    startedAt: '2026-10-09T09:00', threadId: null, history: [], reason: 'Meeting booked', ...over,
+  })
+  const meeting = (id: string, over: Record<string, unknown> = {}) => rec(id, {
+    type: 'meeting_booked', businessId: 'ros', actorId: 'u-me', contactId: 'ct1', companyId: 'co1', seqId: 'sq1', ts: '2026-10-09T09:30', visibility: 'business',
+    subject: 'Meeting booked via scheduling link', ...over,
+  })
+
+  it('simEvent ends the enrolment with a flagged reason, and the Meetings count stays at zero', async () => {
+    const m = await setup()
+    const { seqStats } = await import('../shared/seqStats')
+    m.Act.simEvent('meeting_booked', 'ct1')
+    expect(m.store.S.enrolments[0]).toMatchObject({ status: 'completed', reason: 'Meeting booked', reasonSimulated: true })
+    expect(seqStats(m.store.S.sequences[0]).meetings).toBe(0)
+  })
+
+  it('an older demo exit, backed only by a simulated meeting activity, does not count', async () => {
+    const m = await setup({ enrolments: [ended()], activities: [meeting('ac1', { simulated: true })] })
+    const { seqStats, simMeetingExit } = await import('../shared/seqStats')
+    expect(simMeetingExit(m.store.S.enrolments[0])).toBe(true)
+    expect(seqStats(m.store.S.sequences[0]).meetings).toBe(0)
+  })
+
+  it('a real meeting exit still counts: one with a real meeting behind it, or with no activity at all', async () => {
+    const m = await setup({ enrolments: [ended()], activities: [meeting('ac1', { simulated: true }), meeting('ac2', { subject: 'Meeting booked from call', ts: '2026-10-09T09:40' })] })
+    const { simMeetingExit } = await import('../shared/seqStats')
+    expect(simMeetingExit(m.store.S.enrolments[0])).toBe(false)
+    const n = await setup({ enrolments: [ended()] })
+    const { seqStats } = await import('../shared/seqStats')
+    expect(seqStats(n.store.S.sequences[0]).meetings).toBe(1)
+  })
+})

@@ -360,6 +360,7 @@ export function simEvent(kind: 'email_open' | 'link_click' | 'meeting_booked', c
   if (kind === 'meeting_booked' && e && ['active', 'awaiting_approval', 'awaiting_task'].includes(e.status)) {
     e.status = 'completed'
     e.reason = 'Meeting booked'
+    e.reasonSimulated = true
     e.nextDue = null
     notify([e.ownerId], { type: 'Meeting approaching', title: `${ct.name} booked a meeting`, link: { page: 'contact', id: ctid } })
   }

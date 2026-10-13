@@ -348,6 +348,8 @@ export interface Enrolment {
   threadId: string | null
   history: unknown[]
   reason: string
+  /** Set when `reason` was written by a simulated path (the demo "meeting booked" event), so it never counts. */
+  reasonSimulated?: boolean
   completedAt?: Iso
   pendingMsgId?: string | null
   taskId?: string
