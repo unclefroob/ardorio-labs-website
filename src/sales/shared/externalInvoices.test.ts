@@ -3,7 +3,7 @@ import type { InvoiceDto } from '../api/contract'
 import { dto } from '../testing/invoicingWorld'
 import { isRetainerInvoice, moneyForDeal } from './billing'
 import {
-  aud, blankExternal, buildExternal, checkExternal, confirmText, externalLabel, formFromExternal, invoiceRef, monthOf, paidBeforeIssued, patchExternal, previewLine,
+  aud, blankExternal, buildExternal, checkExternal, confirmText, externalLabel, formFromExternal, invoiceRef, monthOf, PAID_IN_FULL_ERROR, paidBeforeIssued, PART_PAYMENT_HINT, patchExternal, previewLine,
   recordedLine, REFERENCE_REQUIRED, tenPercent, type ExternalForm,
 } from './externalInvoices'
 import { actionsFor, activityItems, cancelConsequences, filterInvoices } from './invoices'
@@ -48,17 +48,29 @@ describe('External invoices: names', () => {
 })
 
 describe('External invoices: the form', () => {
-  it('suggests GST at 10% and the amount paid at the total until each is typed over', () => {
+  it('suggests GST at 10% until it is typed over', () => {
     const f = filled()
     expect(f.gst).toBe('8000.00')
-    expect(f.paidAmount).toBe('88000.00')
     const zeroRated = patchExternal(f, { gst: '0' })
     expect(zeroRated.gstEdited).toBe(true)
-    expect(zeroRated.paidAmount).toBe('80000.00')
     // Once typed over, GST no longer follows the amount.
     expect(patchExternal(zeroRated, { amount: '100' }).gst).toBe('0')
-    const part = patchExternal(f, { paidAmount: '40000' })
-    expect(patchExternal(part, { amount: '90000' }).paidAmount).toBe('40000')
+  })
+
+  it('a paid record is paid in full: the amount paid sent is always subtotal + GST', () => {
+    const f = filled()
+    expect('paidAmount' in f).toBe(false)
+    const full = checkExternal(f, TODAY)
+    if (!full.ok) throw new Error('expected ok')
+    expect(full.paidAmountCents).toBe(8_800_000)
+    expect(buildExternal(f, 'co1', full).paidAmountCents).toBe(full.subtotalCents + full.gstCents)
+    // Zero-rated, and after the amount changes, it follows the new total.
+    const zero = patchExternal(patchExternal(f, { gst: '0' }), { amount: '1234.56' })
+    const z = checkExternal(zero, TODAY)
+    if (!z.ok) throw new Error('expected ok')
+    expect(buildExternal(zero, 'co1', z).paidAmountCents).toBe(123_456)
+    expect(PART_PAYMENT_HINT).toBe('Paid only part? Record the part paid as its own record, and the rest as an unpaid record.')
+    expect(PAID_IN_FULL_ERROR).toContain(PART_PAYMENT_HINT)
   })
 
   it('accepts board 9 and builds the API body, ex GST cents, with the payment', () => {
@@ -100,13 +112,12 @@ describe('External invoices: the form', () => {
     // GST was suggested from the old amount, so it is now more than the amount too.
     expect(Object.keys(r.errors).sort()).toEqual(['amount', 'dealId', 'gst', 'reference'])
     expect(checkExternal(filled({ amount: '1000000.01' }), TODAY).errors.amount).toContain('at most')
-    expect(checkExternal(filled({ paidAmount: '' }), TODAY).errors.paidAmount).toBe('Enter the amount received, like 88000.00')
     expect(checkExternal(filled({ notes: 'a'.repeat(501) }), TODAY).errors.notes).toBe('Keep the notes to 500 characters')
   })
 
   it('reads an existing record back into the form', () => {
     const f = formFromExternal(ext(), TODAY)
-    expect(f).toMatchObject({ dealId: 'dl1', milestoneId: 'm1', source: 'xero', reference: 'INV-0457', issueDate: '2026-03-10', amount: '80000.00', gst: '8000.00', gstEdited: false, paid: true, paidOn: '2026-04-09', paidAmount: '88000.00', paidAmountEdited: false })
+    expect(f).toMatchObject({ dealId: 'dl1', milestoneId: 'm1', source: 'xero', reference: 'INV-0457', issueDate: '2026-03-10', amount: '80000.00', gst: '8000.00', gstEdited: false, paid: true, paidOn: '2026-04-09' })
     expect(formFromExternal(ext({ status: 'sent', payment: null, gstCents: 0, totalCents: 8_000_000 }), TODAY)).toMatchObject({ paid: false, paidOn: TODAY, gst: '0.00', gstEdited: true })
   })
 })

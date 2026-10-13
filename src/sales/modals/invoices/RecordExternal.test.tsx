@@ -7,7 +7,7 @@ import { button, click, field, settle, type } from '../../testing/dom'
 import { ardDeal, dto, invoicingWorld, PLAN_DATA, setArdRole } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
 import { fakeApi, json } from '../../testing/rosterioWorld'
-import { EXTERNAL_DENIED_TITLE, REFERENCE_REQUIRED } from '../../shared/externalInvoices'
+import { EXTERNAL_DENIED_TITLE, PAID_IN_FULL_ERROR, PART_PAYMENT_HINT, REFERENCE_REQUIRED } from '../../shared/externalInvoices'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: () => Promise.resolve(changes([])), getBootstrap: vi.fn() }))
@@ -98,7 +98,10 @@ describe('Record external invoice or payment (board 9)', () => {
     await fillBoard()
     expect((fld('GST') as HTMLInputElement).value).toBe('8000.00')
     expect((fld('Total inc GST') as HTMLInputElement).value).toBe('$88,000.00')
-    expect((fld('Amount paid (A$, inc GST)') as HTMLInputElement).value).toBe('88000.00')
+    // Paid in full: the amount paid is the total, shown, not typed.
+    const paidAmt = fld('Amount paid (inc GST)') as HTMLInputElement
+    expect(paidAmt.value).toBe('$88,000.00')
+    expect(paidAmt.readOnly).toBe(true)
     expect(dtext()).toContain('Adds A$80,000 to Invoiced in March 2026 and to Collected in April 2026.')
     expect(dtext()).toContain('Marks Discovery and design as Paid.')
     expect(dtext()).toContain('Shown everywhere as Recorded externally with Xero INV-0457.')
@@ -127,6 +130,77 @@ describe('Record external invoice or payment (board 9)', () => {
     await settle(4)
     const body = api.calls.find(c => `${c.method} ${c.path}` === POST)?.body as Record<string, unknown>
     expect(body).toMatchObject({ externalSource: 'other-system', externalReference: 'MYOB 2231', subtotalCents: 120_000, gstCents: 0, paidOn: null, paymentMethod: null, paidAmountCents: null, milestoneId: null })
+  })
+})
+
+describe('Record external: a paid record is paid in full', () => {
+  it('has no amount paid to type: it follows the total, and says how to record a part payment', async () => {
+    const { api } = await open({ dealId: 'dl1' }, { [POST]: () => json(201, saved({ subtotalCents: 50_000, gstCents: 0, totalCents: 50_000 })) })
+    await fillBoard()
+    expect(dialog().querySelectorAll('#ext-paidamt:not([readonly])')).toHaveLength(0)
+    expect(dialog().querySelector('[data-part-payment]')?.textContent).toBe(PART_PAYMENT_HINT)
+    await type(fld('Amount (A$, ex GST)'), '500')
+    await type(fld('GST'), '0')
+    expect((fld('Amount paid (inc GST)') as HTMLInputElement).value).toBe('$500.00')
+    // The live preview still counts the ex GST amount, invoiced and collected.
+    expect(dtext()).toContain('Adds A$500 to Invoiced in March 2026 and to Collected in April 2026.')
+    await click(button(dialog(), 'Record'))
+    await settle(4)
+    expect(api.calls.find(c => `${c.method} ${c.path}` === POST)?.body).toMatchObject({ subtotalCents: 50_000, gstCents: 0, paidAmountCents: 50_000 })
+  })
+
+  it('a paidAmountCents refusal from the server is shown on the amount paid, in words', async () => {
+    await open({ dealId: 'dl1' }, {
+      [POST]: () => json(400, { error: 'The amount paid must be the invoice total incl. GST (8800000 cents).', code: 'VALIDATION', details: { field: 'paidAmountCents' } }),
+    })
+    await fillBoard()
+    await click(button(dialog(), 'Record'))
+    await settle(4)
+    expect(fld('Amount paid (inc GST)')?.getAttribute('aria-invalid')).toBe('true')
+    expect(dtext()).toContain(PAID_IN_FULL_ERROR)
+    expect(dtext()).not.toContain('8800000 cents')
+    expect(modals()).toEqual(['recordExternal'])
+  })
+
+  it('editing an older part-paid record says saving makes it paid in full, and sends the total', async () => {
+    const part = saved({ payment: { method: 'bank-transfer', paidAt: '2026-04-09', amountCents: 4_000_000, reference: 'INV-0457' } })
+    const { api } = await open({ invoice: part }, { [PUT]: () => json(200, saved()) })
+    expect(dtext()).toContain('This record was saved as paid $40,000.00, part of its total. Saving records it as paid in full ($88,000.00).')
+    await click(button(dialog(), 'Save changes'))
+    await settle(4)
+    expect(api.calls.find(c => `${c.method} ${c.path}` === PUT)?.body).toMatchObject({ paidAmountCents: 8_800_000 })
+  })
+})
+
+describe('Record external: the company is billed under more than one client', () => {
+  const CONFLICT = () => json(409, {
+    error: 'This company’s earlier invoices bill more than one billing client: link the right one to the company first, then record this.',
+    code: 'CONFLICT', details: { field: 'companyId', clientSlugs: ['tidewater-foods', 'tidewater-group'], needsBillingLink: true },
+  })
+
+  it('names the clients, saves nothing, and Open billing details goes to the company’s billing link', async () => {
+    const { api, nav } = await open({ dealId: 'dl1' }, { [POST]: CONFLICT })
+    await fillBoard()
+    await click(button(dialog(), 'Record'))
+    await settle(4)
+    const note = dialog().querySelector('[data-needs-billing-link]')
+    expect(note?.getAttribute('role')).toBe('alert')
+    expect(note?.textContent).toContain('This company is billed under more than one client: tidewater-foods, tidewater-group. Link the right one to the company first.')
+    expect(toasts()).toEqual([])
+    expect(modals()).toEqual(['recordExternal'])
+    expect(api.count(POST)).toBe(1)
+    await click(button(dialog(), 'Open billing details'))
+    expect(modals()).toEqual([])
+    const url = String(nav.mock.calls.at(-1)?.[0])
+    expect(url).toContain('co1')
+    expect(url).toContain('billing-details')
+  })
+
+  it('on edit (PUT) says the same', async () => {
+    await open({ invoice: saved() }, { [PUT]: CONFLICT })
+    await click(button(dialog(), 'Save changes'))
+    await settle(4)
+    expect(dialog().querySelector('[data-needs-billing-link]')?.textContent).toContain('tidewater-foods, tidewater-group')
   })
 })
 

@@ -21,6 +21,9 @@ export const EXTERNAL_CHIP = 'Recorded externally'
 export const EXTERNAL_DENIED_TITLE = 'Ask an admin to record external invoices'
 export const EXTERNAL_DENIED_BODY = 'Only Ardorio admins can add invoices or payments from other systems, because they change revenue figures for past months. You can still record a won deal.'
 export const REFERENCE_REQUIRED = 'Add the reference from the other system, for example Xero INV-0457.'
+export const PART_PAYMENT_HINT = 'Paid only part? Record the part paid as its own record, and the rest as an unpaid record.'
+/** Shown on the amount paid when the server refuses it (400 VALIDATION on paidAmountCents). */
+export const PAID_IN_FULL_ERROR = `A paid record is paid in full: the amount paid is the total inc GST. ${PART_PAYMENT_HINT}`
 
 export const isExternal = (inv: Pick<InvoiceDto, 'source'> & Partial<Pick<InvoiceDto, 'external'>>): boolean => inv.source === 'external'
 
@@ -59,12 +62,10 @@ export interface ExternalForm {
   paid: boolean
   paidOn: string
   method: InvoicePaymentMethod
-  /** Inc GST. Follows the total until it is typed over. */
-  paidAmount: string
-  paidAmountEdited: boolean
   notes: string
 }
 
+/** 'paidAmount' is never typed (a paid record is paid in full); it is where a server refusal of the amount paid shows. */
 export type ExternalField = 'dealId' | 'reference' | 'issueDate' | 'amount' | 'gst' | 'paidOn' | 'paidAmount' | 'notes'
 export type ExternalErrors = Partial<Record<ExternalField, string>>
 
@@ -74,7 +75,7 @@ export const tenPercent = (cents: number): number => Math.floor((cents + 5) / 10
 export function blankExternal(today: string, d: { dealId?: string; milestoneId?: string } = {}): ExternalForm {
   return {
     dealId: d.dealId ?? '', milestoneId: d.milestoneId ?? '', source: 'xero', reference: '', issueDate: today, amount: '', gst: '', gstEdited: false,
-    paid: false, paidOn: today, method: 'bank-transfer', paidAmount: '', paidAmountEdited: false, notes: '',
+    paid: false, paidOn: today, method: 'bank-transfer', notes: '',
   }
 }
 
@@ -85,25 +86,19 @@ export function formFromExternal(inv: InvoiceDto, today: string): ExternalForm {
     source: inv.external?.source ?? 'other-system', reference: inv.external?.reference ?? '',
     issueDate: inv.issueDate, amount: centsToInput(inv.subtotalCents), gst: centsToInput(inv.gstCents),
     gstEdited: inv.gstCents !== tenPercent(inv.subtotalCents),
-    paid: !!p, paidOn: p?.paidAt.slice(0, 10) ?? today, method: p?.method ?? 'bank-transfer',
-    paidAmount: centsToInput(p?.amountCents ?? inv.totalCents), paidAmountEdited: !!p && p.amountCents !== inv.totalCents, notes: inv.notes,
+    paid: !!p, paidOn: p?.paidAt.slice(0, 10) ?? today, method: p?.method ?? 'bank-transfer', notes: inv.notes,
   }
 }
 
 /**
- * Apply a change the way the form does: GST tracks 10% of the amount until edited, and the amount paid tracks the total
- * until edited. Typing into GST or the amount paid marks it edited.
+ * Apply a change the way the form does: GST tracks 10% of the amount until it is typed over. There is no amount paid
+ * to type: a paid record is paid in full (the API refuses anything else).
  */
 export function patchExternal(f: ExternalForm, patch: Partial<ExternalForm>): ExternalForm {
   const next = { ...f, ...patch }
   if (patch.gst !== undefined) next.gstEdited = true
-  if (patch.paidAmount !== undefined) next.paidAmountEdited = true
   const sub = parseCents(next.amount)
   if (!next.gstEdited) next.gst = sub === null ? '' : centsToInput(tenPercent(sub))
-  if (!next.paidAmountEdited) {
-    const gst = parseCents(next.gst)
-    next.paidAmount = sub === null || gst === null ? '' : centsToInput(sub + gst)
-  }
   return next
 }
 
@@ -118,7 +113,8 @@ export const paidBeforeIssued = (paidOn: string, issueDate: string): string =>
 
 /**
  * Every problem at once, keyed by field, mirroring the API's rules (reference required, dates not in the future,
- * paid not before issued, GST from 0 up to the amount). `today` is the latest date allowed.
+ * paid not before issued, GST from 0 up to the amount). `today` is the latest date allowed. A paid record's amount paid
+ * is always the total, subtotal + GST.
  */
 export function checkExternal(f: ExternalForm, today: string): { ok: true; errors: ExternalErrors; subtotalCents: number; gstCents: number; paidAmountCents: number | null } | { ok: false; errors: ExternalErrors } {
   const e: ExternalErrors = {}
@@ -140,9 +136,7 @@ export function checkExternal(f: ExternalForm, today: string): { ok: true; error
     if (!isDay(f.paidOn)) e.paidOn = 'Enter the date it was paid'
     else if (f.paidOn > today) e.paidOn = 'The paid date can’t be in the future. Use today or an earlier date.'
     else if (isDay(f.issueDate) && f.paidOn < f.issueDate) e.paidOn = paidBeforeIssued(f.paidOn, f.issueDate)
-    paidCents = parseCents(f.paidAmount)
-    if (paidCents === null || paidCents < 1) e.paidAmount = 'Enter the amount received, like 88000.00'
-    else if (paidCents > EXTERNAL_MAX_PAID_CENTS) e.paidAmount = `The amount paid is at most ${formatCentsTile(EXTERNAL_MAX_PAID_CENTS)}`
+    if (sub !== null && gst !== null) paidCents = sub + gst
   }
   if (f.notes.trim().length > EXTERNAL_NOTES_MAX) e.notes = `Keep the notes to ${EXTERNAL_NOTES_MAX} characters`
   else if (MULTI_LINE_UNSAFE.test(f.notes)) e.notes = 'Use plain text only in the notes'

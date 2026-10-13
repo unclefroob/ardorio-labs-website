@@ -109,3 +109,14 @@ export function errorField(e: unknown): string | null {
   const f = e.body?.details?.field
   return typeof f === 'string' ? f : null
 }
+
+/**
+ * The billing clients to choose between, from the 409 CONFLICT an external record gets when its company has no linked
+ * billing client and its earlier invoices bill two or more unlinked ones (details.needsBillingLink). Null otherwise.
+ */
+export function billingLinkNeeded(e: unknown): string[] | null {
+  if (!(e instanceof SalesHttpError) || e.code !== 'CONFLICT') return null
+  const d = e.body?.details
+  if (d?.needsBillingLink !== true) return null
+  return Array.isArray(d.clientSlugs) ? d.clientSlugs.filter((x: unknown): x is string => typeof x === 'string' && x !== '') : []
+}

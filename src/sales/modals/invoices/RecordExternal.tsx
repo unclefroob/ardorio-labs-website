@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ExternalInvoiceSource, InvoiceDto, InvoicePaymentMethod } from '../../api/contract'
-import { duplicateReference, errorField, getInvoice, invoiceError, recordExternalInvoice, updateExternalInvoice } from '../../api/invoices'
+import { billingLinkNeeded, duplicateReference, errorField, getInvoice, invoiceError, recordExternalInvoice, updateExternalInvoice } from '../../api/invoices'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import { Banner, Btn, Chip, Ck, Fld, Icon, Inp, Modal, Seg, Sel, Spinner, TA } from '../../kit'
 import {
   aud, blankExternal, buildExternal, checkExternal, EXTERNAL_CHIP, EXTERNAL_DENIED_BODY, EXTERNAL_DENIED_TITLE, EXTERNAL_NOTES_MAX, EXTERNAL_SOURCE_LABEL, EXTERNAL_SOURCES,
-  externalLabel, formFromExternal, invoiceRef, patchExternal, previewLine, recordedLine, type ExternalErrors, type ExternalField, type ExternalForm,
+  externalLabel, formFromExternal, invoiceRef, PAID_IN_FULL_ERROR, PART_PAYMENT_HINT, patchExternal, previewLine, recordedLine, type ExternalErrors, type ExternalField, type ExternalForm,
 } from '../../shared/externalInvoices'
 import { fmtDay, METHOD_LABELS, METHOD_ORDER } from '../../shared/invoices'
 import { formatCents, parseCents } from '../../shared/money'
@@ -72,6 +72,8 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
   const [fail, setFail] = useState('')
   const [denied, setDenied] = useState(false)
   const [dup, setDup] = useState<{ invoiceId: string; dealId: string | null; label: string; who: string } | null>(null)
+  // The company is billed under more than one unlinked client: the server saved nothing and needs one linked first.
+  const [needsLink, setNeedsLink] = useState<{ companyId: string; slugs: string[] } | null>(null)
   const inFlight = useRef(false)
   const body = useRef<HTMLDivElement>(null)
 
@@ -86,6 +88,7 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
   const set = (patch: Partial<ExternalForm>): void => {
     setF(prev => patchExternal(prev, patch))
     setServerErr({})
+    if (patch.dealId !== undefined) setNeedsLink(null)
     if (patch.reference !== undefined || patch.source !== undefined) setDup(null)
   }
   const touch = (k: ExternalField) => () => setTouched(t => (t.has(k) ? t : new Set(t).add(k)))
@@ -108,10 +111,13 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
   const total = sub !== null && gst !== null ? sub + gst : null
   const preview = previewLine(f, today)
   const label = f.reference.trim() ? externalLabel({ source: f.source, reference: f.reference }) : ''
+  // An older record saved as paid for part of its total: saving now records it as paid in full.
+  const partPaid = !!invoice?.payment && invoice.payment.amountCents !== invoice.totalCents
 
   const submit = async (): Promise<void> => {
     if (inFlight.current) return
     setFail('')
+    setNeedsLink(null)
     if (!checked.ok) {
       setTries(t => t + 1)
       return
@@ -127,8 +133,11 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
       onDone?.(saved)
     } catch (e) {
       const where = duplicateReference(e)
+      const slugs = billingLinkNeeded(e)
       const r = invoiceError(e, 'external')
-      if (where) {
+      if (slugs) {
+        setNeedsLink({ companyId: deal.companyId, slugs })
+      } else if (where) {
         setDup({ ...where, label: label || f.reference.trim(), who: '' })
         // Who recorded it and when, if the other record can be read; the warning stands without it.
         if (where.invoiceId) {
@@ -142,7 +151,7 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
       } else {
         const field = errorField(e)
         const k = field ? FIELD[field] : undefined
-        if (k) setServerErr({ [k]: r.message })
+        if (k) setServerErr({ [k]: k === 'paidAmount' ? PAID_IN_FULL_ERROR : r.message })
         else setFail(r.message)
       }
     } finally {
@@ -158,6 +167,11 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
     UI.close()
     if (dup.invoiceId) UI.nav('invoice', { id: dup.invoiceId })
     else if (dup.dealId) UI.nav('deal', { id: dup.dealId, q: { tab: 'billing' } })
+  }
+  const openBilling = (): void => {
+    if (!needsLink) return
+    UI.close()
+    UI.nav('company', { id: needsLink.companyId, q: { tab: 'overview', focus: 'billing-details' } })
   }
   const dupWhere = dup?.dealId ? dealLabel(dup.dealId) || 'another deal' : 'another invoice'
   const invalid = (k: ExternalField): true | undefined => (shown(k) ? true : undefined)
@@ -180,6 +194,15 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
           {deal && dealId ? <>On {dealLabel(deal.id)}. </> : null}For money invoiced or received outside SalesOS. Admins only; every record is audited.
         </div>
         {fail && <Banner tone="bad">{fail}</Banner>}
+        {needsLink && (
+          <div data-needs-billing-link role="alert">
+            <Banner tone="warn" icon="alert" action={Q.company(needsLink.companyId) ? <Btn size="sm" onClick={openBilling}>Open billing details</Btn> : undefined}>
+              <span className="sm">
+                This company is billed under more than one client{needsLink.slugs.length ? <>: <span className="mono">{needsLink.slugs.join(', ')}</span></> : null}. Link the right one to the company first. Nothing was saved.
+              </span>
+            </Banner>
+          </div>
+        )}
 
         {!dealId && (
           <Fld label="Deal" req err={shown('dealId')} hint="The deal this money belongs to. It counts on that deal, its company and the Customers tab.">
@@ -245,10 +268,16 @@ function RecordExternalForm({ dealId, invoice, onDone }: RecordExternalProps) {
                 <Fld label="Method">
                   <Sel id="ext-meth" value={f.method} onChange={v => set({ method: v as InvoicePaymentMethod })} options={METHOD_ORDER.map(x => [x, METHOD_LABELS[x]] as const)} />
                 </Fld>
-                <Fld label="Amount paid (A$, inc GST)" err={shown('paidAmount')}>
-                  <Inp id="ext-paidamt" className="money rt" inputMode="decimal" value={f.paidAmount} onChange={v => set({ paidAmount: v })} onBlur={touch('paidAmount')} aria-invalid={invalid('paidAmount')} />
+                <Fld label="Amount paid (inc GST)" err={shown('paidAmount')} hint="Paid in full: the total inc GST.">
+                  <Inp id="ext-paidamt" className="money rt" value={total === null ? '' : formatCents(total)} readOnly aria-invalid={invalid('paidAmount')} />
                 </Fld>
               </div>
+              <div className="sm muted" data-part-payment style={{ marginTop: 8 }}>{PART_PAYMENT_HINT}</div>
+              {partPaid && invoice?.payment && (
+                <div style={{ marginTop: 8 }}>
+                  <Banner tone="warn" icon="alert"><span className="sm">This record was saved as paid {formatCents(invoice.payment.amountCents)}, part of its total. Saving records it as paid in full ({total === null ? 'the total' : formatCents(total)}).</span></Banner>
+                </div>
+              )}
             </div>
           )}
         </div>
