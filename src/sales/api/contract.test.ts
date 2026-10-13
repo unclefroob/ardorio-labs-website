@@ -48,7 +48,7 @@ describe('Contract: Ardorio revenue report', () => {
     const b = revenueBlock(web)
     expect(b).toContain('// GET /sales/reports/revenue?business=ard&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all|salesos|external -> RevenueReport (ard admins or super only).')
     expect(b).toContain("export type RevenueSourceFilter = 'all' | 'salesos' | 'external'")
-    expect(b).toContain("'won_value' (sum of value of deals won in the period, cents-free dollars as deal.value), 'invoiced_cents', 'collected_cents'")
+    expect(b).toContain("'won_value' (dollars: per deal won in the period, the contract baseline frozen at won, else deal.value), 'invoiced_cents', 'collected_cents'")
   })
 
   it.skipIf(!apiFile || !existsSync(apiFile))('is identical to the API block', () => {
