@@ -47,7 +47,11 @@ export function saveRetainer(dealId: string, retainer: BillingRetainer | null): 
     if (bad) return fail(bad)
   } else if (!Q.billingPlan(dealId)?.retainer) return { ok: true }
   const p = plan(dealId)
-  if (retainer) p.retainer = cleanRetainer(retainer)
+  // lastDraftedFor belongs to the server: an edit keeps whatever the plan already had, never what the form says.
+  if (retainer) {
+    const kept = p.retainer?.lastDraftedFor
+    p.retainer = cleanRetainer({ ...retainer, lastDraftedFor: kept })
+  }
   else delete p.retainer
   audit('Billing retainer saved', Q.deal(dealId)?.title ?? dealId)
   commit()

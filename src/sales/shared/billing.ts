@@ -46,10 +46,36 @@ export function cleanMilestone(m: BillingMilestone): BillingMilestone {
 export function cleanRetainer(r: BillingRetainer): BillingRetainer {
   const out: BillingRetainer = { amountCents: r.amountCents, interval: 'monthly' }
   if (r.nextInvoiceDate) out.nextInvoiceDate = r.nextInvoiceDate
+  // Server-owned: kept as it was so an edit does not hide the last drafted period (the server ignores a client value).
+  if (r.lastDraftedFor && isDay(r.lastDraftedFor)) out.lastDraftedFor = r.lastDraftedFor
   return out
 }
 
 export const planId = (dealId: string): string => `bp_${dealId}`
+
+// ── retainer automation ──────────────────────────────────────────────────────────────────────────
+const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+/** "October 2026" for 2026-10-01, the way the server names a retainer period. '' for anything that is not a day. */
+export function retainerPeriodLabel(day: string | null | undefined): string {
+  if (!day || !isDay(day)) return ''
+  return `${FULL_MONTHS[+day.slice(5, 7) - 1]} ${day.slice(0, 4)}`
+}
+
+export type RetainerAutoState = 'no-date' | 'scheduled' | 'due' | 'drafted'
+
+/**
+ * Where the server scheduler is with a retainer, as far as the plan record shows:
+ * no-date (nothing will be drafted), scheduled (a future date), due (on or before today and not yet drafted, the
+ * next engine run drafts it, or notifies when the company has no billing client), drafted (the server has claimed
+ * this date and is moving it on; seen only for a moment).
+ */
+export function retainerAutoState(r: Pick<BillingRetainer, 'nextInvoiceDate' | 'lastDraftedFor'>, today: string): RetainerAutoState {
+  const next = r.nextInvoiceDate
+  if (!next || !isDay(next)) return 'no-date'
+  if (r.lastDraftedFor === next) return 'drafted'
+  return next <= today ? 'due' : 'scheduled'
+}
 
 // ── progress ─────────────────────────────────────────────────────────────────────────────────────
 /** A deal's value is stored in dollars; billing works in cents. */

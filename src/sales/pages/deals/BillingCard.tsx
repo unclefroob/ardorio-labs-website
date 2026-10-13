@@ -8,11 +8,12 @@ import { uid } from '../../data/ids'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
-import { Banner, Btn, Card, Chip, Fld, Inp, Skel } from '../../kit'
-import { billingProgress, quotedCents, scheduleRows, STATUS_TONE, unbilledRows, type ScheduleRow } from '../../shared/billing'
+import { Banner, Btn, Card, Chip, Fld, Icon, Inp, Skel } from '../../kit'
+import { billingProgress, quotedCents, retainerAutoState, retainerPeriodLabel, scheduleRows, STATUS_TONE, unbilledRows, type ScheduleRow } from '../../shared/billing'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
+import { RetainerChip } from '../invoices/parts'
 import { createDraftsForUnbilled } from './billingActions'
 
 /** Billing schedule of an Ardorio deal. Rendered only for admins of Ardorio; the server enforces the same. */
@@ -172,9 +173,16 @@ function Schedule({ deal }: { deal: Deal }) {
             <div className="grid g3">
               <div><div className="faint sm">Monthly amount (ex GST)</div><div className="b money" style={{ fontSize: 18 }}>{formatCents(retainer.amountCents)}</div></div>
               <div><div className="faint sm">Next invoice date</div><div className="b" style={{ fontSize: 18 }}>{fmtDay(retainer.nextInvoiceDate)}</div></div>
+              <div>
+                <div className="faint sm">Last drafted period</div>
+                {retainer.lastDraftedFor
+                  ? <><div className="b" style={{ fontSize: 18 }}>{retainerPeriodLabel(retainer.lastDraftedFor) || '—'}</div><div className="faint sm">Drafted for {fmtDay(retainer.lastDraftedFor)}</div></>
+                  : <div className="b" style={{ fontSize: 18 }}>None yet</div>}
+              </div>
             </div>
+            <RetainerNote retainer={retainer} today={today} />
             {retainerInvoices.map(i => (
-              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span>{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</div>
+              <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
             <div className="row" style={{ gap: 6 }}>
               <Btn size="sm" onClick={() => create({ retainer: true })}>Create invoice</Btn>
@@ -186,5 +194,24 @@ function Schedule({ deal }: { deal: Deal }) {
         <div className="faint sm">Milestones are agreed amounts, not forecasts. Creating an invoice makes a draft with the milestone as its line; you still review and issue it.</div>
       </div>
     </Card>
+  )
+}
+
+/** What the server scheduler will do with this retainer. Drafts only: nothing is ever issued or sent automatically. */
+function RetainerNote({ retainer, today }: { retainer: BillingRetainer; today: string }) {
+  const st = retainerAutoState(retainer, today)
+  const amount = formatCents(retainer.amountCents)
+  const msg = st === 'no-date'
+    ? 'No next invoice date, so no draft is created automatically. Set a date to have the draft made for you.'
+    : st === 'due'
+      ? `Due ${fmtDay(retainer.nextInvoiceDate)}. A draft invoice for ${amount} is created automatically on the next run, as long as the company has a billing client. It is never sent automatically.`
+      : st === 'drafted'
+        ? `The draft invoice for ${retainerPeriodLabel(retainer.lastDraftedFor)} is being created. It is never sent automatically.`
+        : `A draft invoice for ${amount} is created automatically on ${fmtDay(retainer.nextInvoiceDate)}, then the date moves on a month. It is never sent automatically: you review and issue each one.`
+  return (
+    <div className="row sm muted" role="note" aria-label="Retainer automation" style={{ gap: 6, alignItems: 'flex-start' }}>
+      <Icon n={st === 'no-date' ? 'info' : 'refresh'} s={14} style={{ marginTop: 2, flexShrink: 0 }} />
+      <span>{msg}</span>
+    </div>
   )
 }
