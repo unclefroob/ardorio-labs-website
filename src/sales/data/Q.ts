@@ -1,6 +1,7 @@
 import { F } from './F'
 import { idx, S } from './store'
 import { ageDays, applySignalAdjust, computeSignalAdjust, NO_ADJUST, type PendingClosure, type SignalAdjust, type SignalAdjustPart } from './signalAdjust'
+import { isSimAct, simReplied } from './simulated'
 import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 import type {
   Activity, Business, BusinessId, Company, CompanyRel, Contact, ContactRel, Deal, Enrolment, Goal, Mailbox,
@@ -381,7 +382,7 @@ export const Q = {
     if (dm >= 16) pos.push(`${ct.title} — likely decision-maker`)
 
     const clock = F.nowIso()
-    const acts = S.activities.filter(a => a.contactId === ctid && a.businessId === b && F.days(a.ts, clock) <= 30)
+    const acts = S.activities.filter(a => a.contactId === ctid && a.businessId === b && F.days(a.ts, clock) <= 30 && !isSimAct(a))
     let eng = 0
     for (const a of acts) {
       const w: Record<string, number> = {
@@ -400,7 +401,7 @@ export const Q = {
       pos.push(`Stakeholder on open deal “${dl.title}”`)
     }
     const POSITIVE = ['Interested', 'Meeting Requested', 'More Information Requested']
-    const pr = S.threads.find(t => t.contactId === ctid && t.businessId === b && t.classification && POSITIVE.includes(t.classification.cat))
+    const pr = S.threads.find(t => t.contactId === ctid && t.businessId === b && t.classification && POSITIVE.includes(t.classification.cat) && !simReplied(t))
     if (pr?.classification) {
       sig += 6
       pos.push(`Positive reply: ${pr.classification.cat.toLowerCase()}`)
@@ -484,7 +485,7 @@ export const Q = {
 
   metric(userIds: string[], metric: string, from: string, to: string, b?: string): number {
     return S.activities.filter(a => {
-      if (!userIds.includes(a.actorId) || a.ts < from || a.ts > to || (b && a.businessId !== b) || a.dup) return false
+      if (!userIds.includes(a.actorId) || a.ts < from || a.ts > to || (b && a.businessId !== b) || a.dup || isSimAct(a)) return false
       if (metric === 'calls') return a.type === 'call' && a.outcome !== 'Cancelled'
       if (metric === 'emails') return a.type === 'email_out'
       if (metric === 'meetings') return a.type === 'meeting_booked'

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { realActs } from '../../data/simulated'
 import { S } from '../../data/store'
 import type { BusinessId, Deal, SalesUser } from '../../data/types'
 import { Bars, BizDot, Btn, Card, Chip, DataTable, Empty, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, Seg, type Col } from '../../kit'
@@ -35,7 +36,7 @@ function BizKpis({ b, open }: { b: BusinessId; open: Deal[] }) {
       ['Proposals sent', st('trial').length + st('neg').length, board('ros_trial')],
     ]
   } else if (b === 'pth') {
-    const contacted = new Set(S.activities.filter(a => a.businessId === 'pth' && ['email_out', 'call'].includes(a.type)).map(a => a.companyId))
+    const contacted = new Set(realActs(S.activities).filter(a => a.businessId === 'pth' && ['email_out', 'call'].includes(a.type)).map(a => a.companyId))
     k = [
       ['Schools contacted', contacted.size, () => go('companies')],
       ['Meetings scheduled', mt.length, () => go('activities', { type: 'meeting_booked' })],
@@ -89,7 +90,7 @@ export function Dashboard() {
 
   const deals = Q.deals().filter(d => inOwn(d.ownerId) && (!src || d.source === src))
   const open = deals.filter(Q.open)
-  const acts = Q.activities().filter(a => a.ts >= from && a.ts <= clock && inOwn(a.actorId))
+  const acts = realActs(Q.activities()).filter(a => a.ts >= from && a.ts <= clock && inOwn(a.actorId))
   const cnt = (t: string): number => acts.filter(a => a.type === t).length
   const won = deals.filter(d => d.status === 'won' && (d.closedAt ?? '') >= from)
   const tot = sum(open, d => d.value)
@@ -115,12 +116,12 @@ export function Dashboard() {
     const s = F.addDays(F.weekStart(), -7 * (7 - i))
     return { s, e: F.addDays(s, 7), l: F.date(s) }
   })
-  const aw = Q.activities().filter(a => inOwn(a.actorId))
+  const aw = realActs(Q.activities()).filter(a => inOwn(a.actorId))
   const wc = (t: string): number[] => weeks.map(w => aw.filter(a => a.type === t && a.ts >= w.s && a.ts < w.e).length)
   const fun = [
     { l: 'Leads in scope', v: S.contactRels.filter(r => sc.includes(r.businessId)).length },
-    { l: 'Contacted', v: new Set(Q.activities().filter(a => ['email_out', 'call', 'linkedin_msg'].includes(a.type)).map(a => a.contactId)).size },
-    { l: 'Meetings booked', v: new Set(Q.activities().filter(a => a.type === 'meeting_booked').map(a => a.companyId)).size },
+    { l: 'Contacted', v: new Set(realActs(Q.activities()).filter(a => ['email_out', 'call', 'linkedin_msg'].includes(a.type)).map(a => a.contactId)).size },
+    { l: 'Meetings booked', v: new Set(realActs(Q.activities()).filter(a => a.type === 'meeting_booked').map(a => a.companyId)).size },
     { l: 'Opportunities', v: deals.length },
     { l: 'Won', v: deals.filter(d => d.status === 'won').length },
   ]

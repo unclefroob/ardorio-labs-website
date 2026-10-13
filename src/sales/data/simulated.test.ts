@@ -128,4 +128,28 @@ describe('simulated paths write the flag', () => {
     expect(ms && isSimMsg(ms)).toBe(false)
   })
 
+  it('goals count the hand-sent email and not the simulated one', async () => {
+    const m = await setup()
+    m.Act.sendEmail({ mailboxId: 'mb1', businessId: 'ros', to: 'sam@example.com', subject: 'Hi', body: 'Body', contactId: 'ct1' })
+    m.Act.markEmailSent('tk_en1_0')
+    expect(m.Q.metric(['u-me'], 'emails', '2026-10-09T00:00', '2026-10-09T23:59', 'ros')).toBe(1)
+  })
+
+  it('sequence stats and the engagement score ignore a simulated reply', async () => {
+    const m = await setup({ threads: [rec('th1', {
+      businessId: 'ros', mailboxId: 'mb1', subject: 'Hello', contactId: 'ct1', companyId: 'co1', dealId: null, visibility: 'private', ownerId: 'u-me', seqId: 'sq1',
+      assigneeId: 'u-me', unread: false, archived: false, classification: null, needsReply: false, sharedWith: [], updatedAt: '2026-10-09T09:00',
+    })] })
+    const { seqStats } = await import('../shared/seqStats')
+    const before = m.Q.score('ct1', 'ros')
+    m.Act.simulateReply({ contactId: 'ct1', text: 'Interested, can you send a demo next week?', threadId: 'th1' })
+    expect(['Interested', 'Meeting Requested', 'More Information Requested']).toContain(m.store.S.threads[0].classification?.cat)
+    expect(m.store.S.messages.some(x => x.threadId === 'th1' && x.dir === 'in')).toBe(true)
+    const st = seqStats(m.store.S.sequences[0])
+    expect(st.replies).toBe(0)
+    expect(st.positive).toBe(0)
+    const after = m.Q.score('ct1', 'ros')
+    expect(after?.parts.find(p => p[0] === 'Engagement activity')?.[1]).toBe(before?.parts.find(p => p[0] === 'Engagement activity')?.[1])
+    expect(after?.parts.find(p => p[0] === 'Buying signals')?.[1]).toBe(before?.parts.find(p => p[0] === 'Buying signals')?.[1])
+  })
 })
