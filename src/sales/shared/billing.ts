@@ -137,6 +137,17 @@ export function redraftProblem(next: string | undefined, previous: Pick<BillingR
   return `The next invoice date must be after ${retainerPeriodLabel(last)}, the last period already drafted, or that month is drafted again`
 }
 
+/**
+ * Why the server scheduler drafts nothing for this deal's retainer, or null when it does. It drafts only for a won
+ * deal that is not archived, and leaves the plan exactly as it is otherwise, so drafting resumes where it stopped.
+ */
+export type RetainerPause = 'archived' | 'not-won'
+
+export function retainerPause(deal: { status: string; archived?: boolean }): RetainerPause | null {
+  if (deal.archived) return 'archived'
+  return deal.status === 'won' ? null : 'not-won'
+}
+
 export type RetainerAutoState = 'no-date' | 'scheduled' | 'due' | 'drafted'
 
 /**

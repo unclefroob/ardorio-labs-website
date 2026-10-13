@@ -47,8 +47,11 @@ export function ClashBanner({ clash, onExtra }: { clash: RetainerClash; onExtra:
           </span>
         }
       >
-        <b>The {period} retainer was drafted automatically while this was open{clash.draft ? ` as ${clash.draft.invoiceNumber}` : ''}.</b> Nothing was saved. Saving this
-        too makes a second invoice for {period}. Open the automatic draft to bill the month there, or save this as an extra invoice.
+        {clash.draft
+          ? <><b>The {period} retainer was drafted automatically while this was open as {clash.draft.invoiceNumber}.</b> Nothing was saved. Saving this
+            too makes a second invoice for {period}. Open the automatic draft to bill the month there, or save this as an extra invoice.</>
+          : <><b>This invoice can no longer bill the {period} retainer: {clash.reason.charAt(0).toLowerCase() + clash.reason.slice(1)}.</b> Nothing was saved. Saving it
+            makes an extra invoice and leaves the next invoice date as it is. Check the deal's invoices for an automatic {period} draft first.</>}
       </Banner>
     </div>
   )

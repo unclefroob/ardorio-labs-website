@@ -10,8 +10,8 @@ import { useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
 import { Banner, Btn, Card, Chip, Fld, Icon, Inp, Skel } from '../../kit'
 import {
-  billingProgress, quotedCents, redraftProblem, retainerAutoState, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows, STATUS_TONE,
-  unbilledRows, type ScheduleRow,
+  billingProgress, quotedCents, redraftProblem, retainerAutoState, retainerPause, retainerDuePeriods, retainerPeriodLabel, retainerSpanLabel, scheduleRows, STATUS_TONE,
+  unbilledRows, type RetainerPause, type ScheduleRow,
 } from '../../shared/billing'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
@@ -45,6 +45,7 @@ function Schedule({ deal }: { deal: Deal }) {
   const e = inv.error ? invoiceError(inv.error, 'load') : null
   const retainerInvoices = list.filter(i => !i.milestoneId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   const today = F.today()
+  const paused = retainerPause(deal)
 
   const open = (id: string): void => UI.nav('invoice', { id })
   const create = (q: { milestoneId?: string; retainer?: boolean; retainerFor?: string }): void => UI.nav('invoice', { id: 'new', q: { companyId: deal.companyId, dealId: deal.id, ...q } })
@@ -201,13 +202,13 @@ function Schedule({ deal }: { deal: Deal }) {
                   : <div className="b" style={{ fontSize: 18 }}>None yet</div>}
               </div>
             </div>
-            <RetainerNote retainer={retainer} today={today} />
+            <RetainerNote retainer={retainer} today={today} paused={paused} />
             {retainerInvoices.map(i => (
               <div key={i.id} className="rowx"><span><a className="mono" href={`/sales/invoices/${i.id}`} onClick={ev => { ev.preventDefault(); open(i.id) }}>{i.invoiceNumber}</a> <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
-            <ManualRetainerNote retainer={retainer} today={today} />
+            <ManualRetainerNote retainer={retainer} today={today} paused={paused} />
             <div className="row" style={{ gap: 6 }}>
-              <Btn size="sm" onClick={() => create(retainerAutoState(retainer, today) === 'due' && retainer.nextInvoiceDate ? { retainer: true, retainerFor: retainer.nextInvoiceDate } : { retainer: true })}>Create invoice</Btn>
+              <Btn size="sm" onClick={() => create(!paused && retainerAutoState(retainer, today) === 'due' && retainer.nextInvoiceDate ? { retainer: true, retainerFor: retainer.nextInvoiceDate } : { retainer: true })}>Create invoice</Btn>
               <Btn size="sm" kind="ghost" onClick={() => setRetainerForm({ amount: centsToInput(retainer.amountCents), date: retainer.nextInvoiceDate ?? '' })}>Edit retainer</Btn>
               <Btn size="sm" kind="ghost" onClick={() => { const r = Act.saveRetainer(deal.id, null); if (!r.ok) setErr(r.error) }}>Remove retainer</Btn>
             </div>
@@ -219,13 +220,20 @@ function Schedule({ deal }: { deal: Deal }) {
   )
 }
 
+const PAUSED: Record<RetainerPause, string> = {
+  'archived': 'The deal is archived, so no retainer invoice is drafted automatically. Drafting resumes from the next invoice date when the deal is restored.',
+  'not-won': 'The deal is not won, so no retainer invoice is drafted automatically. Drafting starts from the next invoice date once the deal is won.',
+}
+
 /**
  * What Create invoice does next to the scheduler. While a period is due, the invoice made here bills it and the
  * automatic draft moves on a month. Before then, an invoice made here is an extra one: the scheduled draft still comes.
  */
-function ManualRetainerNote({ retainer, today }: { retainer: BillingRetainer; today: string }) {
+function ManualRetainerNote({ retainer, today, paused }: { retainer: BillingRetainer; today: string; paused: RetainerPause | null }) {
   const st = retainerAutoState(retainer, today)
   if (st === 'no-date') return null
+  // Nothing is drafted for a paused deal, so an invoice made here claims no period and moves no date.
+  if (paused) return <div className="faint sm" aria-label="Create invoice by hand">An invoice created here is an extra one and leaves the next invoice date as it is.</div>
   const period = retainerPeriodLabel(retainer.nextInvoiceDate)
   const msg = st === 'due'
     ? `Create invoice bills ${period} by hand: once it is saved, the automatic draft for ${period} is skipped and the date moves on a month.`
@@ -236,14 +244,14 @@ function ManualRetainerNote({ retainer, today }: { retainer: BillingRetainer; to
 }
 
 /** What the server scheduler will do with this retainer. Drafts only: nothing is ever issued or sent automatically. */
-function RetainerNote({ retainer, today }: { retainer: BillingRetainer; today: string }) {
+function RetainerNote({ retainer, today, paused }: { retainer: BillingRetainer; today: string; paused: RetainerPause | null }) {
   const st = retainerAutoState(retainer, today)
   const amount = formatCents(retainer.amountCents)
   const behind = st === 'due' ? retainerDuePeriods(retainer, today) : []
   const catchUp = behind.length > 1
     ? ` The date is ${behind.length} months behind, so ${behind.length} drafts are made, one each run, for ${retainerSpanLabel(behind)}. Move the date on if those months were billed already.`
     : ''
-  const msg = st === 'no-date'
+  const msg = paused && st !== 'no-date' ? PAUSED[paused] : st === 'no-date'
     ? 'No next invoice date, so no draft is created automatically. Set a date to have the draft made for you.'
     : st === 'due'
       ? `Due ${fmtDay(retainer.nextInvoiceDate)}. A draft invoice for ${amount} is created automatically on the next run, as long as the company has a billing client.${catchUp} It is never sent automatically.`
@@ -252,7 +260,7 @@ function RetainerNote({ retainer, today }: { retainer: BillingRetainer; today: s
         : `A draft invoice for ${amount} is created automatically on ${fmtDay(retainer.nextInvoiceDate)}, then the date moves on a month. It is never sent automatically: you review and issue each one.`
   return (
     <div className="row sm muted" role="note" aria-label="Retainer automation" style={{ gap: 6, alignItems: 'flex-start' }}>
-      <Icon n={st === 'no-date' ? 'info' : 'refresh'} s={14} style={{ marginTop: 2, flexShrink: 0 }} />
+      <Icon n={st === 'no-date' || paused ? 'info' : 'refresh'} s={14} style={{ marginTop: 2, flexShrink: 0 }} />
       <span>{msg}</span>
     </div>
   )

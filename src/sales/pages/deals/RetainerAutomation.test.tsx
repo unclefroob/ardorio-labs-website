@@ -53,9 +53,9 @@ const fromRetainer = dto({ id: 'r1', invoiceNumber: 'INV-0041', milestoneId: nul
 const manual = dto({ id: 'r2', invoiceNumber: 'INV-0030', milestoneId: null, status: 'paid', source: 'manual' })
 const base = { [DEAL_LIST]: () => json(200, { invoices: [fromRetainer, manual] }), [CLIENTS]: () => json(200, { clients: [CLIENT] }), [SET]: () => json(200, SETTINGS) }
 
-async function showCard(retainer: Record<string, unknown>) {
+async function showCard(retainer: Record<string, unknown>, dealOver: Record<string, unknown> = {}) {
   m = await loadSales()
-  m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', ardDeal('dl1').data)], billingPlans: [plan(retainer)] }))
+  m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', { ...ardDeal('dl1').data, ...dealOver })], billingPlans: [plan(retainer)] }))
   setArdRole(m, 'admin')
   m.ui.bindNavigate(vi.fn())
   const api = fakeApi(base)
@@ -144,6 +144,38 @@ describe('Deal billing card: retainer automation', () => {
   })
 })
 
+describe('Deal billing card: a deal the scheduler skips', () => {
+  // The API drafts a retainer only for a won deal that is not archived.
+  const manualNote = (): string => host.querySelector('[aria-label="Create invoice by hand"]')?.textContent ?? ''
+
+  for (const status of ['open', 'lost'] as const) {
+    it(`an ${status} deal says nothing is drafted until it is won, and Create invoice claims no period`, async () => {
+      await showCard({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' }, { status })
+      expect(note()).toContain('The deal is not won, so no retainer invoice is drafted automatically')
+      expect(note()).toContain('once the deal is won')
+      expect(note()).not.toContain('on the next run')
+      expect(manualNote()).toContain('An invoice created here is an extra one and leaves the next invoice date as it is')
+      expect(manualNote()).not.toContain('bills October 2026 by hand')
+      const nav = vi.fn()
+      m.ui.bindNavigate(nav)
+      await click(button(host, 'Create invoice'))
+      expect(path(nav).q).toEqual({ companyId: 'co1', dealId: 'dl1', retainer: true })
+    })
+  }
+
+  it('an archived won deal says drafting is paused until it is restored', async () => {
+    await showCard({ nextInvoiceDate: '2099-11-01' }, { archived: true })
+    expect(note()).toContain('The deal is archived, so no retainer invoice is drafted automatically')
+    expect(note()).toContain('when the deal is restored')
+    expect(note()).not.toContain('is created automatically on 1 Nov 2099')
+  })
+
+  it('a won deal still gets the automatic-draft note', async () => {
+    await showCard({ nextInvoiceDate: '2099-11-01' }, { status: 'won' })
+    expect(note()).toContain('A draft invoice for $4,500.00 is created automatically on 1 Nov 2099')
+  })
+})
+
 describe('A retainer invoice made by hand', () => {
   const manualNote = (): string => host.querySelector('[aria-label="Create invoice by hand"]')?.textContent ?? ''
 
@@ -171,9 +203,9 @@ describe('A retainer invoice made by hand', () => {
     expect(host.querySelector('[aria-label="Create invoice by hand"]')).toBeNull()
   })
 
-  async function openEditor(retainer: Record<string, unknown>, retainerFor: string, over: Parameters<typeof fakeApi>[0] = {}) {
+  async function openEditor(retainer: Record<string, unknown>, retainerFor: string, over: Parameters<typeof fakeApi>[0] = {}, deal: Record<string, unknown> = {}) {
     m = await loadSales()
-    m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', ardDeal('dl1').data)], billingPlans: [plan(retainer)] }))
+    m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', { ...ardDeal('dl1').data, ...deal })], billingPlans: [plan(retainer)] }))
     setArdRole(m, 'admin')
     m.ui.bindNavigate(vi.fn())
     const api = fakeApi({ ...base, 'POST /sales/invoices': () => json(201, dto({ id: 'n1', invoiceNumber: 'INV-0050', status: 'draft', issuedCount: 0, sentAt: null })), ...over })
@@ -277,6 +309,15 @@ describe('A retainer invoice made by hand', () => {
     expect(api.count('POST /sales/invoices')).toBe(1)
     expect(api.count('POST /sales/invoices/n1/issue')).toBe(0)
     expect(text()).toContain('There are now two invoices for the October 2026 retainer')
+  })
+
+  it('claims nothing for a deal that is not won, even when the link names a due period', async () => {
+    const api = await openEditor({ nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-09-01' }, '2026-10-01', {}, { status: 'open' })
+    expect(text()).not.toContain('This invoice bills the')
+    await click(button(host, 'Save draft'))
+    await settle(6)
+    expect(api.count('POST /sales/invoices')).toBe(1)
+    expect(m.store.S.billingPlans[0].retainer?.nextInvoiceDate).toBe('2026-10-01')
   })
 
   it('claims nothing when the period has moved on since the card offered it', async () => {

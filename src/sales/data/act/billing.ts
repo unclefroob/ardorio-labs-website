@@ -1,5 +1,5 @@
 import type { BillingMilestone, BillingPlan, BillingRetainer } from '../../api/contract'
-import { claimedRetainerDate, cleanMilestone, cleanRetainer, planId, redraftProblem, retainerPeriodLabel, validateMilestones, validateRetainer } from '../../shared/billing'
+import { claimedRetainerDate, cleanMilestone, cleanRetainer, planId, retainerPause, redraftProblem, retainerPeriodLabel, validateMilestones, validateRetainer } from '../../shared/billing'
 import { commit } from '../commit'
 import { audit } from '../internals'
 import { Q } from '../Q'
@@ -63,6 +63,9 @@ export type ClaimResult = { ok: true; next: string; laterDay?: number } | { ok: 
 export function retainerClaimProblem(dealId: string, due: string): string | null {
   const g = guard(dealId)
   if (g) return g
+  const d = Q.deal(dealId)
+  const paused = d ? retainerPause(d) : null
+  if (paused) return paused === 'archived' ? 'The deal is archived, so no retainer is drafted for it' : 'The deal is not won, so no retainer is drafted for it'
   const r = Q.billingPlan(dealId)?.retainer
   if (!r || r.nextInvoiceDate !== due) return 'The retainer has already moved on from that period'
   if (r.lastDraftedFor === due) return `The ${retainerPeriodLabel(due)} retainer is already being drafted automatically`

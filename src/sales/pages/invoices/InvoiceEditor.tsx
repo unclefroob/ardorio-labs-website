@@ -13,7 +13,7 @@ import {
   activityItems, actionsFor, blankForm, buildInput, emptyLine, fmtDay, formFromInvoice, formTotals, milestoneLine, milestoneStatus,
   missingBilling, planFor, validateForm, withTerms, type FormErrors, type InvoiceForm,
 } from '../../shared/invoices'
-import { claimedRetainerDate, dayOrdinal, prefillForm, retainerAutoState, retainerPeriodLabel } from '../../shared/billing'
+import { claimedRetainerDate, dayOrdinal, prefillForm, retainerAutoState, retainerPause, retainerPeriodLabel } from '../../shared/billing'
 import { formatCents, lineAmountCents, parsePercentBp } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -32,6 +32,9 @@ import { InvoicesDenied } from './states'
 function claimFor(initial: Props['initial']): string | undefined {
   const due = initial?.retainer ? initial.retainerFor : undefined
   if (!due || !initial?.dealId) return undefined
+  // The scheduler drafts nothing for a deal that is not won or is archived, so there is no draft to skip.
+  const deal = Q.deal(initial.dealId)
+  if (!deal || retainerPause(deal)) return undefined
   const r = planFor(billingPlans(), initial.dealId)?.retainer
   return r && r.nextInvoiceDate === due && retainerAutoState(r, F.today()) === 'due' ? due : undefined
 }

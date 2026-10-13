@@ -134,6 +134,15 @@ describe('Act.saveRetainer', () => {
     expect(m.Act.claimRetainerPeriod('dl1', '2027-01-15')).toEqual({ ok: true, next: '2027-02-15' })
     m.stop()
   })
+  it('claimRetainerPeriod refuses a deal the scheduler skips: not won, or archived', async () => {
+    const retainer = { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-10-01' }
+    for (const over of [{ status: 'open' }, { status: 'lost' }, { archived: true }]) {
+      const m = await setup('admin', { deals: [rec('dl1', { ...ardDeal('dl1').data, ...over })], billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer })] })
+      expect(m.Act.claimRetainerPeriod('dl1', '2026-10-01')).toMatchObject({ ok: false, error: expect.stringMatching(/not won|archived/) })
+      expect(m.Q.billingPlan('dl1')?.retainer?.nextInvoiceDate).toBe('2026-10-01')
+      m.stop()
+    }
+  })
   it('claimRetainerPeriod leaves a period the server already claimed alone', async () => {
     const m = await setup('admin', { billingPlans: [rec('bp_dl1', { ...PLAN_DATA, retainer: { amountCents: 450000, interval: 'monthly', nextInvoiceDate: '2026-10-01', lastDraftedFor: '2026-10-01' } })] })
     expect(m.Act.claimRetainerPeriod('dl1', '2026-10-01')).toMatchObject({ ok: false, error: expect.stringMatching(/already being drafted/) })
