@@ -510,7 +510,7 @@ export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCent
 export interface BillingClientDetails { email?: string; contactName?: string; abn?: string; address?: string }
 export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
 export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
-export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string }
+export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string; deliveredOn?: string; deliveredBy?: string }
 // lastDraftedFor: YYYY-MM-DD of the retainer period already drafted; written only by the server (a client write
 // never changes it). When a plan's nextInvoiceDate is on or before today (org timezone) and lastDraftedFor differs,
 // the server engine drafts the invoice (source 'retainer', status draft, never issued or sent) and moves
@@ -520,7 +520,7 @@ export interface BillingMilestone { id: string; label: string; amountCents: numb
 // does not list the key. A client never writes it; a claim by hand moves nextInvoiceDate alone.
 export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string; lastDraftedFor?: string; anchorDay?: number }
 // sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
-export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer }
+export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer; contract?: BillingContract; variations?: BillingVariation[] }
 // Notifications written by the retainer scheduler (the usual notifications record: userId, ts, read, type, title, body,
 // link) carry two extra keys, kind and data:
 //   kind 'retainer-invoice-drafted'      data { invoiceId, invoiceNumber, dealId }   to the deal owner
@@ -529,6 +529,16 @@ export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; mi
 export type RetainerNotificationKind = 'retainer-invoice-drafted' | 'retainer-needs-billing-client' | 'retainer-periods-skipped'
 export interface RetainerInvoiceDraftedData { invoiceId: string; invoiceNumber: string; dealId: string }
 export interface RetainerNeedsBillingClientData { dealId: string; companyId: string }
+// ---- Ardorio contract ledger ----
+export type EngagementType = 'fixed-price' | 'time-materials' | 'support-retainer'
+export type VariationStatus = 'proposed' | 'approved' | 'rejected'
+export interface BillingVariation { id: string; label: string; amountCents: number; reason: string; status: VariationStatus; createdAt: string; createdBy: string; decidedAt?: string; decidedBy?: string }
+// amountCents is SIGNED (a reduction is negative), ex GST, non-zero, |amount| <= 100000000.
+export interface BillingContract { baselineCents: number; engagementType: EngagementType; contractedOn: string; contractedBy: string; estimateAtWonCents: number }
+// BillingPlan gains: contract?: BillingContract ; variations?: BillingVariation[]
+// BillingMilestone gains: deliveredOn?: string ; deliveredBy?: string   (YYYY-MM-DD, not in the future)
+// contracted total = contract.baselineCents + sum(amountCents of variations with status 'approved'). It is the denominator for progress and reconciliation.
+// Server-written keys (a client value is ignored and the stored value kept): contract.contractedBy, variation.createdBy, variation.createdAt, variation.decidedBy, variation.decidedAt, milestone.deliveredBy.
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */

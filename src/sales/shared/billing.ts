@@ -1,4 +1,6 @@
-import type { BillingClient, BillingMilestone, BillingPlan, BillingRetainer, InvoiceCompanyTotals, InvoiceDto, InvoicePaymentMethod } from '../api/contract'
+import type {
+  BillingClient, BillingContract, BillingMilestone, BillingPlan, BillingRetainer, BillingVariation, EngagementType, InvoiceCompanyTotals, InvoiceDto, InvoicePaymentMethod, VariationStatus,
+} from '../api/contract'
 import type { Company, Deal } from '../data/types'
 import { domOf, norm } from './constants'
 import { withoutTest, blankForm, isDay, milestoneLine, milestoneStatus, emptyLine, type InvoiceForm, type MilestoneStatus } from './invoices'
@@ -40,6 +42,9 @@ export function validateRetainer(r: BillingRetainer): string | null {
 export function cleanMilestone(m: BillingMilestone): BillingMilestone {
   const out: BillingMilestone = { id: m.id, label: m.label.trim(), amountCents: m.amountCents }
   if (m.plannedDate) out.plannedDate = m.plannedDate
+  // Delivered state rides along unchanged, so editing a milestone never forgets that it was delivered.
+  if (m.deliveredOn) out.deliveredOn = m.deliveredOn
+  if (m.deliveredBy) out.deliveredBy = m.deliveredBy
   return out
 }
 
@@ -361,4 +366,133 @@ export function wonNotInvoiced(deals: readonly Deal[], companies: readonly Compa
   return deals
     .filter(d => d.businessId === 'ard' && d.status === 'won' && live.has(d.companyId) && !billed.has(d.id))
     .sort((a, b) => (b.closedAt ?? b.stageChangedAt).localeCompare(a.closedAt ?? a.stageChangedAt))
+}
+
+// ── Ardorio contract ledger ──────────────────────────────────────────────────────────────────────
+// deal.value is only the estimate. At Won a contract is frozen on the billing plan; later changes are variations in
+// an append-only ledger. Contracted = baseline + approved variations, and it is the denominator everywhere.
+
+export const ENGAGEMENT_TYPES: readonly EngagementType[] = ['fixed-price', 'time-materials', 'support-retainer']
+export const ENGAGEMENT_LABEL: Record<EngagementType, string> = { 'fixed-price': 'Fixed-price project', 'time-materials': 'Time and materials', 'support-retainer': 'Support retainer' }
+export const VARIATION_LABEL: Record<VariationStatus, string> = { proposed: 'Proposed', approved: 'Approved', rejected: 'Rejected' }
+export const VARIATION_TONE: Record<VariationStatus, '' | 'ok' | 'warn' | 'bad'> = { proposed: 'warn', approved: 'ok', rejected: '' }
+export const MAX_REASON = 1000
+
+export const isEngagementType = (x: unknown): x is EngagementType => typeof x === 'string' && (ENGAGEMENT_TYPES as readonly string[]).includes(x)
+
+export const approvedVariations = (plan: Pick<BillingPlan, 'variations'> | undefined): BillingVariation[] => (plan?.variations ?? []).filter(v => v.status === 'approved')
+export const proposedVariations = (plan: Pick<BillingPlan, 'variations'> | undefined): BillingVariation[] => (plan?.variations ?? []).filter(v => v.status === 'proposed')
+
+/** Baseline plus approved variations, ex GST cents. Null when the plan has no contract (won before the ledger, or Later). */
+export function contractedCents(plan: Pick<BillingPlan, 'contract' | 'variations'> | undefined): number | null {
+  if (!plan?.contract) return null
+  return plan.contract.baselineCents + approvedVariations(plan).reduce((a, v) => a + v.amountCents, 0)
+}
+
+/** The contract amount a person typed: whole cents from 1 to MAX_CENTS, like a milestone. */
+export function validateContractAmount(cents: number | null): string | null {
+  if (cents === null) return 'Enter the contracted amount in dollars and cents, like 48000.00'
+  if (!validCents(cents)) return `The contracted amount is from $0.01 to ${centsToInput(MAX_CENTS)}`
+  return null
+}
+
+export function validateContract(c: BillingContract): string | null {
+  const bad = validateContractAmount(c.baselineCents)
+  if (bad) return bad
+  if (!isEngagementType(c.engagementType)) return 'Choose an engagement type'
+  if (!isDay(c.contractedOn)) return 'The contract date is not a valid date'
+  if (!Number.isInteger(c.estimateAtWonCents) || c.estimateAtWonCents < 0) return 'The estimate at Won is not a whole number of cents'
+  return null
+}
+
+/** A variation as the API accepts it: a label, a signed non-zero amount up to MAX_CENTS either way, and a reason. */
+export function validateVariation(v: Pick<BillingVariation, 'label' | 'amountCents' | 'reason'>): string | null {
+  const label = v.label.trim()
+  if (label.length < 1 || label.length > MAX_LABEL) return `The label is 1 to ${MAX_LABEL} characters`
+  if (!Number.isInteger(v.amountCents) || v.amountCents === 0 || Math.abs(v.amountCents) > MAX_CENTS) return `The amount is whole cents, not zero, up to ${centsToInput(MAX_CENTS)} either way`
+  const reason = v.reason.trim()
+  if (reason.length < 1) return 'Say why the contract changes'
+  if (reason.length > MAX_REASON) return `The reason is at most ${MAX_REASON} characters`
+  return null
+}
+
+/** "VO-3 " for the third entry: a starting point for the label, which the person can change. */
+export const nextVariationLabel = (plan: Pick<BillingPlan, 'variations'> | undefined): string => `VO-${(plan?.variations?.length ?? 0) + 1} `
+
+/** "+$2,400.00" / "−$1,000.00": the sign is always written, never left to colour. */
+export function signedCents(cents: number, fmt: (c: number) => string): string {
+  return `${cents < 0 ? '−' : '+'}${fmt(Math.abs(cents))}`
+}
+
+export interface DealMoney {
+  /** deal.value, the estimate. */
+  estimate: number
+  /** Baseline plus approved variations, or null with no contract. */
+  contracted: number | null
+  /** Sum of delivered milestones. */
+  earned: number
+  /** Issued project invoices on this deal: not draft, not cancelled, not test, not from the retainer. Ex GST. */
+  invoiced: number
+  /** Those of them that are paid. */
+  collected: number
+  /** invoiced - collected. */
+  outstanding: number
+  /** Retainer invoices on this deal, issued, ex GST: separate from project progress. */
+  retainerInvoiced: number
+  /** Sum of milestone amounts. */
+  scheduled: number
+  /** contracted - scheduled; negative when the milestones add up to more than the contract. Null with no contract. */
+  unscheduled: number | null
+  /** invoiced - contracted when positive, else 0. Null with no contract. */
+  overBilled: number | null
+}
+
+type MoneyInvoice = Pick<InvoiceDto, 'status' | 'subtotalCents'> & Partial<Pick<InvoiceDto, 'test' | 'dealId' | 'source'>>
+
+/**
+ * The money of one Ardorio deal, ex GST. Invoices on another deal are ignored, so the deal's own list or the whole
+ * list both work. A draft is not invoiced yet and a cancelled or test invoice never counts, as everywhere else.
+ */
+export function moneyForDeal(deal: Pick<Deal, 'id' | 'value'>, plan: Pick<BillingPlan, 'contract' | 'variations' | 'milestones'> | undefined, invoices: readonly MoneyInvoice[]): DealMoney {
+  const contracted = contractedCents(plan)
+  const milestones = plan?.milestones ?? []
+  const scheduled = milestones.reduce((a, m) => a + m.amountCents, 0)
+  const earned = milestones.filter(m => !!m.deliveredOn).reduce((a, m) => a + m.amountCents, 0)
+  let invoiced = 0, collected = 0, retainerInvoiced = 0
+  for (const i of withoutTest(invoices)) {
+    if (i.dealId !== undefined && i.dealId !== deal.id) continue
+    if (i.status === 'draft' || i.status === 'void') continue
+    if (i.source === 'retainer') { retainerInvoiced += i.subtotalCents; continue }
+    invoiced += i.subtotalCents
+    if (i.status === 'paid') collected += i.subtotalCents
+  }
+  return {
+    estimate: quotedCents(deal), contracted, earned, invoiced, collected, outstanding: invoiced - collected, retainerInvoiced, scheduled,
+    unscheduled: contracted === null ? null : contracted - scheduled,
+    overBilled: contracted === null ? null : Math.max(0, invoiced - contracted),
+  }
+}
+
+/** "Scheduled $40,000.00 of $48,000.00, $8,000.00 unscheduled", or over-scheduled, or fully scheduled. */
+export function reconciliationLine(scheduled: number, contracted: number, fmt: (c: number) => string): { text: string; tone: '' | 'ok' | 'warn' } {
+  const gap = contracted - scheduled
+  const head = `Scheduled ${fmt(scheduled)} of ${fmt(contracted)}`
+  if (gap > 0) return { text: `${head}, ${fmt(gap)} unscheduled`, tone: 'warn' }
+  if (gap < 0) return { text: `${head}, ${fmt(-gap)} over-scheduled`, tone: 'warn' }
+  return { text: `${head}, all scheduled`, tone: 'ok' }
+}
+
+/** The day a won deal was won, for a contract set after the fact: its close date, else the day it closed. */
+export function wonDay(deal: Pick<Deal, 'close' | 'closedAt'>): string {
+  if (deal.close && isDay(deal.close)) return deal.close
+  const c = (deal.closedAt ?? '').slice(0, 10)
+  return isDay(c) ? c : ''
+}
+
+/** What approving a variation of `amount` does: the contract and the unscheduled amount before and after. */
+export function variationEffect(plan: Pick<BillingPlan, 'contract' | 'variations' | 'milestones'> | undefined, amount: number): { from: number; to: number; unscheduledFrom: number; unscheduledTo: number } | null {
+  const from = contractedCents(plan)
+  if (from === null) return null
+  const scheduled = (plan?.milestones ?? []).reduce((a, m) => a + m.amountCents, 0)
+  return { from, to: from + amount, unscheduledFrom: from - scheduled, unscheduledTo: from + amount - scheduled }
 }
