@@ -128,7 +128,10 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
       {voided && (
         <div ref={banner} tabIndex={-1} style={{ marginBottom: 14, outline: 'none' }}>
           <Banner icon="x">
-            <b>{voidSummary(voided, personName(voided.voidedBy))}.</b> The invoice and its number are kept. It can’t be reopened; duplicate it to start a corrected draft.
+            <b>{voidSummary(voided, personName(voided.voidedBy))}.</b>{' '}
+            {ext
+              ? 'This record was cancelled. Its reference can be recorded again.'
+              : 'The invoice and its number are kept. It can’t be reopened; duplicate it to start a corrected draft.'}
           </Banner>
         </div>
       )}

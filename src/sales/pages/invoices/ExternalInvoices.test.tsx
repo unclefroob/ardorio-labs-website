@@ -98,6 +98,34 @@ describe('External invoice: the invoice view', () => {
     expect(host.querySelector('.modal')?.getAttribute('aria-label')).toBe('Edit Xero INV-0457')
   })
 
+  it('a cancelled record says its reference can be recorded again, not the SalesOS duplicate wording', async () => {
+    await view(ext({ status: 'void', voided: { voidedAt: '2026-10-12T04:41:00.000Z', voidedBy: 'u-me', reason: 'mistake', note: '', linkDeactivated: null } }))
+    expect(text()).toContain('This record was cancelled. Its reference can be recorded again.')
+    expect(text()).not.toContain('its number are kept')
+    expect(text()).not.toContain('duplicate it')
+    expect(button(host, 'Duplicate as new draft')).toBeUndefined()
+  })
+
+  it('never shows or offers its hostedUrl or public link, whatever its status, though the API sends one', async () => {
+    const VOID = { voidedAt: '2026-10-12T04:41:00.000Z', voidedBy: 'u-me', reason: 'mistake' as const, note: '', linkDeactivated: null }
+    for (const inv of [ext({ status: 'sent', payment: null }), ext(), ext({ status: 'void', voided: VOID })]) {
+      act(() => root.unmount())
+      root = createRoot(host)
+      await view(inv)
+      expect(inv.hostedUrl).toBe('https://ardorio.co/invoice/tok')
+      expect(host.innerHTML).not.toContain('ardorio.co/invoice/tok')
+      expect([...host.querySelectorAll('input')].map(i => i.value)).not.toContain(inv.hostedUrl)
+      expect(host.querySelector('#inv-link')).toBeNull()
+      for (const b of ['Copy link', 'Open link', 'Copy public link']) expect(button(host, b)).toBeUndefined()
+      const more = button(host, 'More')
+      if (more) {
+        await click(more)
+        expect([...host.querySelectorAll('[role="menuitem"]')].map(i => i.textContent?.trim())).not.toContain('Copy public link')
+        await click(more)
+      }
+    }
+  })
+
   it('cancelling names it by reference and lists no client page or card link', async () => {
     await view(ext())
     await click(button(host, 'More'))
