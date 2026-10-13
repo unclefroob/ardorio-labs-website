@@ -8,6 +8,9 @@ import type { BusinessId, Contact as ContactT } from '../../data/types'
 import { Av, Banner, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, Empty, Icon, Link, Menu, Owner, ScoreRing, Seg, Sel, Tabs, Timeline } from '../../kit'
 import { LEAD_STATUSES } from '../../modals/entities/options'
 import { PERM } from '../../shared/constants'
+import { canArchive } from '../../data/archive'
+import { askArchive } from '../../shared/archiveActions'
+import { ArchivedState } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import type { Route } from '../../ui/store'
 import { UI } from '../../ui/store'
@@ -57,6 +60,7 @@ export function Contact({ route }: { route: Route }) {
       </div>
     )
   }
+  if (ct.archived) return <ArchivedState kind="contact" r={ct} />
   const ws = Q.wsBiz()
   const b = bs.find(x => x === bSel) ?? (ws && bs.includes(ws) ? ws : bs[0])
   const r = Q.crel(ct.id, b)
@@ -104,6 +108,13 @@ export function Contact({ route }: { route: Route }) {
           </div>
         </div>
         {can && <Btn icon="edit" onClick={() => UI.open('editContact', { id: ct.id })}>Edit</Btn>}
+        {canArchive('contact', ct) && (
+          <Menu
+            align="right"
+            trigger={<Btn icon="more" aria-label="More actions" />}
+            items={[{ label: 'Archive contact', icon: 'archive', onClick: () => askArchive('contact', ct.id) }]}
+          />
+        )}
       </PageHead>
       <div className="col gap12" style={{ marginBottom: 14 }}>
         {sup && <Banner tone="bad"><b>Do not contact.</b> {sup.scope === 'global' ? 'Global' : 'Business'} suppression — {sup.reason} ({F.date(sup.date)}). Source: {sup.source}</Banner>}

@@ -16,6 +16,7 @@ import { CallOutcome } from '../modals/entities/CallOutcome'
 import { ProvisionRosterio } from '../modals/entities/ProvisionRosterio'
 import { LinkRosterio } from '../modals/entities/LinkRosterio'
 import { TaskDrawer } from '../modals/entities/TaskDrawer'
+import { ArchiveRecord } from '../modals/entities/Archive'
 
 export const u1: UnitModule = {
   pages: { companies: Companies, company: Company, contacts: Contacts, contact: Contact },
@@ -23,6 +24,7 @@ export const u1: UnitModule = {
     newCompany: NewCompany, editCompany: EditCompany, newContact: NewContact, editContact: EditContact,
     newDeal: NewDeal, stageCheck: StageCheck, won: Won, lost: Lost, newTask: NewTask,
     callOutcome: CallOutcome, logCall: CallOutcome, provisionRosterio: ProvisionRosterio, linkRosterio: LinkRosterio,
+    archiveRecord: ArchiveRecord,
   },
   drawers: { task: TaskDrawer },
 }

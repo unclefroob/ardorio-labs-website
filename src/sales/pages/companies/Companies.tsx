@@ -4,7 +4,8 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import type { BusinessId, Company, CompanyRel, Task } from '../../data/types'
-import { BizDot, BulkBar, Btn, Chip, DataTable, Empty, FilterBar, Menu, Owner, SearchInp, Sel, TONE, download, toCSV, type Col } from '../../kit'
+import { BizDot, BulkBar, Btn, Chip, DataTable, Empty, FilterBar, Menu, Owner, SearchInp, Seg, Sel, TONE, download, toCSV, type Col } from '../../kit'
+import { ArchivedChip, RestoreRowBtn } from '../../shared/archiveUi'
 import { INDUSTRIES, STATES } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import type { Route } from '../../ui/store'
@@ -27,9 +28,9 @@ type RowCol = Col<Row> & { fixed?: boolean }
 const WEIGHT: Record<string, number> = { High: 3, Medium: 2, Low: 1 }
 const SIZES: ReadonlyArray<readonly [string, string]> = [['5', '5+ locations'], ['10', '10+ locations'], ['20', '20+ locations']]
 
-function buildRows(): Row[] {
+function buildRows(arch: boolean): Row[] {
   const sc = Q.scope()
-  return Q.companies().map(c => {
+  return (arch ? Q.archivedCompanies() : Q.companies()).map(c => {
     const rels = Q.relsOf(c.id)
     const myr = rels.filter(r => sc.includes(r.businessId))
     const ds = S.deals.filter(d => d.companyId === c.id && sc.includes(d.businessId) && d.status === 'open' && d.archived !== true)
@@ -49,10 +50,11 @@ export function Companies({ route }: { route: Route }) {
   const [bz, setBz] = useState('')
   const [own, setOwn] = useState('')
   const [minLoc, setMinLoc] = useState(qStr(route.q, 'minLoc'))
+  const [arch, setArch] = useState(qStr(route.q, 'archived') === '1')
   const [sel, setSel] = useState<string[]>([])
   const [hid, tog] = useColumns('co', ['revenue'])
 
-  const all = buildRows()
+  const all = buildRows(arch)
   const needle = q.toLowerCase()
   const rows = all.filter(c =>
     (!q || (c.name + ' ' + c.domain + ' ' + c.industry + ' ' + c.hq).toLowerCase().includes(needle)) &&
@@ -70,7 +72,7 @@ export function Companies({ route }: { route: Route }) {
   const bd = Q.defaultBiz()
 
   const defs: RowCol[] = [
-    { k: 'name', l: 'Company', fixed: true, r: c => <div><b>{c.name}</b><div className="faint xs">{c.domain}</div></div> },
+    { k: 'name', l: 'Company', fixed: true, r: c => <div><span className="row" style={{ gap: 6 }}><b>{c.name}</b>{arch && <ArchivedChip r={c} />}</span><div className="faint xs">{c.domain}</div></div> },
     { k: 'industry', l: 'Industry' },
     { k: 'hq', l: 'Location', r: c => c.hq + ', ' + c.state },
     { k: 'employees', l: 'Employees', right: true, r: c => <span className="num">{F.num(c.employees)}</span> },
@@ -94,6 +96,7 @@ export function Companies({ route }: { route: Route }) {
     },
     { k: 'pri', l: 'Priority', r: c => (c.pri ? <Chip tone={TONE[c.pri]}>{c.pri}</Chip> : <span className="faint">—</span>), sort: c => WEIGHT[c.pri ?? ''] ?? 0 },
     { k: 'revenue', l: 'Revenue est.', r: c => (typeof c.revenue === 'string' && c.revenue ? c.revenue : '—') },
+    ...(arch ? [{ k: 'restore', l: 'Restore', fixed: true, nosort: true, r: (c: Row) => <RestoreRowBtn kind="company" r={c} /> }] : []),
   ]
   const cols = defs.map(c => ({ ...c, hide: hid.includes(c.k) }))
 
@@ -105,12 +108,13 @@ export function Companies({ route }: { route: Route }) {
 
   return (
     <div className="page">
-      <PageHead title="Companies" sub={rows.length + ' companies · master database shared across businesses'}>
+      <PageHead title="Companies" sub={arch ? rows.length + ' archived companies · restore one to bring it back to lists and pickers' : rows.length + ' companies · master database shared across businesses'}>
         <Btn icon="download" disabled={!rows.length} onClick={exp}>Export</Btn>
         <Btn kind="pri" icon="plus" disabled={!can} onClick={() => UI.open('newCompany')}>New company</Btn>
       </PageHead>
       <div className="card">
         <FilterBar>
+          <Seg label="Show companies" value={arch ? 'archived' : 'active'} onChange={v => { setArch(v === 'archived'); setSel([]) }} opts={[['active', 'Active'], ['archived', 'Archived', 'archive']]} />
           <SearchInp value={q} onChange={setQ} placeholder="Search name, domain, industry" />
           <Sel className="sm" style={{ width: 150 }} aria-label="Industry" value={ind} onChange={setInd} placeholder="All industries" options={INDUSTRIES} />
           <Sel className="sm" style={{ width: 100 }} aria-label="State" value={st} onChange={setSt} placeholder="Any state" options={STATES} />
@@ -144,11 +148,13 @@ export function Companies({ route }: { route: Route }) {
         <DataTable
           cols={cols}
           rows={rows}
-          sel={picked}
-          setSel={setSel}
+          sel={arch ? undefined : picked}
+          setSel={arch ? undefined : setSel}
           onRow={c => UI.nav('company', { id: c.id })}
           empty={
-            filtered
+            arch && !filtered
+              ? <Empty icon="archive" title="No archived companies" body="Companies you archive appear here, ready to restore." action={<Btn onClick={() => setArch(false)}>Show active companies</Btn>} />
+              : filtered
               ? <Empty icon="search" title="No companies match these filters" body="Try a broader search, or clear the filters to see every company." action={<Btn onClick={clear}>Clear filters</Btn>} />
               : <Empty icon="building" title="No companies yet" body={can ? 'Add your first company, or import a list from Prospecting.' : 'Companies your team adds will appear here.'} action={newCo} />
           }

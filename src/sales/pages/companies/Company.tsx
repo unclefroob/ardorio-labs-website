@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
 import type { Contact } from '../../data/types'
 import { Av, BizDot, Btn, Card, Chip, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, Icon, Link, Menu, Owner, Tabs, Timeline, type Col } from '../../kit'
+import { askArchive } from '../../shared/archiveActions'
+import { ArchivedState } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { LinkBtn } from '../deals/LinkBtn'
 import type { Route } from '../../ui/store'
@@ -42,6 +43,7 @@ export function Company({ route }: { route: Route }) {
       </div>
     )
   }
+  if (c.archived) return <ArchivedState kind="company" r={c} />
   const sc = Q.scope()
   const ws = Q.wsBiz()
   const b = ws && Q.rel(c.id, ws) ? ws : (vis.find(r => sc.includes(r.businessId)) ?? vis[0]).businessId
@@ -119,15 +121,7 @@ export function Company({ route }: { route: Route }) {
           <Menu
             align="right"
             trigger={<Btn icon="more" aria-label="More actions" />}
-            items={[{
-              label: 'Archive company', icon: 'archive',
-              onClick: () => UI.confirm({
-                title: 'Archive ' + c.name + '?',
-                body: 'The company is hidden from lists. Deals, contacts and activity history stay linked and intact.',
-                confirm: 'Archive', danger: true,
-                onConfirm: () => { Act.archiveCompany(c.id); UI.nav('companies') },
-              }),
-            }]}
+            items={[{ label: 'Archive company', icon: 'archive', onClick: () => askArchive('company', c.id) }]}
           />
         )}
       </PageHead>
