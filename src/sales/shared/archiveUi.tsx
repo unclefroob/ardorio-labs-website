@@ -1,5 +1,5 @@
 import { archivedLine, canArchive, KIND_LIST, KIND_NOUN, recordName, whoMay, type ArchiveKind, type ArchivedRecord } from '../data/archive'
-import { Btn, Chip, Empty } from '../kit'
+import { Banner, Btn, Chip, Empty } from '../kit'
 import { UI } from '../ui/store'
 import { ARCHIVED_ROUTE, askRestore } from './archiveActions'
 
@@ -15,6 +15,24 @@ export function RestoreRowBtn({ kind, r }: { kind: ArchiveKind; r: ArchivedRecor
     <span onClick={e => e.stopPropagation()}>
       <Btn size="xs" icon="refresh" aria-label={`Restore ${recordName(kind, r)}`} onClick={() => askRestore(kind, r.id)}>Restore</Btn>
     </span>
+  )
+}
+
+/**
+ * Top of the page of an archived company or contact, which stays readable (contacts, deals, timeline, billing) for
+ * everyone who could see it before. Says it is archived, by whom and when, that it is read-only, and offers Restore
+ * to whoever may.
+ */
+export function ArchivedBanner({ kind, r }: { kind: ArchiveKind; r: ArchivedRecord }) {
+  const noun = KIND_NOUN[kind]
+  const can = canArchive(kind, r)
+  const extra = kind === 'contact' ? ' Sequence enrolments it had stay stopped after a restore.' : ''
+  return (
+    <div role="status" aria-label={`Archived ${noun}`} style={{ marginBottom: 14 }}>
+      <Banner tone="warn" icon="archive" action={can && <Btn size="sm" icon="refresh" onClick={() => askRestore(kind, r.id)}>Restore {noun}</Btn>}>
+        <b>This {noun} is archived.</b> {archivedLine(r)}. It is read-only and hidden from lists, search and pickers{can ? ` until it is restored` : `; ${whoMay(kind, r)} can restore it`}.{extra}
+      </Banner>
+    </div>
   )
 }
 

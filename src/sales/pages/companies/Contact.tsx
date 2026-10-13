@@ -10,7 +10,7 @@ import { LEAD_STATUSES } from '../../modals/entities/options'
 import { PERM } from '../../shared/constants'
 import { canArchive } from '../../data/archive'
 import { askArchive } from '../../shared/archiveActions'
-import { ArchivedState } from '../../shared/archiveUi'
+import { ArchivedBanner } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import type { Route } from '../../ui/store'
 import { UI } from '../../ui/store'
@@ -60,12 +60,13 @@ export function Contact({ route }: { route: Route }) {
       </div>
     )
   }
-  if (ct.archived) return <ArchivedState kind="contact" r={ct} />
+  // An archived contact stays readable for everyone who could see it; it is read-only until restored.
+  const archived = ct.archived === true
   const ws = Q.wsBiz()
   const b = bs.find(x => x === bSel) ?? (ws && bs.includes(ws) ? ws : bs[0])
   const r = Q.crel(ct.id, b)
   const co = Q.company(ct.companyId)
-  const can = Q.canEdit(b)
+  const can = Q.canEdit(b) && !archived
   const s = Q.score(ct.id, b)
   const sup = Q.suppressed(ct, b)
   const li = safeHref(ct.linkedin)
@@ -108,7 +109,7 @@ export function Contact({ route }: { route: Route }) {
           </div>
         </div>
         {can && <Btn icon="edit" onClick={() => UI.open('editContact', { id: ct.id })}>Edit</Btn>}
-        {canArchive('contact', ct) && (
+        {!archived && canArchive('contact', ct) && (
           <Menu
             align="right"
             trigger={<Btn icon="more" aria-label="More actions" />}
@@ -116,6 +117,7 @@ export function Contact({ route }: { route: Route }) {
           />
         )}
       </PageHead>
+      {archived && <ArchivedBanner kind="contact" r={ct} />}
       <div className="col gap12" style={{ marginBottom: 14 }}>
         {sup && <Banner tone="bad"><b>Do not contact.</b> {sup.scope === 'global' ? 'Global' : 'Business'} suppression — {sup.reason} ({F.date(sup.date)}). Source: {sup.source}</Banner>}
         {ct.deliverability === 'Bounced' && (
@@ -179,13 +181,13 @@ export function Contact({ route }: { route: Route }) {
                   <b className="sm" style={{ width: 80 }}>{Q.biz(x.businessId)?.name}</b>
                   {Q.member(x.businessId) ? (
                     <>
-                      {Q.canEdit(x.businessId)
+                      {!archived && Q.canEdit(x.businessId)
                         ? <Sel className="sm" style={{ width: 140 }} aria-label={'Lead status for ' + (Q.biz(x.businessId)?.name ?? '')} value={x.leadStatus} onChange={v => Act.updateCrel(x.id, { leadStatus: v })} options={LEAD_STATUSES} />
                         : <Chip>{x.leadStatus}</Chip>}
                       <Chip>Score {Q.score(ct.id, x.businessId).total}</Chip>
                       <span className="sp" />
                       <Owner id={x.ownerId} s={18} />
-                      {Q.canManage(x.businessId) && <Btn size="xs" kind="ghost" onClick={() => UI.open('reassign', { kind: 'crel', id: x.id, businessId: x.businessId })}>Reassign</Btn>}
+                      {!archived && Q.canManage(x.businessId) && <Btn size="xs" kind="ghost" onClick={() => UI.open('reassign', { kind: 'crel', id: x.id, businessId: x.businessId })}>Reassign</Btn>}
                     </>
                   ) : (
                     <><span className="sp" /><Chip icon="lock">Restricted</Chip></>
@@ -253,7 +255,7 @@ export function Contact({ route }: { route: Route }) {
           <TaskTable rows={tasks} />
         </Card>
       )}
-      {tab === 'notes' && <Notes kind="contact" id={ct.id} b={b} notes={ct.notes} />}
+      {tab === 'notes' && <Notes kind="contact" id={ct.id} b={b} notes={ct.notes} readOnly={archived} />}
       {tab === 'intel' && <ContactIntel ct={ct} b={b} />}
     </div>
   )

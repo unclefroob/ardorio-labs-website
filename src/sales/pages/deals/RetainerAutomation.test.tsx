@@ -455,6 +455,22 @@ describe('Company billing details focus', () => {
     expect(document.activeElement).toBe(region)
   })
 
+  it('the needs-billing-client link still reaches Billing details when the company is archived', async () => {
+    m = await loadSales()
+    m.bootstrap.hydrate(invoicingWorld())
+    setArdRole(m, 'admin')
+    fakeApi({ 'GET /sales/invoices?companyId=co1': () => json(200, { invoices: [] }), [CLIENTS]: () => json(200, { clients: [] }) })
+    const { Act } = await import('../../data/Act')
+    Act.archiveCompany('co1')
+    const { Company } = await import('../companies/Company')
+    await act(async () => { root.render(<Company route={{ page: 'company', id: 'co1', q: { tab: 'overview', focus: 'billing-details' } }} />) })
+    await settle(8)
+    expect(host.querySelector('[aria-label="Archived company"]')).toBeTruthy()
+    const region = host.querySelector('[role="region"][aria-label="Billing details"]')
+    expect(region).toBeTruthy()
+    expect(document.activeElement).toBe(region)
+  })
+
   it('does not move focus without the route asking', async () => {
     m = await loadSales()
     m.bootstrap.hydrate(invoicingWorld())

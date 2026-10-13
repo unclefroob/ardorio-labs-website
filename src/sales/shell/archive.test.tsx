@@ -60,7 +60,7 @@ async function setup(over: Parameters<typeof salesWorld>[0] = {}) {
   return { Act, Q, Hosts }
 }
 
-function role(r: 'admin' | 'manager' | 'sales') {
+function role(r: 'admin' | 'manager' | 'sales' | 'viewer') {
   const u = m.store.S.users.find(x => x.id === ME.userId)
   if (!u) throw new Error('no user')
   u.super = false
@@ -99,7 +99,7 @@ describe('Contact: archive and restore', () => {
     expect(t.Q.enrol('en1')?.status).toBe('awaiting_task')
   })
 
-  it('archiving shows the archived state with Restore; restoring leaves enrolments stopped', async () => {
+  it('archiving keeps the contact page readable under an Archived banner with Restore; restoring leaves enrolments stopped', async () => {
     const t = await setup()
     const { Contact } = await import('../pages/companies/Contact')
     await show(<Contact route={{ page: 'contact', id: 'ct1' }} />, t.Hosts)
@@ -111,14 +111,22 @@ describe('Contact: archive and restore', () => {
     await click(button(d, 'Archive contact'))
     expect(t.Q.contact('ct1')?.archived).toBe(true)
     expect(t.Q.enrol('en1')?.status).toBe('removed')
-    expect(text()).toContain('This record is archived')
-    expect(text()).toContain('Sequence enrolments it had stay stopped after a restore.')
+    const banner = host.querySelector('[role="status"][aria-label="Archived contact"]')?.textContent ?? ''
+    expect(banner).toContain('This contact is archived.')
+    expect(banner).toContain('It is read-only')
+    expect(banner).toContain('Sequence enrolments it had stay stopped after a restore.')
+    // Still the record page, read-only: no Edit, no Archive menu.
+    expect(text()).toContain('Sam Buyer')
+    expect(text()).toContain('Activity timeline')
+    expect(button(host, 'Edit')).toBeUndefined()
+    expect(more()).toBeNull()
 
     await click(button(host, 'Restore contact'))
     expect(dialog()).toBeNull()
     expect(t.Q.contact('ct1')?.archived).toBe(false)
     expect(t.Q.enrol('en1')?.status).toBe('removed')
-    expect(text()).not.toContain('This record is archived')
+    expect(host.querySelector('[aria-label="Archived contact"]')).toBeNull()
+    expect(button(host, 'Edit')).toBeDefined()
     expect(document.querySelector('.toasts')?.textContent).toContain('Sam Buyer restored. Stopped sequence enrolments stay stopped.')
   })
 })
@@ -152,14 +160,49 @@ describe('Contacts and Companies lists: Archived filter', () => {
     expect(t.Q.company('co1')?.archived).toBe(false)
   })
 
-  it('an archived company page says so instead of not found, with Restore', async () => {
+  it('an archived company page stays readable, says it is archived and offers Restore', async () => {
     const t = await setup()
     t.Act.archiveCompany('co1')
     const { Company } = await import('../pages/companies/Company')
     await show(<Company route={{ page: 'company', id: 'co1' }} />, t.Hosts)
-    expect(text()).toContain('This record is archived')
+    expect(host.querySelector('[role="status"][aria-label="Archived company"]')?.textContent).toContain('This company is archived.')
+    expect(text()).toContain('Acme')
+    expect(button(host, 'Edit')).toBeUndefined()
+    expect(button(host, 'Add contact')).toBeUndefined()
     await click(button(host, 'Restore company'))
     expect(t.Q.company('co1')?.archived).toBe(false)
+    expect(host.querySelector('[aria-label="Archived company"]')).toBeNull()
+    expect(button(host, 'Edit')).toBeDefined()
+  })
+
+  it('a viewer, who cannot restore, still reads an archived company: contacts, deals and history', async () => {
+    const t = await setup()
+    t.Act.archiveCompany('co1')
+    role('viewer')
+    const { Company } = await import('../pages/companies/Company')
+    await show(<Company route={{ page: 'company', id: 'co1', q: { tab: 'deals' } }} />, t.Hosts)
+    const banner = host.querySelector('[role="status"][aria-label="Archived company"]')?.textContent ?? ''
+    expect(banner).toContain('This company is archived.')
+    expect(banner).toContain('Someone with edit access to its business can restore it')
+    expect(button(host, 'Restore company')).toBeUndefined()
+    expect(text()).toContain('Roster rollout')
+    expect(text()).toContain('Payroll add-on')
+    await click(button(host, /^Contacts/))
+    expect(text()).toContain('Sam Buyer')
+  })
+
+  it('a viewer still reads an archived contact, with no Restore', async () => {
+    const t = await setup()
+    t.Act.archiveContact('ct1')
+    role('viewer')
+    const { Contact } = await import('../pages/companies/Contact')
+    await show(<Contact route={{ page: 'contact', id: 'ct1' }} />, t.Hosts)
+    const banner = host.querySelector('[role="status"][aria-label="Archived contact"]')?.textContent ?? ''
+    expect(banner).toContain('This contact is archived.')
+    expect(banner).toContain('can restore it')
+    expect(button(host, 'Restore contact')).toBeUndefined()
+    expect(text()).toContain('Sam Buyer')
+    expect(text()).toContain('Roster rollout')
   })
 })
 

@@ -5,7 +5,7 @@ import { isRevoked, S, useStore } from '../../data/store'
 import type { Contact } from '../../data/types'
 import { Av, BizDot, Btn, Card, Chip, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, Icon, Link, Menu, Owner, Tabs, Timeline, type Col } from '../../kit'
 import { askArchive } from '../../shared/archiveActions'
-import { ArchivedState } from '../../shared/archiveUi'
+import { ArchivedBanner } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { LinkBtn } from '../deals/LinkBtn'
 import type { Route } from '../../ui/store'
@@ -43,11 +43,12 @@ export function Company({ route }: { route: Route }) {
       </div>
     )
   }
-  if (c.archived) return <ArchivedState kind="company" r={c} />
+  // An archived company stays readable for everyone who could see it; it is read-only until restored.
+  const archived = c.archived === true
   const sc = Q.scope()
   const ws = Q.wsBiz()
   const b = ws && Q.rel(c.id, ws) ? ws : (vis.find(r => sc.includes(r.businessId)) ?? vis[0]).businessId
-  const can = Q.canEdit(b)
+  const can = Q.canEdit(b) && !archived
   const cts = S.contacts.filter(x => x.companyId === c.id && !x.archived)
   const deals = S.deals.filter(d => d.companyId === c.id && Q.member(d.businessId) && d.archived !== true)
   const openDeals = deals.filter(Q.open)
@@ -125,6 +126,7 @@ export function Company({ route }: { route: Route }) {
           />
         )}
       </PageHead>
+      {archived && <ArchivedBanner kind="company" r={c} />}
       <div className="col gap12" style={{ marginBottom: 14 }}>
         <Coord companyId={c.id} />
         {can && (
@@ -220,9 +222,9 @@ export function Company({ route }: { route: Route }) {
         </Card>
       )}
       {tab === 'activity' && <Card><ActFilter items={acts} /></Card>}
-      {tab === 'intel' && <CompanyIntel c={c} b={b} />}
-      {tab === 'notes' && <Notes kind="company" id={c.id} b={b} notes={c.notes} />}
-      {tab === 'rels' && <BizRels c={c} />}
+      {tab === 'intel' && <CompanyIntel c={c} b={b} readOnly={archived} />}
+      {tab === 'notes' && <Notes kind="company" id={c.id} b={b} notes={c.notes} readOnly={archived} />}
+      {tab === 'rels' && <BizRels c={c} readOnly={archived} />}
     </div>
   )
 }
