@@ -122,6 +122,9 @@ describe('billingPlans validation (as the API)', () => {
   })
   it('cleaning trims the label and drops an empty date; the plan id is bp_<dealId>', () => {
     expect(cleanMilestone({ id: 'a', label: '  Kickoff ', amountCents: 5, plannedDate: '' })).toEqual({ id: 'a', label: 'Kickoff', amountCents: 5 })
+    // An undo that has not synced yet stays an explicit null, because the API keeps a missing deliveredOn.
+    expect(cleanMilestone({ id: 'a', label: 'Kickoff', amountCents: 5, deliveredOn: null })).toEqual({ id: 'a', label: 'Kickoff', amountCents: 5, deliveredOn: null })
+    expect(cleanMilestone({ id: 'a', label: 'Kickoff', amountCents: 5, deliveredOn: '2026-09-01', deliveredBy: 'Ryan' })).toEqual({ id: 'a', label: 'Kickoff', amountCents: 5, deliveredOn: '2026-09-01', deliveredBy: 'Ryan' })
     expect(planId('dl9')).toBe('bp_dl9')
   })
 })

@@ -60,10 +60,11 @@ describe('Deal billing card with a cancelled invoice', () => {
     expect(button(host.querySelectorAll('tbody tr')[1], 'Mark paid')).toBeUndefined()
   })
 
-  it('billed progress leaves the cancelled invoice out', async () => {
+  it('the project money leaves the cancelled invoice out', async () => {
     await show([paid, gone])
-    expect(text()).toContain('Billed $18,000.00 of $60,000.00 quoted')
-    expect(host.querySelector('.prog')?.getAttribute('aria-label')).toBe('Paid $18,000.00, invoiced $0.00, not yet billed $42,000.00 of $60,000.00')
+    expect(host.querySelector('.bul[data-bar="Invoiced"]')?.getAttribute('aria-label')).toBe('Invoiced $18,000.00 of $60,000.00 estimated, no contract recorded')
+    expect(host.querySelector('.bul[data-bar="Collected"]')?.getAttribute('aria-label')).toBe('Collected $18,000.00 of $60,000.00 estimated, no contract recorded')
+    expect(text()).toContain('Outstanding (invoiced, not yet paid · none overdue)')
   })
 
   it('Create invoice for all unbilled counts the cancelled milestone', async () => {
