@@ -189,7 +189,7 @@ export function Company({ route }: { route: Route }) {
               {hiddenDeals > 0 && <div className="faint xs" style={{ marginTop: 6 }}><Icon n="lock" s={11} /> {hiddenDeals} deal{hiddenDeals > 1 ? 's' : ''} in other businesses (restricted)</div>}
             </Card>
             <RosterioCard companyId={c.id} />
-            <CompanyBilling company={c} />
+            <CompanyBilling company={c} focusDetails={qStr(route.q, 'focus') === 'billing-details'} />
             <Card title="Next activity">
               {nt.length
                 ? nt.slice(0, 4).map(t => (
