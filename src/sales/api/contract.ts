@@ -279,6 +279,7 @@ export type SalesErrorCode =
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
   | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
   | 'INVOICE_PAID' | 'INVOICE_ALREADY_VOID' | 'INVOICE_NOT_ISSUED' | 'LINK_DEACTIVATION_FAILED' | 'INVOICE_ALREADY_TEST' | 'INVOICE_NOT_TEST' | 'CONFIRMATION_MISMATCH' | 'INVOICE_DELETING' | 'REFUND_DUE_UNACKNOWLEDGED'   // LINK_DEACTIVATION_FAILED carries details: { linkId: string }
+  | 'DUPLICATE_EXTERNAL_REFERENCE' | 'NOT_EXTERNAL'   // DUPLICATE_EXTERNAL_REFERENCE carries details: { invoiceId: string; dealId: string | null }
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -477,8 +478,9 @@ export interface InvoiceLine { description: string; detail?: string; qty: number
 export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; amountCents: number; reference: string }
 /** Set when an admin marked the invoice as a test. Test invoices are excluded from every list, total and export unless ?includeTest=1. */
 export interface InvoiceTestInfo { markedAt: string; markedBy: string; reason: string }
-// Who made the invoice: a person, or the retainer scheduler (always as a draft). Every existing invoice reads as 'manual'.
-export type InvoiceSource = 'manual' | 'retainer'
+// Who made the invoice: a person, or the retainer scheduler (always as a draft), or a person recording one made outside
+// SalesOS ('external', see below). Every existing invoice reads as 'manual'.
+export type InvoiceSource = 'manual' | 'retainer' | 'external'
 export interface InvoiceDto {
   id: string; invoiceNumber: string; clientSlug: string; clientName: string
   companyId: string | null; dealId: string | null; milestoneId: string | null
@@ -491,6 +493,7 @@ export interface InvoiceDto {
   voided: InvoiceVoidInfo | null; refundDue: InvoiceRefundDue | null
   test: InvoiceTestInfo | null
   source: InvoiceSource
+  external: InvoiceExternalInfo | null
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -541,6 +544,15 @@ export interface BillingContract { baselineCents: number; engagementType: Engage
 // Server-written keys (a client value is ignored and the stored value kept): contract.contractedBy, variation.createdBy, variation.createdAt, variation.decidedBy, variation.decidedAt, milestone.deliveredBy.
 // The By keys (contractedBy, createdBy, decidedBy, deliveredBy) hold the caller's display name (displayName || username || email), not a user id: show the stored text as it is.
 // Amounts here are ex-GST cents. Derived milestone status (web computes): Planned (no live invoice with this milestoneId), Draft invoice (invoice draft), Invoiced (sent), Paid. A void invoice counts as none of them.
+// ---- Recorded won deals and external invoices ----
+// Deals: a deal created already won carries recordedWonDirectly: true and recordedWonBy (server-set display name). The server refuses a won date (deal.close) in the future for such a deal.
+// InvoiceSource gains 'external' (InvoiceSource = 'manual' | 'retainer' | 'external').
+export type ExternalInvoiceSource = 'xero' | 'other-system' | 'bank-transfer-no-invoice'
+export interface ExternalInvoiceInput { companyId: string; dealId: string; milestoneId?: string | null; externalSource: ExternalInvoiceSource; externalReference: string; issueDate: string; subtotalCents: number; gstCents: number; paidOn?: string | null; paymentMethod?: InvoicePaymentMethod | null; paidAmountCents?: number | null; notes?: string }
+export interface InvoiceExternalInfo { source: ExternalInvoiceSource; reference: string; recordedBy: string; recordedAt: string }
+// InvoiceDto gains: external: InvoiceExternalInfo | null
+// POST /sales/invoices/external (ExternalInvoiceInput) -> InvoiceDto ; PUT /sales/invoices/:id/external (ExternalInvoiceInput) -> InvoiceDto (external, not void)
+// SalesErrorCode gains: 'DUPLICATE_EXTERNAL_REFERENCE' (details: { invoiceId: string; dealId: string | null }) | 'NOT_EXTERNAL'
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
 export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }
