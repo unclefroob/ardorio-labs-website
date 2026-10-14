@@ -130,6 +130,8 @@ export const UI = {
 export interface ConfirmProps {
   title: string
   body: string
+  /** Optional consequences, listed under the body. */
+  points?: readonly string[]
   confirm?: string
   danger?: boolean
   onConfirm: () => void

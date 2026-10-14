@@ -3,6 +3,7 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
+import { standingActs } from '../../data/voided'
 import type { EnrichField } from '../../api/contract'
 import type { BusinessId, Contact as ContactT } from '../../data/types'
 import { Av, Banner, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, Empty, Icon, Link, Menu, Owner, ScoreRing, Seg, Sel, Tabs, Timeline } from '../../kit'
@@ -151,7 +152,7 @@ export function Contact({ route }: { route: Route }) {
       <Tabs
         value={tab}
         onChange={setTab}
-        tabs={[['overview', 'Overview'], ['activity', 'Activity timeline', acts.length], ['emails', 'Email conversations', ths.length], ['seq', 'Sequences', ens.length], ['deals', 'Deals', deals.length], ['tasks', 'Tasks', tasks.filter(t => !Q.done(t)).length], ['notes', 'Notes', ct.notes.length], ['intel', 'Intelligence']]}
+        tabs={[['overview', 'Overview'], ['activity', 'Activity timeline', standingActs(acts).length], ['emails', 'Email conversations', ths.length], ['seq', 'Sequences', ens.length], ['deals', 'Deals', deals.length], ['tasks', 'Tasks', tasks.filter(t => !Q.done(t)).length], ['notes', 'Notes', ct.notes.length], ['intel', 'Intelligence']]}
       />
       {tab === 'overview' && (
         <div className="split">

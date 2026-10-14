@@ -3,6 +3,8 @@ import { addVariation, claimRetainerPeriod, decideVariation, markDelivered, reta
 import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
+import { voidActivity } from './act/activities'
+import { cancelMeeting, deleteMeeting, markMeetingNoShow, rescheduleMeeting } from './act/meetings'
 import { applyPhoneLookup } from './act/phone'
 import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, refreshRecs, saveResearch, confirmResearchIdentity, enrichLog } from './act/recs'
 import { addKnownTech, reviewClosure, saveIntel } from './act/intel'
@@ -16,7 +18,9 @@ import {
 export type { CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
 export type { DealForm, LostForm, WonForm } from './act/deals'
 export type { RecordWonInput, RecordWonResult, RecordWonSaved } from './act/recordWon'
-export type { CallForm, MeetingInput, MarkSentResult, SendEmailForm, SendResult, SimulateReplyOpts } from './act/mail'
+export type { MeetingActResult } from './act/meetings'
+export type { VoidResult } from './act/activities'
+export type { BookedMeeting, CallForm, MeetingInput, MarkSentResult, SendEmailForm, SendResult, SimulateReplyOpts } from './act/mail'
 export type { EnrolOpts, EnrolResult, SequenceInput } from './act/seq'
 export type { CompleteOpts, EmailTaskResult, TaskInput } from './act/tasks'
 export type { GoalInput, TeamInput, UserForm } from './act/admin'
@@ -33,7 +37,8 @@ export const Act = {
   saveMilestones, saveRetainer, claimRetainerPeriod, retainerClaimProblem, setContract, addVariation, decideVariation, markDelivered,
   createDeal, recordWonDeal, recordWonOutcome, updateDeal, moveStage, markWon, markLost, reopenDeal, archiveDeal, restoreDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
-  logCall, saveMeeting,
+  voidActivity,
+  logCall, saveMeeting, cancelMeeting, markMeetingNoShow, rescheduleMeeting, deleteMeeting,
   sendEmail, markEmailSent, skipEmailTask, stopEmailing, markThread, shareThread,
   saveSequence, setSeqStatus, archiveSequence, restoreSequence, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,

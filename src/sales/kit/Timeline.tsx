@@ -2,7 +2,10 @@ import type { Activity } from '../data/types'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
 import { isSimAct } from '../data/simulated'
-import { BizDot, Chip, Empty, SimChip } from './basic'
+import { canVoidActivity, voidedLine } from '../data/voidRules'
+import { isVoided } from '../data/voided'
+import { UI } from '../ui/store'
+import { BizDot, Btn, Chip, Empty, SimChip } from './basic'
 import { CoLink, CtLink, DlLink } from './links'
 import { Icon } from './Icon'
 import { AIC } from './util'
@@ -21,18 +24,26 @@ export function Timeline({ items, showCompany }: { items: readonly Activity[]; s
       {items.map(a => {
         const [ic, lab] = AIC[a.type] ?? ['activity', a.type]
         const vis = Q.actVisible(a)
+        const gone = isVoided(a)
         return (
-          <div key={a.id} className="tl-i">
+          <div key={a.id} className={'tl-i' + (gone ? ' voided' : '')}>
             <div className="tl-ic" style={iconStyle(a.type)}>
               <Icon n={ic} s={13} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div className="row wrap" style={{ gap: 6 }}>
-                <span className="b">{vis ? a.subject : 'Private email'}</span>
+                <span className={'b' + (gone ? ' strike' : '')}>{vis ? a.subject : 'Private email'}</span>
                 {!vis && <Chip icon="lock">Content restricted</Chip>}
                 {a.outcome && vis && <Chip>{a.outcome}</Chip>}
                 {isSimAct(a) && <SimChip />}
+                {gone && <Chip icon="x" title="Does not count in goals, reports or totals">Logged in error</Chip>}
+                {!gone && canVoidActivity(a) && (
+                  <Btn size="xs" kind="ghost" style={{ marginLeft: 'auto' }} aria-label={`Mark ${vis ? `“${a.subject ?? ''}”` : 'this activity'} as logged in error`} onClick={() => UI.open('voidActivity', { id: a.id })}>
+                    Logged in error
+                  </Btn>
+                )}
               </div>
+              {gone && <div className="faint xs" style={{ marginTop: 2 }}>{voidedLine(a)}</div>}
               <div className="faint xs row wrap" style={{ gap: 6, marginTop: 2 }}>
                 <span>{lab}</span>·<span>{F.dt(a.ts)}</span>·<span>{Q.user(a.actorId)?.name || 'System'}</span>
                 <BizDot b={a.businessId} s={6} />
@@ -56,7 +67,7 @@ export function Timeline({ items, showCompany }: { items: readonly Activity[]; s
                 )}
               </div>
               {vis && a.desc && (
-                <div className="muted sm" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>
+                <div className={'muted sm' + (gone ? ' strike' : '')} style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>
                   {a.desc}
                 </div>
               )}

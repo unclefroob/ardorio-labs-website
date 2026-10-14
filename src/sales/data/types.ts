@@ -203,6 +203,9 @@ export interface Deal {
   recordedWonDirectly?: boolean
   /** Who recorded it, as the server stores it (the caller's display name). A client value is only a placeholder. */
   recordedWonBy?: string
+  /** Stamped by the server when a won or lost deal goes back to open (reopenedBy is the caller's display name). */
+  reopenedAt?: Iso
+  reopenedBy?: string
   [k: string]: unknown
 }
 
@@ -261,6 +264,12 @@ export interface Meeting {
   nextSteps: string
   outcome?: string
   createdBy: string
+  /** Set when the meeting is cancelled (status 'cancelled'). cancelledBy is a display name the server sets. */
+  cancelledAt?: Iso
+  cancelledBy?: string
+  cancelReason?: string
+  /** Earlier starts of a rescheduled meeting, oldest first. */
+  rescheduledFrom?: Iso[]
   _nt?: number
   _logged?: number
   [k: string]: unknown
@@ -522,6 +531,12 @@ export interface Activity {
   dup?: boolean
   /** True when a simulated path recorded this (no real email, reply or tracking event). Never counted in metrics. */
   simulated?: boolean
+  /** Logged in error (contract: activity void). Once true it never changes again; never counted anywhere. */
+  voided?: boolean
+  voidedAt?: Iso
+  /** The voiding person's display name, written by the server. */
+  voidedBy?: string
+  voidReason?: string
   [k: string]: unknown
 }
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { localAi, meetingActions, type AiResult, type AiTag, type MeetingActionsWithSummary } from '../../ai/client'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
+import { CANCEL_REASON_MAX, MEETING_STATUS_LABEL, statusOptions } from '../../data/meetings'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import { flushAll } from '../../data/sync'
@@ -9,6 +10,8 @@ import type { BusinessId, Meeting } from '../../data/types'
 import { AiBadge, AiNotConfigured, Banner, Btn, Ck, Fld, Icon, Inp, Modal, Seg, Sel, Skel, TA } from '../../kit'
 import { SECTIONS } from '../../shared/constants'
 import { BizSel, CoSel, MultiCt, useF } from '../../shared/forms'
+import { askDelete, canDeleteMeeting } from '../../shared/meetingActions'
+import { MeetingHistory } from '../../shared/meetingUi'
 import { tryMove } from '../../shared/moves'
 import { UI } from '../../ui/store'
 import { MissingModal, NoEditModal } from '../entities/guards'
@@ -25,12 +28,15 @@ interface MeetingForm {
   type: string
   status: string
   outcome: string
+  cancelReason: string
   sections: Record<string, string>
   nextSteps: string
 }
 interface Props { id?: string; dealId?: string; companyId?: string; businessId?: BusinessId; contactIds?: string[]; status?: string }
 
 const FALLBACK_TAG: AiTag = { source: 'fallback', model: null }
+/** Outcomes offered for a completed meeting. No-show and Rescheduled are statuses now; an older record keeps its value. */
+const OUTCOMES = ['Positive', 'Neutral', 'Negative']
 const DAYS: ReadonlyArray<readonly [string, string]> = [['0', 'Today'], ['1', '+1 day'], ['2', '+2 days'], ['3', '+3 days'], ['5', '+5 days'], ['7', '+1 week']]
 
 export function LogMeeting(p: Props) {
@@ -43,19 +49,27 @@ export function LogMeeting(p: Props) {
 
 function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz: BusinessId }) {
   const d0 = p.dealId ? Q.deal(p.dealId) : undefined
+  const statuses = statusOptions(ex)
+  // Opened as "Record outcome" (status 'completed') on an existing meeting: start from that status when it is offered.
+  const exStatus = ex && p.status && p.status !== ex.status && (statuses as string[]).includes(p.status) ? p.status : ex?.status
   const [f, set] = useF<MeetingForm>(
     ex
       ? {
           title: ex.title, date: ex.start.slice(0, 10), time: ex.start.slice(11, 16), duration: String(ex.duration), businessId: ex.businessId,
-          companyId: ex.companyId ?? '', participants: ex.participants || [], dealId: ex.dealId ?? '', type: ex.type, status: ex.status,
-          outcome: ex.outcome ?? '', sections: { summary: ex.summary, ...ex.sections }, nextSteps: ex.nextSteps || '',
+          companyId: ex.companyId ?? '', participants: ex.participants || [], dealId: ex.dealId ?? '', type: ex.type, status: exStatus ?? ex.status,
+          outcome: ex.outcome || (exStatus === 'completed' && ex.status !== 'completed' ? 'Positive' : ''), cancelReason: ex.cancelReason ?? '',
+          sections: { summary: ex.summary, ...ex.sections }, nextSteps: ex.nextSteps || '',
         }
       : {
           title: d0 ? (Q.company(d0.companyId)?.name.split(' ')[0] ?? '') + ' — discovery meeting' : '', date: F.today(), time: '10:00', duration: '45', businessId: biz,
           companyId: d0?.companyId ?? p.companyId ?? '', participants: p.contactIds ?? d0?.contactIds.slice(0, 2) ?? [], dealId: p.dealId ?? '', type: 'Discovery',
-          status: p.status ?? 'completed', outcome: 'Positive', sections: {}, nextSteps: '',
+          status: p.status ?? 'completed', outcome: 'Positive', cancelReason: '', sections: {}, nextSteps: '',
         },
   )
+  const outcomes = f.outcome && !OUTCOMES.includes(f.outcome) ? [...OUTCOMES, f.outcome] : OUTCOMES
+  const cancelling = f.status === 'cancelled' && ex?.status !== 'cancelled'
+  // Changing the date or time of an upcoming meeting moves it: saveMeeting keeps the old start in its history.
+  const moving = !!ex && (ex.status === 'upcoming' || f.status === 'upcoming') && f.date + 'T' + f.time !== ex.start.slice(0, 16)
   const [savedId, setSavedId] = useState<string | undefined>(ex?.id)
   const [res, setRes] = useState<AiResult<MeetingActionsWithSummary> | null>(null)
   const [actions, setActions] = useState<MeetingActionsWithSummary['actions']>([])
@@ -75,6 +89,7 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
       id: savedId, title: f.title.trim(), start: f.date + 'T' + f.time, duration: parseInt(f.duration, 10) || 30, businessId: f.businessId,
       companyId: f.companyId, participants: f.participants, dealId: f.dealId || null, type: f.type, status: f.status, outcome: f.outcome,
       summary: summary ?? '', sections: rest, nextSteps: f.nextSteps, ownerId: ex?.ownerId ?? Q.me().id,
+      ...(cancelling ? { cancelReason: f.cancelReason.trim() } : {}),
     })
     setSavedId(m.id)
     return m
@@ -101,6 +116,7 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
 
   const save = (): void => {
     if (!f.title.trim() || !f.companyId) return UI.toast('Title and company are required', 'bad')
+    if (cancelling && !f.cancelReason.trim()) return UI.toast('Say why the meeting was cancelled', 'bad')
     persist()
     let n = 0
     if (res) {
@@ -143,6 +159,7 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
       footer={
         <>
           <Btn onClick={UI.close}>Cancel</Btn>
+          {ex && savedId && canDeleteMeeting(ex) && <Btn kind="danger" icon="trash" onClick={() => askDelete(ex, UI.close)}>Delete</Btn>}
           <span className="sp" />
           {f.status === 'completed' && <AiNotConfigured />}
           {f.status === 'completed' && (
@@ -152,11 +169,12 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
         </>
       }
     >
+      {ex && (ex.status === 'cancelled' || (ex.rescheduledFrom ?? []).length > 0) && <div style={{ marginBottom: 10 }}><MeetingHistory m={ex} /></div>}
       {noCompanies && <Banner tone="warn" action={<Btn size="sm" onClick={() => UI.open('newCompany')}>Add company</Btn>}>There are no companies yet. A meeting needs a company, so add one first.</Banner>}
       <div className="grid g3">
         <Fld label="Meeting title" req style={{ gridColumn: '1/-1' }}><Inp value={f.title} onChange={v => set('title', v)} /></Fld>
-        <Fld label="Status"><Seg value={f.status} onChange={v => set('status', v)} opts={[['upcoming', 'Upcoming'], ['completed', 'Completed']]} /></Fld>
-        <Fld label="Date"><Inp type="date" value={f.date} onChange={v => set('date', v)} /></Fld>
+        <Fld label="Status" hint={ex?.status === 'completed' ? 'A held meeting stays completed. If it did not happen, use “Logged in error” on its activity.' : undefined}><Seg label="Status" value={f.status} onChange={v => set('status', v)} opts={statuses.map(k => [k, MEETING_STATUS_LABEL[k]] as const)} /></Fld>
+        <Fld label="Date" hint={moving ? 'Saving moves the meeting. The earlier time stays in its history.' : undefined}><Inp type="date" value={f.date} onChange={v => set('date', v)} /></Fld>
         <div className="row" style={{ gap: 8 }}>
           <Fld label="Time" style={{ flex: 1 }}><Inp type="time" value={f.time} onChange={v => set('time', v)} /></Fld>
           <Fld label="Mins" style={{ width: 70 }}><Inp value={f.duration} onChange={v => set('duration', v)} inputMode="numeric" /></Fld>
@@ -167,7 +185,12 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
           <Sel value={f.dealId} onChange={v => set('dealId', v)} placeholder="—" options={deals.map(d => [d.id, d.title] as const)} />
         </Fld>
         <Fld label="Type"><Sel value={f.type} onChange={v => set('type', v)} options={['Discovery', 'Demo', 'Workshop', 'Pilot review', 'Security review', 'Commercial', 'Check-in']} /></Fld>
-        {f.status === 'completed' && <Fld label="Outcome"><Sel value={f.outcome} onChange={v => set('outcome', v)} options={['Positive', 'Neutral', 'Negative', 'No-show', 'Rescheduled']} /></Fld>}
+        {f.status === 'completed' && <Fld label="Outcome"><Sel value={f.outcome} onChange={v => set('outcome', v)} options={outcomes} /></Fld>}
+        {cancelling && (
+          <Fld label="Reason for cancelling" req style={{ gridColumn: '1/-1' }}>
+            <TA value={f.cancelReason} onChange={v => set('cancelReason', v)} rows={2} maxLength={CANCEL_REASON_MAX} />
+          </Fld>
+        )}
         <Fld label="Participants" style={{ gridColumn: '1/-1' }}><MultiCt companyId={f.companyId} value={f.participants} onChange={v => set('participants', v)} /></Fld>
       </div>
       {f.status === 'completed' && (

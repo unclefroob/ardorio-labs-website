@@ -55,3 +55,26 @@ describe('Contract: Ardorio revenue report', () => {
     expect(revenueBlock(web)).toBe(revenueBlock(readFileSync(apiFile, 'utf8')))
   })
 })
+
+// The meeting lifecycle block: its heading and the comment lines under it.
+function lifecycleBlock(src: string): string {
+  const lines = src.split('\n')
+  const s = lines.indexOf('// ---- Meeting lifecycle and activity voiding ----')
+  if (s < 0) throw new Error('lifecycle block not found')
+  let e = s + 1
+  while (lines[e]?.startsWith('// ') && !lines[e].startsWith('// ----')) e++
+  return lines.slice(s, e).join('\n')
+}
+
+describe('Contract: meeting lifecycle and activity voiding', () => {
+  it('carries the status moves, the owner field and the recorded-won history', () => {
+    const b = lifecycleBlock(web)
+    expect(b).toContain('a completed or cancelled meeting keeps its status')
+    expect(b).toContain('Meeting.ownerId is an owner field')
+    expect(b).toContain('deal.recordedWonHistory')
+  })
+
+  it.skipIf(!apiFile || !existsSync(apiFile))('is identical to the API block', () => {
+    expect(lifecycleBlock(web)).toBe(lifecycleBlock(readFileSync(apiFile, 'utf8')))
+  })
+})

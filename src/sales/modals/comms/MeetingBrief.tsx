@@ -4,6 +4,8 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { Av, Btn, Chip, Empty, Icon, Modal } from '../../kit'
 import { INTEL_PREP_UI } from '../../shared/features'
+import { MeetingHistory, MeetingMenu, MeetingStatusChip, OutcomePrompt } from '../../shared/meetingUi'
+import { isOverdue } from '../../data/meetings'
 import { UI } from '../../ui/store'
 import { MissingModal } from '../entities/guards'
 import { WebBrief } from './WebBrief'
@@ -13,6 +15,7 @@ export function MeetingBrief({ id }: { id?: string }) {
   const b = useMemo(() => (m ? localAi.meetingBrief(m) : null), [m])
   if (!m || !b) return <MissingModal title="Meeting briefing" what="Meeting" />
   const stage = b.deal ? Q.stage(b.deal)?.name : undefined
+  const clock = F.nowIso()
   return (
     <Modal
       title={'Briefing: ' + m.title}
@@ -22,13 +25,19 @@ export function MeetingBrief({ id }: { id?: string }) {
       footer={
         <>
           <Btn onClick={UI.close}>Close</Btn>
+          <MeetingMenu m={m} notes={false} />
           {m.dealId && <Btn onClick={() => { UI.close(); UI.nav('deal', { id: m.dealId ?? undefined }) }}>Open deal</Btn>}
           <Btn kind="pri" onClick={() => { UI.close(); UI.open('logMeeting', { id: m.id }) }}>Open meeting notes</Btn>
         </>
       }
     >
       <div className="col gap12">
-        <div className="row"><Chip icon="spark" title="Assembled by rules from CRM records. No AI model is used for this briefing.">Briefing assembled from CRM records</Chip></div>
+        <div className="row wrap">
+          <MeetingStatusChip m={m} clock={clock} />
+          <Chip icon="spark" title="Assembled by rules from CRM records. No AI model is used for this briefing.">Briefing assembled from CRM records</Chip>
+        </div>
+        <MeetingHistory m={m} />
+        {isOverdue(m, clock) && <div className="card card-b"><OutcomePrompt m={m} /></div>}
         {b.deal && (
           <div className="card card-b row wrap">
             <Icon n="kanban" />

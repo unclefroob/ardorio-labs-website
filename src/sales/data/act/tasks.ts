@@ -1,6 +1,7 @@
 import { F } from '../F'
 import { uid } from '../ids'
 import { act, audit, notify } from '../internals'
+import { bookMeetingFromCall, type BookedMeeting } from './mail'
 import { applyEnrol } from './seq'
 import { nudgeEngine } from '../engineNudge'
 import { Q } from '../Q'
@@ -14,6 +15,8 @@ export interface CompleteOpts {
   outcome?: string
   notes?: string
   liKind?: 'linkedin_conn' | 'linkedin_msg' | 'linkedin_reply'
+  /** With outcome 'Meeting Booked': when the meeting is. A dated Meeting is created and carries the booking. */
+  meeting?: BookedMeeting
 }
 
 function refreshNext(dealId: string): void {
@@ -72,7 +75,8 @@ export function completeTask(id: string, o: CompleteOpts = {}): void {
     desc: o.notes || '', outcome: o.outcome || '',
   })
   if (o.outcome === 'Meeting Booked') {
-    act({ type: 'meeting_booked', businessId: t.businessId, companyId: t.companyId, contactId: t.contactId, dealId: t.dealId, subject: 'Meeting booked from call' })
+    if (o.meeting) bookMeetingFromCall(t, o.meeting)
+    else act({ type: 'meeting_booked', businessId: t.businessId, companyId: t.companyId, contactId: t.contactId, dealId: t.dealId, subject: 'Meeting booked from call' })
   }
   if (t.contactId && o.outcome && ['Interested', 'Meeting Booked', 'Connected'].includes(o.outcome)) {
     const r = Q.crel(t.contactId, t.businessId)

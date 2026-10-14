@@ -177,14 +177,62 @@ export function markLost(id: string, f: LostForm): void {
   commit()
 }
 
-export function reopenDeal(id: string): void {
+/** Where a closed deal goes back to when reopened, and whether that came from its history or the fallback. */
+export interface ReopenTarget { stage: Stage; from: 'history' | 'fallback' }
+
+/**
+ * The stage a closed deal returns to on reopen: the last open stage in its stageHistory before it closed that still
+ * exists in the pipeline, else the pipeline's last open stage (contract: deal reopen).
+ */
+export function reopenTarget(d: Pick<Deal, 'businessId' | 'stageHistory'>): ReopenTarget | undefined {
+  const pl = Q.pipeline(d.businessId)
+  const open = pl.stages.filter(s => !s.won && !s.lost)
+  const hist = d.stageHistory ?? []
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const st = open.find(s => s.id === hist[i].stageId)
+    if (st) return { stage: st, from: 'history' }
+  }
+  const last = open[open.length - 1]
+  return last ? { stage: last, from: 'fallback' } : undefined
+}
+
+/** Other won, live deals of this company in this business (they keep it a customer). */
+export function otherWonDeals(d: Pick<Deal, 'id' | 'companyId' | 'businessId'>): Deal[] {
+  return S.deals.filter(x => x.id !== d.id && x.companyId === d.companyId && x.businessId === d.businessId && x.status === 'won' && x.archived !== true)
+}
+
+/**
+ * Reopen a won or lost deal (contract: deal reopen). It returns to the stage it was in before it closed, and the won and
+ * lost fields are cleared (closedAt, lostReason, wonNotes, lostNotes). reopenedBy is the server's, which also stamps reopenedAt.
+ * A won deal's company stops being a customer of the business unless another won deal keeps it one. An Ardorio billing
+ * plan is left exactly as it is: its contract stays frozen, and the server drafts no retainer invoice while the deal
+ * is not won. Returns the stage it went back to.
+ */
+export function reopenDeal(id: string): Stage | undefined {
   const d = idx.deals.get(id)
-  if (!d) return
-  const st = Q.pipeline(d.businessId).stages[2]
-  if (!st) return
-  Object.assign(d, { status: 'open', stageId: st.id, probability: st.prob, closedAt: null })
-  act({ type: 'stage', businessId: d.businessId, companyId: d.companyId, dealId: d.id, subject: 'Deal reopened' })
+  if (!d || d.status === 'open') return undefined
+  const t = reopenTarget(d)
+  if (!t) return undefined
+  const st = t.stage
+  const was = d.status
+  const from = Q.stage(d)
+  const now = F.nowIso()
+  Object.assign(d, {
+    status: 'open', stageId: st.id, probability: st.prob, forecast: st.prob >= 70 ? 'Commit' : st.prob >= 40 ? 'Best case' : 'Pipeline',
+    closedAt: null, lostReason: '', stageChangedAt: now, reopenedAt: now,
+  })
+  if ('wonNotes' in d) delete d.wonNotes
+  if ('lostNotes' in d) delete d.lostNotes
+  d.stageHistory.push({ stageId: st.id, ts: now })
+  if (was === 'won') {
+    const rel = Q.rel(d.companyId, d.businessId)
+    if (rel && rel.status === 'Customer' && !otherWonDeals(d).length) rel.status = 'Active opportunity'
+  }
+  const closed = from?.name ?? (was === 'won' ? 'Closed Won' : 'Closed Lost')
+  act({ type: 'stage', businessId: d.businessId, companyId: d.companyId, dealId: d.id, subject: 'Deal reopened', desc: `${closed} → ${st.name}` })
+  audit('Deal reopened', `${d.name}: ${closed} → ${st.name}`)
   commit()
+  return st
 }
 
 /** Admins only (the server rejects anyone else). The deal keeps its stage and history; it just stops counting. */

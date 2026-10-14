@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
+import { standingActs } from '../../data/voided'
 import type { Contact } from '../../data/types'
 import { Av, BizDot, Btn, Card, Chip, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, Icon, Link, Menu, Owner, Tabs, Timeline, type Col } from '../../kit'
 import { askArchive } from '../../shared/archiveActions'
@@ -141,7 +142,7 @@ export function Company({ route }: { route: Route }) {
       <Tabs
         value={tab}
         onChange={setTab}
-        tabs={[['overview', 'Overview'], ['contacts', 'Contacts', cts.length], ['deals', 'Deals', deals.length], ['activity', 'Activities', acts.length], ['intel', 'Intelligence'], ['notes', 'Notes', (c.notes ?? []).length], ['rels', 'Business relationships', rels.length]]}
+        tabs={[['overview', 'Overview'], ['contacts', 'Contacts', cts.length], ['deals', 'Deals', deals.length], ['activity', 'Activities', standingActs(acts).length], ['intel', 'Intelligence'], ['notes', 'Notes', (c.notes ?? []).length], ['rels', 'Business relationships', rels.length]]}
       />
       {tab === 'overview' && (
         <div className="split">
