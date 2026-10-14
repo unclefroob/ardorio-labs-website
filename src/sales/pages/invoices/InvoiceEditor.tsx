@@ -157,7 +157,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
         }
         UI.toast(`The ${retainerPeriodLabel(claim.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.${c.laterDay ? ` Later drafts fall on the ${dayOrdinal(c.laterDay)}.` : ''}`)
       }
-      if (invoice && invoice.paymentLinkUrl && saved.paymentLinkUrl === '') {
+      // The total moved and took the link with it (a link the user cleared themselves needs no notice).
+      if (invoice && invoice.paymentLinkUrl && saved.paymentLinkUrl === '' && form.paymentLink.trim() !== '') {
         setNotice(invoice.paymentLinkIsAutomatic ? 'automatic' : 'pasted')
       }
       return saved
@@ -397,7 +398,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
                   </div>
                 </div>
               </div>
-              <Fld label="Card payment link (optional)" err={showErr('link')} hint={invoice?.paymentLinkIsAutomatic ? 'Created automatically when this invoice was issued. Editing it hands the link back to you.' : 'A link pasted here is left alone. It is cleared if the total changes, because the amount is built into the link.'}>
+              <Fld label="Card payment link (optional)" err={showErr('link')} hint={invoice?.paymentLinkIsAutomatic ? 'Created automatically when this invoice was issued. Replacing or clearing it switches this link off at Stripe.' : 'A link pasted here is left alone. If the total changes, it is cleared, because the amount is built into the link, unless you paste a new one in the same save.'}>
                 <Inp type="url" value={f.paymentLink} placeholder="https://buy.stripe.com/..." onChange={v => set({ paymentLink: v })} />
               </Fld>
               <div className="sm muted">Bank transfer and PayID details on the invoice come from <Link to="settings" q={{ tab: 'invoicing' }}>Settings › Invoicing</Link>.</div>

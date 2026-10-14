@@ -75,6 +75,9 @@ export function invoiceError(e: unknown, action?: 'issue' | 'save' | 'pay' | 'de
   if (e.code === 'INVOICE_NOT_TEST') return { kind: 'not-test', message: 'This invoice is not marked as a test, so it can’t be unmarked or permanently deleted.' }
   if (e.code === 'INVOICE_DELETING') return { kind: 'conflict', message: 'Another admin is deleting this invoice right now. Reload in a moment.' }
   if (e.code === 'REFUND_DUE_UNACKNOWLEDGED') return { kind: 'conflict', message: 'A card payment was received on this cancelled invoice and has not been marked as refunded. Acknowledge the refund first, then delete it.' }
+  if (e.code === 'LINK_DEACTIVATION_FAILED' && action === 'save') {
+    return { kind: 'card-link', message: 'The current card payment link could not be switched off at Stripe, so nothing was saved. Try again in a moment.' }
+  }
   if (e.code === 'CONFIRMATION_MISMATCH') return { kind: 'mismatch', message: 'The invoice number you typed does not match this invoice.' }
   if (e.code === 'DUPLICATE_EXTERNAL_REFERENCE') return { kind: 'duplicate-reference', message: 'That reference is already recorded. Recording it again would count it twice.' }
   if (e.code === 'NOT_EXTERNAL') return { kind: 'not-external', message: 'Only an invoice recorded from outside SalesOS can be edited here.' }

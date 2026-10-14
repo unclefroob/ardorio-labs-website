@@ -366,6 +366,31 @@ describe('sent invoice: the card payment link', () => {
     expect(text()).not.toContain('pasted payment link')
   })
 
+  it('clearing the automatic link by hand sends the empty link and shows no total-changed notice', async () => {
+    const api = await show({ [GET1]: () => json(200, auto), [PUT1]: () => json(200, { ...auto, paymentLinkUrl: '', paymentLinkIsAutomatic: false }) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await type(field(host, 'Card payment link (optional)'), '')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    expect(putBody(api)).toMatchObject({ paymentLinkUrl: '' })
+    expect(text()).not.toContain('payment link was')
+  })
+
+  it('says nothing was saved when Stripe cannot switch the old link off', async () => {
+    await show({ [GET1]: () => json(200, auto), [PUT1]: () => json(409, { error: 'x', code: 'LINK_DEACTIVATION_FAILED', details: { linkId: 'plink_1' } }) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await fill('Unit price line 1', '20000')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    expect(text()).toContain('could not be switched off at Stripe, so nothing was saved')
+  })
+
+  it('the hint says replacing or clearing the automatic link switches it off at Stripe', async () => {
+    await show({ [GET1]: () => json(200, auto) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    expect(text()).toContain('Replacing or clearing it switches this link off at Stripe.')
+  })
+
   it('a pasted link left as it is is not sent either', async () => {
     const api = await show({ [GET1]: () => json(200, manual), [PUT1]: () => json(200, manual) }, { page: 'invoice', id: 'i1' })
     await click(button(host, 'Edit and reissue'))
