@@ -180,6 +180,14 @@ describe('editor form', () => {
     ])
     expect(i).toMatchObject({ clientSlug: 'tidewater', companyId: 'co1', dealId: 'dl1', milestoneId: 'm3', gstRate: 0.1, notes: 'thanks', issueDate: '2026-10-13', paymentTermsDays: 45, dueDate: '2026-11-27', offerCardPayment: true, paymentLinkUrl: '' })
   })
+  it('leaves an unchanged payment link out for an issued invoice, and sends it when edited or for a draft', () => {
+    const stored = { status: 'sent' as const, paymentLinkUrl: 'https://buy.stripe.com/auto' }
+    expect(buildInput(ok({ paymentLink: 'https://buy.stripe.com/auto' }), stored)).not.toHaveProperty('paymentLinkUrl')
+    expect(buildInput(ok({ paymentLink: ' https://pay.example/x ' }), stored).paymentLinkUrl).toBe('https://pay.example/x')
+    expect(buildInput(ok({ paymentLink: '' }), stored).paymentLinkUrl).toBe('')
+    expect(buildInput(ok({ paymentLink: '' }), { status: 'sent', paymentLinkUrl: '' })).not.toHaveProperty('paymentLinkUrl')
+    expect(buildInput(ok({ paymentLink: 'https://pay.example/x' }), { status: 'draft', paymentLinkUrl: 'https://pay.example/x' }).paymentLinkUrl).toBe('https://pay.example/x')
+  })
   it('sends zero GST for a zero-rated invoice and null links for no deal', () => {
     const i = buildInput(ok({ gstPct: '0' }))
     expect(i.gstRate).toBe(0)

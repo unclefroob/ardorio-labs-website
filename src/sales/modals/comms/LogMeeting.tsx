@@ -121,8 +121,10 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
         if (Object.keys(fields).length || pt.value) Act.updateDeal(deal.id, { ...pt, fields })
       }
     }
-    if (stage && deal) tryMove(deal.id, stage)
+    // Close this modal first: tryMove may open its own (missing required fields, or Reopen deal?), and closing after
+    // it would pop that one instead, leaving Log meeting open for a second Save that creates the tasks again.
     UI.close()
+    if (stage && deal) tryMove(deal.id, stage)
     const email = res?.value.email
     UI.toast('Meeting saved' + (n ? ' · ' + n + ' tasks created' : ''), undefined, email ? {
       label: 'Open follow-up email',
