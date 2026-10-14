@@ -17,6 +17,28 @@ export interface CallForm {
   dealId?: string | null
   notes: string
   outcome: string
+  /** With outcome 'Meeting Booked': when the meeting is. A dated Meeting is created and carries the booking. */
+  meeting?: BookedMeeting
+}
+
+/** The meeting a 'Meeting Booked' call outcome books. */
+export interface BookedMeeting { start: string; duration?: number; title?: string }
+
+export interface BookingFrom { businessId: BusinessId; companyId?: string | null; contactId?: string | null; dealId?: string | null }
+
+/**
+ * Book the meeting a call arranged: an upcoming Meeting record with its date, so it shows in My Day, the KPIs, the deal
+ * and the prep reminders. saveMeeting writes the one 'meeting_booked' activity for it (with meetingId), which replaces
+ * the bare 'Meeting booked from call' activity a call without a date used to write.
+ */
+export function bookMeetingFromCall(from: BookingFrom, b: BookedMeeting): Meeting {
+  const ct = Q.contact(from.contactId)
+  const companyId = from.companyId || ct?.companyId || null
+  const title = b.title?.trim() || `Meeting with ${ct?.name || Q.company(companyId)?.name || 'contact'}`
+  return saveMeeting({
+    title, businessId: from.businessId, start: b.start, status: 'upcoming', duration: b.duration || 30, companyId,
+    dealId: from.dealId || null, participants: ct ? [ct.id] : [], ownerId: S.session.userId,
+  })
 }
 
 export function logCall(f: CallForm): void {
@@ -25,7 +47,8 @@ export function logCall(f: CallForm): void {
     subject: `Call with ${Q.contact(f.contactId)?.name || 'contact'}`, desc: f.notes, outcome: f.outcome,
   })
   if (f.outcome === 'Meeting Booked') {
-    act({ type: 'meeting_booked', businessId: f.businessId, companyId: f.companyId, contactId: f.contactId, dealId: f.dealId, subject: 'Meeting booked from call' })
+    if (f.meeting) bookMeetingFromCall(f, f.meeting)
+    else act({ type: 'meeting_booked', businessId: f.businessId, companyId: f.companyId, contactId: f.contactId, dealId: f.dealId, subject: 'Meeting booked from call' })
   }
   commit()
 }
@@ -46,6 +69,8 @@ export function saveMeeting(f: MeetingInput): Meeting {
     idx.meetings.set(m.id, m)
   } else Object.assign(m, f, { id: m.id })
   const now = F.nowIso()
+  // Cancelling through the meeting form stamps the time as Act.cancelMeeting does; cancelledBy is the server's to set.
+  if (m.status === 'cancelled' && !m.cancelledAt) m.cancelledAt = now
   if (isNew && m.status === 'upcoming') {
     act({ type: 'meeting_booked', businessId: m.businessId, companyId: m.companyId, contactId: m.participants[0], dealId: m.dealId, subject: `Meeting booked: ${m.title}`, meetingId: m.id })
   }

@@ -1,4 +1,5 @@
 import { F } from './F'
+import { heldNoLonger } from './meetings'
 import { idx, S } from './store'
 import { ageDays, applySignalAdjust, computeSignalAdjust, NO_ADJUST, type PendingClosure, type SignalAdjust, type SignalAdjustPart } from './signalAdjust'
 import { isSimAct, simReplied } from './simulated'
@@ -509,7 +510,9 @@ export const Q = {
       if (metric === 'calls') return a.type === 'call' && a.outcome !== 'Cancelled'
       if (metric === 'emails') return a.type === 'email_out'
       if (metric === 'meetings') return a.type === 'meeting_booked'
-      if (metric === 'meetings_held') return a.type === 'meeting'
+      // Booked counts the booking even if the meeting is later cancelled (void the activity to remove it); held
+      // counts only meetings that are still completed.
+      if (metric === 'meetings_held') return a.type === 'meeting' && !heldNoLonger(a)
       return false
     }).length
   },

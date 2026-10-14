@@ -261,6 +261,12 @@ export interface Meeting {
   nextSteps: string
   outcome?: string
   createdBy: string
+  /** Set when the meeting is cancelled (status 'cancelled'). cancelledBy is a display name the server sets. */
+  cancelledAt?: Iso
+  cancelledBy?: string
+  cancelReason?: string
+  /** Earlier starts of a rescheduled meeting, oldest first. */
+  rescheduledFrom?: Iso[]
   _nt?: number
   _logged?: number
   [k: string]: unknown

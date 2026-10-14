@@ -1,4 +1,5 @@
 import { F } from './F'
+import { heldNoLonger } from './meetings'
 import { Q } from './Q'
 import { realActs } from './simulated'
 import { idx, S } from './store'
@@ -32,10 +33,10 @@ export function onArchivedDeal(a: Pick<Activity, 'dealId'>): boolean {
 }
 
 /**
- * Activities that count anywhere numbers are shown (dashboard, reports, goals): really happened, and not logged on
- * an archived deal.
+ * Activities that count anywhere numbers are shown (dashboard, reports, goals): really happened, not logged on an
+ * archived deal, and not a held meeting that has since been marked cancelled or no-show.
  */
-export const countableActs = <T extends Activity>(acts: readonly T[]): T[] => realActs(acts).filter(a => !onArchivedDeal(a))
+export const countableActs = <T extends Activity>(acts: readonly T[]): T[] => realActs(acts).filter(a => !onArchivedDeal(a) && !heldNoLonger(a))
 
 /** Enrolments of a contact that archiving would stop, across every business. */
 export function stoppableEnrolments(contactId: string): number {

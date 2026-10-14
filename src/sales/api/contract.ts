@@ -586,6 +586,10 @@ export interface RevenueReport { from: string; to: string; source: RevenueSource
 // Goal metrics gain: 'won_value' (dollars: per deal won in the period, the contract baseline frozen at won, else deal.value), 'invoiced_cents', 'collected_cents' (from the revenue report, ard only).
 // A goal with metric 'invoiced_cents' or 'collected_cents' is Ardorio money: businessId must be 'ard' (else VALIDATION); only an ard admin or super may create, change or delete one, or change a goal's metric to one (else ROLE_REQUIRED, details { needed: 'admin', businessId: 'ard', field: 'metric' }); to every other member it is hidden (absent from bootstrap, a hidden entry with data null in the changes feed, NOT_FOUND on write).
 // No API contract change for this feature.
+// ---- Meeting lifecycle and activity voiding ----
+// Meeting.status: 'upcoming' | 'completed' | 'cancelled' | 'no-show'. A cancelled meeting carries cancelledAt (ISO), cancelledBy (display name, server-set) and cancelReason (plain text <= 300). A rescheduled meeting stays 'upcoming' with its new start and appends the old start to rescheduledFrom: string[] (ISO). Meetings may be deleted by their owner or a manager+ of the business.
+// Activity void: an existing activity may change ONLY by gaining { voided: true, voidedAt (ISO), voidedBy (display name, server-set), voidReason (plain text 1..300) }, written by the activity's actor or a manager+ of its business; once voided it cannot be un-voided or changed again. Voided activities are excluded from every count, metric, goal, report and timeline total (shown struck through with the reason).
+// Deal reopen writes reopenedAt, reopenedBy and clears won/lost fields (closedAt, lostReason, wonNotes if present); stage returns to the stage before close from stageHistory (fallback: the pipeline's last open stage).
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
 export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }
