@@ -388,3 +388,14 @@ describe('Ardorio forecast: days to pay', () => {
     expect(parseLag('')).toBeNull()
   })
 })
+
+describe('Ardorio forecast: an invoice billed to an unlinked client but linked to the company', () => {
+  it('counts exactly as if it were billed to the company’s own client', () => {
+    const sent = dto({ id: 'tc', invoiceNumber: 'INV-0001', clientSlug: 'tidewater', dealId: 'rit', companyId: 'co1', milestoneId: 'a1', status: 'sent', overdue: true, subtotalCents: 7000000, issueDate: '2026-08-17', dueDate: '2026-08-31' })
+    const own = run({ ...RITCHIES, invoices: [...RITCHIES.invoices, sent] })
+    const other = run({ ...RITCHIES, invoices: [...RITCHIES.invoices, { ...sent, clientSlug: 'test-client', clientName: 'Test Client' }] })
+    const strip = (x: unknown): string => JSON.stringify(x, (k, v) => (k === 'clientSlug' || k === 'clientName' ? undefined : v))
+    expect(strip(other)).toBe(strip(own))
+    expect(other.f.entries.some(e => e.dealId === 'rit' && e.label === 'INV-0001')).toBe(true)
+  })
+})

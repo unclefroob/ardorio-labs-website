@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { BillingClient, InvoiceDto, InvoiceSettings } from '../../api/contract'
 import {
-  createInvoice, deleteInvoice, errorField, getInvoiceSettings, invoiceError, issueInvoice, linkBillingClient, listBillingClients, listInvoices, updateInvoice,
+  createInvoice, deleteInvoice, getInvoiceSettings, invoiceError, issueInvoice, listBillingClients, updateInvoice, updateInvoiceLinks,
 } from '../../api/invoices'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { ardCompanies, ardDeals, billingPlans, useLoad } from '../../data/invoicing'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
-import { Banner, Btn, Card, Chip, Fld, Inp, Link, Sel, Skel, TA, Toggle } from '../../kit'
+import { Banner, Btn, Card, Chip, Fld, Inp, Link, Skel, TA, Toggle } from '../../kit'
 import {
-  activityItems, actionsFor, blankForm, buildInput, emptyLine, fmtDay, formFromInvoice, formTotals, linkOnlyInput, milestoneLine, milestoneStatus,
+  activityItems, actionsFor, blankForm, buildInput, emptyLine, fmtDay, formFromInvoice, formTotals, linkChanges, milestoneLine,
   missingBilling, onlyLinksChanged, planFor, validateForm, withTerms, type FormErrors, type InvoiceForm,
 } from '../../shared/invoices'
 import { claimedRetainerDate, dayOrdinal, prefillForm, retainerAutoState, retainerPause, retainerPeriodLabel } from '../../shared/billing'
@@ -24,6 +24,7 @@ import { RetainerChip, StatusChip, TestChip } from './parts'
 import { TestBanner, testItems, useTestActions } from './testActions'
 import { Activity, Totals } from './rail'
 import { InvoicesDenied } from './states'
+import { LinkPickers, linkErrOf, onlyLinkedTo, type ClientsState, type LinkErr } from './LinkPickers'
 
 /**
  * The due retainer period a new invoice from the deal's billing card bills, or undefined. Only a period that is still
@@ -59,9 +60,7 @@ export function InvoiceEditor(props: Props) {
   return <EditorForm {...props} settings={settings.data} clients={clients.data?.clients ?? []} clientsState={clients.data ? 'ready' : clients.error ? 'failed' : 'loading'} reloadClients={clients.reload} />
 }
 
-type LinkField = 'companyId' | 'dealId' | 'milestoneId'
-
-function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, clientsState, reloadClients }: Props & { settings: InvoiceSettings | null; clients: BillingClient[]; clientsState: 'loading' | 'ready' | 'failed'; reloadClients: () => void }) {
+function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, clientsState, reloadClients }: Props & { settings: InvoiceSettings | null; clients: BillingClient[]; clientsState: ClientsState; reloadClients: () => void }) {
   useStore()
   const today = F.today()
   const isNew = !invoice
@@ -91,19 +90,11 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
   const [extra, setExtra] = useState(false)
   // Saved, but the claim lost to the server's draft: two invoices for one month, shown in place of the form.
   const [doubled, setDoubled] = useState<{ saved: InvoiceDto; clash: RetainerClash } | null>(null)
-  // An issued invoice with no company: the company asked about before its billing client is linked to it.
-  const [confirmLink, setConfirmLink] = useState<{ companyId: string; name: string } | null>(null)
-  const [linking, setLinking] = useState(false)
   // A problem with one of the three pickers, shown under it: a refused pick or a server VALIDATION naming the field.
-  const [linkErr, setLinkErr] = useState<{ field: LinkField; message: string } | null>(null)
-  const confirmBtn = useRef<HTMLButtonElement>(null)
-  useEffect(() => { if (confirmLink) confirmBtn.current?.focus() }, [confirmLink])
+  const [linkErr, setLinkErr] = useState<LinkErr>(null)
   const set = (patch: Partial<InvoiceForm>): void => setF(p => ({ ...p, ...patch }))
 
   const issuedState = invoice?.status === 'sent'
-  // An issued invoice billed to a client no CRM company was chosen for: its company can still be picked, once. The
-  // customer of an issued invoice that has a company is never changed.
-  const linkMode = issuedState && !!invoice && !invoice.companyId
   // An issued invoice keeps its own billing client, so its details come from that client, not from whichever is linked.
   const client = issuedState && invoice ? clients.find(c => c.slug === invoice.clientSlug) : clients.find(c => c.linkedCompanyId === f.companyId)
   // A stored invoice keeps its billing client (the API refuses a change), so it never depends on the clients list.
@@ -114,53 +105,11 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
   const totals = formTotals(form)
   const bp = parsePercentBp(f.gstPct) ?? 0
 
-  const companies = ardCompanies()
-  const deals = f.companyId ? ardDeals(f.companyId) : []
   const plan = planFor(billingPlans(), f.dealId || null)
-  const dealInvoices = useLoad(s => (f.dealId ? listInvoices({ dealId: f.dealId }, s).then(r => r.invoices) : Promise.resolve([] as InvoiceDto[])), `deal:${f.dealId}`)
-  const taken = dealInvoices.data ?? []
+  // Issued and on a company its own billing client is not linked to: the client's details are not that company's.
+  const addressedOnly = onlyLinkedTo(invoice, f.companyId, clients, clientsState)
 
-  const companyName = (id: string): string => Q.company(id)?.name ?? 'That company'
-  const pickCompany = (companyId: string): void => {
-    setLinkErr(null)
-    setConfirmLink(null)
-    if (!linkMode || !invoice || !companyId) {
-      set({ companyId, dealId: '', milestoneId: '' })
-      return
-    }
-    const own = clients.find(c => c.slug === invoice.clientSlug)
-    const theirs = clients.find(c => c.linkedCompanyId === companyId)
-    if (theirs && theirs.slug === invoice.clientSlug) {
-      set({ companyId, dealId: '', milestoneId: '' })
-    } else if (theirs) {
-      setLinkErr({ field: 'companyId', message: `${companyName(companyId)} is billed as ${theirs.clientName}, a different billing client. This invoice is billed to ${invoice.clientName}, so it can only go on the company ${invoice.clientName} is linked to.` })
-    } else if (own?.linkedCompanyId) {
-      setLinkErr({ field: 'companyId', message: `${invoice.clientName} is already linked to ${companyName(own.linkedCompanyId)}. Choose ${companyName(own.linkedCompanyId)}, or change the billing link on the company first.` })
-    } else {
-      setConfirmLink({ companyId, name: companyName(companyId) })
-    }
-  }
-  const doLink = async (): Promise<void> => {
-    if (!confirmLink || !invoice) return
-    setLinking(true)
-    try {
-      await linkBillingClient(invoice.clientSlug, confirmLink.companyId)
-      reloadClients()
-      set({ companyId: confirmLink.companyId, dealId: '', milestoneId: '' })
-      setConfirmLink(null)
-    } catch (e) {
-      setConfirmLink(null)
-      setLinkErr({ field: 'companyId', message: invoiceError(e, 'save').message })
-    } finally {
-      setLinking(false)
-    }
-  }
-  const pickDeal = (dealId: string): void => {
-    if (linkErr?.field !== 'companyId') setLinkErr(null)
-    set({ dealId, milestoneId: '' })
-  }
   const pickMilestone = (milestoneId: string): void => {
-    if (linkErr?.field === 'milestoneId') setLinkErr(null)
     const m = plan?.milestones.find(x => x.id === milestoneId)
     const blank = f.lines.length === 1 && !f.lines[0].description.trim() && !f.lines[0].unitPrice.trim()
     if (m && blank) set({ milestoneId, lines: [{ ...emptyLine(), ...milestoneLine(m) }] })
@@ -193,9 +142,10 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
           return null
         }
       }
-      // Only the links of an issued invoice changed: send its stored content back untouched, never a reissue.
-      const input = invoice && issuedState && onlyLinksChanged(f, invoice) ? linkOnlyInput(invoice, f) : buildInput(form)
-      const saved = invoice ? await updateInvoice(invoice.id, input) : await createInvoice(input)
+      // Only the links of an issued invoice changed: the links route writes those and nothing else, never a reissue.
+      const saved = invoice && issuedState && onlyLinksChanged(f, invoice)
+        ? await updateInvoiceLinks(invoice.id, linkChanges(invoice, f))
+        : invoice ? await updateInvoice(invoice.id, buildInput(form)) : await createInvoice(buildInput(form))
       if (claim && saved.dealId === claim.dealId) {
         await catchUpPlans()
         const c = Act.claimRetainerPeriod(claim.dealId, claim.due)
@@ -211,9 +161,9 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
       }
       return saved
     } catch (e) {
-      const field = issuedState ? errorField(e) : null
-      if (field === 'companyId' || field === 'dealId' || field === 'milestoneId') {
-        setLinkErr({ field, message: invoiceError(e, 'save').message })
+      const le = issuedState ? linkErrOf(e) : null
+      if (le) {
+        setLinkErr(le)
         setFail('')
       } else {
         setFail(invoiceError(e, 'save').message)
@@ -311,7 +261,6 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
   }
 
   const showErr = (k: keyof Omit<FormErrors, 'line'>): string | undefined => (tried ? errors[k] : undefined)
-  const linkErrFor = (k: LinkField): string | undefined => (linkErr?.field === k ? linkErr.message : undefined)
   const sub = isNew ? 'A new invoice. The number is assigned when you save it.' : [company?.name ?? invoice?.clientName, invoice?.dealId ? Q.deal(invoice.dealId)?.name : ''].filter(Boolean).join(' · ')
   const cardOn = f.offerCard && !stripeOff
 
@@ -349,44 +298,13 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
         <div className="inv-main">
           <Card title="Customer">
             <div className="col" style={{ gap: 14 }}>
-              <div className="grid g3">
-                <Fld label="Customer (CRM company)" req err={linkErrFor('companyId') ?? showErr('customer')} hint={issuedState && invoice?.companyId ? 'The customer of an issued invoice can’t be changed.' : undefined}>
-                  <Sel
-                    value={f.companyId} onChange={pickCompany} placeholder="Select a customer…" aria-invalid={!!linkErrFor('companyId') || undefined}
-                    disabled={(!!invoice && !!invoice.companyId) || (linkMode && (clientsState !== 'ready' || linking))}
-                    options={companies.map(c => [c.id, c.name] as const)}
-                  />
-                </Fld>
-                <Fld label="Deal (optional)" err={linkErrFor('dealId')}>
-                  <Sel value={f.dealId} onChange={pickDeal} placeholder="No deal" disabled={!f.companyId} aria-invalid={!!linkErrFor('dealId') || undefined} options={deals.map(d => [d.id, d.title || d.name] as const)} />
-                </Fld>
-                <Fld label="Milestone" err={linkErrFor('milestoneId')}>
-                  <Sel
-                    value={f.milestoneId} onChange={pickMilestone} disabled={!plan} aria-invalid={!!linkErrFor('milestoneId') || undefined}
-                    placeholder={f.dealId ? (plan ? 'No milestone' : 'No billing plan on this deal') : 'Choose a deal first'}
-                    options={(plan?.milestones ?? []).map(m => {
-                      const st = milestoneStatus(m.id, taken.filter(i => i.id !== invoice?.id))
-                      return [m.id, `${m.label}: ${formatCents(m.amountCents)} ex GST${st === 'Planned' ? '' : ` (${st})`}`] as const
-                    })}
-                  />
-                </Fld>
-              </div>
+              <LinkPickers
+                invoice={invoice} value={{ companyId: f.companyId, dealId: f.dealId, milestoneId: f.milestoneId }} onPick={set} onMilestone={pickMilestone}
+                clients={clients} clientsState={clientsState} reloadClients={reloadClients}
+                linkErr={linkErr} setLinkErr={setLinkErr} customerErr={showErr('customer')} required
+              />
 
-              {confirmLink && invoice && (
-                <Banner
-                  tone="info" icon="link"
-                  action={(
-                    <span className="row" style={{ gap: 8 }}>
-                      <Btn ref={confirmBtn} size="sm" kind="pri" onClick={() => void doLink()} disabled={linking}>{linking ? 'Linking…' : 'Link billing client'}</Btn>
-                      <Btn size="sm" onClick={() => setConfirmLink(null)} disabled={linking}>Don’t link</Btn>
-                    </span>
-                  )}
-                >
-                  <b>Link billing client {invoice.clientName} to {confirmLink.name}?</b> Future invoices to {invoice.clientName} will be on this company.
-                </Banner>
-              )}
-
-              {f.companyId && client && (
+              {f.companyId && client && !addressedOnly && (
                 <div className="card card-b" style={{ background: 'var(--surf2)', boxShadow: 'none' }}>
                   <div className="row wrap" style={{ alignItems: 'flex-start', gap: 24 }}>
                     <div style={{ minWidth: 200 }}><div className="faint sm">Billing contact</div><div>{client.billing.contactName || <span className="faint">None</span>}</div><div className="mono muted">{client.billing.email}</div></div>
@@ -397,12 +315,11 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
                   </div>
                 </div>
               )}
-              {f.companyId && (!issuedState || clientsState === 'ready') && (!client || lacks.length > 0) && (
+              {f.companyId && !addressedOnly && (!issuedState || clientsState === 'ready') && (!client || lacks.length > 0) && (
                 <Banner tone="warn" action={<Btn size="sm" onClick={editBilling}>Add billing details</Btn>}>
                   <b>{company?.name ?? 'This customer'} {client ? `has no ${lacks.join(', ')}` : 'has no billing details'}.</b> {client ? 'Add them so they appear on the invoice.' : 'Add an email, ABN and address so they appear on the invoice. A customer needs billing details before it can be invoiced.'}
                 </Banner>
               )}
-              {!f.companyId && !confirmLink && invoice && !invoice.companyId && <UnlinkedHint invoice={invoice} linkMode={linkMode} clientsState={clientsState} ownCompanyId={client?.linkedCompanyId ?? null} onRetry={reloadClients} />}
               <div className="sm muted">
                 {issuedState
                   ? 'Linking a milestone marks it Invoiced once you save, and Paid when this invoice is marked paid. Saving a change to the customer, deal or milestone alone does not reissue the invoice.'
@@ -500,22 +417,3 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
   )
 }
 
-/** What the page says about an invoice with no company, matched to whether its picker can be used. */
-function UnlinkedHint({ invoice, linkMode, clientsState, ownCompanyId, onRetry }: { invoice: InvoiceDto; linkMode: boolean; clientsState: 'loading' | 'ready' | 'failed'; ownCompanyId: string | null; onRetry: () => void }) {
-  const name = invoice.clientName
-  if (!linkMode) return <div className="sm muted">Billed to {name}, which is not linked to a CRM company. Choose the company to link it.</div>
-  if (clientsState === 'loading') return <div className="sm muted">Billed to {name}. Checking which company it is linked to…</div>
-  if (clientsState === 'failed') {
-    return (
-      <div className="sm muted row" style={{ gap: 8 }}>
-        <span>Billed to {name}. The billing clients could not be loaded, so a company can’t be chosen yet.</span>
-        <Btn size="xs" onClick={onRetry}>Try again</Btn>
-      </div>
-    )
-  }
-  if (ownCompanyId) {
-    const co = Q.company(ownCompanyId)?.name ?? 'a CRM company'
-    return <div className="sm muted">Billed to {name}, which is linked to {co}. Choose {co} to put this invoice on it.</div>
-  }
-  return <div className="sm muted">Billed to {name}, which is not linked to a CRM company. Choose the company to link it.</div>
-}
