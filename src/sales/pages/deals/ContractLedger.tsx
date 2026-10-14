@@ -7,8 +7,11 @@ import { useStore } from '../../data/store'
 import type { Deal } from '../../data/types'
 import { Banner, Btn, Card, Chip, Fld, Inp, Sel } from '../../kit'
 import {
-  contractedCents, ENGAGEMENT_LABEL, ENGAGEMENT_TYPES, quotedCents, signedCents, validateContractAmount, VARIATION_LABEL, VARIATION_TONE, variationEffect, wonDay,
+  contractedCents, ENGAGEMENT_LABEL, quotedCents, signedCents, validateContractAmount, VARIATION_LABEL, VARIATION_TONE, variationEffect, wonDay, WON_ENGAGEMENT_TYPES,
 } from '../../shared/billing'
+import { oneOffMilestones } from '../../shared/term'
+import { scheduleTotal } from '../../shared/termSchedule'
+import { checkTermDraft, newTermDraft, TermFields, type TermDraft, type TermErrs } from './TermForm'
 import { fmtDay } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
@@ -135,10 +138,24 @@ function Ledger({ deal, plan }: { deal: Deal; plan: BillingPlan & { contract: No
 
 /** For a won deal with no contract yet: freeze one, once, prefilled from the deal value. */
 function SetContract({ deal }: { deal: Deal }) {
-  const [form, setForm] = useState<{ amount: string; type: EngagementType } | null>(null)
+  const [form, setForm] = useState<{ amount: string; type: EngagementType; term: TermDraft } | null>(null)
   const [err, setErr] = useState('')
+  const [termErrs, setTermErrs] = useState<TermErrs>({})
+  const existing = scheduleTotal(oneOffMilestones(Q.billingPlan(deal.id)))
+  const saveTerm = (term: TermDraft): void => {
+    const t = checkTermDraft(term)
+    if (!t.ok) return setTermErrs(t.errs)
+    setTermErrs({})
+    const baselineCents = Act.termBaseline(deal.id, t.term, t.buildFee)
+    const r = Act.setTermAgreement(deal.id, { baselineCents, contractedOn: wonDay(deal) || F.today(), estimateAtWonCents: quotedCents(deal) }, t.term, t.buildFee)
+    if (!r.ok) return setErr(r.error)
+    setErr('')
+    setForm(null)
+    UI.toast(`Term agreement of ${formatCents(baselineCents)} ex GST set with ${t.schedule.length} instalment${t.schedule.length === 1 ? '' : 's'}`)
+  }
   const save = (): void => {
     if (!form) return
+    if (form.type === 'term-agreement') return saveTerm(form.term)
     const cents = parseCents(form.amount)
     const bad = validateContractAmount(cents)
     if (bad || cents === null) return setErr(bad ?? '')
@@ -149,20 +166,31 @@ function SetContract({ deal }: { deal: Deal }) {
     UI.toast(`Contract of ${formatCents(cents)} ex GST set`)
   }
   return (
-    <Card title="Contract" right={!form && <Btn size="sm" kind="pri" onClick={() => { setErr(''); setForm({ amount: centsToInput(quotedCents(deal)), type: 'fixed-price' }) }}>Set contract</Btn>}>
+    <Card title="Contract" right={!form && <Btn size="sm" kind="pri" onClick={() => { setErr(''); setForm({ amount: centsToInput(quotedCents(deal)), type: 'fixed-price', term: newTermDraft(wonDay(deal) || F.today()) }) }}>Set contract</Btn>}>
       <div className="col" style={{ gap: 10 }}>
         <div className="sm muted">
           No contract is recorded for this deal yet, so billing is measured against the estimate of {formatCents(quotedCents(deal))}. Set the contracted amount once; later changes go through variations.
         </div>
-        {form && (
+        {form && form.type !== 'term-agreement' && (
           <div className="grid g3" style={{ alignItems: 'end' }}>
             <Fld label="Contracted amount (A$, ex GST)" req err={err}>
               <Inp className="mono" inputMode="decimal" value={form.amount} onChange={v => setForm({ ...form, amount: v })} aria-invalid={err ? true : undefined} />
             </Fld>
-            <Fld label="Engagement type"><Sel value={form.type} onChange={v => setForm({ ...form, type: v as EngagementType })} options={ENGAGEMENT_TYPES.map(t => [t, ENGAGEMENT_LABEL[t]] as const)} /></Fld>
+            <Fld label="Engagement type"><Sel value={form.type} onChange={v => setForm({ ...form, type: v as EngagementType })} options={WON_ENGAGEMENT_TYPES.map(t => [t, ENGAGEMENT_LABEL[t]] as const)} /></Fld>
             <span className="row" style={{ gap: 6 }}>
               <Btn size="sm" kind="pri" onClick={save}>Save contract</Btn>
               <Btn size="sm" onClick={() => { setForm(null); setErr('') }}>Cancel</Btn>
+            </span>
+          </div>
+        )}
+        {form && form.type === 'term-agreement' && (
+          <div className="col" style={{ gap: 12 }}>
+            {err && <Banner tone="bad">{err}</Banner>}
+            <div className="grid g2"><Fld label="Engagement type"><Sel value={form.type} onChange={v => setForm({ ...form, type: v as EngagementType })} options={WON_ENGAGEMENT_TYPES.map(t => [t, ENGAGEMENT_LABEL[t]] as const)} /></Fld></div>
+            <TermFields draft={form.term} onChange={t => setForm({ ...form, term: t })} errs={termErrs} existingCents={existing} />
+            <span className="row" style={{ gap: 6 }}>
+              <Btn size="sm" kind="pri" onClick={save}>Save term agreement</Btn>
+              <Btn size="sm" onClick={() => { setForm(null); setErr(''); setTermErrs({}) }}>Cancel</Btn>
             </span>
           </div>
         )}

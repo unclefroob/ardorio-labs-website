@@ -12,8 +12,12 @@ import { RosterioWinPrompt } from '../../pages/deals/RosterioCard'
 import { WonBilling } from '../../pages/deals/WonBilling'
 import { MissingModal } from './guards'
 import { contractedCents, quotedCents, validateContract } from '../../shared/billing'
+import { oneOffMilestones } from '../../shared/term'
+import { scheduleTotal } from '../../shared/termSchedule'
+import { checkTermDraft, newTermDraft } from '../../pages/deals/TermForm'
 import { centsToInput, formatCents } from '../../shared/money'
 import { checkContract, ContractStep, newPlanRow, type ContractDraft } from './WonContract'
+import type { TermErrs } from '../../pages/deals/TermForm'
 
 interface WonDraft { value: string; close: string; term: string; revenueType: string; notes: string }
 type Suggestion = readonly [title: string, type: string, inDays: number]
@@ -37,8 +41,10 @@ function WonForm({ d }: { d: Deal }) {
   const existing = ard ? contractedCents(Q.billingPlan(d.id)) : null
   const ledger = ard && existing === null
   const [step, setStep] = useState<'outcome' | 'contract'>('outcome')
-  const [contract, setContract] = useState<ContractDraft>({ amount: '', engagementType: 'fixed-price', rows: [newPlanRow()] })
-  const [contractErrs, setContractErrs] = useState<{ amountErr?: string; planErr?: string; dateErr?: string }>({})
+  const [contract, setContract] = useState<ContractDraft>({ amount: '', engagementType: 'fixed-price', rows: [newPlanRow()], term: newTermDraft(f.close) })
+  const [contractErrs, setContractErrs] = useState<{ amountErr?: string; planErr?: string; dateErr?: string; termErrs?: TermErrs }>({})
+  // A term agreement keeps the one-off milestones the deal already has; they count in its baseline.
+  const existingOneOffs = scheduleTotal(oneOffMilestones(Q.billingPlan(d.id)))
   const [pick, setPick] = useState<number[]>([0, 1, 2])
   // Ardorio only: open the deal Billing tab once this dialog closes, however it closes.
   const [milestones, setMilestones] = useState(false)
@@ -59,11 +65,30 @@ function WonForm({ d }: { d: Deal }) {
   const toContract = (): void => {
     if (!(+f.value > 0)) return UI.toast('Enter the estimate', 'bad')
     // Prefilled from the estimate once; going Back and on again keeps what was typed.
-    if (!contract.amount) setContract({ ...contract, amount: centsToInput(Math.round(+f.value * 100)) })
+    if (!contract.amount) setContract({ ...contract, amount: centsToInput(Math.round(+f.value * 100)), term: contract.term && !contract.term.annual ? { ...contract.term, start: f.close } : contract.term })
     setStep('contract')
   }
 
+  const winWithTerm = (): void => {
+    const t = checkTermDraft(contract.term ?? newTermDraft(f.close))
+    if (!t.ok) return setContractErrs({ termErrs: t.errs })
+    const baselineCents = Act.termBaseline(d.id, t.term, t.buildFee)
+    const input = { baselineCents, contractedOn: f.close, estimateAtWonCents: quotedCents(d) }
+    const bad = validateContract({ ...input, engagementType: 'term-agreement' }, F.today())
+    if (bad) return setContractErrs({ dateErr: `${bad} Go back and change the close date.` })
+    if (Q.billingPlan(d.id)?.contract) return setContractErrs({ dateErr: 'This deal already has a contract. Change it with a variation.' })
+    setContractErrs({})
+    if (!UI.guard(d.businessId, 'Closing deals')) return
+    Act.markWon(d.id, f)
+    const r = Act.setTermAgreement(d.id, input, t.term, t.buildFee)
+    UI.close()
+    UI.nav('deal', { id: d.id, q: { tab: 'billing' } })
+    if (r.ok) UI.toast(`Deal won. Term agreement of ${formatCents(baselineCents)} ex GST set with ${t.schedule.length} instalment${t.schedule.length === 1 ? '' : 's'}${t.buildFee.length ? ` and ${t.buildFee.length} build fee milestone${t.buildFee.length === 1 ? '' : 's'}` : ''}.`)
+    else UI.toast(`Deal won, but the term agreement was not saved: ${r.error}`, 'bad')
+  }
+
   const winWithContract = (): void => {
+    if (contract.engagementType === 'term-agreement') return winWithTerm()
     const c = checkContract(contract)
     if (!c.ok) return setContractErrs({ amountErr: c.amountErr, planErr: c.planErr })
     // The same checks setContract runs, before the deal is won: a contract refused afterwards would leave the deal
@@ -158,7 +183,7 @@ function WonForm({ d }: { d: Deal }) {
       >
         {steps}
         {contractErrs.dateErr && <Banner tone="bad">{contractErrs.dateErr}</Banner>}
-        <ContractStep draft={contract} onChange={setContract} errs={contractErrs} company={Q.company(d.companyId)} />
+        <ContractStep draft={contract} onChange={setContract} errs={contractErrs} company={Q.company(d.companyId)} existingCents={existingOneOffs} />
       </Modal>
     )
   }
