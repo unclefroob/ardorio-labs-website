@@ -125,21 +125,21 @@ describe('Reports › Ardorio revenue › Forecast', () => {
     expect(host.textContent).toContain('1 won deal has no contract yet and is not in the forecast')
   })
 
-  it('assumes 30 days to pay with only two paid invoices, and lets the viewer set the days for this view', async () => {
+  it('assumes the median days to pay of the paid invoices, and lets the viewer set the days for this view', async () => {
     await show()
     const input = host.querySelector<HTMLInputElement>('input[type="number"]')!
     const label = host.querySelector(`label[for="${input.id}"]`)
     expect(label?.textContent).toBe('Days to pay')
-    expect(input.value).toBe('30')
-    expect(host.textContent).toContain('Collected assumes 30 days to pay (the default: fewer than 3 invoices paid in the last 24 months, 2 so far)')
-    // 25 Aug 2027 + 30 days is 24 Sep 2027, in range; + 44 days is 8 Oct 2027, Later.
-    expect(tile('Forecast collected')?.v).toBe('$477,409')
-    await type(input, '44')
+    expect(input.value).toBe('44')
+    expect(host.textContent).toContain('Collected assumes 44 days to pay (median of 2 paid invoices)')
+    // 25 Aug 2027 + 44 days is 8 Oct 2027, Later; + 30 days is 24 Sep 2027, in range.
     expect(tile('Forecast collected')?.v).toBe('$417,409')
-    expect(host.textContent).toContain('Collected assumes 44 days to pay (set for this view')
+    await type(input, '30')
+    expect(tile('Forecast collected')?.v).toBe('$477,409')
+    expect(host.textContent).toContain('Collected assumes 30 days to pay (set for this view')
     expect(localStorage.length).toBe(0)
     await click(button(host, 'Reset'))
-    expect(input.value).toBe('30')
+    expect(input.value).toBe('44')
   })
 
   it('tables by month and by financial year carry headers and rows that expand to the deal’s milestones, linking to its Billing tab', async () => {

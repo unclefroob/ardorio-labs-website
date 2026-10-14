@@ -148,12 +148,12 @@ function paidDay(at: string | undefined | null): string {
 
 // ── payment lag ──────────────────────────────────────────────────────────────────────────────────
 export const DEFAULT_LAG = 30
-export const LAG_MIN_SAMPLE = 3
+export const LAG_MIN_SAMPLE = 2
 export interface PaymentLag { days: number; sample: number; median: boolean }
 
 /**
  * Days from issue to payment: the median over paid, non-test invoices paid in the last 24 months when there are at
- * least three, else 30. Every invoice listed is an Ardorio invoice; external records count like any other.
+ * least two, else 30. Every invoice listed is an Ardorio invoice; external records count like any other.
  */
 export function paymentLag(all: readonly InvoiceDto[], today: string): PaymentLag {
   const since = addMonths(today, -24)

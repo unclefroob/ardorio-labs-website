@@ -77,11 +77,12 @@ describe('Ardorio forecast: a Ritchies-shaped contract', () => {
     expect(s.byMonth.get('2026-11')?.collected).toBe(0)
   })
 
-  it('takes 30 days to pay with only two paid invoices, and the median once there are three', () => {
-    expect(paymentLag(RITCHIES.invoices, TODAY)).toEqual({ days: 30, sample: 2, median: false })
+  it('takes the median once there are two paid invoices, and 30 days with only one', () => {
+    expect(paymentLag(RITCHIES.invoices, TODAY)).toEqual({ days: 44, sample: 2, median: true })
+    expect(lagLine(paymentLag(RITCHIES.invoices, TODAY))).toBe('Collected assumes 44 days to pay (median of 2 paid invoices)')
+    expect(paymentLag(RITCHIES.invoices.slice(0, 1), TODAY)).toEqual({ days: 30, sample: 1, median: false })
     const three = [...RITCHIES.invoices, paid('i3', 'rit', null, 1000, '2026-09-01', '2026-09-11')]
     expect(paymentLag(three, TODAY)).toEqual({ days: 44, sample: 3, median: true })
-    expect(lagLine(paymentLag(three, TODAY))).toBe('Collected assumes 44 days to pay (median of 3 paid invoices)')
     expect(lagLine(paymentLag(three, TODAY), 60)).toContain('Collected assumes 60 days to pay')
   })
 
