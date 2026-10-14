@@ -1,5 +1,5 @@
 import { archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
-import { addVariation, claimRetainerPeriod, decideVariation, markDelivered, retainerClaimProblem, saveMilestones, saveRetainer, setContract } from './act/billing'
+import { addVariation, claimRetainerPeriod, confirmCpi, decideVariation, endTermEarly, markDelivered, retainerClaimProblem, saveMilestones, saveRetainer, setContract, setTermAgreement, setTermAutoDraft, termBaseline } from './act/billing'
 import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
@@ -35,6 +35,7 @@ export const Act = {
   addNote, editNote, deleteNote,
   createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, restoreContact, assignContacts,
   saveMilestones, saveRetainer, claimRetainerPeriod, retainerClaimProblem, setContract, addVariation, decideVariation, markDelivered,
+  setTermAgreement, termBaseline, confirmCpi, endTermEarly, setTermAutoDraft,
   createDeal, recordWonDeal, recordWonOutcome, updateDeal, moveStage, markWon, markLost, reopenDeal, archiveDeal, restoreDeal,
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   voidActivity,

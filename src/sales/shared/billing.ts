@@ -16,13 +16,15 @@ const validCents = (n: unknown): n is number => typeof n === 'number' && Number.
 
 /** The first problem with a milestone list, in words, or null when it would be accepted. */
 export function validateMilestones(list: readonly BillingMilestone[]): string | null {
-  if (list.length > MAX_MILESTONES) return `A deal can have at most ${MAX_MILESTONES} milestones`
+  // A term agreement's instalments are the server's (up to 120 for 10 years monthly): only one-off milestones count to the limit.
+  if (list.filter(m => m.kind !== 'instalment').length > MAX_MILESTONES) return `A deal can have at most ${MAX_MILESTONES} milestones`
   const seen = new Set<string>()
   for (let i = 0; i < list.length; i++) {
     const m = list[i]
     const n = i + 1
     if (!m.id || seen.has(m.id)) return `Milestone ${n} needs its own id`
     seen.add(m.id)
+    if (m.kind === 'instalment') continue
     const label = m.label.trim()
     if (label.length < 1 || label.length > MAX_LABEL) return `Milestone ${n}: the label is 1 to ${MAX_LABEL} characters`
     if (!validCents(m.amountCents)) return `Milestone ${n}: the amount is whole cents from 1 to ${MAX_CENTS}`
@@ -47,6 +49,13 @@ export function cleanMilestone(m: BillingMilestone): BillingMilestone {
   // An undo not yet synced must stay an explicit null, or the server keeps the stored date.
   else if (m.deliveredOn === null) out.deliveredOn = null
   if (m.deliveredBy) out.deliveredBy = m.deliveredBy
+  // A term agreement's instalment keeps what the server stored on it, so saving the one-off milestones never changes it.
+  if (m.kind === 'instalment') {
+    out.kind = 'instalment'
+    if (typeof m.termYear === 'number') out.termYear = m.termYear
+    if (m.periodStart) out.periodStart = m.periodStart
+    if (m.periodEnd) out.periodEnd = m.periodEnd
+  }
   return out
 }
 
@@ -448,7 +457,7 @@ export interface DealMoney {
   estimate: number
   /** Baseline plus approved variations, or null with no contract. */
   contracted: number | null
-  /** Sum of delivered milestones. */
+  /** Sum of delivered milestones, and of term instalments that have a live invoice. */
   earned: number
   /** Issued project invoices on this deal: not draft, not cancelled, not test, not from the retainer. Ex GST. */
   invoiced: number
@@ -476,6 +485,8 @@ type MoneyInvoice = Pick<InvoiceDto, 'status' | 'subtotalCents'> & Partial<Pick<
  */
 export function isRetainerInvoice(inv: Pick<MoneyInvoice, 'source' | 'milestoneId'>, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined): boolean {
   if (inv.source === 'retainer') return true
+  // A term agreement's instalment invoice is project money: it is how the contract is billed.
+  if (inv.source === 'term') return false
   // A record of money invoiced outside SalesOS is project money: it adds to Invoiced and Collected (boards 9 and 10).
   if (inv.source === 'external') return false
   if (inv.milestoneId || !plan?.retainer) return false
@@ -490,7 +501,9 @@ export function moneyForDeal(deal: Pick<Deal, 'id' | 'value'>, plan: Pick<Billin
   const contracted = contractedCents(plan)
   const milestones = plan?.milestones ?? []
   const scheduled = milestones.reduce((a, m) => a + m.amountCents, 0)
-  const earned = milestones.filter(m => !!m.deliveredOn).reduce((a, m) => a + m.amountCents, 0)
+  // A one-off milestone is earned when delivered; a term agreement's instalment when it has a live (non-void, non-test) invoice.
+  const billedIds = new Set(withoutTest(invoices).filter(i => i.status !== 'void' && !!i.milestoneId && (i.dealId === undefined || i.dealId === deal.id)).map(i => i.milestoneId as string))
+  const earned = milestones.filter(m => (m.kind === 'instalment' ? billedIds.has(m.id) : !!m.deliveredOn)).reduce((a, m) => a + m.amountCents, 0)
   let invoiced = 0, collected = 0, retainerInvoiced = 0
   for (const i of withoutTest(invoices)) {
     if (i.dealId !== undefined && i.dealId !== deal.id) continue
