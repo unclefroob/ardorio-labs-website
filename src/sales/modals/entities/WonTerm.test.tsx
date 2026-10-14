@@ -137,6 +137,32 @@ describe('Won dialog, Contract step: term agreement', () => {
     expect([u.pathname, JSON.parse(u.searchParams.get('q') ?? '{}')]).toEqual(['/sales/deals/dl1', { tab: 'billing' }])
   })
 
+  it('wins a term agreement worth more than $1,000,000 ex GST (5 years at $250,000), up to the term cap the API allows', async () => {
+    const { deal, plan } = await openTerm()
+    await type(field(host, 'Annual fee (A$, ex GST)'), '250000')
+    expect(baseline()).toContain(`Contract ${formatCents(125_000_000)} ex GST`)
+    expect(baseline()).toContain('Frozen when you save')
+    await click(button(host, 'Win and set up billing'))
+    expect(text()).not.toContain('close date')
+    expect(deal()?.status).toBe('won')
+    expect(plan()?.contract?.baselineCents).toBe(125_000_000)
+    expect(plan()?.contract?.engagementType).toBe('term-agreement')
+    expect(plan()?.milestones.filter(x => x.kind === 'instalment')).toHaveLength(5)
+  })
+
+  it('wins the largest term the fields allow: 10 years at $1,000,000 a year rising 20% a year', async () => {
+    const { deal, plan } = await openTerm()
+    await type(field(host, 'Annual fee (A$, ex GST)'), '1000000')
+    await type(host.querySelector('[aria-label="Term years"]'), '10')
+    await click(seg('Yearly rise', 'Fixed %'))
+    await type(host.querySelector('[aria-label="Yearly rise (%)"]'), '20')
+    const total = termSchedule({ startDate: '2026-10-09', termMonths: 120, annualCents: 100_000_000, frequency: 'annual', timing: 'advance', escalation: 'fixed', escalationBp: 2000 }).reduce((x, i) => x + i.amountCents, 0)
+    expect(total).toBeGreaterThan(2_500_000_000)
+    await click(button(host, 'Win and set up billing'))
+    expect(deal()?.status).toBe('won')
+    expect(plan()?.contract?.baselineCents).toBe(total)
+  })
+
   it('counts the milestones already planned in the baseline and keeps them', async () => {
     const { plan } = await openTerm({ milestones: PLAN_DATA.milestones.slice(0, 1) })
     await type(field(host, 'Annual fee (A$, ex GST)'), '10000')

@@ -184,7 +184,7 @@ export function addVariation(dealId: string, v: Pick<BillingVariation, 'label' |
   if (g) return { ok: false, error: g }
   const p0 = Q.billingPlan(dealId)
   if (!p0?.contract) return { ok: false, error: 'Set the contract before adding a variation' }
-  const bad = validateVariation(v) ?? (approve ? approvalProblem(p0, v.amountCents) : null)
+  const bad = validateVariation(v, p0.contract.engagementType) ?? (approve ? approvalProblem(p0, v.amountCents) : null)
   if (bad) return { ok: false, error: bad }
   const now = F.nowIso()
   const me = Q.me().name

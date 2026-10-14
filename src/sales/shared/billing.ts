@@ -13,6 +13,14 @@ export const MAX_MILESTONES = 40
 export const MAX_LABEL = 120
 export const MIN_CENTS = 1
 export const MAX_CENTS = 100_000_000
+/**
+ * A term agreement's contract and its variations have this larger cap (the API's MAX_TERM_CONTRACT_CENTS): a 10-year
+ * agreement at the largest annual fee with the largest yearly rise totals about 2.6e9 cents.
+ */
+export const MAX_TERM_CONTRACT_CENTS = 10_000_000_000
+
+/** The largest contract or variation amount the API accepts for this engagement type. */
+export const contractCapOf = (engagementType: EngagementType | undefined): number => (engagementType === 'term-agreement' ? MAX_TERM_CONTRACT_CENTS : MAX_CENTS)
 
 const validCents = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= MIN_CENTS && n <= MAX_CENTS
 
@@ -406,16 +414,20 @@ export function contractedCents(plan: Pick<BillingPlan, 'contract' | 'variations
   return plan.contract.baselineCents + approvedVariations(plan).reduce((a, v) => a + v.amountCents, 0)
 }
 
-/** The contract amount a person typed: whole cents from 1 to MAX_CENTS, like a milestone. */
-export function validateContractAmount(cents: number | null): string | null {
+/**
+ * The contract amount a person typed: whole cents from 1 to MAX_CENTS, like a milestone, or to MAX_TERM_CONTRACT_CENTS
+ * for a term agreement (the API's cap for its engagement type).
+ */
+export function validateContractAmount(cents: number | null, engagementType?: EngagementType): string | null {
   if (cents === null) return 'Enter the contracted amount in dollars and cents, like 48000.00'
-  if (!validCents(cents)) return `The contracted amount is from $0.01 to ${centsToInput(MAX_CENTS)}`
+  const cap = contractCapOf(engagementType)
+  if (!Number.isInteger(cents) || cents < MIN_CENTS || cents > cap) return `The contracted amount is from $0.01 to ${centsToInput(cap)}`
   return null
 }
 
 /** A contract as the API accepts it. `today` is the latest contract date allowed: the API refuses a future one. */
 export function validateContract(c: Pick<BillingContract, 'baselineCents' | 'engagementType' | 'contractedOn' | 'estimateAtWonCents'>, today: string): string | null {
-  const bad = validateContractAmount(c.baselineCents)
+  const bad = validateContractAmount(c.baselineCents, c.engagementType)
   if (bad) return bad
   if (!isEngagementType(c.engagementType)) return 'Choose an engagement type'
   if (!isDay(c.contractedOn)) return 'The contract date is not a valid date'
@@ -424,11 +436,15 @@ export function validateContract(c: Pick<BillingContract, 'baselineCents' | 'eng
   return null
 }
 
-/** A variation as the API accepts it: a label, a signed non-zero amount up to MAX_CENTS either way, and a reason. */
-export function validateVariation(v: Pick<BillingVariation, 'label' | 'amountCents' | 'reason'>): string | null {
+/**
+ * A variation as the API accepts it: a label, a signed non-zero amount up to the contract's cap either way (MAX_CENTS,
+ * or MAX_TERM_CONTRACT_CENTS on a term agreement), and a reason.
+ */
+export function validateVariation(v: Pick<BillingVariation, 'label' | 'amountCents' | 'reason'>, engagementType?: EngagementType): string | null {
   const label = v.label.trim()
   if (label.length < 1 || label.length > MAX_LABEL) return `The label is 1 to ${MAX_LABEL} characters`
-  if (!Number.isInteger(v.amountCents) || v.amountCents === 0 || Math.abs(v.amountCents) > MAX_CENTS) return `The amount is whole cents, not zero, up to ${centsToInput(MAX_CENTS)} either way`
+  const cap = contractCapOf(engagementType)
+  if (!Number.isInteger(v.amountCents) || v.amountCents === 0 || Math.abs(v.amountCents) > cap) return `The amount is whole cents, not zero, up to ${centsToInput(cap)} either way`
   const reason = v.reason.trim()
   if (reason.length < 1) return 'Say why the contract changes'
   if (reason.length > MAX_REASON) return `The reason is at most ${MAX_REASON} characters`

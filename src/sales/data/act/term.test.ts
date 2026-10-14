@@ -65,6 +65,17 @@ describe('Act.setTermAgreement', () => {
     m.stop()
   })
 
+  it('accepts a term agreement over $1,000,000 ex GST (5 years at $250,000), and a variation over $1,000,000 on it, as the API does', async () => {
+    const m = await setup()
+    const big: TermInput = { ...TERM, annualCents: 25_000_000, escalation: 'none', escalationBp: 0 }
+    expect(m.Act.termBaseline('dl1', big)).toBe(125_000_000)
+    expect(m.Act.setTermAgreement('dl1', { ...C, baselineCents: 125_000_000 }, big)).toEqual({ ok: true })
+    expect(m.Q.billingPlan('dl1')?.contract?.baselineCents).toBe(125_000_000)
+    const r = m.Act.addVariation('dl1', { label: 'VO-1 Extra module', amountCents: 150_000_000, reason: 'Second product line' }, true)
+    expect(r.ok).toBe(true)
+    m.stop()
+  })
+
   it('with a build fee: the one-off milestones come first and count in the baseline', async () => {
     const m = await setup()
     expect(m.Act.termBaseline('dl1', TERM, BUILD)).toBe(16741926)

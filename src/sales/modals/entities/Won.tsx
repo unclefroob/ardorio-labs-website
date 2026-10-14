@@ -11,7 +11,7 @@ import { UI } from '../../ui/store'
 import { RosterioWinPrompt } from '../../pages/deals/RosterioCard'
 import { WonBilling } from '../../pages/deals/WonBilling'
 import { MissingModal } from './guards'
-import { contractedCents, quotedCents, validateContract } from '../../shared/billing'
+import { contractedCents, quotedCents, validateContract, validateContractAmount } from '../../shared/billing'
 import { oneOffMilestones } from '../../shared/term'
 import { scheduleTotal } from '../../shared/termSchedule'
 import { checkTermDraft, newTermDraft } from '../../pages/deals/TermForm'
@@ -42,7 +42,7 @@ function WonForm({ d }: { d: Deal }) {
   const ledger = ard && existing === null
   const [step, setStep] = useState<'outcome' | 'contract'>('outcome')
   const [contract, setContract] = useState<ContractDraft>({ amount: '', engagementType: 'fixed-price', rows: [newPlanRow()], term: newTermDraft(f.close) })
-  const [contractErrs, setContractErrs] = useState<{ amountErr?: string; planErr?: string; dateErr?: string; termErrs?: TermErrs }>({})
+  const [contractErrs, setContractErrs] = useState<{ amountErr?: string; planErr?: string; stepErr?: string; termErrs?: TermErrs }>({})
   // A term agreement keeps the one-off milestones the deal already has; they count in its baseline.
   const existingOneOffs = scheduleTotal(oneOffMilestones(Q.billingPlan(d.id)))
   const [pick, setPick] = useState<number[]>([0, 1, 2])
@@ -74,9 +74,12 @@ function WonForm({ d }: { d: Deal }) {
     if (!t.ok) return setContractErrs({ termErrs: t.errs })
     const baselineCents = Act.termBaseline(d.id, t.term, t.buildFee)
     const input = { baselineCents, contractedOn: f.close, estimateAtWonCents: quotedCents(d) }
+    // The total is worked out from the term and the build fee, so a total over the cap is fixed there, not on the close date.
+    const amountBad = validateContractAmount(baselineCents, 'term-agreement')
+    if (amountBad) return setContractErrs({ stepErr: `This term agreement totals ${formatCents(baselineCents)} ex GST. ${amountBad}. Lower the annual fee, the term or the build fee.` })
     const bad = validateContract({ ...input, engagementType: 'term-agreement' }, F.today())
-    if (bad) return setContractErrs({ dateErr: `${bad} Go back and change the close date.` })
-    if (Q.billingPlan(d.id)?.contract) return setContractErrs({ dateErr: 'This deal already has a contract. Change it with a variation.' })
+    if (bad) return setContractErrs({ stepErr: `${bad} Go back and change the close date.` })
+    if (Q.billingPlan(d.id)?.contract) return setContractErrs({ stepErr: 'This deal already has a contract. Change it with a variation.' })
     setContractErrs({})
     if (!UI.guard(d.businessId, 'Closing deals')) return
     Act.markWon(d.id, f)
@@ -95,8 +98,8 @@ function WonForm({ d }: { d: Deal }) {
     // won and the typed contract and plan lost. The contract is dated by the close date, which cannot be later than today.
     const input = { baselineCents: c.baselineCents, engagementType: c.engagementType, contractedOn: f.close, estimateAtWonCents: quotedCents(d) }
     const bad = validateContract(input, F.today())
-    if (bad) return setContractErrs({ dateErr: `${bad} Go back and change the close date.` })
-    if (Q.billingPlan(d.id)?.contract) return setContractErrs({ dateErr: 'This deal already has a contract. Change it with a variation.' })
+    if (bad) return setContractErrs({ stepErr: `${bad} Go back and change the close date.` })
+    if (Q.billingPlan(d.id)?.contract) return setContractErrs({ stepErr: 'This deal already has a contract. Change it with a variation.' })
     setContractErrs({})
     if (!UI.guard(d.businessId, 'Closing deals')) return
     Act.markWon(d.id, f)
@@ -182,7 +185,7 @@ function WonForm({ d }: { d: Deal }) {
         }
       >
         {steps}
-        {contractErrs.dateErr && <Banner tone="bad">{contractErrs.dateErr}</Banner>}
+        {contractErrs.stepErr && <Banner tone="bad">{contractErrs.stepErr}</Banner>}
         <ContractStep draft={contract} onChange={setContract} errs={contractErrs} company={Q.company(d.companyId)} existingCents={existingOneOffs} />
       </Modal>
     )
