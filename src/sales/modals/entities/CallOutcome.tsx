@@ -1,4 +1,5 @@
-import { Act } from '../../data/Act'
+import { useState } from 'react'
+import { Act, type BookedMeeting } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
@@ -22,6 +23,10 @@ interface CallDraft {
   deal: boolean
   contactId: string
   companyId: string
+  /** 'Meeting Booked' only: when the meeting is. Required, so every booked meeting is a dated Meeting record. */
+  mtDate: string
+  mtTime: string
+  mtMins: string
 }
 
 const FOLLOW_UP_OUTCOMES: readonly string[] = ['Follow-up Required', 'Interested', 'Meeting Booked', 'Voicemail Left', 'No Answer']
@@ -39,7 +44,11 @@ function CallForm({ t, ct, b, companyId, dealId }: { t?: Task; ct?: Contact; b: 
   const [f, set] = useF<CallDraft>({
     outcome: 'Connected', notes: '', fu: false, fuTitle: 'Follow up with ' + (ct?.firstName ?? 'contact'),
     fuDate: F.addDays(F.nowIso(), 2).slice(0, 10), deal: false, contactId: ct?.id ?? '', companyId: ct?.companyId ?? companyId ?? '',
+    mtDate: '', mtTime: '10:00', mtMins: '30',
   })
+  const [mtErr, setMtErr] = useState('')
+  const booked = f.outcome === 'Meeting Booked'
+  const clock = F.nowIso()
   const knownDeal = dealId ?? t?.dealId ?? null
   const last = ct ? S.activities.filter(a => a.contactId === ct.id && Q.actVisible(a)).sort((a, c) => c.ts.localeCompare(a.ts))[0] : undefined
 
@@ -55,11 +64,16 @@ function CallForm({ t, ct, b, companyId, dealId }: { t?: Task; ct?: Contact; b: 
 
   const save = (): void => {
     if (!UI.guard(b, 'Logging calls')) return
-    if (t) Act.completeTask(t.id, { outcome: f.outcome, notes: f.notes })
-    else {
-      if (!f.contactId && !f.companyId) return UI.toast('Select who you called', 'bad')
-      Act.logCall({ businessId: b, contactId: f.contactId || null, companyId: f.companyId || null, dealId: dealId ?? null, outcome: f.outcome, notes: f.notes })
+    if (!t && !f.contactId && !f.companyId) return UI.toast('Select who you called', 'bad')
+    let meeting: BookedMeeting | undefined
+    if (booked) {
+      if (!f.mtDate || !f.mtTime) return setMtErr('Enter the date and time of the meeting you booked.')
+      const start = f.mtDate + 'T' + f.mtTime
+      if (start <= clock) return setMtErr('A booked meeting is in the future. Pick a later date or time.')
+      meeting = { start, duration: parseInt(f.mtMins, 10) || 30 }
     }
+    if (t) Act.completeTask(t.id, { outcome: f.outcome, notes: f.notes, meeting })
+    else Act.logCall({ businessId: b, contactId: f.contactId || null, companyId: f.companyId || null, dealId: dealId ?? null, outcome: f.outcome, notes: f.notes, meeting })
     if (f.fu) {
       Act.createTask({
         title: f.fuTitle, type: f.outcome === 'Meeting Booked' ? 'Meeting Preparation' : 'Follow-up', businessId: b, assigneeId: Q.me().id,
@@ -67,7 +81,7 @@ function CallForm({ t, ct, b, companyId, dealId }: { t?: Task; ct?: Contact; b: 
       })
     }
     UI.close()
-    UI.toast('Call logged: ' + f.outcome + (f.fu ? ' · follow-up created' : ''))
+    UI.toast('Call logged: ' + f.outcome + (meeting ? ' · meeting added for ' + F.dt(meeting.start) : '') + (f.fu ? ' · follow-up created' : ''))
     if (f.deal) UI.open('newDeal', { companyId: f.companyId, contactIds: f.contactId ? [f.contactId] : [], businessId: b })
   }
 
@@ -98,6 +112,14 @@ function CallForm({ t, ct, b, companyId, dealId }: { t?: Task; ct?: Contact; b: 
             {OUTCOMES.map(o => <Btn key={o} size="sm" kind={f.outcome === o ? 'pri' : undefined} aria-pressed={f.outcome === o} onClick={() => pick(o)}>{o}</Btn>)}
           </div>
         </Fld>
+        {booked && (
+          <div className="grid g3">
+            <Fld label="Meeting date" req err={mtErr || undefined}><Inp type="date" value={f.mtDate} min={clock.slice(0, 10)} onChange={v => { set({ mtDate: v, fuDate: v && v < f.fuDate ? v : f.fuDate }); setMtErr('') }} /></Fld>
+            <Fld label="Time" req><Inp type="time" value={f.mtTime} onChange={v => { set('mtTime', v); setMtErr('') }} /></Fld>
+            <Fld label="Mins"><Inp value={f.mtMins} onChange={v => set('mtMins', v)} inputMode="numeric" /></Fld>
+          </div>
+        )}
+        {booked && <div className="faint xs" style={{ marginTop: -6 }}>The meeting is added as upcoming, so it shows in My Day, on the deal and in meeting reminders.</div>}
         <Fld label="Call notes"><TA value={f.notes} onChange={v => set('notes', v)} rows={3} placeholder="What was discussed, objections, next steps…" /></Fld>
         <Ck checked={f.fu} onChange={v => set('fu', v)}>Create a follow-up task</Ck>
         {f.fu && (
