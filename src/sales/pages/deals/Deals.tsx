@@ -14,8 +14,35 @@ import { DealCard } from './DealCard'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner', 'Cross-business introduction', 'Sequence reply']
 const strQ = (v: unknown): string => (typeof v === 'string' ? v : '')
-/** Closed Won and Closed Lost columns show deals closed this recently; the rest are one click away in the list. */
-const CLOSED_DAYS = 90
+/** The periods a Closed Won or Closed Lost column can show; older deals are one click away in the list. */
+const PERIODS = [['30', '30d'], ['90', '90d'], ['365', '1y'], ['all', 'All']] as const
+type Period = typeof PERIODS[number][0]
+const DEFAULT_PERIOD: Period = '30'
+const PHRASE: Record<Period, string> = { '30': 'in the last 30 days', '90': 'in the last 90 days', '365': 'in the last 12 months', all: 'at any time' }
+const isPeriod = (v: unknown): v is Period => PERIODS.some(([k]) => k === v)
+
+/** Each closed column's period, remembered in this browser per stage. */
+function useClosedPeriods(): [(stageId: string) => Period, (stageId: string, p: Period) => void] {
+  const key = 'salesos.board.closed'
+  const [map, setMap] = useState<Record<string, Period>>(() => {
+    try {
+      const v: unknown = JSON.parse(localStorage.getItem(key) ?? '{}')
+      return v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([, p]) => isPeriod(p))) as Record<string, Period> : {}
+    } catch {
+      return {}
+    }
+  })
+  const set = (stageId: string, p: Period): void => {
+    const n = { ...map, [stageId]: p }
+    setMap(n)
+    try {
+      localStorage.setItem(key, JSON.stringify(n))
+    } catch {
+      /* private mode or blocked storage: the choice just lasts for this visit */
+    }
+  }
+  return [id => map[id] ?? DEFAULT_PERIOD, set]
+}
 
 /** The board's height: from its top to the bottom of the window, so the columns use the whole screen. */
 function useBoardHeight(ref: RefObject<HTMLDivElement | null>, on: boolean): number | null {
@@ -55,6 +82,7 @@ export function Deals({ route }: { route: Route }) {
   const [stF, setStF] = useState(stageQ)
   const kbRef = useRef<HTMLDivElement>(null)
   const kbH = useBoardHeight(kbRef, view === 'board')
+  const [periodOf, setPeriod] = useClosedPeriods()
 
   if (!pb) {
     return (
@@ -146,13 +174,14 @@ export function Deals({ route }: { route: Route }) {
             {pl.stages.map(s => {
               const closed = !!(s.won || s.lost)
               const inStage = bd.filter(d => d.stageId === s.id)
-              const ds = inStage.filter(d => !closed || F.days(d.closedAt || d.stageChangedAt, F.nowIso()) <= CLOSED_DAYS)
+              const per = periodOf(s.id)
+              const ds = inStage.filter(d => !closed || per === 'all' || F.days(d.closedAt || d.stageChangedAt, F.nowIso()) <= +per)
               const older = inStage.length - ds.length
               return (
                 <div
                   key={s.id}
                   className={'kc' + (closed ? ' closed' : '') + (over === s.id ? ' over' : '')}
-                  aria-label={s.name + (closed ? `, closed in the last ${CLOSED_DAYS} days` : '')}
+                  aria-label={s.name + (closed ? `, closed ${PHRASE[per]}` : '')}
                   onDragOver={e => { e.preventDefault(); setOver(s.id) }}
                   onDragLeave={() => setOver(null)}
                   onDrop={e => {
@@ -165,23 +194,32 @@ export function Deals({ route }: { route: Route }) {
                   <div className="kc-h">
                     <div className="row">
                       <b className="sm" style={s.won ? { color: 'var(--ok)' } : s.lost ? { color: 'var(--fg3)' } : undefined}>{s.name}</b>
-                      <span className="faint xs">{s.prob}%</span>
+                      {!closed && <span className="faint xs">{s.prob}%</span>}
                       <span className="sp" />
                       <span className="chip">{ds.length}</span>
                     </div>
-                    <div className="faint xs num" style={{ marginTop: 2 }}>
-                      {F.money(ds.reduce((x, d) => x + d.value, 0), 1)}
-                      {closed ? ` · last ${CLOSED_DAYS} days` : ' · ' + F.money(ds.reduce((x, d) => x + Q.weighted(d), 0), 1) + ' wtd'}
-                      {s.required.length > 0 && (
-                        <span title={'Required: ' + s.required.join(', ')}> · <Icon n="lock" s={10} /> {s.required.length} req.</span>
-                      )}
-                    </div>
+                    {closed ? (
+                      <div className="kc-per">
+                        <span className="faint xs num">{F.money(ds.reduce((x, d) => x + d.value, 0), 1)}</span>
+                        <span className="sp" />
+                        <Seg className="xs" label={`${s.name}: show deals closed in`} value={per} onChange={k => { if (isPeriod(k)) setPeriod(s.id, k) }}
+                          opts={PERIODS.map(([k, l]) => [k, <span key={k} title={`Closed ${PHRASE[k]}`}>{l}</span>] as const)} />
+                      </div>
+                    ) : (
+                      <div className="faint xs num" style={{ marginTop: 2 }}>
+                        {F.money(ds.reduce((x, d) => x + d.value, 0), 1)}
+                        {' · ' + F.money(ds.reduce((x, d) => x + Q.weighted(d), 0), 1) + ' wtd'}
+                        {s.required.length > 0 && (
+                          <span title={'Required: ' + s.required.join(', ')}> · <Icon n="lock" s={10} /> {s.required.length} req.</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="kc-b">
                     {ds.length ? (
                       ds.sort((a, c) => c.value - a.value).map(d => <DealCard key={d.id} d={d} />)
                     ) : (
-                      <div className="faint xs" style={{ textAlign: 'center', padding: '18px 0' }}>{!bd.length ? 'No deals in this pipeline yet' : closed && older ? `None in the last ${CLOSED_DAYS} days` : 'No deals in this stage'}</div>
+                      <div className="faint xs" style={{ textAlign: 'center', padding: '18px 0' }}>{!bd.length ? 'No deals in this pipeline yet' : closed && older ? `None closed ${PHRASE[per]}` : 'No deals in this stage'}</div>
                     )}
                   </div>
                   {closed && older > 0 && (
