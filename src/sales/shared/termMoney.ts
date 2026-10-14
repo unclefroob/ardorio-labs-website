@@ -1,19 +1,19 @@
 import type { BillingMilestone, BillingPlan, BillingTerm, InvoiceDto, TermExit } from '../api/contract'
 import { fmtDay } from './invoices'
 import { formatCents } from './money'
-import { daysBetween, inDays, instalmentsOf, invoicedIds, nextAnniversary } from './term'
+import { daysBetween, inDays, instalmentsOf, invoicedIds, nextBreakAnniversary } from './term'
 import { addMonths, dayBefore, termEndDate, termYears, yearlyFees } from './termSchedule'
 
 // The money views of a term agreement, as the contract block "Ardorio term agreements" (Reporting) says: contracted is
 // baseline plus approved variations as before; for a break agreement, the un-invoiced instalments from the next
-// anniversary after today are not yet committed. A term agreement is never MRR or ARR: views say "Annual fee". Pure.
+// anniversary the client can still break at (its notice day not yet passed) are not yet committed. A term agreement is never MRR or ARR: views say "Annual fee". Pure.
 
 type LiveInvoice = Pick<InvoiceDto, 'milestoneId' | 'status'> & Partial<Pick<InvoiceDto, 'test' | 'dealId'>>
 
 export interface TermCommitment {
   /** Contracted minus what is not yet committed. Equal to contracted except for a break agreement. */
   committed: number
-  /** Un-invoiced instalments from the next anniversary on: the client may still break before them. */
+  /** Un-invoiced instalments from the next anniversary the client can still break at: they may not be billed. */
   notCommitted: number
   /** The anniversary the client may break at, or null when nothing is uncommitted. */
   breakAt: string | null
@@ -23,14 +23,16 @@ export interface TermCommitment {
 
 /**
  * Committed and not yet committed for one deal. Only a break agreement that has not ended has an uncommitted part: the
- * instalments with no live invoice whose period starts on or after the next anniversary of the start after today
- * (none when no anniversary is left before the term ends). `invoices` are the deal's own.
+ * instalments with no live invoice whose period starts on or after the break point, the first anniversary of the start
+ * after today whose notice day (anniversary minus breakNoticeDays) is today or later. An anniversary whose notice day
+ * has passed can no longer be broken at, so the year after it is committed. None when no break is left before the term
+ * ends. `invoices` are the deal's own.
  */
 export function termCommitment(plan: Pick<BillingPlan, 'milestones' | 'term'> | undefined, contracted: number, invoices: readonly LiveInvoice[], today: string): TermCommitment {
   const none: TermCommitment = { committed: contracted, notCommitted: 0, breakAt: null, ids: new Set() }
   const t = plan?.term
   if (!t || t.exit !== 'break' || t.ended) return none
-  const at = nextAnniversary(t, today)
+  const at = nextBreakAnniversary(t, today)
   if (!at) return none
   const done = invoicedIds(invoices)
   const ids = new Set<string>()

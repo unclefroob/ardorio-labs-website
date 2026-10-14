@@ -98,6 +98,21 @@ describe('Billing tab: term agreement', () => {
     expect(text()).not.toMatch(/\bMRR\b|\bARR\b/)
   })
 
+  it('says when the notice window of the next anniversary has closed, and where the client can break next', async () => {
+    // A year's notice: for 1 Oct 2027 it was due by 1 Oct 2026, before today (9 Oct 2026). 1 Oct 2028 is the term end.
+    await show({ plan: { term: { ...TERM, breakNoticeDays: 365, draftFrom: '2025-09-20' } } })
+    expect(fact('Exit')).toContain('Next anniversary 1 Oct 2027: the notice window closed on 1 Oct 2026, so the client cannot break there.')
+    expect(fact('Exit')).toContain('No break is left in the term.')
+    expect(fact('Exit')).not.toContain('notice by')
+  })
+
+  it('names the next break when the window for the next anniversary has closed and a later one is open', async () => {
+    // Four years and a year's notice: 1 Oct 2027 closed on 1 Oct 2026; 1 Oct 2028 is still open until 2 Oct 2027.
+    await show({ plan: { term: { ...TERM, termMonths: 48, breakNoticeDays: 365, draftFrom: '2025-09-20' } } })
+    expect(fact('Exit')).toContain('the notice window closed on 1 Oct 2026')
+    expect(fact('Exit')).toContain('Next break 1 Oct 2028; notice by 2 Oct 2027 (365 days)')
+  })
+
   it('lists the schedule by year with invoice date, amount and invoice state linking to the invoice', async () => {
     const { nav } = await show()
     const rows = scheduleRows()

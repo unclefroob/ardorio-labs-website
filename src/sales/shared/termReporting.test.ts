@@ -187,6 +187,21 @@ describe('term agreement C: break at each anniversary', () => {
     expect(termCommitment({ ...PLAN_C, term: { ...T_C, exit: 'committed', breakNoticeDays: 0 } }, C_TOTAL, INV_C, TODAY).notCommitted).toBe(0)
   })
 
+  it('once the notice day of the next anniversary has passed, the year after it is committed and the break moves a year on', () => {
+    // 90 days notice: for 1 Mar 2027 it is due by 1 Dec 2026, for 1 Mar 2028 by 2 Dec 2027.
+    expect(termCommitment(PLAN_C, C_TOTAL, INV_C, '2026-12-01')).toMatchObject({ breakAt: '2027-03-01', notCommitted: 5304500 + 5463635 + 5627544 })
+    const closed = termCommitment(PLAN_C, C_TOTAL, INV_C, '2026-12-02')
+    expect(closed.breakAt).toBe('2028-03-01')
+    expect(closed.notCommitted).toBe(5463635 + 5627544)
+    expect(closed.committed).toBe(C_TOTAL - 5463635 - 5627544)
+    expect([...closed.ids]).toEqual(['inst_4_1', 'inst_5_1'])
+    // After the last notice day nothing can be broken: all committed.
+    expect(termCommitment(PLAN_C, C_TOTAL, INV_C, '2028-12-02')).toMatchObject({ breakAt: null, notCommitted: 0, committed: C_TOTAL })
+    // The Customers row follows the same break point.
+    const r = ardorioByDeal([deal('brk', 'co2')], COS, [PLAN_C], INV_C, '2026-12-02')
+    expect(r.companies[0].deals[0].term).toMatchObject({ notCommittedCents: 5463635 + 5627544, breakAt: '2028-03-01' })
+  })
+
   it('Customers by deal: contracted stays the denominator, with the not yet committed part beside it', () => {
     const r = ardorioByDeal([deal('brk', 'co2')], COS, [PLAN_C], INV_C, TODAY)
     const co = r.companies[0]

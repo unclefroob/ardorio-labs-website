@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BillingTerm, InvoiceDto } from '../api/contract'
 import { moneyForDeal, validateMilestones, cleanMilestone, isRetainerInvoice } from './billing'
 import {
-  bpText, cpiEffect, cpiProblem, endEffect, endProblem, instalmentState, nextAnniversary, noticeBy, pctToBp, scheduleOutOfDate, termLastDay, unconfirmedCpiYears, validateTerm, type TermInput,
+  bpText, cpiEffect, cpiProblem, endEffect, endProblem, instalmentState, nextAnniversary, nextBreakAnniversary, noticeBy, pctToBp, scheduleOutOfDate, termLastDay, unconfirmedCpiYears, validateTerm, type TermInput,
 } from './term'
 import { termSchedule } from './termSchedule'
 
@@ -57,6 +57,22 @@ describe('anniversaries and the end', () => {
     expect(nextAnniversary(BASE, '2030-07-01')).toBeNull()
     expect(nextAnniversary({ startDate: '2026-07-01', termMonths: 18 }, '2026-10-14')).toBe('2027-07-01')
     expect(nextAnniversary({ startDate: '2026-07-01', termMonths: 12 }, '2026-10-14')).toBeNull()
+  })
+  it('the break point is the first anniversary whose notice day has not passed', () => {
+    const brk = { ...BASE, exit: 'break' as const, breakNoticeDays: 90 }
+    // Notice for 1 Jul 2027 is due by 2 Apr 2027, inclusive.
+    expect(nextBreakAnniversary(brk, '2026-10-14')).toBe('2027-07-01')
+    expect(nextBreakAnniversary(brk, '2027-04-02')).toBe('2027-07-01')
+    // The day after, the client can no longer break at 1 Jul 2027: the next break is a year later.
+    expect(nextBreakAnniversary(brk, '2027-04-03')).toBe('2028-07-01')
+    // In the last notice window and after it, no break is left (1 Jul 2031 is the term end).
+    expect(nextBreakAnniversary(brk, '2030-04-02')).toBe('2030-07-01')
+    expect(nextBreakAnniversary(brk, '2030-04-03')).toBeNull()
+    // Without notice it is the next anniversary.
+    expect(nextBreakAnniversary({ ...brk, breakNoticeDays: 0 }, '2027-06-30')).toBe('2027-07-01')
+    expect(nextBreakAnniversary({ ...brk, breakNoticeDays: 0 }, '2027-07-01')).toBe('2028-07-01')
+    // A year's notice: the window for the first anniversary has already closed on the start day.
+    expect(nextBreakAnniversary({ ...brk, breakNoticeDays: 365 }, '2026-07-02')).toBe('2028-07-01')
   })
   it('notice-by and the last day', () => {
     expect(noticeBy('2027-07-01', 90)).toBe('2027-04-02')

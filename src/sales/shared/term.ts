@@ -83,6 +83,20 @@ export function nextAnniversary(t: Pick<BillingTerm, 'startDate' | 'termMonths'>
 /** The last day the client can give notice to break at `anniversary`. */
 export const noticeBy = (anniversary: string, noticeDays: number): string => addDays(anniversary, -noticeDays)
 
+/**
+ * The anniversary a break agreement can still be ended at: the first anniversary of startDate after today, before
+ * termEnd, whose notice day (noticeBy) is today or later. Once an anniversary's notice day has passed without notice,
+ * the client can no longer break there, so the year after it is committed. Null when no break is left in the term.
+ */
+export function nextBreakAnniversary(t: Pick<BillingTerm, 'startDate' | 'termMonths' | 'breakNoticeDays'>, today: string): string | null {
+  const end = termEndDate(t)
+  for (let n = 1; ; n++) {
+    const a = addMonths(t.startDate, n * 12)
+    if (a >= end) return null
+    if (a > today && noticeBy(a, t.breakNoticeDays) >= today) return a
+  }
+}
+
 // ── instalment state (Billing tab) ───────────────────────────────────────────────────────────────
 export type InstalmentState = 'Not yet due' | 'Due' | 'Drafted' | 'Sent' | 'Overdue' | 'Paid'
 export const INSTALMENT_TONE: Record<InstalmentState, '' | 'info' | 'ok' | 'warn' | 'bad' | 'acc'> = {

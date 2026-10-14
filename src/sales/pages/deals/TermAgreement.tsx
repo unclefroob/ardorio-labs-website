@@ -9,7 +9,7 @@ import { invoiceRef } from '../../shared/externalInvoices'
 import { fmtDay } from '../../shared/invoices'
 import { formatCents } from '../../shared/money'
 import {
-  bpText, daysBetween, endEffect, endProblem, EXIT_LABEL, FREQUENCY_LABEL, inDays, INSTALMENT_ICON, INSTALMENT_TONE, instalmentsOf, instalmentState, MAX_END_REASON, nextAnniversary, noticeBy,
+  bpText, daysBetween, endEffect, endProblem, EXIT_LABEL, FREQUENCY_LABEL, inDays, INSTALMENT_ICON, INSTALMENT_TONE, instalmentsOf, instalmentState, MAX_END_REASON, nextAnniversary, nextBreakAnniversary, noticeBy,
   scheduleOutOfDate, termLastDay, TIMING_LABEL, unconfirmedCpiYears,
 } from '../../shared/term'
 import { scheduleTotal, termEndDate, termYears, yearlyFees } from '../../shared/termSchedule'
@@ -45,6 +45,8 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
   const lastDay = termLastDay(t)
   const left = daysBetween(today, end)
   const anniversary = t.exit === 'break' && !t.ended ? nextAnniversary(t, today) : null
+  // The anniversary the client can still break at: later than the next one once its notice day has passed.
+  const breakAt = t.exit === 'break' && !t.ended ? nextBreakAnniversary(t, today) : null
   const fees = yearlyFees(t)
   const cpiYears = t.ended ? [] : unconfirmedCpiYears(t)
   const rows = scheduleRows({ ...plan, milestones: instalmentsOf(plan) }, list)
@@ -123,7 +125,12 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
             <dd className="b">{EXIT_LABEL[t.exit]}</dd>
             {t.exit === 'break' && (
               <dd className="faint sm">
-                {anniversary ? <>Next anniversary {fmtDay(anniversary)}; notice by <b>{fmtDay(noticeBy(anniversary, t.breakNoticeDays))}</b> ({t.breakNoticeDays} days)</> : 'No anniversary left in the term'}
+                {!anniversary ? 'No anniversary left in the term'
+                  : breakAt === anniversary ? <>Next anniversary {fmtDay(anniversary)}; notice by <b>{fmtDay(noticeBy(anniversary, t.breakNoticeDays))}</b> ({t.breakNoticeDays} days)</>
+                    : <>
+                      Next anniversary {fmtDay(anniversary)}: the notice window closed on {fmtDay(noticeBy(anniversary, t.breakNoticeDays))}, so the client cannot break there.{' '}
+                      {breakAt ? <>Next break {fmtDay(breakAt)}; notice by <b>{fmtDay(noticeBy(breakAt, t.breakNoticeDays))}</b> ({t.breakNoticeDays} days)</> : 'No break is left in the term.'}
+                    </>}
               </dd>
             )}
           </div>
