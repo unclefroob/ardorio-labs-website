@@ -4,6 +4,7 @@ import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
 import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
 import { voidActivity } from './act/activities'
+import { markTestAccount, unmarkTestAccount } from './act/rosterioTest'
 import { cancelMeeting, deleteMeeting, markMeetingNoShow, rescheduleMeeting } from './act/meetings'
 import { applyPhoneLookup } from './act/phone'
 import { applyEnrichment, crossDismiss, introRequest, recStatus, recTask, refreshRecs, saveResearch, confirmResearchIdentity, enrichLog } from './act/recs'
@@ -44,6 +45,7 @@ export const Act = {
   saveSequence, setSeqStatus, archiveSequence, restoreSequence, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,
   addSuppression, removeSuppression,
+  markTestAccount, unmarkTestAccount,
   recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, confirmResearchIdentity, saveIntel, reviewClosure, addKnownTech, applyEnrichment, applyPhoneLookup, enrichLog, markVerified,
   importRows, saveList, listAdd, listRemove, deleteList,
   saveTemplate, deleteTemplate, saveGoal, deleteGoal,

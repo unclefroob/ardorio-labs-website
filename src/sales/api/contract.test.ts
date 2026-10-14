@@ -106,3 +106,26 @@ describe('Contract: Ardorio term agreements', () => {
     expect(termBlock(web)).toBe(termBlock(readFileSync(apiFile, 'utf8')))
   })
 })
+
+// The Rosterio test accounts block: from its heading to the 500-account limit.
+function rosterioTestBlock(src: string): string {
+  const lines = src.split('\n')
+  const s = lines.indexOf('// ---- Rosterio test accounts ----')
+  const e = lines.findIndex((l, i) => i > s && l.startsWith('export const MAX_ROSTERIO_TEST_ACCOUNTS'))
+  if (s < 0 || e < 0) throw new Error('rosterio test block not found')
+  return lines.slice(s, e + 1).join('\n')
+}
+
+describe('Contract: Rosterio test accounts', () => {
+  it('carries the record shape, the stamps and who may write it', () => {
+    const b = rosterioTestBlock(web)
+    expect(b).toContain('settings/rosterioTest = { accounts: RosterioTestAccount[] }')
+    expect(b).toContain('export interface RosterioTestAccount { accountId: string; name: string; reason: string; markedBy: string; markedAt: string }')
+    expect(b).toContain("Only an admin of\n// 'ros' or a super user may write the record")
+    expect(b).toContain('export const MAX_ROSTERIO_TEST_ACCOUNTS = 500')
+  })
+
+  it.skipIf(!apiFile || !existsSync(apiFile))('is identical to the API block', () => {
+    expect(rosterioTestBlock(web)).toBe(rosterioTestBlock(readFileSync(apiFile, 'utf8')))
+  })
+})

@@ -20,7 +20,7 @@ export const AUX_COLLECTIONS = ['audit', 'importJobs', 'savedViews', 'settings']
 export type CollectionName = typeof DOMAIN_COLLECTIONS[number] | typeof AUX_COLLECTIONS[number]
 export type WritableCollection = Exclude<CollectionName, 'users'>
 
-export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus'] as const
+export const SETTINGS_IDS = ['org', 'wiza', 'demo', 'crossStatus', 'rosterioTest'] as const
 export type SettingsId = typeof SETTINGS_IDS[number]
 
 export type RecordData = Record<string, unknown>
@@ -467,6 +467,19 @@ export interface RosterioProvisionResponse {
   link: RosterioLink
   adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
 }
+
+// ---- Rosterio test accounts ----
+// settings/rosterioTest = { accounts: RosterioTestAccount[] }: Rosterio accounts kept for testing (an App Store review
+// login, say). They stay in Rosterio unchanged; SalesOS shows them on their own tab and leaves them out of every customer
+// count and revenue figure. At most 500 accounts, accountIds unique (else 400 VALIDATION). name is the account's name
+// when it was marked (1..200 chars); reason is plain text 0..300. markedBy (the member's display name) and markedAt (ISO)
+// are stamped by the server on entries that are new compared with the stored record, and whatever a client sends for
+// them is ignored; an entry already stored keeps its stamps. Removing an entry un-marks the account. Only an admin of
+// 'ros' or a super user may write the record (else ROLE_REQUIRED, details { needed: 'admin', businessId: 'ros' });
+// every member reads it, as with other settings.
+export interface RosterioTestAccount { accountId: string; name: string; reason: string; markedBy: string; markedAt: string }
+export interface RosterioTestSettings { accounts: RosterioTestAccount[] }
+export const MAX_ROSTERIO_TEST_ACCOUNTS = 500
 
 // ── Invoicing (business `ard`, admins only). Additive. ────────────────────────────────────────────
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'void'

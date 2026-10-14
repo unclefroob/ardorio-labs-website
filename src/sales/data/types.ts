@@ -1,4 +1,4 @@
-import type { AiProvider, BillingPlan, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, SalesUserDTO, TechItem } from '../api/contract'
+import type { AiProvider, BillingPlan, BusinessId, CompanyContactItem, CompanySignal, EmailPattern, EnrichField, IntelKind, ResearchSource, Role, RosterioTestSettings, SalesUserDTO, TechItem } from '../api/contract'
 
 export type { BusinessId, Role }
 
@@ -629,6 +629,8 @@ export interface State extends Collections {
   wiza: WizaSettings
   demo: DemoSettings
   crossStatus: Record<string, string>
+  /** settings/rosterioTest. Read it through data/rosterio.ts, which copes with a record that has no list yet. */
+  rosterioTest: Partial<RosterioTestSettings>
 }
 
 export type CollKey = keyof Collections

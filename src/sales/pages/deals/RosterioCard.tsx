@@ -7,6 +7,7 @@ import {
   accountOf, canOfferProvision, dismissAccount, linkSummary, planLabel, rosDealFor, rosterioLinkOf, standing, unlinkAccount, useDismissed, useRosterioAccounts,
   useRosterioLinks, useRosterioStatus,
 } from '../../data/rosterio'
+import { testAccountOf } from '../../data/rosterioTest'
 import { Banner, Btn, Card, Chip } from '../../kit'
 import { accountForCompany, REASON_TEXT } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
@@ -39,7 +40,12 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
     <div className="col" style={{ gap: 8 }}>
       {row('Account', <b>{account.name}</b>)}
       {row('Plan', account.plan ? <Chip tone="acc">{planLabel(account.plan)}</Chip> : '—')}
-      {row('Status', <Chip tone={TONE[st.kind]}>{st.label}</Chip>)}
+      {row('Status', (
+        <span className="row wrap" style={{ gap: 6 }}>
+          <Chip tone={TONE[st.kind]}>{st.label}</Chip>
+          {testAccountOf(account.id) && <Chip title="Left out of SalesOS customer counts and revenue">Test account</Chip>}
+        </span>
+      ))}
       {row('Active users', <span className="num">{account.memberCount}</span>)}
       {account.createdAt && row('Customer since', F.date(account.createdAt))}
       {account.billingEmail && row('Billing email', <span className="mono sm">{account.billingEmail}</span>)}

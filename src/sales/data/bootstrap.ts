@@ -29,7 +29,8 @@ export function hydrate(b: BootstrapResponse): void {
   const stored = new Map(b.collections.settings.map(r => [r.id, r]))
   for (const id of SETTINGS_IDS) {
     const r = stored.get(id)
-    const data = normalise('settings', id, r ? r.data : b.settingsDefaults[id])
+    // A server older than this client sends no default for a newer id: it starts empty.
+    const data = normalise('settings', id, r ? r.data : b.settingsDefaults[id] ?? {})
     applySettings(id, wire(data))
     metaMap('settings').set(id, { rev: r ? r.rev : 0, snap: data, snapStr: stable(data), base: null, demo: r ? r.demo : false })
   }

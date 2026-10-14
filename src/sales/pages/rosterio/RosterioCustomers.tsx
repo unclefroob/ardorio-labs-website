@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
-import type { RosterioAccount, RosterioAccountsResponse } from '../../api/contract'
+import { useMemo, useState, type MouseEvent } from 'react'
+import type { RosterioAccount, RosterioAccountsResponse, RosterioTestAccount } from '../../api/contract'
+import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { createCompanyFor, dismissAccount, planLabel, rosterioLinkOf, standing, useDismissed, useRosterioAccounts, useRosterioLinks, type AccountStanding } from '../../data/rosterio'
+import { canMarkTest, DEFAULT_TEST_REASON, MARK_TEST_DENIED, TEST_REASON_MAX, testAccounts, testReasonProblem } from '../../data/rosterioTest'
 import { S, useStore } from '../../data/store'
-import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Icon, Inp, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
+import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Icon, Inp, Menu, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
+import { routeToPath } from '../../routes'
 import { accountTab, isPriced, mrrOf, trialDaysLeft, type RosterioTab } from '../../shared/customers'
 import { matchAccounts, REASON_TEXT, type AccountMatch } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
@@ -19,7 +22,18 @@ function tenure(createdAt: string): string {
   return `${y} yr${mo ? ` ${mo} mo` : ''}`
 }
 
-interface Row extends RosterioAccount { match: AccountMatch; st: AccountStanding; tab: Exclude<RosterioTab, 'needs'> }
+interface Row extends RosterioAccount {
+  match: AccountMatch
+  st: AccountStanding
+  tab: Exclude<RosterioTab, 'needs'>
+  /** Set on a test account: what was recorded when it was marked. */
+  test?: RosterioTestAccount
+  /** A test account that is not in the latest list from Rosterio (closed since, or past the 200 listed). */
+  missing?: boolean
+}
+
+/** The in-page confirmation open for one account, if any. */
+type Pending = { kind: 'mark'; row: Row; reason: string } | { kind: 'unmark'; row: Row }
 
 type PlanFilter = 'all' | 'starter' | 'pro' | 'enterprise'
 
@@ -36,6 +50,7 @@ const EMPTY: Record<RosterioTab, { title: string; body: string }> = {
   trials: { title: 'No accounts on trial', body: 'Accounts on a running trial appear here, soonest to end first.' },
   ended: { title: 'No ended trials or cancelled accounts', body: 'Accounts whose trial ran out, or that were cancelled or switched off, appear here.' },
   needs: { title: 'Every account is linked', body: 'Accounts without a CRM company appear here, whatever their status.' },
+  test: { title: 'No test accounts', body: 'Accounts marked as test accounts appear here. They stay in Rosterio and are left out of customer counts and revenue.' },
 }
 
 export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t: RosterioTab) => void }) {
@@ -47,21 +62,38 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [errs, setErrs] = useState<Record<string, string>>({})
+  const [pending, setPending] = useState<Pending | null>(null)
   const canEdit = Q.canEdit('ros')
+  const canMark = canMarkTest()
+  const marked = testAccounts()
+  const markedKey = marked.map(t => `${t.accountId}\u0000${t.reason}\u0000${t.markedAt}`).join('\u0001')
 
   const data: RosterioAccountsResponse | undefined = acc.s === 'ok' ? acc.data : acc.s === 'loading' || acc.s === 'error' ? acc.previous : undefined
   const rows = useMemo<Row[]>(() => {
     if (!data) return []
+    const tests = new Map(marked.map(t => [t.accountId, t] as const))
     const m = matchAccounts(data.accounts, S.companies, { linkOf: rosterioLinkOf, dismissed })
-    return data.accounts.map(a => ({ ...a, match: m.get(a.id) ?? { kind: 'none', why: 'no-similar' }, st: standing(a), tab: accountTab(a) }))
-    // S.companies is read live; useStore() re-renders on every change to it.
+    const live: Row[] = data.accounts.map(a => ({
+      ...a, match: m.get(a.id) ?? { kind: 'none', why: 'no-similar' }, st: standing(a), tab: accountTab(a, Date.now(), new Set(tests.keys())), test: tests.get(a.id),
+    }))
+    // A marked account Rosterio no longer lists stays on Test accounts, so it can still be un-marked.
+    const listed = new Set(data.accounts.map(a => a.id))
+    const gone: Row[] = marked.filter(t => !listed.has(t.accountId)).map(t => ({
+      id: t.accountId, name: t.name, isActive: false, isTrial: false, memberCount: 0,
+      match: { kind: 'none', why: 'no-similar' }, st: { kind: 'inactive', label: 'Not in the latest list' }, tab: 'test', test: t, missing: true,
+    }))
+    return [...live, ...gone]
+    // S.companies and the marked accounts are read live; useStore() re-renders on every change to them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, dismissed, S.companies.length, S.companies])
+  }, [data, dismissed, S.companies.length, S.companies, markedKey])
 
+  // Every figure and tab below is built from the customer rows only: a test account is on Test accounts and nowhere else.
   const paid = rows.filter(r => r.tab === 'paid')
   const trials = rows.filter(r => r.tab === 'trials').sort((a, b) => (a.st.days ?? 9999) - (b.st.days ?? 9999))
   const ended = rows.filter(r => r.tab === 'ended')
-  const needs = rows.filter(r => r.match.kind !== 'linked')
+  const needs = rows.filter(r => r.tab !== 'test' && r.match.kind !== 'linked')
+  const tests = rows.filter(r => r.tab === 'test')
+  const testsLeftOut = tests.filter(r => !r.missing).length
   const soon = trials.filter(r => (trialDaysLeft(r.st) ?? 99) <= 7).length
   const linkedPaid = paid.filter(r => r.match.kind === 'linked').length
   const users = paid.reduce((n, r) => n + r.memberCount, 0)
@@ -88,6 +120,28 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   const link = (a: RosterioAccount, companyId?: string): void => UI.open('linkRosterio', { accountId: a.id, companyId })
   const needsEdit = canEdit ? undefined : 'You need edit access to Rosterio'
   const suggestedId = (r: Row): string | undefined => (r.match.kind === 'suggested' ? r.match.company.id : undefined)
+
+  const confirmPending = (): void => {
+    if (!pending) return
+    const r = pending.kind === 'mark' ? Act.markTestAccount(pending.row, pending.reason) : Act.unmarkTestAccount(pending.row.id)
+    if (!r.ok) {
+      UI.toast(r.message, 'bad')
+      return
+    }
+    UI.toast(pending.kind === 'mark' ? `${pending.row.name} is now a test account` : `${pending.row.name} counts as a customer again`, 'ok')
+    setPending(null)
+  }
+  const reasonErr = pending?.kind === 'mark' ? testReasonProblem(pending.reason) : null
+
+  // The row's More menu: marking is a Rosterio admin's call, so nobody else sees it.
+  const moreCol: Col<Row> = {
+    k: 'more', l: '', nosort: true, hide: !canMark,
+    r: r => (
+      <Menu align="right" trigger={<Btn size="xs" kind="ghost" icon="more" aria-label={`More for ${r.name}`} />} items={[
+        { label: 'Mark as test account', onClick: () => setPending({ kind: 'mark', row: r, reason: DEFAULT_TEST_REASON }) },
+      ]} />
+    ),
+  }
 
   const crmFull = (r: Row) => {
     const err = errs[r.id]
@@ -177,6 +231,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
       { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
       usersCol, revenueCol, since,
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
+      moreCol,
     ],
     trials: [
       { k: 'name', l: 'Account', r: account },
@@ -193,6 +248,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
           businessId: 'ros', companyId: r.match.kind === 'linked' ? r.match.company.id : undefined, title: `Follow up the Rosterio trial for ${r.name}`, date: r.trialEndDate?.slice(0, 10),
         })}>Create follow-up task</Btn>
       ) },
+      moreCol,
     ],
     ended: [
       { k: 'name', l: 'Account', r: account },
@@ -201,15 +257,60 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
       { k: 'ended', l: 'Ended', sort: r => r.trialEndDate ?? '', r: r => (r.st.kind === 'trialEnded' && r.trialEndDate ? F.date(r.trialEndDate) : '—') },
       usersCol,
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
+      moreCol,
     ],
     needs: [
       { k: 'name', l: 'Account', wrap: true, w: 280, r: r => <div>{account(r)}{r.createdAt && <div className="faint sm">Joined {F.date(r.createdAt)}</div>}</div> },
       { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
       { k: 'st', l: 'Status', sort: r => r.st.kind + (r.st.days ?? 0), r: r => <Chip tone={TONE[r.st.kind]}>{r.st.label}</Chip> },
       { k: 'crm', l: 'Suggested CRM company', nosort: true, wrap: true, w: 340, r: crmFull },
+      moreCol,
+    ],
+    test: [
+      { k: 'name', l: 'Account', wrap: true, w: 280, r: account },
+      { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
+      { k: 'memberCount', l: 'Users', right: true, r: r => (r.missing ? <span className="faint">—</span> : <span className="num">{r.memberCount}</span>) },
+      { k: 'st', l: 'Status', sort: r => r.st.kind, r: r => (r.missing ? <Chip>{r.st.label}</Chip> : <Chip tone={TONE[r.st.kind]}>{r.st.label}</Chip>) },
+      { k: 'reason', l: 'Reason', wrap: true, w: 240, sort: r => r.test?.reason ?? '', r: r => (r.test?.reason ? r.test.reason : <span className="faint">No reason given</span>) },
+      { k: 'marked', l: 'Marked', sort: r => r.test?.markedAt ?? '', r: r => (r.test ? <div>{r.test.markedBy || '—'}<div className="faint sm">{F.date(r.test.markedAt)}</div></div> : '—') },
+      { k: 'act', l: '', nosort: true, r: r => (
+        <Btn size="sm" disabled={!canMark} title={canMark ? undefined : MARK_TEST_DENIED} onClick={() => setPending({ kind: 'unmark', row: r })}>Not a test account</Btn>
+      ) },
     ],
   }
-  const tabRows: Record<RosterioTab, Row[]> = { paid: shownPaid, trials, ended, needs }
+  const tabRows: Record<RosterioTab, Row[]> = { paid: shownPaid, trials, ended, needs, test: tests }
+  const tabDefs: Array<readonly [RosterioTab, string, number]> = [['paid', 'Paid', paid.length], ['trials', 'Trials', trials.length], ['ended', 'Ended', ended.length]]
+  // Test accounts sits after Ended, and only when there is one (or the viewer is on it already).
+  if (tests.length > 0 || tab === 'test') tabDefs.push(['test', 'Test accounts', tests.length])
+  tabDefs.push(['needs', 'Needs linking', needs.length])
+  const toTests = (e: MouseEvent<HTMLAnchorElement>): void => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    onTab('test')
+  }
+
+  const confirmBox = pending && (
+    <div style={{ marginBottom: 12 }}>
+      <Card title={pending.kind === 'mark' ? `Mark ${pending.row.name} as a test account?` : `Count ${pending.row.name} as a customer again?`}>
+        <div className="col" style={{ gap: 10 }} role="group" aria-label={pending.kind === 'mark' ? 'Mark as test account' : 'Not a test account'}>
+          {pending.kind === 'mark' ? (
+            <>
+              <div className="sm">The account stays in Rosterio unchanged. SalesOS only leaves it out of customer counts and revenue, and lists it under Test accounts.</div>
+              <Fld label="Reason" err={reasonErr} hint={`Optional, up to ${TEST_REASON_MAX} characters`}>
+                <Inp value={pending.reason} autoFocus onChange={v => setPending({ ...pending, reason: v })} style={{ maxWidth: 420 }} />
+              </Fld>
+            </>
+          ) : (
+            <div className="sm">It goes back on the tab its Rosterio status puts it on, and into the customer counts and revenue. Nothing changes in Rosterio.</div>
+          )}
+          <div className="row" style={{ gap: 8 }}>
+            <Btn kind="pri" size="sm" disabled={!!reasonErr} onClick={confirmPending}>{pending.kind === 'mark' ? 'Mark as test account' : 'Not a test account'}</Btn>
+            <Btn kind="ghost" size="sm" onClick={() => setPending(null)}>Cancel</Btn>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
 
   const refresh = (
     <>
@@ -273,8 +374,16 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
               <span className="s">of {paid.length} paying</span>
             </div>
           </div>
+          {testsLeftOut > 0 && (
+            <div className="faint sm" style={{ marginTop: -6, marginBottom: 14 }}>
+              <a href={routeToPath('customers', { q: { product: 'ros', tab: 'test' } })} onClick={toTests}>
+                {testsLeftOut === 1 ? '1 test account' : `${testsLeftOut} test accounts`} left out of these figures
+              </a>
+            </div>
+          )}
 
-          <Tabs value={tab} onChange={k => onTab(k as RosterioTab)} tabs={[['paid', 'Paid', paid.length], ['trials', 'Trials', trials.length], ['ended', 'Ended', ended.length], ['needs', 'Needs linking', needs.length]]} />
+          <Tabs value={tab} onChange={k => { setPending(null); onTab(k as RosterioTab) }} tabs={tabDefs} />
+          {confirmBox}
 
           {tab === 'trials' && soon > 0 && (
             <div style={{ marginBottom: 12 }}><Banner tone="warn">{soon === 1 ? '1 trial ends' : `${soon} trials end`} within 7 days. Sorted by days left.</Banner></div>
