@@ -5,6 +5,8 @@ import type { Company, Deal } from '../data/types'
 import { domOf, norm } from './constants'
 import { withoutTest, blankForm, isDay, milestoneLine, milestoneStatus, emptyLine, type InvoiceForm, type MilestoneStatus } from './invoices'
 import { centsToInput, formatCents } from './money'
+import { instalmentsDue, termCommitment, termSummary, type TermSummary } from './termMoney'
+import { wallFromMs } from '../data/tz'
 
 // ── validation (the same limits the API enforces on a billing plan) ──────────────────────────────
 export const MAX_MILESTONES = 40
@@ -643,6 +645,20 @@ export interface ArdorioDealRow {
   next: BillingMilestone | null
   /** Delivered milestones with no live invoice yet. */
   deliveredNotInvoiced: BillingMilestone[]
+  /** A term agreement: its annual fee, end and what is not yet committed. Null for any other deal. */
+  term: DealTermRow | null
+}
+
+/** A term agreement on Customers by deal. Never MRR or ARR: the fee is the annual fee of the agreement. */
+export interface DealTermRow {
+  summary: TermSummary
+  /** Contracted minus notCommitted (contracted for a committed agreement). */
+  committedCents: number
+  /** Break agreements: un-invoiced instalments from the next anniversary on. 0 otherwise. */
+  notCommittedCents: number
+  breakAt: string | null
+  /** Instalments whose invoice date has come and that have no live invoice: not earned until invoiced. */
+  dueNotInvoiced: BillingMilestone[]
 }
 
 export interface ArdorioCompanyRow {
@@ -664,6 +680,10 @@ export interface ArdorioCompanyRow {
   /** Issued invoices of the company on no deal, or on a deal that is not a won Ardorio deal: apart from the project figures. */
   notOnDeal: InvoiceMoney
   retainerInvoicedCents: number
+  /** Of contractedCents, what break agreements do not yet commit. */
+  notCommittedCents: number
+  /** The company's term agreements that are still running, soonest end first. */
+  terms: ArdorioDealRow[]
 }
 
 export interface DeliveredNotInvoiced { deal: Deal; companyId: string; milestone: BillingMilestone }
@@ -688,6 +708,8 @@ export interface ArdorioTotals {
   noCustomer: InvoiceMoney
   /** Every issued invoice, not cancelled and not test: the four above together, as the revenue report counts. */
   all: InvoiceMoney
+  /** Of contractedCents, what break agreements do not yet commit. */
+  notCommittedCents: number
 }
 
 export interface ArdorioByDeal {
@@ -709,6 +731,16 @@ export function nextMilestoneDue(plan: BillingPlan | undefined, invoices: readon
   return dated[0] ?? open[0] ?? null
 }
 
+/** The term agreement of a deal for Customers by deal, or null when the plan has no term. */
+export function dealTermRow(plan: BillingPlan | undefined, contracted: number | null, invoices: readonly InvoiceDto[], today: string): DealTermRow | null {
+  if (!plan?.term) return null
+  const c = termCommitment(plan, contracted ?? 0, invoices, today)
+  return {
+    summary: termSummary(plan.term, today), committedCents: c.committed, notCommittedCents: c.notCommitted, breakAt: c.breakAt,
+    dueNotInvoiced: instalmentsDue(plan, invoices, today),
+  }
+}
+
 /** Retainer invoices of a deal, issued, ex GST. Null when there are none. */
 export function retainerMoney(dealId: string, plan: Pick<BillingPlan, 'retainer' | 'contract'> | undefined, invoices: ReadonlyArray<MoneyInvoice & Partial<Pick<InvoiceDto, 'overdue'>>>): RetainerMoney | null {
   const r = noMoney()
@@ -725,7 +757,7 @@ export function retainerMoney(dealId: string, plan: Pick<BillingPlan, 'retainer'
  * Customers by deal for Ardorio. A customer is a live company with a won Ardorio deal or an issued invoice. Deals are
  * the company's won Ardorio deals that are not archived. Cancelled and test invoices never count; drafts are not money yet.
  */
-export function ardorioByDeal(deals: readonly Deal[], companies: readonly Company[], plans: readonly BillingPlan[], all: readonly InvoiceDto[]): ArdorioByDeal {
+export function ardorioByDeal(deals: readonly Deal[], companies: readonly Company[], plans: readonly BillingPlan[], all: readonly InvoiceDto[], today: string = wallFromMs(Date.now()).slice(0, 10)): ArdorioByDeal {
   const live = withoutTest(all).filter(i => i.status !== 'void')
   const byDeal = new Map<string, InvoiceDto[]>()
   for (const i of live) if (i.dealId) byDeal.set(i.dealId, [...(byDeal.get(i.dealId) ?? []), i])
@@ -750,6 +782,7 @@ export function ardorioByDeal(deals: readonly Deal[], companies: readonly Compan
     const row: ArdorioDealRow = {
       deal: d, companyId: c.id, engagement, money, unscheduledCents: gap ?? 0,
       overdueCents: overdueProjectCents(d.id, plan, inv), retainer: retainerMoney(d.id, plan, inv), next: nextMilestoneDue(plan, inv), deliveredNotInvoiced: dni,
+      term: dealTermRow(plan, money.contracted, inv, today),
     }
     dealRows.set(c.id, [...(dealRows.get(c.id) ?? []), row])
     for (const m of dni) delivered.push({ deal: d, companyId: c.id, milestone: m })
@@ -799,12 +832,14 @@ export function ardorioByDeal(deals: readonly Deal[], companies: readonly Compan
       overdueCents: ds.reduce((a, r) => a + r.overdueCents, 0),
       retainer, notOnDeal: notOnDeal.get(id) ?? noMoney(),
       retainerInvoicedCents: retainer.invoiced,
+      notCommittedCents: ds.reduce((a, r) => a + (r.term?.notCommittedCents ?? 0), 0),
+      terms: ds.filter(r => r.term && !r.term.summary.endedOn && r.term.summary.endsInDays > 0).sort((a, b) => a.term!.summary.endsInDays - b.term!.summary.endsInDays),
     })
   }
   rows.sort((a, b) => b.outstandingCents - a.outstandingCents || a.name.localeCompare(b.name))
   const tiles: ArdorioTotals = {
     contractedCents: 0, earnedCents: 0, invoicedCents: 0, collectedCents: 0, outstandingCents: 0, overdueCents: 0, overdueCustomers: 0,
-    retainer: noMoney(), notOnDeal: noMoney(), noCustomer, all: noMoney(),
+    retainer: noMoney(), notOnDeal: noMoney(), noCustomer, all: noMoney(), notCommittedCents: 0,
   }
   for (const r of rows) {
     tiles.contractedCents += r.contractedCents
@@ -814,6 +849,7 @@ export function ardorioByDeal(deals: readonly Deal[], companies: readonly Compan
     tiles.outstandingCents += r.outstandingCents
     tiles.overdueCents += r.overdueCents
     if (r.overdueCents > 0) tiles.overdueCustomers++
+    tiles.notCommittedCents += r.notCommittedCents
     addMoney(tiles.retainer, r.retainer)
     addMoney(tiles.notOnDeal, r.notOnDeal)
   }
