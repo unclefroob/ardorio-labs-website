@@ -16,7 +16,10 @@ import {
   type ArdPeriod,
 } from '../../shared/revenueReport'
 import { UI } from '../../ui/store'
+import { ArdorioForecast } from './ArdorioForecast'
 
+export type ArdView = 'report' | 'forecast'
+const VIEWS: ReadonlyArray<readonly [ArdView, string]> = [['report', 'Report'], ['forecast', 'Forecast']]
 const SOURCE_OPTS: ReadonlyArray<readonly [RevenueSourceFilter, string]> = [['all', 'All'], ['salesos', 'SalesOS'], ['external', 'External']]
 const R: { textAlign: 'right' } = { textAlign: 'right' }
 const dollars = (v: number): string => formatCentsTile(Math.round(v * 100))
@@ -76,8 +79,22 @@ function GoalBullet({ g, busy }: { g: GoalLine; busy: boolean }) {
  * from the synced won deals (the contract at won, else the deal value); invoiced, collected, outstanding and overdue
  * from GET /sales/reports/revenue; the period's goals; and pipeline coverage against the won value goal.
  * Admins of Ardorio (or super) only; the caller checks. `tabs` is the Reports tab bar, drawn under the page head.
+ * A View control next to the period switches to the Forecast: when contracted money is expected to come in.
  */
-export function ArdorioRevenue({ tabs }: { tabs?: ReactNode }) {
+export function ArdorioRevenue({ tabs, view: initial = 'report' }: { tabs?: ReactNode; view?: ArdView }) {
+  const [view, setView] = useState<ArdView>(initial)
+  const choose = (v: string): void => {
+    const next: ArdView = v === 'forecast' ? 'forecast' : 'report'
+    setView(next)
+    UI.setRoute({ q: next === 'forecast' ? { tab: 'ardorio', view: next } : { tab: 'ardorio' } })
+  }
+  const seg = <Seg label="View" value={view} onChange={choose} opts={VIEWS} />
+  if (view === 'forecast') return <ArdorioForecast tabs={tabs} viewSeg={seg} />
+  return <RevenueReportView tabs={tabs} viewSeg={seg} />
+}
+
+/** The report itself: board 5 as built, for the chosen period and source. */
+function RevenueReportView({ tabs, viewSeg }: { tabs?: ReactNode; viewSeg: ReactNode }) {
   const [period, setPeriod] = useState<ArdPeriod>('fy')
   const [source, setSource] = useState<RevenueSourceFilter>('all')
   const today = F.today()
@@ -133,6 +150,7 @@ export function ArdorioRevenue({ tabs }: { tabs?: ReactNode }) {
     <>
       <div className="crumb">Reports <span aria-hidden="true">›</span> Ardorio revenue</div>
       <PageHead title="Ardorio revenue" sub={`${label}, ${dayName(from)} to ${dayName(to)}. One-off projects, counted per deal and per invoice, ex GST. No recurring revenue is shown for Ardorio.`}>
+        {viewSeg}
         <Seg label="Period" value={period} onChange={v => setPeriod(v as ArdPeriod)} opts={ARD_PERIODS} />
         <Seg label="Source" value={source} onChange={v => setSource(v as RevenueSourceFilter)} opts={SOURCE_OPTS} />
         <Btn onClick={() => UI.nav('goals')}>Goals</Btn>
