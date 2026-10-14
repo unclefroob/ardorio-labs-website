@@ -2,8 +2,8 @@ import type { BusinessId, RosterioAccount } from '../api/contract'
 import type { Company, Deal } from '../data/types'
 import { standing, type AccountStanding } from '../data/rosterio'
 
-export type RosterioTab = 'paid' | 'trials' | 'ended' | 'needs'
-export const ROSTERIO_TABS: readonly RosterioTab[] = ['paid', 'trials', 'ended', 'needs']
+export type RosterioTab = 'paid' | 'trials' | 'ended' | 'needs' | 'test'
+export const ROSTERIO_TABS: readonly RosterioTab[] = ['paid', 'trials', 'ended', 'needs', 'test']
 export const isRosterioTab = (v: unknown): v is RosterioTab => ROSTERIO_TABS.includes(v as RosterioTab)
 
 /** Which status tab an account belongs to. "Needs linking" is not a status: any account without a CRM company also appears there. */
@@ -13,7 +13,21 @@ export function statusTab(st: AccountStanding): Exclude<RosterioTab, 'needs'> {
   return 'ended'
 }
 
-export const accountTab = (a: RosterioAccount, now: number = Date.now()): Exclude<RosterioTab, 'needs'> => statusTab(standing(a, now))
+const NO_TESTS: ReadonlySet<string> = new Set()
+
+/**
+ * The one tab an account belongs to. A test account (settings/rosterioTest) goes to Test accounts and nowhere else,
+ * whatever its standing, so no customer count or revenue figure built from the other tabs ever includes it.
+ */
+export const accountTab = (a: RosterioAccount, now: number = Date.now(), test: ReadonlySet<string> = NO_TESTS): Exclude<RosterioTab, 'needs'> =>
+  test.has(a.id) ? 'test' : statusTab(standing(a, now))
+
+/** The accounts that count as customers: every one that is not a test account. */
+export const customerAccounts = <T extends RosterioAccount>(accounts: readonly T[], test: ReadonlySet<string>): T[] => accounts.filter(a => !test.has(a.id))
+
+/** Paying customers, test accounts left out: the count on the Customers product toggle and the Paying customers tile. */
+export const payingCount = (accounts: readonly RosterioAccount[], test: ReadonlySet<string>, now: number = Date.now()): number =>
+  accounts.filter(a => accountTab(a, now, test) === 'paid').length
 
 /** Whole days until a trial ends, or undefined when the account is not on a running trial. */
 export const trialDaysLeft = (st: AccountStanding): number | undefined => (st.kind === 'trial' ? st.days : undefined)
