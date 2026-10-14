@@ -185,7 +185,17 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
           )}
           <Card title="Invoice" right={a.voided || ext ? <span className="faint sm">Read-only</span> : undefined}>
             <div className="grid g2" style={{ marginBottom: 12 }}>
-              <div><div className="faint sm">Customer</div>{company ? <Link to="company" id={company.id}>{company.name}</Link> : <span>{inv.clientName}</span>}</div>
+              <div>
+                <div className="faint sm">Customer</div>
+                {company ? <Link to="company" id={company.id}>{company.name}</Link> : <span>{inv.clientName}</span>}
+                {!inv.companyId && !ext && (a.reissue || paid) && (
+                  <div className="faint sm" style={{ marginTop: 2 }}>
+                    {paid
+                      ? 'Not linked to a CRM company. A paid invoice can’t be edited, so its company can’t be set here.'
+                      : 'Not linked to a CRM company. Choose it under Edit and reissue: saving only the customer, deal or milestone does not reissue the invoice.'}
+                  </div>
+                )}
+              </div>
               <div><div className="faint sm">Deal</div>{inv.dealId ? <DlLink id={inv.dealId} /> : <span className="faint">No deal</span>}</div>
               <div><div className="faint sm">Issued</div><div>{fmtDay(inv.issueDate)}</div></div>
               <div>

@@ -233,6 +233,40 @@ export function buildInput(f: InvoiceForm): InvoiceInput {
   }
 }
 
+const LINK_KEYS = ['companyId', 'dealId', 'milestoneId'] as const
+
+/** True when the form differs from the stored invoice in its company, deal or milestone at most. */
+export function onlyLinksChanged(f: InvoiceForm, inv: InvoiceDto): boolean {
+  const strip = (x: InvoiceForm): InvoiceForm => ({ ...x, companyId: '', dealId: '', milestoneId: '', clientSlug: '' })
+  return JSON.stringify(strip(f)) === JSON.stringify(strip(formFromInvoice(inv)))
+}
+
+/**
+ * The PUT for an issued invoice whose links alone change. The server validates the whole body and writes every content
+ * field it is given (a missing issue date or term would be replaced by a default), so the stored content goes back
+ * exactly as it is: same lines and GST, so the total and the card link stay put. The card link URL is left out on
+ * purpose: sending it back would hand an automatic Stripe link over to manual. Only the link keys that change are sent,
+ * so an unchanged company is not validated again.
+ */
+export function linkOnlyInput(inv: InvoiceDto, f: Pick<InvoiceForm, 'companyId' | 'dealId' | 'milestoneId'>): InvoiceInput {
+  const links: Pick<InvoiceInput, 'companyId' | 'dealId' | 'milestoneId'> = {}
+  for (const k of LINK_KEYS) {
+    const v = f[k] || null
+    if (v !== (inv[k] ?? null)) links[k] = v
+  }
+  return {
+    clientSlug: inv.clientSlug,
+    ...links,
+    lineItems: inv.lineItems.map(l => ({ description: l.description, ...(l.detail ? { detail: l.detail } : {}), qty: l.qty, unitPriceCents: l.unitPriceCents })),
+    gstRate: inv.gstRate,
+    notes: inv.notes,
+    issueDate: inv.issueDate,
+    paymentTermsDays: inv.paymentTermsDays,
+    dueDate: inv.dueDate,
+    offerCardPayment: inv.offerCardPayment,
+  }
+}
+
 export const formTotals = (f: InvoiceForm) => computeTotals(f.lines, parsePercentBp(f.gstPct) ?? 0)
 
 // ── mark paid ────────────────────────────────────────────────────────────────────────────────────
