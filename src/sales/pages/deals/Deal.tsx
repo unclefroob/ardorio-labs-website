@@ -7,6 +7,7 @@ import type { Deal as DealRec, Thread } from '../../data/types'
 import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Icon, Kpi, Menu, Owner, Tabs, TONE } from '../../kit'
 import { DealFieldInput } from '../../shared/forms'
 import { tryMove } from '../../shared/moves'
+import { askReopen } from '../../shared/reopen'
 import { isOverdue } from '../../data/meetings'
 import { MeetingHistory, MeetingMenu, MeetingStatusChip, OutcomePrompt } from '../../shared/meetingUi'
 import { askArchive } from '../../shared/archiveActions'
@@ -127,7 +128,7 @@ export function Deal({ route }: { route: Route }) {
           </>
         )}
         {can && d.status !== 'open' && (
-          <Btn icon="refresh" onClick={() => { Act.reopenDeal(d.id); UI.toast('Deal reopened') }}>Reopen</Btn>
+          <Btn icon="refresh" onClick={() => askReopen(d.id)}>Reopen</Btn>
         )}
         {Q.canAdmin(d.businessId) && (
           <Menu

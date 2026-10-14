@@ -3,6 +3,7 @@ import { F } from '../data/F'
 import { Q } from '../data/Q'
 import type { Task } from '../data/types'
 import { UI } from '../ui/store'
+import { askReopen } from './reopen'
 
 export function doMove(dealId: string, stageId: string): void {
   const d = Q.deal(dealId)
@@ -37,18 +38,9 @@ export function tryMove(dealId: string, stageId: string): void {
   if (!d || !UI.guard(d.businessId, 'Changing deal stage')) return
   const st = Q.pipeline(d.businessId).stages.find(s => s.id === stageId)
   if (!st || d.stageId === stageId) return
-  if (d.status !== 'open') {
-    UI.confirm({
-      title: 'Reopen deal?',
-      body: 'This deal is closed. Reopen it and move to ' + st.name + '?',
-      confirm: 'Reopen',
-      onConfirm: () => {
-        Act.reopenDeal(dealId)
-        if (!st.won && !st.lost) Act.moveStage(dealId, stageId)
-      },
-    })
-    return
-  }
+  // A closed deal is reopened first (to the stage it was in before it closed), then the move runs through here again
+  // so the stage's checks and the Won and Lost dialogs apply as for any open deal.
+  if (d.status !== 'open') return askReopen(dealId, stageId, tryMove)
   if (st.won) return UI.open('won', { id: dealId })
   if (st.lost) return UI.open('lost', { id: dealId })
   const miss = Q.missingFor(d, st)

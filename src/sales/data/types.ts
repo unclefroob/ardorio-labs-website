@@ -203,6 +203,9 @@ export interface Deal {
   recordedWonDirectly?: boolean
   /** Who recorded it, as the server stores it (the caller's display name). A client value is only a placeholder. */
   recordedWonBy?: string
+  /** Stamped by the server when a won or lost deal goes back to open (reopenedBy is the caller's display name). */
+  reopenedAt?: Iso
+  reopenedBy?: string
   [k: string]: unknown
 }
 
