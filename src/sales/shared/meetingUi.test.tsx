@@ -216,6 +216,29 @@ describe('Meeting form: statuses and delete', () => {
     expect([...seg.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Cancelled'])
   })
 
+  it('a completed meeting offers only Completed and points to Logged in error to correct it', async () => {
+    await hydrate()
+    await renderWithHosts(null)
+    await act(async () => { m.ui.UI.open('logMeeting', { id: 'done' }) })
+    const d = dialog('Edit meeting')
+    const seg = d.querySelector('[role="group"][aria-label="Status"]') as HTMLElement
+    expect([...seg.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Completed'])
+    expect(d.textContent).toContain('If it did not happen, use “Logged in error” on its activity.')
+  })
+
+  it('changing the date of an upcoming meeting in the form says it moves the meeting and keeps the old start', async () => {
+    await hydrate()
+    await renderWithHosts(null)
+    await act(async () => { m.ui.UI.open('logMeeting', { id: 'past' }) })
+    const d = dialog('Edit meeting')
+    expect(d.textContent).not.toContain('Saving moves the meeting.')
+    await type(field(d, 'Date'), '2026-10-16')
+    expect(d.textContent).toContain('Saving moves the meeting. The earlier time stays in its history.')
+    await click(button(d, 'Save meeting'))
+    await settle()
+    expect(m.store.S.meetings.find(x => x.id === 'past')).toMatchObject({ status: 'upcoming', start: '2026-10-16T09:00', rescheduledFrom: ['2026-10-09T09:00'] })
+  })
+
   it('Delete asks in-page first, then removes the meeting', async () => {
     await hydrate()
     await renderWithHosts(null)

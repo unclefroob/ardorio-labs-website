@@ -29,7 +29,7 @@ function CancelForm({ m }: { m: Meeting }) {
     }
     setErr(r.reason === 'reason_required' ? 'Say why the meeting was cancelled.'
       : r.reason === 'reason_too_long' ? `Keep the reason to ${CANCEL_REASON_MAX} characters.`
-      : r.reason === 'not_upcoming' ? 'This meeting is already cancelled.' : 'This meeting no longer exists.')
+      : r.reason === 'not_upcoming' ? 'Only an upcoming meeting can be cancelled.' : 'This meeting no longer exists.')
   }
   return (
     <Modal

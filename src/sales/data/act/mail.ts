@@ -6,6 +6,7 @@ import { detId, uid } from '../ids'
 import { act, audit, notify, suppressContact, threadFor } from '../internals'
 import { Q } from '../Q'
 import { commit } from '../commit'
+import { canMoveStatus } from '../meetings'
 import { idx, reindex, S } from '../store'
 import type { BusinessId, Meeting, Message, Thread } from '../types'
 
@@ -58,6 +59,7 @@ export type MeetingInput = Partial<Meeting> & Pick<Meeting, 'title' | 'businessI
 export function saveMeeting(f: MeetingInput): Meeting {
   let m = f.id ? idx.meetings.get(f.id) : undefined
   const isNew = !m
+  const was = m ? { status: m.status, start: m.start } : undefined
   if (!m) {
     m = {
       createdBy: S.session.userId, ownerId: S.session.userId, participants: [], duration: 30, type: 'Discovery', sections: {},
@@ -67,7 +69,18 @@ export function saveMeeting(f: MeetingInput): Meeting {
     }
     S.meetings.push(m)
     idx.meetings.set(m.id, m)
-  } else Object.assign(m, f, { id: m.id })
+  } else {
+    // The form cannot write a status change the lifecycle forbids (data/meetings.ts canMoveStatus): a completed meeting
+    // stays completed and only an upcoming one is cancelled or missed. Anything else keeps the status it had.
+    const status = canMoveStatus(m.status, f.status) ? f.status : m.status
+    // rescheduledFrom is append-only and is never taken from the form.
+    const rest: Partial<Meeting> = { ...f }
+    delete rest.rescheduledFrom
+    Object.assign(m, rest, { id: m.id, status })
+  }
+  // Moving an upcoming meeting (or rebooking a no-show) from the form keeps the old start, as Reschedule does.
+  const moved = !!was && minute(was.start) !== minute(m.start) && (was.status === 'upcoming' || m.status === 'upcoming')
+  if (was && moved) m.rescheduledFrom = [...(m.rescheduledFrom ?? []), was.start]
   const now = F.nowIso()
   // Cancelling through the meeting form stamps the time as Act.cancelMeeting does; cancelledBy is the server's to set.
   if (m.status === 'cancelled' && !m.cancelledAt) m.cancelledAt = now
@@ -87,9 +100,20 @@ export function saveMeeting(f: MeetingInput): Meeting {
       for (const c of m.participants || []) if (!d.contactIds.includes(c)) d.contactIds.push(c)
     }
   }
-  audit(isNew ? 'Meeting logged' : 'Meeting updated', m.title)
+  if (isNew) audit('Meeting logged', m.title)
+  else {
+    // A status change or a move gets its own audit entry, as the dedicated actions write, not only 'Meeting updated'.
+    if (was && was.status !== m.status) audit(STATUS_AUDIT[m.status] ?? 'Meeting updated', m.title)
+    if (moved) audit('Meeting rescheduled', m.title)
+    if (!(was && was.status !== m.status) && !moved) audit('Meeting updated', m.title)
+  }
   commit()
   return m
+}
+
+const minute = (s: string): string => s.slice(0, 16)
+const STATUS_AUDIT: Record<string, string> = {
+  upcoming: 'Meeting rebooked', completed: 'Meeting completed', cancelled: 'Meeting cancelled', 'no-show': 'Meeting marked no-show',
 }
 
 // ── email ───────────────────────────────────────────────────────────────────────────────────

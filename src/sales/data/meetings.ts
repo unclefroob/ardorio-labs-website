@@ -36,10 +36,28 @@ export function heldNoLonger(a: Pick<Activity, 'type' | 'meetingId'>): boolean {
   return !!m && m.status !== 'completed'
 }
 
-/** The statuses the meeting form offers: a new meeting is booked or logged; an existing one may also be closed out. */
+/**
+ * Which status changes an existing meeting allows. Cancel and no-show only close out an upcoming meeting. A completed
+ * meeting stays completed, so 'Meetings completed' in a closed goal period or report never changes after the fact:
+ * a meeting recorded as held by mistake is corrected by voiding its activity ('Logged in error'). A cancelled meeting
+ * stays cancelled (book a new one). A no-show can be put back to upcoming (rebooked) or recorded as held after all.
+ */
+const NEXT: Record<MeetingStatus, readonly MeetingStatus[]> = {
+  upcoming: ['upcoming', 'completed', 'cancelled', 'no-show'],
+  completed: ['completed'],
+  cancelled: ['cancelled'],
+  'no-show': ['no-show', 'upcoming', 'completed'],
+}
+
+/** Whether a meeting may move from `from` to `to`. An unknown (legacy) status may only stay as it is. */
+export function canMoveStatus(from: string, to: string): boolean {
+  if (from === to) return true
+  return (NEXT[from as MeetingStatus] ?? []).includes(to as MeetingStatus)
+}
+
+/** The statuses the meeting form offers: a new meeting is booked or logged; an existing one follows canMoveStatus. */
 export function statusOptions(existing: Pick<Meeting, 'status'> | undefined): MeetingStatus[] {
   if (!existing) return ['upcoming', 'completed']
-  // A cancelled meeting stays cancelled: book a new one instead of reviving it.
-  if (existing.status === 'cancelled') return ['cancelled']
-  return ['upcoming', 'completed', 'cancelled', 'no-show']
+  const next = NEXT[existing.status as MeetingStatus]
+  return next ? [...next] : MEETING_STATUSES.filter(s => s === existing.status)
 }

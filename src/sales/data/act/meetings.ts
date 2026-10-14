@@ -19,7 +19,9 @@ export function cancelMeeting(id: string, reason: string): MeetingActResult {
   const r = reason.trim()
   if (!r) return { ok: false, reason: 'reason_required' }
   if (r.length > CANCEL_REASON_MAX) return { ok: false, reason: 'reason_too_long' }
-  if (m.status === 'cancelled') return { ok: false, reason: 'not_upcoming' }
+  // Only an upcoming meeting can be cancelled: a completed one stays held (void its activity to correct it), and a
+  // no-show already did not happen.
+  if (m.status !== 'upcoming') return { ok: false, reason: 'not_upcoming' }
   m.status = 'cancelled'
   m.cancelledAt = F.nowIso()
   m.cancelReason = r

@@ -65,11 +65,21 @@ describe('Meeting lifecycle: upcoming means still ahead', () => {
     }
   })
 
-  it('the form offers upcoming and completed for a new meeting, all four for an existing one, and nothing but cancelled once cancelled', async () => {
+  it('the form offers upcoming and completed for a new meeting, all four for an upcoming one, and nothing but cancelled once cancelled', async () => {
     const { meetings: M } = await setup()
     expect(M.statusOptions(undefined)).toEqual(['upcoming', 'completed'])
     expect(M.statusOptions({ status: 'upcoming' })).toEqual(['upcoming', 'completed', 'cancelled', 'no-show'])
     expect(M.statusOptions({ status: 'cancelled' })).toEqual(['cancelled'])
+  })
+
+  it('a completed meeting stays completed; a no-show can be rebooked or recorded as held, never cancelled', async () => {
+    const { meetings: M } = await setup()
+    expect(M.statusOptions({ status: 'completed' })).toEqual(['completed'])
+    expect(M.statusOptions({ status: 'no-show' })).toEqual(['no-show', 'upcoming', 'completed'])
+    for (const to of ['upcoming', 'cancelled', 'no-show']) expect(M.canMoveStatus('completed', to)).toBe(false)
+    expect(M.canMoveStatus('no-show', 'cancelled')).toBe(false)
+    expect(M.canMoveStatus('cancelled', 'upcoming')).toBe(false)
+    for (const to of ['completed', 'cancelled', 'no-show']) expect(M.canMoveStatus('upcoming', to)).toBe(true)
   })
 })
 
@@ -95,6 +105,15 @@ describe('Act.cancelMeeting', () => {
     expect(m.Act.cancelMeeting('mt1', 'Again')).toEqual({ ok: false, reason: 'not_upcoming' })
   })
 
+  it('refuses a completed or no-show meeting: only an upcoming meeting is cancelled', async () => {
+    const m = await setup({ meetings: [meeting('held', { status: 'completed' }), meeting('missed', { status: 'no-show' })] })
+    expect(m.Act.cancelMeeting('held', 'Wrongly recorded')).toEqual({ ok: false, reason: 'not_upcoming' })
+    expect(m.Act.cancelMeeting('missed', 'They never came')).toEqual({ ok: false, reason: 'not_upcoming' })
+    expect(m.Q.meeting('held')).toMatchObject({ status: 'completed' })
+    expect(m.Q.meeting('held')?.cancelReason).toBeUndefined()
+    expect(m.Q.meeting('missed')?.status).toBe('no-show')
+  })
+
   it('cancelling through the meeting form (saveMeeting) stamps cancelledAt too', async () => {
     const m = await setup({ meetings: [meeting('mt1')] })
     m.Act.saveMeeting({ id: 'mt1', title: 'Meeting mt1', businessId: 'ros', start: '2026-10-12T10:00', status: 'cancelled', cancelReason: 'Moved to email' })
@@ -118,6 +137,33 @@ describe('Act.markMeetingNoShow and Act.rescheduleMeeting', () => {
     expect(m.Q.meeting('mt1')).toMatchObject({ status: 'upcoming', start: '2026-10-16T09:30', rescheduledFrom: ['2026-10-09T09:00', '2026-10-15T14:00'] })
     expect(m.Act.rescheduleMeeting('mt1', '2026-10-16T09:30')).toEqual({ ok: false, reason: 'same_start' })
     expect(m.Act.rescheduleMeeting('mt1', '16/10/2026')).toEqual({ ok: false, reason: 'bad_start' })
+  })
+
+  it('moving an upcoming meeting from the meeting form (saveMeeting) keeps the old start, like Reschedule', async () => {
+    const m = await setup({ meetings: [meeting('mt1', { start: '2026-10-09T09:00' })] })
+    const before = m.store.S.activities.length
+    m.Act.saveMeeting({ id: 'mt1', title: 'Meeting mt1', businessId: 'ros', start: '2026-10-15T14:00', status: 'upcoming' })
+    expect(m.Q.meeting('mt1')).toMatchObject({ status: 'upcoming', start: '2026-10-15T14:00', rescheduledFrom: ['2026-10-09T09:00'] })
+    expect(m.store.S.audit.at(-1)).toMatchObject({ action: 'Meeting rescheduled' })
+    // Saving again at the same start is not a move, and the form cannot overwrite the history.
+    m.Act.saveMeeting({ id: 'mt1', title: 'Meeting mt1', businessId: 'ros', start: '2026-10-15T14:00', status: 'upcoming', rescheduledFrom: [] })
+    expect(m.Q.meeting('mt1')?.rescheduledFrom).toEqual(['2026-10-09T09:00'])
+    expect(m.store.S.activities).toHaveLength(before)
+    const op = (await sent(m)).find(o => o.collection === 'meetings')
+    expect((op as { set: Record<string, unknown> }).set).toMatchObject({ start: '2026-10-15T14:00', rescheduledFrom: ['2026-10-09T09:00'] })
+  })
+
+  it('recording an overdue meeting as held on a corrected date keeps the booked start in its history', async () => {
+    const m = await setup({ meetings: [meeting('mt1', { start: '2026-10-08T09:00' })] })
+    m.Act.saveMeeting({ id: 'mt1', title: 'Meeting mt1', businessId: 'ros', start: '2026-10-09T11:00', status: 'completed' })
+    expect(m.Q.meeting('mt1')).toMatchObject({ status: 'completed', start: '2026-10-09T11:00', rescheduledFrom: ['2026-10-08T09:00'] })
+  })
+
+  it('editing a completed meeting without moving it adds no history', async () => {
+    const m = await setup({ meetings: [meeting('mt1', { status: 'completed', start: '2026-10-08T09:00' })] })
+    m.Act.saveMeeting({ id: 'mt1', title: 'Renamed', businessId: 'ros', start: '2026-10-08T09:00', status: 'completed' })
+    expect(m.Q.meeting('mt1')?.rescheduledFrom).toBeUndefined()
+    expect(m.store.S.audit.at(-1)).toMatchObject({ action: 'Meeting updated', target: 'Renamed' })
   })
 
   it('does not write a new booking when a meeting is rescheduled', async () => {
@@ -168,13 +214,35 @@ describe('Counting: booked vs held', () => {
     expect(ids).toEqual(['b1', 'b2', 'b3', 'h1', 'h4'])
   })
 
-  it('a completed meeting changed to no-show stops counting as held', async () => {
+  it('a completed meeting cannot be changed to no-show, cancelled or upcoming from the form, so it keeps counting as held', async () => {
     const m = await setup({ meetings: [], activities: [] })
     const mt = m.Act.saveMeeting({ title: 'Kick-off', businessId: 'ros', start: '2026-10-09T09:00', status: 'completed', companyId: 'co1', participants: ['ct1'] })
     const range: [string, string] = ['2026-10-01T00:00', '2026-10-31T23:59']
     expect(m.Q.metric(['u-me'], 'meetings_held', ...range)).toBe(1)
-    m.Act.saveMeeting({ id: mt.id, title: 'Kick-off', businessId: 'ros', start: '2026-10-09T09:00', status: 'no-show' })
+    for (const status of ['no-show', 'cancelled', 'upcoming']) {
+      m.Act.saveMeeting({ id: mt.id, title: 'Kick-off', businessId: 'ros', start: '2026-10-09T09:00', status, cancelReason: 'x' })
+      expect(m.Q.meeting(mt.id)?.status).toBe('completed')
+      expect(m.Q.metric(['u-me'], 'meetings_held', ...range)).toBe(1)
+    }
+    expect(m.Q.meeting(mt.id)?.cancelledAt).toBeUndefined()
+    expect(m.store.S.audit.map(a => a.action)).not.toContain('Meeting marked no-show')
+  })
+
+  it('a meeting wrongly recorded as held is corrected by voiding its activity', async () => {
+    const m = await setup({ meetings: [], activities: [] })
+    const mt = m.Act.saveMeeting({ title: 'Kick-off', businessId: 'ros', start: '2026-10-09T09:00', status: 'completed', companyId: 'co1', participants: ['ct1'] })
+    const range: [string, string] = ['2026-10-01T00:00', '2026-10-31T23:59']
+    const held = m.store.S.activities.find(a => a.type === 'meeting' && a.meetingId === mt.id)
+    expect(held).toBeDefined()
+    expect(m.Act.voidActivity(held!.id, 'Never happened')).toMatchObject({ ok: true })
     expect(m.Q.metric(['u-me'], 'meetings_held', ...range)).toBe(0)
+  })
+
+  it('marking an upcoming meeting no-show from the form gets its own audit entry', async () => {
+    const m = await setup({ meetings: [meeting('mt1', { start: '2026-10-09T09:00' })] })
+    m.Act.saveMeeting({ id: 'mt1', title: 'Meeting mt1', businessId: 'ros', start: '2026-10-09T09:00', status: 'no-show' })
+    expect(m.Q.meeting('mt1')?.status).toBe('no-show')
+    expect(m.store.S.audit.at(-1)).toMatchObject({ action: 'Meeting marked no-show', target: 'Meeting mt1' })
   })
 })
 
