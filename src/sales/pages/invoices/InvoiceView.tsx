@@ -15,6 +15,7 @@ import { TestBanner, testItems, useTestActions, type TestOps } from './testActio
 import { MoreMenu, type MoreItem } from './MoreMenu'
 import { ExternalChip, milestoneLabel, personName, RetainerChip, StatusChip, TestChip } from './parts'
 import { Activity, Totals } from './rail'
+import { PaidLinksCard } from './LinkPickers'
 
 /** The items of the More menu for an invoice, by status. Drafts have none: they keep Delete in the editor and were never issued. */
 export function moreItems(inv: InvoiceDto, o: { copy: () => void; duplicate: () => void; cancel: () => void } & TestOps): MoreItem[] {
@@ -47,6 +48,8 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
     }
   }
   const [dupBusy, setDupBusy] = useState(false)
+  // A paid invoice is read-only, but its company, deal and milestone can still be set, through the links route only.
+  const [linksOpen, setLinksOpen] = useState(false)
   const [refundBusy, setRefundBusy] = useState(false)
   const dupLock = useRef(false)
   const refundLock = useRef(false)
@@ -56,6 +59,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
   const linkLive = voided?.linkDeactivated === false || (voided != null && voided.linkDeactivated == null && !!inv.paymentLinkUrl)
   const paid = inv.status === 'paid'
   const ext = inv.source === 'external' ? inv.external : null
+  const paidLinks = paid && !ext
   const name = invoiceRef(inv)
   // Just cancelled: the dialog closed and the button that started it is gone, so land on the banner that says what happened.
   useEffect(() => {
@@ -119,6 +123,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
         {!ext && <Btn onClick={() => void downloadPdf(inv)}>Download PDF</Btn>}
         {ext && a.edit && <Btn icon="edit" onClick={editExternal}>Edit</Btn>}
         {a.reissue && <Btn onClick={onEdit}>Edit and reissue</Btn>}
+        {paidLinks && !linksOpen && <Btn icon="link" onClick={() => setLinksOpen(true)}>Edit links</Btn>}
         {a.markPaid && <Btn kind="pri" onClick={() => UI.open('markPaid', { invoice: inv, onDone: onChange })}>Mark paid</Btn>}
         {a.voided && !ext && <Btn kind="pri" icon="layers" onClick={() => void duplicate()} disabled={dupBusy}>{dupBusy ? 'Duplicating…' : 'Duplicate as new draft'}</Btn>}
         {more.length > 0 && <><span aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: 'var(--line2)', margin: '0 4px' }} /><MoreMenu label={`More actions for ${name}`} items={more} /></>}
@@ -148,7 +153,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
           <Icon n="check" s={12} /> Refund of {money(inv.refundDue.amountCents)} confirmed{inv.refundDue.acknowledgedBy ? ` by ${personName(inv.refundDue.acknowledgedBy)}` : ''} on {fmtDay(inv.refundDue.acknowledgedAt)}. The history is kept.
         </div>
       )}
-      {paid && !ext && <div style={{ marginBottom: 14 }}><Banner icon="lock">This invoice is paid, so it is read-only. To change something, raise a credit or a new invoice.</Banner></div>}
+      {paid && !ext && <div style={{ marginBottom: 14 }}><Banner icon="lock">This invoice is paid, so it is read-only. To change something, raise a credit or a new invoice. Its customer, deal and milestone can still be set with Edit links.</Banner></div>}
       {ext && !a.voided && (
         <div style={{ marginBottom: 14 }}>
           <Banner icon="info" tone="info">
@@ -166,6 +171,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
 
       <div className="inv-cols">
         <div className="inv-main">
+          {paidLinks && linksOpen && <PaidLinksCard invoice={inv} onSaved={onChange} onClose={() => setLinksOpen(false)} />}
           {inv.payment && !a.voided && (
             <Card title="Payment received">
               <div className="rowx"><span className="muted">Method</span><Chip>{METHOD_LABELS[inv.payment.method]}</Chip></div>
@@ -191,7 +197,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
                 {!inv.companyId && !ext && (a.reissue || paid) && (
                   <div className="faint sm" style={{ marginTop: 2 }}>
                     {paid
-                      ? 'Not linked to a CRM company. A paid invoice can’t be edited, so its company can’t be set here.'
+                      ? 'Not linked to a CRM company. Choose it with Edit links: the paid invoice itself does not change.'
                       : 'Not linked to a CRM company. Choose it under Edit and reissue: saving only the customer, deal or milestone does not reissue the invoice.'}
                   </div>
                 )}

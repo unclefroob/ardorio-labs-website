@@ -1,5 +1,5 @@
 import type {
-  BillingMilestone, BillingPlan, InvoiceDto, InvoiceInput, InvoicePaymentMethod, InvoiceStatus, InvoiceVoidReason, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
+  BillingMilestone, BillingPlan, InvoiceDto, InvoiceInput, InvoiceLinksInput, InvoicePaymentMethod, InvoiceStatus, InvoiceVoidReason, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
 } from '../api/contract'
 import { centsToInput, computeTotals, formatCents, milliToQty, parseCents, parsePercentBp, parseQtyMilli, qtyToInput, rateToPercentText } from './money'
 
@@ -242,29 +242,17 @@ export function onlyLinksChanged(f: InvoiceForm, inv: InvoiceDto): boolean {
 }
 
 /**
- * The PUT for an issued invoice whose links alone change. The server validates the whole body and writes every content
- * field it is given (a missing issue date or term would be replaced by a default), so the stored content goes back
- * exactly as it is: same lines and GST, so the total and the card link stay put. The card link URL is left out on
- * purpose: sending it back would hand an automatic Stripe link over to manual. Only the link keys that change are sent,
- * so an unchanged company is not validated again.
+ * The PUT /invoices/:id/links body for an invoice whose links alone change: only the keys that differ from what is
+ * stored, so an unchanged company is not validated again. That route writes nothing but the links, so the invoice is
+ * never reissued, renumbered or re-addressed and its card link stays as it is.
  */
-export function linkOnlyInput(inv: InvoiceDto, f: Pick<InvoiceForm, 'companyId' | 'dealId' | 'milestoneId'>): InvoiceInput {
-  const links: Pick<InvoiceInput, 'companyId' | 'dealId' | 'milestoneId'> = {}
+export function linkChanges(inv: Pick<InvoiceDto, 'companyId' | 'dealId' | 'milestoneId'>, f: Pick<InvoiceForm, 'companyId' | 'dealId' | 'milestoneId'>): InvoiceLinksInput {
+  const out: InvoiceLinksInput = {}
   for (const k of LINK_KEYS) {
     const v = f[k] || null
-    if (v !== (inv[k] ?? null)) links[k] = v
+    if (v !== (inv[k] ?? null)) out[k] = v
   }
-  return {
-    clientSlug: inv.clientSlug,
-    ...links,
-    lineItems: inv.lineItems.map(l => ({ description: l.description, ...(l.detail ? { detail: l.detail } : {}), qty: l.qty, unitPriceCents: l.unitPriceCents })),
-    gstRate: inv.gstRate,
-    notes: inv.notes,
-    issueDate: inv.issueDate,
-    paymentTermsDays: inv.paymentTermsDays,
-    dueDate: inv.dueDate,
-    offerCardPayment: inv.offerCardPayment,
-  }
+  return out
 }
 
 export const formTotals = (f: InvoiceForm) => computeTotals(f.lines, parsePercentBp(f.gstPct) ?? 0)

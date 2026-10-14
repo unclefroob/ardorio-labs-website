@@ -561,6 +561,23 @@ export interface InvoiceExternalInfo { source: ExternalInvoiceSource; reference:
 // { field: 'companyId', clientSlugs, needsBillingLink: true }: link the right one first.
 // POST /sales/invoices/external (ExternalInvoiceInput) -> InvoiceDto ; PUT /sales/invoices/:id/external (ExternalInvoiceInput) -> InvoiceDto (external, not void)
 // SalesErrorCode gains: 'DUPLICATE_EXTERNAL_REFERENCE' (details: { invoiceId: string; dealId: string | null }) | 'NOT_EXTERNAL'
+// ---- Linking an issued invoice to a company ----
+// The company on an invoice (companyId on POST/PUT /invoices and PUT /invoices/:id/links) must be visible in ard. A new
+// invoice or a DRAFT may only go on the company its billing client is linked to (else 400 VALIDATION, field companyId).
+// An ISSUED invoice (sent or paid) may also go on that company; when its own billing client is linked to NO company it
+// may go on ANY company visible in ard, even one billed as a different client or with none. When its billing client is
+// linked to a company, it may only go on that company (else 400 VALIDATION, field companyId).
+// Linking an invoice never links its billing client and never changes the client, the bill-to, the number, the status,
+// the totals, the dates, the public token or the card link: the invoice stays addressed to the client it was sent to.
+export interface InvoiceLinksInput { companyId?: string | null; dealId?: string | null; milestoneId?: string | null }
+// PUT /sales/invoices/:id/links (InvoiceLinksInput) -> InvoiceDto (ard admins or super only). Draft, sent or paid. A void
+// invoice is 409 INVOICE_ALREADY_VOID; an external record is 409 CONFLICT { external: true } (use PUT /invoices/:id/external);
+// any other key is 400 VALIDATION. A key left out is kept, null clears, clearing the deal clears the milestone. Writes only
+// companyId, dealId and milestoneId, plus, when one of them changed, one audit row 'Invoice links changed'
+// { businessId: 'ard', invoiceId, invoiceNumber, status, clientSlug, from: {companyId, dealId, milestoneId}, to: {...} }.
+// A paid invoice still refuses PUT /invoices/:id (409); this route is how its links change.
+// Money views (customers, company and deal billing, revenue, forecast) follow the invoice's companyId/dealId/milestoneId,
+// never its clientSlug, so such an invoice counts on the company it is linked to.
 // ---- Ardorio revenue report ----
 export type RevenueSourceFilter = 'all' | 'salesos' | 'external'
 export interface RevenueMonth { month: string /* YYYY-MM */; invoicedCents: number; collectedCents: number; externalInvoicedCents: number; externalCollectedCents: number }

@@ -1,5 +1,5 @@
 import type {
-  BillingClient, BillingClientInput, DeleteTestInput, ExternalInvoiceInput, InvoiceDto, InvoiceInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
+  BillingClient, BillingClientInput, DeleteTestInput, ExternalInvoiceInput, InvoiceDto, InvoiceInput, InvoiceLinksInput, InvoiceListResponse, InvoiceSettings, InvoiceStatus, InvoiceSummary, MarkPaidInput, MarkTestInput, VoidInvoiceInput,
 } from './contract'
 import { SalesHttpError, SalesNetworkError, salesBlob, salesFetch } from './http'
 
@@ -23,6 +23,8 @@ export const invoiceSummary = (signal?: AbortSignal) => salesFetch<InvoiceSummar
 export const getInvoice = (id: string, signal?: AbortSignal) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}`, { signal })
 export const createInvoice = (input: InvoiceInput) => salesFetch<InvoiceDto>('/invoices', { method: 'POST', body: input })
 export const updateInvoice = (id: string, input: InvoiceInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}`, { method: 'PUT', body: input })
+/** Only the company, deal and milestone, on a draft, sent or paid invoice: nothing else on the invoice changes. */
+export const updateInvoiceLinks = (id: string, input: InvoiceLinksInput) => salesFetch<InvoiceDto>(`/invoices/${enc(id)}/links`, { method: 'PUT', body: input })
 /** Record an invoice or payment made outside SalesOS. Admins of `ard` (or super) only. */
 export const recordExternalInvoice = (input: ExternalInvoiceInput) => salesFetch<InvoiceDto>('/invoices/external', { method: 'POST', body: input })
 /** Every field of an external, not cancelled invoice, under the same rules. */
