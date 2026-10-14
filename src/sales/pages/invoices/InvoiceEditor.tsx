@@ -83,7 +83,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState<'' | 'save' | 'issue' | 'pdf' | 'delete'>('')
   const [fail, setFail] = useState('')
-  const [notice, setNotice] = useState('')
+  // Saving moved the total, so the server cleared the card payment link: which kind it was decides what to say.
+  const [notice, setNotice] = useState<'' | 'automatic' | 'pasted'>('')
   // The server drafted the period before this was saved: ask before making a second invoice for it.
   const [clash, setClash] = useState<RetainerClash | null>(null)
   // The user chose to save an extra invoice after that, so nothing is claimed.
@@ -145,7 +146,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
       // Only the links of an issued invoice changed: the links route writes those and nothing else, never a reissue.
       const saved = invoice && issuedState && onlyLinksChanged(f, invoice)
         ? await updateInvoiceLinks(invoice.id, linkChanges(invoice, f))
-        : invoice ? await updateInvoice(invoice.id, buildInput(form)) : await createInvoice(buildInput(form))
+        : invoice ? await updateInvoice(invoice.id, buildInput(form, invoice)) : await createInvoice(buildInput(form))
       if (claim && saved.dealId === claim.dealId) {
         await catchUpPlans()
         const c = Act.claimRetainerPeriod(claim.dealId, claim.due)
@@ -157,7 +158,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
         UI.toast(`The ${retainerPeriodLabel(claim.due)} retainer is billed by this invoice. The next automatic draft is on ${fmtDay(c.next)}.${c.laterDay ? ` Later drafts fall on the ${dayOrdinal(c.laterDay)}.` : ''}`)
       }
       if (invoice && invoice.paymentLinkUrl && saved.paymentLinkUrl === '') {
-        setNotice('The total changed, so the pasted payment link was cleared. The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.')
+        setNotice(invoice.paymentLinkIsAutomatic ? 'automatic' : 'pasted')
       }
       return saved
     } catch (e) {
@@ -210,6 +211,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
     }
     try {
       const issued = await issueInvoice(saved.id)
+      // The issue made a fresh card link, so the cleared one needs no more explaining.
+      if (issued.paymentLinkUrl) setNotice('')
       UI.toast(`${issued.invoiceNumber} ${invoice?.status === 'sent' ? 'reissued' : 'issued'}`)
       if (isNew) UI.nav('invoice', { id: issued.id })
       else adopt(issued)
@@ -292,7 +295,8 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
         </div>
       )}
       {fail && <div style={{ marginBottom: 14 }}><Banner tone="bad">{fail}</Banner></div>}
-      {notice && <div style={{ marginBottom: 14 }}><Banner tone="info"><b>The total changed, so the pasted payment link was cleared.</b> The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.</Banner></div>}
+      {notice === 'pasted' && <div style={{ marginBottom: 14 }}><Banner tone="info"><b>The total changed, so the pasted payment link was cleared.</b> The old link had the old amount built in. Paste a new one, or let a card link be created when you issue.</Banner></div>}
+      {notice === 'automatic' && <div style={{ marginBottom: 14 }}><Banner tone="info"><b>The total changed, so the card payment link was switched off.</b> The old link had the old amount built in. Reissue the invoice to create a new one.</Banner></div>}
 
       <div className="inv-cols">
         <div className="inv-main">

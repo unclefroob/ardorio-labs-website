@@ -209,9 +209,18 @@ export function validateForm(f: InvoiceForm): { ok: boolean; errors: FormErrors 
   return { ok, errors }
 }
 
-/** Only call after `validateForm` said ok. */
-export function buildInput(f: InvoiceForm): InvoiceInput {
+/**
+ * Only call after `validateForm` said ok.
+ *
+ * `stored` is the invoice being edited. On an issued invoice the payment link is sent only when it was edited: the API
+ * reads any supplied URL as a hand-pasted link and drops its Stripe id, so echoing back an automatic link would turn
+ * it into a manual one (and, if the total also changed, leave the old link live at Stripe instead of deactivating it).
+ * Left out, the API keeps the link as it is, and a total change deactivates and clears it as intended.
+ */
+export function buildInput(f: InvoiceForm, stored?: Pick<InvoiceDto, 'status' | 'paymentLinkUrl'> | null): InvoiceInput {
   const bp = parsePercentBp(f.gstPct) ?? 0
+  const link = f.paymentLink.trim()
+  const linkUnchanged = !!stored && stored.status !== 'draft' && link === (stored.paymentLinkUrl ?? '')
   return {
     clientSlug: f.clientSlug,
     companyId: f.companyId || null,
@@ -229,7 +238,7 @@ export function buildInput(f: InvoiceForm): InvoiceInput {
     paymentTermsDays: Number(f.terms),
     dueDate: f.dueDate,
     offerCardPayment: f.offerCard,
-    paymentLinkUrl: f.paymentLink.trim(),
+    ...(linkUnchanged ? {} : { paymentLinkUrl: link }),
   }
 }
 
