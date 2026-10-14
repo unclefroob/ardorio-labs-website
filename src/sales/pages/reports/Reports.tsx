@@ -36,7 +36,7 @@ export function Reports({ route }: { route?: Route } = {}) {
     UI.setRoute({ q: t === 'ardorio' ? { tab: t } : {} })
   }
   const tabs = ardTab ? <Tabs tabs={TABS} value={tab} onChange={chooseTab} /> : null
-  if (ardTab && tab === 'ardorio') return <div className="page"><ArdorioRevenue tabs={tabs} /></div>
+  if (ardTab && tab === 'ardorio') return <div className="page"><ArdorioRevenue tabs={tabs} view={route?.q?.view === 'forecast' ? 'forecast' : 'report'} /></div>
   return <ReportsOverview tabs={tabs} />
 }
 
