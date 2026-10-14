@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
@@ -14,6 +14,25 @@ import { DealCard } from './DealCard'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner', 'Cross-business introduction', 'Sequence reply']
 const strQ = (v: unknown): string => (typeof v === 'string' ? v : '')
+/** Closed Won and Closed Lost columns show deals closed this recently; the rest are one click away in the list. */
+const CLOSED_DAYS = 90
+
+/** The board's height: from its top to the bottom of the window, so the columns use the whole screen. */
+function useBoardHeight(ref: RefObject<HTMLDivElement | null>, on: boolean): number | null {
+  const [h, setH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (!on) return
+    const fit = () => {
+      const el = ref.current
+      if (!el || window.innerWidth <= 900) { setH(null); return }
+      setH(Math.max(420, Math.floor(window.innerHeight - el.getBoundingClientRect().top - 12)))
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [ref, on])
+  return h
+}
 
 export function Deals({ route }: { route: Route }) {
   useStore()
@@ -34,6 +53,8 @@ export function Deals({ route }: { route: Route }) {
   const [over, setOver] = useState<string | null>(null)
   const [minV, setMinV] = useState('')
   const [stF, setStF] = useState(stageQ)
+  const kbRef = useRef<HTMLDivElement>(null)
+  const kbH = useBoardHeight(kbRef, view === 'board')
 
   if (!pb) {
     return (
@@ -121,14 +142,17 @@ export function Deals({ route }: { route: Route }) {
             <Empty icon="kanban" title="No pipeline stages" body={`The ${Q.biz(pb)?.name ?? ''} pipeline has no stages yet. An administrator can set them up under Pipelines.`} />
           </div>
         ) : (
-          <div className="kb">
+          <div className="kb" ref={kbRef} style={kbH ? { height: kbH } : undefined}>
             {pl.stages.map(s => {
-              const ds = bd.filter(d => d.stageId === s.id).filter(d => !(s.won || s.lost) || F.days(d.closedAt || d.stageChangedAt, F.nowIso()) <= 90)
+              const closed = !!(s.won || s.lost)
+              const inStage = bd.filter(d => d.stageId === s.id)
+              const ds = inStage.filter(d => !closed || F.days(d.closedAt || d.stageChangedAt, F.nowIso()) <= CLOSED_DAYS)
+              const older = inStage.length - ds.length
               return (
                 <div
                   key={s.id}
-                  className={'kc' + (over === s.id ? ' over' : '')}
-                  style={s.won || s.lost ? { width: 220, opacity: 0.92 } : undefined}
+                  className={'kc' + (closed ? ' closed' : '') + (over === s.id ? ' over' : '')}
+                  aria-label={s.name + (closed ? `, closed in the last ${CLOSED_DAYS} days` : '')}
                   onDragOver={e => { e.preventDefault(); setOver(s.id) }}
                   onDragLeave={() => setOver(null)}
                   onDrop={e => {
@@ -147,7 +171,7 @@ export function Deals({ route }: { route: Route }) {
                     </div>
                     <div className="faint xs num" style={{ marginTop: 2 }}>
                       {F.money(ds.reduce((x, d) => x + d.value, 0), 1)}
-                      {!s.won && !s.lost && ' · ' + F.money(ds.reduce((x, d) => x + Q.weighted(d), 0), 1) + ' wtd'}
+                      {closed ? ` · last ${CLOSED_DAYS} days` : ' · ' + F.money(ds.reduce((x, d) => x + Q.weighted(d), 0), 1) + ' wtd'}
                       {s.required.length > 0 && (
                         <span title={'Required: ' + s.required.join(', ')}> · <Icon n="lock" s={10} /> {s.required.length} req.</span>
                       )}
@@ -157,9 +181,16 @@ export function Deals({ route }: { route: Route }) {
                     {ds.length ? (
                       ds.sort((a, c) => c.value - a.value).map(d => <DealCard key={d.id} d={d} />)
                     ) : (
-                      <div className="faint xs" style={{ textAlign: 'center', padding: '18px 0' }}>{bd.length ? 'No deals in this stage' : 'No deals in this pipeline yet'}</div>
+                      <div className="faint xs" style={{ textAlign: 'center', padding: '18px 0' }}>{!bd.length ? 'No deals in this pipeline yet' : closed && older ? `None in the last ${CLOSED_DAYS} days` : 'No deals in this stage'}</div>
                     )}
                   </div>
+                  {closed && older > 0 && (
+                    <div className="kc-f">
+                      <span className="faint xs">{older} older {s.won ? 'won' : 'lost'}</span>
+                      <span className="sp" />
+                      <Btn size="sm" kind="ghost" iconRight="arrow" onClick={() => { setStatus(s.won ? 'won' : 'lost'); setStF(s.id); setView('list') }}>View all {inStage.length}</Btn>
+                    </div>
+                  )}
                 </div>
               )
             })}
