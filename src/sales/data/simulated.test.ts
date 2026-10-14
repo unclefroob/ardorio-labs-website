@@ -179,6 +179,13 @@ describe('a simulated meeting booked never counts in sequence stats', () => {
     expect(seqStats(m.store.S.sequences[0]).meetings).toBe(0)
   })
 
+  it('an exit backed only by a meeting_booked activity logged in error does not count', async () => {
+    const m = await setup({ enrolments: [ended()], activities: [meeting('ac1', { voided: true, voidedAt: '2026-10-09T10:00', voidReason: 'Wrong contact' })] })
+    const { seqStats, simMeetingExit } = await import('../shared/seqStats')
+    expect(simMeetingExit(m.store.S.enrolments[0])).toBe(true)
+    expect(seqStats(m.store.S.sequences[0]).meetings).toBe(0)
+  })
+
   it('a real meeting exit still counts: one with a real meeting behind it, or with no activity at all', async () => {
     const m = await setup({ enrolments: [ended()], activities: [meeting('ac1', { simulated: true }), meeting('ac2', { subject: 'Meeting booked from call', ts: '2026-10-09T09:40' })] })
     const { simMeetingExit } = await import('../shared/seqStats')

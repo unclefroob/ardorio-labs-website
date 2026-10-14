@@ -1,7 +1,9 @@
 import { F } from './F'
+import { heldNoLonger } from './meetings'
 import { idx, S } from './store'
 import { ageDays, applySignalAdjust, computeSignalAdjust, NO_ADJUST, type PendingClosure, type SignalAdjust, type SignalAdjustPart } from './signalAdjust'
 import { isSimAct, simReplied } from './simulated'
+import { isVoided } from './voided'
 import { SYSTEM_USER, SYSTEM_USER_ID } from './systemUser'
 import type {
   Activity, Business, BusinessId, Company, CompanyRel, Contact, ContactRel, Deal, Enrolment, Goal, Mailbox,
@@ -401,7 +403,7 @@ export const Q = {
     if (dm >= 16) pos.push(`${ct.title} — likely decision-maker`)
 
     const clock = F.nowIso()
-    const acts = S.activities.filter(a => a.contactId === ctid && a.businessId === b && F.days(a.ts, clock) <= 30 && !isSimAct(a))
+    const acts = S.activities.filter(a => a.contactId === ctid && a.businessId === b && F.days(a.ts, clock) <= 30 && !isSimAct(a) && !isVoided(a))
     let eng = 0
     for (const a of acts) {
       const w: Record<string, number> = {
@@ -504,12 +506,14 @@ export const Q = {
 
   metric(userIds: string[], metric: string, from: string, to: string, b?: string): number {
     return S.activities.filter(a => {
-      if (!userIds.includes(a.actorId) || a.ts < from || a.ts > to || (b && a.businessId !== b) || a.dup || isSimAct(a)) return false
+      if (!userIds.includes(a.actorId) || a.ts < from || a.ts > to || (b && a.businessId !== b) || a.dup || isSimAct(a) || isVoided(a)) return false
       if (a.dealId && idx.deals.get(a.dealId)?.archived === true) return false
       if (metric === 'calls') return a.type === 'call' && a.outcome !== 'Cancelled'
       if (metric === 'emails') return a.type === 'email_out'
       if (metric === 'meetings') return a.type === 'meeting_booked'
-      if (metric === 'meetings_held') return a.type === 'meeting'
+      // Booked counts the booking even if the meeting is later cancelled (void the activity to remove it); held
+      // counts only meetings that are still completed.
+      if (metric === 'meetings_held') return a.type === 'meeting' && !heldNoLonger(a)
       return false
     }).length
   },

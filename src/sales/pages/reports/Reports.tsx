@@ -6,12 +6,13 @@ import { simReplied } from '../../data/simulated'
 import { S } from '../../data/store'
 import type { BusinessId, Deal } from '../../data/types'
 import {
-  Bars, BizDot, Btn, Card, DataTable, Empty, FilterBar, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, Tabs, download, toCSV, type Col,
+  Banner, Bars, BizDot, Btn, Card, DataTable, Empty, FilterBar, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, Tabs, download, toCSV, type Col,
 } from '../../kit'
 import { INDUSTRIES, PER, type PeriodKey } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import { seqStats, type SeqStats } from '../../shared/seqStats'
 import { UI, type Route } from '../../ui/store'
+import { ardorioOutOfScope, showArdorio } from '../../shared/reportLinks'
 import { ArdorioRevenue } from './ArdorioRevenue'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner', 'Cross-business introduction']
@@ -37,10 +38,18 @@ export function Reports({ route }: { route?: Route } = {}) {
   }
   const tabs = ardTab ? <Tabs tabs={TABS} value={tab} onChange={chooseTab} /> : null
   if (ardTab && tab === 'ardorio') return <div className="page"><ArdorioRevenue tabs={tabs} view={route?.q?.view === 'forecast' ? 'forecast' : 'report'} /></div>
-  return <ReportsOverview tabs={tabs} />
+  // A link asked for the Ardorio revenue report but this workspace hides Ardorio: say so instead of landing silently.
+  const hidden = tab === 'ardorio' && ardorioOutOfScope()
+    ? (
+      <Banner tone="info" action={<Btn size="sm" onClick={() => { showArdorio() }}>Switch to {Q.biz('ard')?.name ?? 'Ardorio'}</Btn>}>
+        The Ardorio revenue report isn’t shown in the {Q.biz(Q.wsBiz())?.name ?? 'current'} workspace. Switch to {Q.biz('ard')?.name ?? 'Ardorio'} to see it.
+      </Banner>
+    )
+    : null
+  return <ReportsOverview tabs={tabs} notice={hidden} />
 }
 
-function ReportsOverview({ tabs }: { tabs: ReactNode }) {
+function ReportsOverview({ tabs, notice }: { tabs: ReactNode; notice?: ReactNode }) {
   const sc = Q.scope()
   const [per, setPer] = useState<PeriodKey>('quarter')
   const [bz, setBz] = useState('')
@@ -136,6 +145,7 @@ function ReportsOverview({ tabs }: { tabs: ReactNode }) {
       <PageHead title="Reports" sub={`${PER[per][0]} · recalculated from live records · simulated email and archived deals excluded`}>
         <Btn icon="download" disabled={empty} onClick={exp}>Export CSV</Btn>
       </PageHead>
+      {notice && <div style={{ marginBottom: 14 }}>{notice}</div>}
       {tabs}
       <div className="card" style={{ marginBottom: 14 }}>
         <FilterBar>

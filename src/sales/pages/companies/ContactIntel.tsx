@@ -3,6 +3,7 @@ import { research as localResearch } from '../../ai/local'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
+import { isVoided } from '../../data/voided'
 import type { BusinessId, Contact } from '../../data/types'
 import { Btn, Card, Chip, Empty, Icon } from '../../kit'
 
@@ -17,7 +18,7 @@ export function ContactIntel({ ct, b }: { ct: Contact; b: BusinessId }) {
   const snap = S.research.filter(r => r.companyId === ct.companyId && r.businessId === b).pop()
   const fallback = co && !snap ? localResearch(co.id, b) : undefined
   const points = (snap ? strs(snap.challenges) : fallback && !('error' in fallback) ? strs(fallback.challenges) : []).slice(0, 3)
-  const conv = S.activities.filter(a => a.contactId === ct.id && Q.actVisible(a)).sort((a, x) => x.ts.localeCompare(a.ts))
+  const conv = S.activities.filter(a => a.contactId === ct.id && Q.actVisible(a) && !isVoided(a)).sort((a, x) => x.ts.localeCompare(a.ts))
   const decider = /Decision|Economic/.test(ct.buyingRole)
 
   return (

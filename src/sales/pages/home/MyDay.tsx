@@ -2,10 +2,13 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
+import { isVoided } from '../../data/voided'
 import type { Task } from '../../data/types'
 import {
   Av, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DataTable, Due, Empty, Icon, Kpi, Menu, Prog, TONE, type Col, type MenuItem,
 } from '../../kit'
+import { isAhead, isOverdue } from '../../data/meetings'
+import { MeetingMenu, OutcomePrompt } from '../../shared/meetingUi'
 import { formatGoalValue, isMoneyMetric, MONEY_METRICS } from '../../shared/goalMetrics'
 import { completeFlow } from '../../shared/moves'
 import { PageHead } from '../../shared/PageHead'
@@ -20,7 +23,7 @@ const ENGAGED = ['Interested', 'Meeting Requested', 'More Information Requested'
 
 function CallRow({ t }: { t: Task }) {
   const c = Q.contact(t.contactId)
-  const last = c ? S.activities.filter(a => a.contactId === c.id && Q.actVisible(a) && a.id !== t.id).sort((a, b) => b.ts.localeCompare(a.ts))[0] : undefined
+  const last = c ? S.activities.filter(a => a.contactId === c.id && Q.actVisible(a) && a.id !== t.id && !isVoided(a)).sort((a, b) => b.ts.localeCompare(a.ts))[0] : undefined
   const li = safeHref(c?.linkedin)
   const items: MenuItem[] = [
     { label: 'Log outcome', icon: 'check', onClick: () => UI.open('callOutcome', { taskId: t.id }) },
@@ -87,7 +90,11 @@ export function MyDay() {
   const calls = due.filter(t => t.type === 'Call').sort((a, b) => a.due.localeCompare(b.due))
   const overdue = mine.filter(Q.overdue)
   const od = overdue.filter(t => t.type !== 'Call' && t.kind !== 'email').sort((a, b) => (PRIO[a.priority] ?? 3) - (PRIO[b.priority] ?? 3) || a.due.localeCompare(b.due))
-  const meets = S.meetings.filter(m => sc.includes(m.businessId) && m.status === 'upcoming' && (m.ownerId === me.id || me.super) && m.start >= today).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 6)
+  const myMeets = S.meetings.filter(m => sc.includes(m.businessId) && (m.ownerId === me.id || me.super))
+  // Upcoming means still ahead. A meeting whose start has passed but is still marked upcoming needs an outcome instead.
+  const ahead = myMeets.filter(m => isAhead(m, clock)).sort((a, b) => a.start.localeCompare(b.start))
+  const meets = ahead.slice(0, 6)
+  const missed = myMeets.filter(m => isOverdue(m, clock)).sort((a, b) => b.start.localeCompare(a.start))
   const recs = S.recs
     .filter(r => {
       if (r.status !== 'New' || !sc.includes(r.businessId)) return false
@@ -140,7 +147,7 @@ export function MyDay() {
         <Kpi label="Outstanding" value={mine.filter(t => !Q.done(t)).length} onClick={nav('open')} />
         <Kpi label="Overdue" value={overdue.length} tone={overdue.length ? 'bad2' : undefined} onClick={nav('overdue')} />
         <Kpi label="Emails to send" value={emails.length} tone={emails.length ? 'warn' : undefined} onClick={scrollToEmails} />
-        <Kpi label="Upcoming meetings" value={meets.length} onClick={() => UI.nav('activities', { q: { type: 'meeting_booked' } })} />
+        <Kpi label="Upcoming meetings" value={ahead.length} onClick={() => UI.nav('activities', { q: { type: 'meeting_booked' } })} />
       </div>
       <div className="split">
         <div className="col" style={{ gap: 14 }}>
@@ -190,11 +197,27 @@ export function MyDay() {
             </Card>
           )}
           <Card title="Meetings & preparation" icon="cal">
+            {missed.length > 0 && (
+              <div className="col" style={{ gap: 10, marginBottom: meets.length ? 10 : 0 }} aria-label="Meetings that need an outcome" role="group">
+                {missed.map(m => (
+                  <div key={m.id} className="col" style={{ gap: 3, paddingBottom: 10, borderBottom: '1px solid var(--line)' }}>
+                    <div className="row">
+                      <BizDot b={m.businessId} /><b className="sm trunc">{m.title}</b>
+                      <Chip tone="warn" icon="alert">Outcome needed</Chip>
+                      <span className="sp" />
+                      <MeetingMenu m={m} />
+                    </div>
+                    <div className="faint xs">Was {F.rel(m.start)} · {F.dt(m.start)} · {m.type}</div>
+                    <OutcomePrompt m={m} />
+                  </div>
+                ))}
+              </div>
+            )}
             {meets.length ? (
               <div className="col" style={{ gap: 10 }}>
                 {meets.map(m => (
                   <div key={m.id} className="col" style={{ gap: 3, paddingBottom: 10, borderBottom: '1px solid var(--line)' }}>
-                    <div className="row"><BizDot b={m.businessId} /><b className="sm trunc">{m.title}</b></div>
+                    <div className="row"><BizDot b={m.businessId} /><b className="sm trunc">{m.title}</b><span className="sp" /><MeetingMenu m={m} /></div>
                     <div className="faint xs">{F.rel(m.start)} · {F.time(m.start)} · {m.duration} min · {m.type}</div>
                     <div className="row" style={{ gap: 4, marginTop: 4 }}>
                       <Btn size="xs" icon="spark" onClick={() => UI.open('meetingBrief', { id: m.id })}>Briefing</Btn>
@@ -203,7 +226,7 @@ export function MyDay() {
                   </div>
                 ))}
               </div>
-            ) : <Empty icon="cal" title="No upcoming meetings" />}
+            ) : !missed.length && <Empty icon="cal" title="No upcoming meetings" />}
           </Card>
           <Card title="Recently engaged" icon="zap">
             {engaged.length || clicks.length ? (

@@ -5,6 +5,7 @@ import { accountTab, defaultProduct, isRosterioTab, wonCustomers, type RosterioT
 import { useRosterioAccounts } from '../../data/rosterio'
 import { Btn, Empty, Seg } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
+import { openArdorioReport } from '../../shared/reportLinks'
 import { UI, type Route } from '../../ui/store'
 import { RosterioCustomers } from '../rosterio/RosterioCustomers'
 import { ArdorioCustomers } from './ArdorioCustomers'
@@ -53,7 +54,7 @@ export function Customers({ route }: { route: Route }) {
   return (
     <div className="page">
       <PageHead title="Customers" sub={sub}>
-        {product === 'ard' && Q.canBill() && <Btn onClick={() => UI.nav('reports', { q: { tab: 'ardorio' } })}>Ardorio revenue report</Btn>}
+        {product === 'ard' && Q.canBill() && <Btn onClick={() => openArdorioReport()}>Ardorio revenue report</Btn>}
       </PageHead>
       <div className="row wrap" style={{ marginBottom: 16, gap: 12 }}>
         <Seg value={product} onChange={choose} opts={mine.map(b => [b, `${Q.biz(b)?.name ?? b}${count(b) === undefined ? '' : ` ${count(b)}`}`] as const)} />

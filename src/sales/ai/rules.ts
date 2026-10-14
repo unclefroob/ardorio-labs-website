@@ -1,5 +1,6 @@
 import { F } from '../data/F'
 import { stableId } from '../data/ids'
+import { isAhead } from '../data/meetings'
 import { Q } from '../data/Q'
 import { S } from '../data/store'
 import type { BusinessId, Company, Deal, Rec, Research } from '../data/types'
@@ -121,7 +122,7 @@ export function refreshRecs(scope: readonly BusinessId[]): void {
   }
 
   for (const m of S.meetings) {
-    if (m.status !== 'upcoming' || m.start < clock || F.days(clock, m.start) > 3) continue
+    if (!isAhead(m, clock) || F.days(clock, m.start) > 3) continue
     add({
       key: `prep:${m.id}`, businessId: m.businessId, type: 'Meeting prep', title: `Prepare for ${m.title}`,
       explain: `Meeting ${F.rel(m.start)}. A pre-meeting briefing is available.`, evidence: `${(m.participants || []).length} participant(s) · ${m.type}`,

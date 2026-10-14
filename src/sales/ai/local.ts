@@ -2,6 +2,7 @@ import { F } from '../data/F'
 import { uid } from '../data/ids'
 import { Q } from '../data/Q'
 import { S } from '../data/store'
+import { isVoided } from '../data/voided'
 import type {
   Activity, BusinessId, Company, Contact, Deal, Meeting, Research, Thread, ThreadClassification,
 } from '../data/types'
@@ -265,7 +266,7 @@ export function meetingBrief(m: Meeting): MeetingBrief {
   return {
     people: ps.map(p => ({
       id: p.id, name: p.name, title: p.title, role: p.buyingRole,
-      last: S.activities.filter(a => a.contactId === p.id).sort((a, b) => b.ts.localeCompare(a.ts))[0],
+      last: S.activities.filter(a => a.contactId === p.id && !isVoided(a)).sort((a, b) => b.ts.localeCompare(a.ts))[0],
     })),
     deal: d, recent, lastMeeting,
     questions: ins ? ins.recs.slice(0, 3).concat(ins.missing.slice(0, 2).map(x => `Confirm: ${x.toLowerCase()}`)) : ['Understand current process', 'Confirm decision-makers'],
@@ -394,7 +395,7 @@ export function copilot(q: string, ctx?: CopilotContext): CopilotResult {
   if (/school|university|pathiq/.test(ql) && /(interest|replied|engag)/.test(ql)) {
     if (!Q.member('pth')) return R("You don't have access to PathIQ records.")
     const ths = S.threads.filter(t => t.businessId === 'pth' && ['Interested', 'Meeting Requested', 'More Information Requested'].includes(t.classification?.cat ?? ''))
-    const out = ths.filter(t => !S.activities.some(a => a.contactId === t.contactId && a.type === 'meeting_booked' && a.ts >= t.updatedAt.slice(0, 10)) && !S.meetings.some(m => m.companyId === t.companyId && m.status === 'upcoming'))
+    const out = ths.filter(t => !S.activities.some(a => a.contactId === t.contactId && a.type === 'meeting_booked' && !isVoided(a) && a.ts >= t.updatedAt.slice(0, 10)) && !S.meetings.some(m => m.companyId === t.companyId && m.status === 'upcoming'))
     return R(
       out.length ? `${out.length} PathIQ organisation${out.length > 1 ? 's have' : ' has'} shown interest without a meeting booked:` : 'All interested PathIQ organisations already have a meeting booked.',
       out.map(t => ({ kind: 'contact', id: t.contactId, line: `${Q.contact(t.contactId)?.name ?? ''} · ${Q.company(t.companyId)?.name ?? ''}`, meta: `${t.classification?.cat ?? ''} · ${F.rel(t.updatedAt)}`, tone: 'ok' })),

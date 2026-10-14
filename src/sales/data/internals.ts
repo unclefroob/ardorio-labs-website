@@ -9,7 +9,7 @@ import type {
 
 export type ActInput = Partial<Activity> & { type: string; businessId: BusinessId }
 
-const CONTACT_TOUCH = ['email_out', 'call', 'meeting', 'linkedin_msg', 'email_in']
+export const CONTACT_TOUCH = ['email_out', 'call', 'meeting', 'linkedin_msg', 'email_in']
 
 /** Append an activity and roll it into the relationship / deal "last activity" fields. */
 export function act(o: ActInput): Activity {

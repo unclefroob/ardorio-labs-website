@@ -1,15 +1,59 @@
 import { useState } from 'react'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { isAhead, isOverdue } from '../../data/meetings'
 import { isSimAct } from '../../data/simulated'
+import { canVoidActivity, voidedLine } from '../../data/voidRules'
+import { isVoided } from '../../data/voided'
 import { S, useStore } from '../../data/store'
 import type { Activity } from '../../data/types'
 import { AIC, BizDot, Btn, Card, Chip, DataTable, DlLink, Empty, FilterBar, Fld, Icon, Inp, Owner, SearchInp, Sel, SimChip, download, toCSV, type Col } from '../../kit'
+import { MeetingHistory, MeetingMenu, MeetingStatusChip, OutcomePrompt } from '../../shared/meetingUi'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
+import { LinkBtn } from '../deals/LinkBtn'
 import { includesCI, str } from './parts/util'
 
 const typeLabel = (t: string): string => AIC[t]?.[1] ?? t
+const MEETING_TYPES = ['meeting_booked', 'meeting']
+
+/**
+ * Shown above the log when it is filtered to meetings (the Upcoming meetings KPI lands here): the meetings that need an
+ * outcome, then the ones still ahead, each with its lifecycle actions.
+ */
+function MeetingsCard({ bz }: { bz: string }) {
+  const clock = F.nowIso()
+  const sc = Q.scope()
+  const inScope = S.meetings.filter(m => sc.includes(m.businessId) && (!bz || m.businessId === bz))
+  const missed = inScope.filter(m => isOverdue(m, clock)).sort((a, b) => b.start.localeCompare(a.start))
+  const ahead = inScope.filter(m => isAhead(m, clock)).sort((a, b) => a.start.localeCompare(b.start))
+  const rows = [...missed, ...ahead].slice(0, 12)
+  return (
+    <Card title={`Meetings (${ahead.length} upcoming${missed.length ? `, ${missed.length} need an outcome` : ''})`} icon="cal" style={{ marginBottom: 14 }}>
+      {rows.length ? (
+        <div className="col" style={{ gap: 8 }}>
+          {rows.map(m => (
+            <div key={m.id} className="col" style={{ gap: 2, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
+              <div className="row" style={{ gap: 6 }}>
+                <BizDot b={m.businessId} />
+                <LinkBtn className="b sm trunc" style={{ minWidth: 0 }} onClick={() => UI.open(m.status === 'upcoming' ? 'meetingBrief' : 'logMeeting', { id: m.id })}>{m.title}</LinkBtn>
+                <MeetingStatusChip m={m} clock={clock} />
+                <span className="sp" />
+                <span className="faint xs num">{F.dt(m.start)}</span>
+                <MeetingMenu m={m} />
+              </div>
+              <div className="faint xs">{Q.company(m.companyId)?.name ?? 'No company'} · {m.type}{m.ownerId ? ' · ' + (Q.user(m.ownerId)?.name ?? '') : ''}</div>
+              <MeetingHistory m={m} />
+              {isOverdue(m, clock) && <OutcomePrompt m={m} />}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Empty icon="cal" title="No upcoming meetings" body="Meetings booked from a call or logged as upcoming appear here until they happen." />
+      )}
+    </Card>
+  )
+}
 
 export function Activities({ route }: { route: Route }) {
   useStore()
@@ -28,6 +72,8 @@ export function Activities({ route }: { route: Route }) {
       (!q || (Q.actVisible(a) && includesCI(a.subject + ' ' + (a.desc ?? ''), q)) || includesCI(Q.company(a.companyId)?.name, q)),
     )
     .sort((a, b) => b.ts.localeCompare(a.ts))
+  const counted = rows.filter(a => !isVoided(a)).length
+  const voidedN = rows.length - counted
   const filtered = !!(ty || u || bz || from || q)
   const clear = (): void => { setTy(''); setU(''); setBz(''); setFrom(''); setQ('') }
 
@@ -46,8 +92,9 @@ export function Activities({ route }: { route: Route }) {
         return (
           <span className="row">
             <Icon n={ic} s={13} style={{ color: 'var(--fg3)' }} />
-            <span className="trunc" style={{ maxWidth: 340 }}>{Q.actVisible(a) ? a.subject : <><Icon n="lock" s={11} /> Private email: content restricted</>}</span>
+            <span className={'trunc' + (isVoided(a) ? ' strike' : '')} style={{ maxWidth: 340 }}>{Q.actVisible(a) ? a.subject : <><Icon n="lock" s={11} /> Private email: content restricted</>}</span>
             {isSimAct(a) && <SimChip />}
+            {isVoided(a) && <Chip icon="x" title={voidedLine(a)}>Logged in error</Chip>}
           </span>
         )
       },
@@ -60,21 +107,39 @@ export function Activities({ route }: { route: Route }) {
     { k: 'b', l: 'Business', r: a => <BizDot b={a.businessId} />, sort: a => a.businessId },
     { k: 'd', l: 'Deal', nosort: true, r: a => (a.dealId ? <DlLink id={a.dealId} /> : '—') },
     { k: 'outcome', l: 'Outcome', r: a => (a.outcome ? <Chip>{a.outcome}</Chip> : '—') },
+    {
+      k: 'void', l: 'Correction', nosort: true,
+      r: a => isVoided(a)
+        ? <span className="faint xs">{voidedLine(a)}</span>
+        : canVoidActivity(a)
+          ? (
+            <Btn
+              size="xs" kind="ghost" aria-label={`Mark ${Q.actVisible(a) ? `“${a.subject ?? ''}”` : 'this activity'} as logged in error`}
+              onKeyDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); UI.open('voidActivity', { id: a.id }) }}
+            >
+              Logged in error
+            </Btn>
+          )
+          : '',
+    },
   ]
 
   const exportCsv = (): void =>
-    download('activities.csv', toCSV([['Date', 'Type', 'User', 'Business', 'Company', 'Contact', 'Subject', 'Outcome']].concat(
-      rows.map(a => [a.ts, typeLabel(a.type), Q.user(a.actorId)?.name ?? '', Q.biz(a.businessId)?.name ?? '', Q.company(a.companyId)?.name ?? '', Q.contact(a.contactId)?.name ?? '', Q.actVisible(a) ? (a.subject ?? '') : 'Private email', a.outcome ?? ''])),
+    download('activities.csv', toCSV([['Date', 'Type', 'User', 'Business', 'Company', 'Contact', 'Subject', 'Outcome', 'Logged in error']].concat(
+      rows.map(a => [a.ts, typeLabel(a.type), Q.user(a.actorId)?.name ?? '', Q.biz(a.businessId)?.name ?? '', Q.company(a.companyId)?.name ?? '', Q.contact(a.contactId)?.name ?? '', Q.actVisible(a) ? (a.subject ?? '') : 'Private email', a.outcome ?? '', isVoided(a) ? (a.voidReason ?? 'Yes') : ''])),
     ))
 
   return (
     <div className="page" style={{ maxWidth: 'none' }}>
-      <PageHead title="Activities" sub={`${rows.length} interaction${rows.length === 1 ? '' : 's'} · one central activity log shown on every related record`}>
+      <PageHead title="Activities" sub={`${counted} interaction${counted === 1 ? '' : 's'}${voidedN ? ` (${voidedN} logged in error, not counted)` : ''} · one central activity log shown on every related record`}>
         <Btn icon="download" disabled={!rows.length} onClick={exportCsv}>Export</Btn>
       </PageHead>
       {all.length === 0 ? (
         <Card><Empty icon="activity" title="No activity yet" body="Calls, emails, meetings, notes and stage changes are recorded here as your team works." /></Card>
       ) : (
+        <>
+        {MEETING_TYPES.includes(ty) && <MeetingsCard bz={bz} />}
         <div className="card">
           <FilterBar>
             <SearchInp value={q} onChange={setQ} placeholder="Search activity" />
@@ -89,6 +154,7 @@ export function Activities({ route }: { route: Route }) {
             empty={<Empty icon="activity" title="No activity for these filters" body="Nothing matches the filters you have set." action={<Btn onClick={clear}>Clear filters</Btn>} />}
           />
         </div>
+        </>
       )}
     </div>
   )

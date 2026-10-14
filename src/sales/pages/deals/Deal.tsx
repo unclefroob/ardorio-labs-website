@@ -7,6 +7,10 @@ import type { Deal as DealRec, Thread } from '../../data/types'
 import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Icon, Kpi, Menu, Owner, Tabs, TONE } from '../../kit'
 import { DealFieldInput } from '../../shared/forms'
 import { tryMove } from '../../shared/moves'
+import { askReopen } from '../../shared/reopen'
+import { standingActs } from '../../data/voided'
+import { isOverdue } from '../../data/meetings'
+import { MeetingHistory, MeetingMenu, MeetingStatusChip, OutcomePrompt } from '../../shared/meetingUi'
 import { askArchive } from '../../shared/archiveActions'
 import { ArchivedState } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
@@ -99,6 +103,7 @@ export function Deal({ route }: { route: Route }) {
   const tasks = Q.tasks().filter(t => t.dealId === d.id)
   const ths = Q.threads().filter(t => t.dealId === d.id || (t.companyId === d.companyId && t.businessId === d.businessId && !t.dealId))
   const meets = S.meetings.filter(m => m.dealId === d.id)
+  const clock = F.nowIso()
   const nt = Q.nextTask(d)
   const fields: Fields = ef ?? d.fields
   const setFld = (k: string, v: unknown): void => setEf({ ...fields, [k]: v })
@@ -124,7 +129,7 @@ export function Deal({ route }: { route: Route }) {
           </>
         )}
         {can && d.status !== 'open' && (
-          <Btn icon="refresh" onClick={() => { Act.reopenDeal(d.id); UI.toast('Deal reopened') }}>Reopen</Btn>
+          <Btn icon="refresh" onClick={() => askReopen(d.id)}>Reopen</Btn>
         )}
         {Q.canAdmin(d.businessId) && (
           <Menu
@@ -201,7 +206,7 @@ export function Deal({ route }: { route: Route }) {
         tabs={[
           ['overview', 'Overview'],
           ['people', 'Stakeholders', d.contactIds.length],
-          ['activity', 'Activity', acts.length],
+          ['activity', 'Activity', standingActs(acts).length],
           ['tasks', 'Tasks', tasks.filter(t => !Q.done(t)).length],
           ['notes', 'Notes', (d.notes || []).length],
           ['emails', 'Emails', ths.length],
@@ -289,8 +294,14 @@ export function Deal({ route }: { route: Route }) {
               <Card title="Meetings">
                 {meets.map(m => (
                   <div key={m.id} className="sm" style={{ padding: '4px 0' }}>
-                    <LinkBtn onClick={() => UI.open(m.status === 'upcoming' ? 'meetingBrief' : 'logMeeting', { id: m.id })}>{m.title}</LinkBtn>
-                    <div className="faint xs">{F.dt(m.start)} · {m.status}</div>
+                    <div className="row" style={{ gap: 6 }}>
+                      <LinkBtn className="trunc" style={{ minWidth: 0, flex: 1 }} onClick={() => UI.open(m.status === 'upcoming' ? 'meetingBrief' : 'logMeeting', { id: m.id })}>{m.title}</LinkBtn>
+                      <MeetingStatusChip m={m} clock={clock} />
+                      <MeetingMenu m={m} />
+                    </div>
+                    <div className="faint xs">{F.dt(m.start)}</div>
+                    <MeetingHistory m={m} />
+                    {isOverdue(m, clock) && <OutcomePrompt m={m} />}
                   </div>
                 ))}
               </Card>

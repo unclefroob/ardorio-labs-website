@@ -3,6 +3,7 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { countableActs } from '../../data/archive'
+import { isAhead } from '../../data/meetings'
 import { S } from '../../data/store'
 import type { BusinessId, Deal, SalesUser } from '../../data/types'
 import { Bars, BizDot, Btn, Card, Chip, DataTable, Empty, Funnel, Kpi, Legend, LINE_DASH, Line, Owner, Sel, Seg, type Col } from '../../kit'
@@ -22,7 +23,9 @@ type KpiDef = readonly [label: string, value: string | number, onClick: () => vo
 
 function BizKpis({ b, open }: { b: BusinessId; open: Deal[] }) {
   const st = (id: string): Deal[] => open.filter(d => d.stageId === `${b}_${id}`)
-  const mt = S.meetings.filter(m => m.businessId === b && m.status === 'upcoming')
+  const clock = F.nowIso()
+  // Upcoming means still ahead: past, cancelled and no-show meetings never count here.
+  const mt = S.meetings.filter(m => m.businessId === b && isAhead(m, clock))
   const list = (): void => go('deals', { view: 'list' })
   const board = (stage: string) => (): void => go('deals', { stage, view: 'board' })
   let k: KpiDef[] = []

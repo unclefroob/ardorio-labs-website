@@ -1,5 +1,6 @@
 import { useState, type FC } from 'react'
 import type { Activity } from '../../../data/types'
+import { standingActs } from '../../../data/voided'
 import { Empty, Timeline } from '../../../kit'
 
 export interface ActFilterProps { items: Activity[] }
@@ -19,7 +20,9 @@ const GROUPS: ReadonlyArray<readonly [key: string, label: string, types: readonl
 
 export const ActFilter: FC<ActFilterProps> = ({ items }) => {
   const [f, setF] = useState('all')
-  const count = (types: readonly string[] | null): number => (types ? items.filter(a => types.includes(a.type)).length : items.length)
+  // Totals leave out activity logged in error; the rows still show it, struck through.
+  const standing = standingActs(items)
+  const count = (types: readonly string[] | null): number => (types ? standing.filter(a => types.includes(a.type)).length : standing.length)
   const active = GROUPS.find(g => g[0] === f)?.[2] ?? null
   const rows = active ? items.filter(a => active.includes(a.type)) : items
   return (
