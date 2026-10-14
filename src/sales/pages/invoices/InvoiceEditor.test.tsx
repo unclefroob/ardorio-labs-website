@@ -320,6 +320,89 @@ describe('sent invoice', () => {
   })
 })
 
+describe('sent invoice: the card payment link', () => {
+  const auto = dto({ id: 'i1', offerCardPayment: true, paymentLinkUrl: 'https://buy.stripe.com/auto', paymentLinkIsAutomatic: true })
+  const manual = dto({ id: 'i1', offerCardPayment: false, paymentLinkUrl: 'https://pay.example/manual', paymentLinkIsAutomatic: false })
+  const putBody = (api: { calls: { method: string; path: string; body: unknown }[] }): Record<string, unknown> =>
+    api.calls.find(c => `${c.method} ${c.path}` === PUT1)?.body as Record<string, unknown>
+  const notes = (): Element | null => host.querySelector('textarea')
+
+  it('Save changes on an invoice with an automatic link does not send the link, so it stays automatic', async () => {
+    const api = await show({ [GET1]: () => json(200, auto), [PUT1]: () => json(200, { ...auto, notes: 'Thanks' }) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await type(notes(), 'Thanks')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    const body = putBody(api)
+    expect(body).toMatchObject({ notes: 'Thanks' })
+    expect(body).not.toHaveProperty('paymentLinkUrl')
+  })
+
+  it('Reissue with a new total does not send the link, so the API switches the old one off and issue makes a new one', async () => {
+    const api = await show({
+      [GET1]: () => json(200, auto),
+      [PUT1]: () => json(200, { ...auto, paymentLinkUrl: '', paymentLinkIsAutomatic: false }),
+      [ISSUE1]: () => json(200, { ...auto, paymentLinkUrl: 'https://buy.stripe.com/new', issuedCount: 2 }),
+    }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await fill('Unit price line 1', '20000')
+    await click(button(host, 'Reissue'))
+    await click(modalBtn('Reissue'))
+    await settle(8)
+    expect(api.calls.map(c => `${c.method} ${c.path}`).filter(k => k === PUT1 || k === ISSUE1)).toEqual([PUT1, ISSUE1])
+    const body = putBody(api)
+    expect(body).toMatchObject({ lineItems: [{ unitPriceCents: 2000000 }] })
+    expect(body).not.toHaveProperty('paymentLinkUrl')
+    expect(text()).not.toContain('payment link was')
+  })
+
+  it('Save changes with a new total says the automatic link was switched off, not that a pasted one was cleared', async () => {
+    await show({ [GET1]: () => json(200, auto), [PUT1]: () => json(200, { ...auto, paymentLinkUrl: '', paymentLinkIsAutomatic: false }) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await fill('Unit price line 1', '20000')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    expect(text()).toContain('The total changed, so the card payment link was switched off.')
+    expect(text()).not.toContain('pasted payment link')
+  })
+
+  it('a pasted link left as it is is not sent either', async () => {
+    const api = await show({ [GET1]: () => json(200, manual), [PUT1]: () => json(200, manual) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await type(notes(), 'Thanks')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    expect(putBody(api)).not.toHaveProperty('paymentLinkUrl')
+  })
+
+  it('editing the link field sends it, trimmed', async () => {
+    const api = await show({ [GET1]: () => json(200, auto), [PUT1]: () => json(200, { ...auto, paymentLinkUrl: 'https://pay.example/new', paymentLinkIsAutomatic: false }) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await type(host.querySelector('input[type="url"]'), ' https://pay.example/new ')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    expect(putBody(api)).toMatchObject({ paymentLinkUrl: 'https://pay.example/new' })
+  })
+
+  it('clearing the link field sends an empty link', async () => {
+    const api = await show({ [GET1]: () => json(200, manual), [PUT1]: () => json(200, { ...manual, paymentLinkUrl: '' }) }, { page: 'invoice', id: 'i1' })
+    await click(button(host, 'Edit and reissue'))
+    await type(host.querySelector('input[type="url"]'), '')
+    await click(button(host, 'Save changes'))
+    await settle(6)
+    expect(putBody(api)).toMatchObject({ paymentLinkUrl: '' })
+  })
+
+  it('a draft still sends its link as before', async () => {
+    const draft = dto({ id: 'i1', status: 'draft', sentAt: null, issuedCount: 0, paymentLinkUrl: 'https://pay.example/manual' })
+    const api = await show({ [GET1]: () => json(200, draft), [PUT1]: () => json(200, draft) }, { page: 'invoice', id: 'i1' })
+    await type(notes(), 'Thanks')
+    await click(button(host, 'Save draft'))
+    await settle(6)
+    expect(putBody(api)).toMatchObject({ paymentLinkUrl: 'https://pay.example/manual' })
+  })
+})
+
 describe('paid invoice', () => {
   it('is read-only with only Download PDF, and shows how and when it was paid', async () => {
     const paid = dto({ id: 'i1', status: 'paid', payment: { method: 'bank-transfer', paidAt: '2026-10-06', amountCents: 1056000, reference: 'QSR 0610 PAYMENT' } })

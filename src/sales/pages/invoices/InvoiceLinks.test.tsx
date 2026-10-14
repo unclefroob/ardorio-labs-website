@@ -337,7 +337,9 @@ describe('an issued invoice that has a company', () => {
     await type(host.querySelector('[aria-label="Unit price line 1"]'), '6000')
     await click(button(host, 'Save changes'))
     await settle(8)
-    expect(putBody(api)).toMatchObject({ companyId: 'co1', paymentLinkUrl: 'https://buy.stripe.com/auto', lineItems: [{ unitPriceCents: 600000 }] })
+    expect(putBody(api)).toMatchObject({ companyId: 'co1', lineItems: [{ unitPriceCents: 600000 }] })
+    // The unchanged automatic card link is left out, so the API keeps it automatic (and switches it off for the new total).
+    expect(putBody(api)).not.toHaveProperty('paymentLinkUrl')
     expect(api.count(LINKS1)).toBe(0)
     expect(api.count(ISSUE1)).toBe(0)
   })
