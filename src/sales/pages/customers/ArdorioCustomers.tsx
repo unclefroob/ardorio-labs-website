@@ -11,6 +11,8 @@ import {
 import { fmtDay, withoutTest } from '../../shared/invoices'
 import { EXTERNAL_CHIP, invoiceRef } from '../../shared/externalInvoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
+import { notCommittedLabel, renewalDue, termLine, termStateText } from '../../shared/termMoney'
+import { F } from '../../data/F'
 import { UI } from '../../ui/store'
 import { ExternalChip, StatusChip } from '../invoices/parts'
 
@@ -73,7 +75,7 @@ export function ArdorioCustomers() {
   }
   if (!list.data) return <Skel rows={5} />
 
-  const all = ardorioByDeal(S.deals, S.companies, S.billingPlans, list.data)
+  const all = ardorioByDeal(S.deals, S.companies, S.billingPlans, list.data, F.today())
   const rows = sortArdorio(all.companies, sort[0], sort[1])
   const t = all.tiles
   const dealCount = all.companies.reduce((a, r) => a + r.deals.length, 0)
@@ -115,6 +117,11 @@ export function ArdorioCustomers() {
               : <span style={{ width: 28, display: 'inline-block' }} aria-hidden="true" />}
             <b><CoLink id={r.companyId} /></b>
             <span className="sm muted">{n === 0 ? 'No won deal' : `${n} deal${n === 1 ? '' : 's'}`}</span>
+            {r.terms[0]?.term && (
+              <Chip tone={renewalDue(r.terms[0].term.summary) ? 'warn' : ''} icon="clock" title={termLine(r.terms[0].term.summary)}>
+                {r.terms.length === 1 ? 'Term agreement' : `${r.terms.length} term agreements`}, {r.terms.length === 1 ? '' : 'next '}{termStateText(r.terms[0].term.summary)}
+              </Chip>
+            )}
           </span>
           {refs.length > 0 && (
             <span className="row wrap" style={{ gap: 6, marginTop: 2, paddingLeft: 34 }}>
@@ -126,6 +133,7 @@ export function ArdorioCustomers() {
         <td className="money b" style={{ textAlign: 'right' }}>
           {fmt(r.contractedCents)}
           {r.estimateOnlyCents > 0 && <div className="sm muted">+ {fmt(r.estimateOnlyCents)} estimate</div>}
+          {r.notCommittedCents > 0 && <div className="sm muted" data-not-committed>of which {fmt(r.notCommittedCents)} not yet committed</div>}
         </td>
         <td className="money" style={{ textAlign: 'right' }}>{fmt(r.earnedCents)}</td>
         <td className="money" style={{ textAlign: 'right' }}>
@@ -149,6 +157,8 @@ export function ArdorioCustomers() {
   const dealRows = (r: ArdorioDealRow): ReactNode => {
     const m = r.money
     const dni = r.deliveredNotInvoiced.reduce((a, x) => a + x.amountCents, 0)
+    const term = r.term
+    const due = term ? term.dueNotInvoiced.reduce((a, x) => a + x.amountCents, 0) : 0
     const complete = m.contracted !== null && m.contracted > 0 && m.collected >= m.contracted && m.outstanding === 0
     return (
       <Fragment key={r.deal.id}>
@@ -157,12 +167,20 @@ export function ArdorioCustomers() {
             <span className="row wrap" style={{ gap: 6 }}>
               <Link to="deal" id={r.deal.id} q={{ tab: 'billing' }}>{dealName(r)}</Link>
               {dni > 0 && <Chip tone="acc">Delivered, not invoiced {fmt(dni)}</Chip>}
+              {due > 0 && <Chip tone="acc" icon="alert">Instalment due, not invoiced {fmt(due)}</Chip>}
+              {term && renewalDue(term.summary) && <Chip tone="warn" icon="clock">Renewal: {termStateText(term.summary)}</Chip>}
               {complete && <Chip tone="ok">Complete</Chip>}
             </span>
             <div className="sm muted">{r.engagement ? ENGAGEMENT_LABEL[r.engagement] : 'No contract yet'}</div>
+            {term && <div className="sm muted" data-term>{termLine(term.summary)}</div>}
           </td>
           <td className="money" style={{ textAlign: 'right' }}>
-            {m.contracted !== null ? fmt(m.contracted) : (
+            {m.contracted !== null ? (
+              <>
+                {fmt(m.contracted)}
+                {term && term.notCommittedCents > 0 && term.breakAt && <div className="sm muted" data-not-committed>{notCommittedLabel(term.breakAt)}: {fmt(term.notCommittedCents)}</div>}
+              </>
+            ) : (
               <>
                 <span><Chip>Estimate</Chip> {fmt(m.estimate)}</span>
                 <div className="sm"><Link to="deal" id={r.deal.id} q={{ tab: 'billing' }}>Add contract</Link></div>
@@ -254,7 +272,10 @@ export function ArdorioCustomers() {
   return (
     <>
       <div className="grid g5" style={{ marginBottom: 14 }}>
-        <div className="kpi" style={{ cursor: 'default' }}><span className="l">Contracted</span><span className="v num">{formatCentsTile(t.contractedCents)}</span></div>
+        <div className="kpi" style={{ cursor: 'default' }}>
+          <span className="l">Contracted</span><span className="v num">{formatCentsTile(t.contractedCents)}</span>
+          {t.notCommittedCents > 0 && <span className="s">of which {formatCentsTile(t.notCommittedCents)} not yet committed (break agreements)</span>}
+        </div>
         <div className="kpi" style={{ cursor: 'default' }}><span className="l">Earned</span><span className="v num">{formatCentsTile(t.earnedCents)}</span></div>
         <div className="kpi" style={{ cursor: 'default' }}><span className="l">Invoiced</span><span className="v num">{formatCentsTile(t.invoicedCents)}</span></div>
         <div className="kpi" style={{ cursor: 'default' }}><span className="l">Collected</span><span className="v num">{formatCentsTile(t.collectedCents)}</span></div>
@@ -323,7 +344,7 @@ export function ArdorioCustomers() {
         <Card pad={false}><DataTable cols={unCols} rows={all.unlinked} page={50} empty={<Empty icon="check" title="Every invoice is linked to a deal" body="Invoices in no deal's figures appear here: no deal or no company, an archived or unknown company, or a deal that is not won. They are counted apart from the project figures." />} /></Card>
       )}
       <div className="faint sm" style={{ marginTop: 10 }}>
-        Contracted = baseline plus approved variations. Earned counts delivered milestones. Invoiced, Collected and Outstanding are project invoices, as on the deal page, and a company&apos;s are the sum of its deals; retainer invoices and invoices not on a won deal are shown apart, labelled. Drafts, cancelled and test invoices are left out; invoices recorded externally count. Ex GST, as recorded in SalesOS; Xero is the books.
+        Contracted = baseline plus approved variations; for a term agreement with a break, the instalments after the next anniversary are not yet committed. Earned counts delivered milestones and invoiced term instalments. Invoiced, Collected and Outstanding are project invoices, as on the deal page, and a company&apos;s are the sum of its deals; retainer invoices and invoices not on a won deal are shown apart, labelled. Drafts, cancelled and test invoices are left out; invoices recorded externally count. Ex GST, as recorded in SalesOS; Xero is the books.
       </div>
       {t.noCustomer.invoiced > 0 && <Banner tone="warn">{formatCentsTile(t.noCustomer.invoiced)} of issued invoices is on no customer: no company, or an archived or unknown one. See Unlinked invoices.</Banner>}
     </>

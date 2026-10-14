@@ -4,6 +4,9 @@ import type { Deal } from '../../data/types'
 import { Banner, Btn, Card, Chip, Skel } from '../../kit'
 import { bulletPct, bulletScale, estimateChanged, moneyForDeal, overdueProjectCents, quotedCents, type DealMoney } from '../../shared/billing'
 import { formatCents } from '../../shared/money'
+import { termCommitment } from '../../shared/termMoney'
+import { fmtDay } from '../../shared/invoices'
+import { F } from '../../data/F'
 import { UI } from '../../ui/store'
 
 const fmt = formatCents
@@ -92,6 +95,8 @@ export function ProjectMoney({ deal, plan, invoices, loading }: { deal: Deal; pl
   const m = moneyForDeal(deal, plan, invoices)
   const t = moneyTarget(deal, m)
   const overdue = overdueProjectCents(deal.id, plan, invoices)
+  // A break agreement: what the client may still break before is shown under Contracted, which stays the denominator.
+  const commit = m.contracted !== null ? termCommitment(plan, m.contracted, invoices, F.today()) : null
   const scale = bulletScale([t.cents, m.earned, m.invoiced, m.collected])
   const over = contract ? m.invoiced > t.cents : false
   const bars = [
@@ -126,7 +131,7 @@ export function ProjectMoney({ deal, plan, invoices, loading }: { deal: Deal; pl
             </div>
           </div>
           <div className="money-figs" style={{ flex: '1 1 280px' }} aria-label="Project money figures" role="group">
-            <Fig label={contract ? 'Contracted' : 'Estimate (no contract)'} v={t.cents} />
+            <Fig label={contract ? 'Contracted' : 'Estimate (no contract)'} v={t.cents} sub={commit && commit.breakAt ? `${formatCents(commit.committed)} committed; ${formatCents(commit.notCommitted)} not yet committed, break at ${fmtDay(commit.breakAt)}` : undefined} />
             <Fig label="Earned" v={m.earned} />
             <Fig label="Invoiced" v={m.invoiced} />
             <Fig label="Collected" v={m.collected} />
