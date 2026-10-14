@@ -7,6 +7,7 @@ import { Btn, Fld, Inp, Sel, TA } from '../../kit/basic'
 import { Modal } from '../../kit/overlay'
 import { BizSel, CoSel, DealFieldInput, MultiCt, OwnerSel, RosCalc, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
+import { PricingFields } from '../../pages/deals/PricingFields'
 import { NoEditModal } from './guards'
 import { PRIORITIES } from './options'
 
@@ -19,6 +20,7 @@ interface DealDraft {
   ownerId: string
   close: string
   value: string
+  contractMonths: string
   priority: string
   source: string
   description: string
@@ -47,7 +49,7 @@ export function NewDeal({ companyId, contactIds, businessId, title }: NewDealPro
 function NewDealForm({ b0, companyId, contactIds, title }: { b0: BusinessId; companyId?: string; contactIds?: string[]; title?: string }) {
   const [f, set] = useF<DealDraft>({
     businessId: b0, title: title ?? '', companyId: companyId ?? '', contactIds: contactIds ?? [], stageId: '', ownerId: Q.me().id,
-    close: F.addDays(F.nowIso(), 60).slice(0, 10), value: '', priority: 'Medium', source: 'Outbound', description: '', fields: {},
+    close: F.addDays(F.nowIso(), 60).slice(0, 10), value: '', contractMonths: '12', priority: 'Medium', source: 'Outbound', description: '', fields: {},
   })
   const [err, setErr] = useState<Errors>({})
   const pl = Q.pipeline(f.businessId)
@@ -100,6 +102,8 @@ function NewDealForm({ b0, companyId, contactIds, title }: { b0: BusinessId; com
             </Fld>
             {!pthVal && <Fld label="Annual contract value (A$)"><Inp value={f.value} onChange={v => set('value', v)} inputMode="numeric" /></Fld>}
           </>
+        ) : f.businessId === 'ard' ? (
+          <PricingFields state={{ value: f.value, months: f.contractMonths, fields: f.fields }} onChange={s => set({ value: s.value, contractMonths: s.months, fields: s.fields })} />
         ) : (
           <Fld label={f.businessId === 'adv' ? 'Annual subscription value (A$)' : 'Estimated project value (A$)'}>
             <Inp value={f.value} onChange={v => set('value', v.replace(/[^0-9]/g, ''))} inputMode="numeric" />

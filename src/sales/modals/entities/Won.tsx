@@ -12,9 +12,10 @@ import { RosterioWinPrompt } from '../../pages/deals/RosterioCard'
 import { WonBilling } from '../../pages/deals/WonBilling'
 import { MissingModal } from './guards'
 import { contractedCents, quotedCents, validateContract, validateContractAmount } from '../../shared/billing'
+import { priceTotals, pricingOf } from '../../shared/dealPricing'
 import { oneOffMilestones } from '../../shared/term'
 import { scheduleTotal } from '../../shared/termSchedule'
-import { checkTermDraft, newTermDraft } from '../../pages/deals/TermForm'
+import { checkTermDraft, newBuildRow, newTermDraft } from '../../pages/deals/TermForm'
 import { centsToInput, formatCents } from '../../shared/money'
 import { checkContract, ContractStep, newPlanRow, type ContractDraft } from './WonContract'
 import type { TermErrs } from '../../pages/deals/TermForm'
@@ -62,10 +63,23 @@ function WonForm({ d }: { d: Deal }) {
     setDone(true)
   }
 
+  // A deal priced as a rate and a term opens the Contract step as that term agreement; a one-off price opens it as a fixed price.
+  const priced = d.businessId === 'ard' ? pricingOf(d.fields) : null
+  const pricedContract = (): ContractDraft => {
+    const t = priced ? priceTotals(priced, d.contractMonths) : null
+    const total = centsToInput(Math.round(+f.value * 100))
+    if (!priced || !t || t.annual == null || d.contractMonths < 1) return { ...contract, amount: total }
+    const build = priced.oneOff > 0 ? [{ ...newBuildRow(), label: 'Build fee', amount: centsToInput(Math.round(priced.oneOff * 100)) }] : []
+    return {
+      ...contract, amount: total, engagementType: 'term-agreement',
+      term: { ...(contract.term ?? newTermDraft(f.close)), start: f.close, years: String(Math.floor(d.contractMonths / 12)), months: String(d.contractMonths % 12), annual: centsToInput(Math.round(t.annual * 100)), build },
+    }
+  }
+
   const toContract = (): void => {
     if (!(+f.value > 0)) return UI.toast('Enter the estimate', 'bad')
     // Prefilled from the estimate once; going Back and on again keeps what was typed.
-    if (!contract.amount) setContract({ ...contract, amount: centsToInput(Math.round(+f.value * 100)), term: contract.term && !contract.term.annual ? { ...contract.term, start: f.close } : contract.term })
+    if (!contract.amount) setContract(priced ? pricedContract() : { ...contract, amount: centsToInput(Math.round(+f.value * 100)), term: contract.term && !contract.term.annual ? { ...contract.term, start: f.close } : contract.term })
     setStep('contract')
   }
 
