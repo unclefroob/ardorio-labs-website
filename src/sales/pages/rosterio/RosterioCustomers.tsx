@@ -4,10 +4,20 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { createCompanyFor, dismissAccount, planLabel, rosterioLinkOf, standing, useDismissed, useRosterioAccounts, useRosterioLinks, type AccountStanding } from '../../data/rosterio'
 import { S, useStore } from '../../data/store'
-import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Inp, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
+import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Icon, Inp, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
 import { accountTab, isPriced, mrrOf, trialDaysLeft, type RosterioTab } from '../../shared/customers'
 import { matchAccounts, REASON_TEXT, type AccountMatch } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
+
+/** How long an account has been a customer: "New this month", "5 months", "1 yr 3 mo". */
+function tenure(createdAt: string): string {
+  const a = new Date(createdAt), n = new Date()
+  const months = (n.getFullYear() - a.getFullYear()) * 12 + n.getMonth() - a.getMonth() - (n.getDate() < a.getDate() ? 1 : 0)
+  if (months < 1) return 'New this month'
+  if (months < 12) return `${months} month${months === 1 ? '' : 's'}`
+  const y = Math.floor(months / 12), mo = months % 12
+  return `${y} yr${mo ? ` ${mo} mo` : ''}`
+}
 
 interface Row extends RosterioAccount { match: AccountMatch; st: AccountStanding; tab: Exclude<RosterioTab, 'needs'> }
 
@@ -124,43 +134,48 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   // The short cell for the Paid, Trials and Ended tabs: say whether it is linked, and offer the one click that links it.
   const crmShort = (r: Row) => {
     const m = r.match
-    if (m.kind === 'linked') return <div className="row"><Chip tone="ok" icon="check">Linked</Chip><CoLink id={m.company.id} /></div>
+    if (m.kind === 'linked') return <div className="row" style={{ gap: 6 }}><Icon n="check" s={13} style={{ color: 'var(--ok)' }} /><span className="sr-only">Linked to</span><CoLink id={m.company.id} /></div>
     return (
-      <div className="row">
-        <Chip tone="warn">Not linked</Chip>
-        <Btn size="xs" kind="ghost" disabled={!canEdit} title={needsEdit} onClick={() => link(r, suggestedId(r))}>Link</Btn>
-      </div>
+      <Btn size="sm" icon="link" disabled={!canEdit} title={needsEdit} aria-label={`Link ${r.name} to a CRM company`} onClick={() => link(r, suggestedId(r))}>Link company</Btn>
     )
   }
 
-  const account = (r: Row) => <b>{r.name}</b>
+  // The account, with its billing email underneath for the admins the server sends it to.
+  const account = (r: Row) => (
+    <div style={{ minWidth: 0 }}>
+      <b>{r.name}</b>
+      {showEmail && r.billingEmail && <div className="faint sm trunc" title={r.billingEmail}>{r.billingEmail}</div>}
+    </div>
+  )
   const planCell = (r: Row) => (r.plan ? <Chip tone={r.plan === 'starter' ? '' : 'acc'}>{planLabel(r.plan)}</Chip> : <span className="faint">—</span>)
   const usersCol: Col<Row> = { k: 'memberCount', l: 'Users', right: true, r: r => <span className="num">{r.memberCount}</span> }
-  const emailCol: Col<Row> = { k: 'billingEmail', l: <>Billing email <Chip style={{ marginLeft: 4 }}>admins only</Chip></>, hide: !showEmail, r: r => <span className="mono">{r.billingEmail ?? '—'}</span> }
   const revenueCol: Col<Row> = {
     k: 'revenue', l: 'Monthly revenue', right: true, desc: true, hide: !hasPrice,
     sort: r => (isPriced(r) ? r.monthlyCost : null),
     r: r => {
       if (!isPriced(r)) return <span className="faint" title="No price returned">—</span>
-      const seats = typeof r.billingQuantity === 'number' && r.billingQuantity > 0 ? `${r.billingQuantity} seat${r.billingQuantity === 1 ? '' : 's'}` : ''
+      // A custom contract is one flat price (its seat count is not meaningful), so say what it comes to per user instead.
+      const custom = r.pricingSource === 'custom'
+      const perUser = custom && r.memberCount > 0 ? `A$${(r.monthlyCost / r.memberCount).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per user` : ''
+      const seats = !custom && typeof r.billingQuantity === 'number' && r.billingQuantity > 0 ? `${r.billingQuantity} seat${r.billingQuantity === 1 ? '' : 's'}` : ''
       return (
         <div style={{ textAlign: 'right' }}>
-          <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
-            {r.pricingSource === 'custom' && <Chip>Custom contract</Chip>}
-            <span className="num b">{F.money(r.monthlyCost)}</span>
-          </div>
-          {seats && <div className="faint sm">{seats}</div>}
+          <span className="num b">{F.money(r.monthlyCost)}</span>
+          <div className="faint sm">{custom ? <>Custom contract{perUser && <span className="num"> · {perUser}</span>}</> : seats}</div>
         </div>
       )
     },
   }
-  const since: Col<Row> = { k: 'createdAt', l: 'Customer since', sort: r => r.createdAt ?? '', r: r => (r.createdAt ? F.date(r.createdAt) : '—') }
+  const since: Col<Row> = {
+    k: 'createdAt', l: 'Customer since', sort: r => r.createdAt ?? '',
+    r: r => (r.createdAt ? <div>{F.date(r.createdAt)}<div className="faint sm">{tenure(r.createdAt)}</div></div> : '—'),
+  }
 
   const tabCols: Record<RosterioTab, Col<Row>[]> = {
     paid: [
-      { k: 'name', l: 'Account', r: account },
+      { k: 'name', l: 'Account', wrap: true, w: 300, r: account },
       { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
-      usersCol, revenueCol, since, emailCol,
+      usersCol, revenueCol, since,
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
     ],
     trials: [
@@ -188,10 +203,9 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
     ],
     needs: [
-      { k: 'name', l: 'Account', r: r => <div><b>{r.name}</b>{r.createdAt && <div className="faint sm">Joined {F.date(r.createdAt)}</div>}</div> },
+      { k: 'name', l: 'Account', wrap: true, w: 280, r: r => <div>{account(r)}{r.createdAt && <div className="faint sm">Joined {F.date(r.createdAt)}</div>}</div> },
       { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
       { k: 'st', l: 'Status', sort: r => r.st.kind + (r.st.days ?? 0), r: r => <Chip tone={TONE[r.st.kind]}>{r.st.label}</Chip> },
-      emailCol,
       { k: 'crm', l: 'Suggested CRM company', nosort: true, wrap: true, w: 340, r: crmFull },
     ],
   }
