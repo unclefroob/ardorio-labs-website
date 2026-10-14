@@ -29,6 +29,7 @@ function emptyState(): State {
     wiza: { history: [] },
     demo: { researchFail: false },
     crossStatus: {},
+    rosterioTest: { accounts: [] },
   }
 }
 
@@ -191,7 +192,7 @@ export function isRevoked(c: SyncedCollection, id: string | undefined): boolean 
   return !!id && revoked.has(`${c}:${id}`)
 }
 
-// ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus` ──────
+// ── settings: singleton objects that sync as records `org|wiza|demo|crossStatus|rosterioTest` ──────
 export function isSettingsId(id: string): id is SettingsId {
   return (SETTINGS_IDS as readonly string[]).includes(id)
 }
@@ -202,6 +203,7 @@ export function settingsRecord(id: SettingsId): RecordData & Row {
     case 'wiza': return { ...S.wiza, id }
     case 'demo': return { ...S.demo, id }
     case 'crossStatus': return { ...S.crossStatus, id }
+    case 'rosterioTest': return { ...S.rosterioTest, id }
   }
 }
 
@@ -220,6 +222,7 @@ export function applySettings(id: SettingsId, data: RecordData): void {
     case 'wiza': assignContents(S.wiza, data); break
     case 'demo': assignContents(S.demo, data); break
     case 'crossStatus': assignContents(S.crossStatus, data); break
+    case 'rosterioTest': assignContents(S.rosterioTest, data); break
   }
 }
 
