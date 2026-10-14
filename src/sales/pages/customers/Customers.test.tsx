@@ -75,9 +75,10 @@ describe('Customers page: Rosterio, Paid tab', () => {
     expect(text()).toContain('Paying customers')
     expect(text()).toMatch(/Linked.*Kestrel Logistics/)
     expect(text()).toContain('Bayside Cafe')
-    expect(text()).toMatch(/Not linked/)
-    expect(text()).toContain('admins only')
-    expect(text()).toContain('finance@kestrel.example')
+    expect(button(host, 'Link company')?.getAttribute('aria-label')).toBe('Link Bayside Cafe to a CRM company')
+    expect(text()).not.toContain('admins only')
+    const kestrel = [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes('Kestrel Logistics'))
+    expect(kestrel?.querySelector('td')?.textContent).toContain('finance@kestrel.example')
     expect(text()).toContain('of 2 paying')
     expect(text()).not.toContain('Harbour Retail Group')
     expect(text()).not.toContain('Closed Co')
@@ -107,9 +108,9 @@ describe('Customers page: Rosterio, Paid tab', () => {
     expect(text()).toContain('Bayside Cafe')
   })
 
-  it('the small Link button on an unlinked paid account opens the dialog', async () => {
+  it('the Link company button on an unlinked paid account opens the dialog', async () => {
     await show({ [ACCOUNTS]: json(200, ACCOUNTS_OK) })
-    await click(button(host, 'Link'))
+    await click(button(host, 'Link company'))
     await settle()
     expect(modals()).toEqual(['linkRosterio'])
     expect(top().textContent).toContain('Link Bayside Cafe to a CRM company')
@@ -120,9 +121,9 @@ describe('Customers page: Rosterio, Paid tab', () => {
     expect(text()).toContain('Rosterio listed its newest 4 accounts')
   })
 
-  it('a viewer sees the list but the Link button is off', async () => {
+  it('a viewer sees the list but the Link company button is off', async () => {
     await show({ [ACCOUNTS]: json(200, ACCOUNTS_OK) }, 'viewer')
-    expect(button(host, 'Link')?.disabled).toBe(true)
+    expect(button(host, 'Link company')?.disabled).toBe(true)
   })
 })
 
