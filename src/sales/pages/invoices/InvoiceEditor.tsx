@@ -20,7 +20,7 @@ import { UI } from '../../ui/store'
 import { downloadPdf } from './actions'
 import { MoreMenu } from './MoreMenu'
 import { catchUpPlans, ClashBanner, DoubledRetainer, findRetainerDraft, type RetainerClash } from './retainerClash'
-import { RetainerChip, StatusChip, TestChip } from './parts'
+import { RetainerChip, TermChip, StatusChip, TestChip } from './parts'
 import { TestBanner, testItems, useTestActions } from './testActions'
 import { Activity, Totals } from './rail'
 import { InvoicesDenied } from './states'
@@ -273,7 +273,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /><RetainerChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{invoice?.invoiceNumber ?? 'New invoice'}{invoice ? <><StatusChip inv={invoice} /><TestChip inv={invoice} /><RetainerChip inv={invoice} /><TermChip inv={invoice} /></> : <Chip>Draft</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, invoice?.invoiceNumber ?? 'New invoice']}
       >

@@ -1,4 +1,4 @@
-import type { BillingContract, BillingMilestone, BillingPlan, BillingRetainer, BillingVariation, EngagementType } from '../../api/contract'
+import type { BillingContract, BillingMilestone, BillingPlan, BillingRetainer, BillingTerm, BillingVariation, EngagementType } from '../../api/contract'
 import { F } from '../F'
 import { uid } from '../ids'
 import {
@@ -6,6 +6,8 @@ import {
   validateVariation, approvalProblem,
 } from '../../shared/billing'
 import { formatCents } from '../../shared/money'
+import { cpiProblem, endProblem, isInstalment, oneOffMilestones, validateTerm, waiveProblem, type TermInput } from '../../shared/term'
+import { scheduleTotal, termSchedule } from '../../shared/termSchedule'
 import { commit } from '../commit'
 import { audit } from '../internals'
 import { Q } from '../Q'
@@ -36,12 +38,24 @@ function plan(dealId: string): BillingPlan {
 export function saveMilestones(dealId: string, milestones: readonly BillingMilestone[]): BillingResult {
   const g = guard(dealId)
   if (g) return fail(g)
-  const bad = validateMilestones(milestones)
+  const bad = validateMilestones(milestones) ?? instalmentsChanged(Q.billingPlan(dealId), milestones)
   if (bad) return fail(bad)
   plan(dealId).milestones = milestones.map(cleanMilestone)
   audit('Billing schedule saved', `${Q.deal(dealId)?.title ?? dealId}: ${milestones.length} milestone${milestones.length === 1 ? '' : 's'}`)
   commit()
   return { ok: true }
+}
+
+/**
+ * A term agreement's instalments are set by its schedule: a client may not add, remove or re-price one (the API answers
+ * 400), so a milestone list that changes them is refused here. Null when they are exactly as stored.
+ */
+function instalmentsChanged(p: BillingPlan | undefined, next: readonly BillingMilestone[]): string | null {
+  const key = (m: BillingMilestone): string => JSON.stringify([m.id, m.label, m.amountCents, m.plannedDate ?? '', m.termYear ?? null, m.periodStart ?? '', m.periodEnd ?? ''])
+  const was = (p?.milestones ?? []).filter(isInstalment).map(key)
+  const now = next.filter(isInstalment).map(key)
+  if (was.length === now.length && was.every((k, i) => k === now[i])) return null
+  return 'The instalments of a term agreement follow its schedule and cannot be added, removed or changed here'
 }
 
 /** Set or clear (null) the retainer of a deal's plan. Milestones are left alone. */
@@ -55,6 +69,7 @@ export function markDelivered(dealId: string, milestoneId: string, day: string |
   const p = Q.billingPlan(dealId)
   const cur = p?.milestones.find(m => m.id === milestoneId)
   if (!p || !cur) return fail('That milestone is no longer on this deal')
+  if (isInstalment(cur)) return fail('An instalment is earned when it is invoiced, so it is never marked delivered')
   if (day !== null) {
     const bad = validateDelivered(day, F.today())
     if (bad) return fail(bad)
@@ -140,6 +155,7 @@ function contractProblem(dealId: string, c: ContractInput): string | null {
  * planned. contractedBy is written by the server (the caller's display name); the name sent here is only a placeholder it replaces.
  */
 export function setContract(dealId: string, c: ContractInput, milestones: readonly BillingMilestone[] = []): BillingResult {
+  if (c.engagementType === 'term-agreement') return fail('A term agreement is set together with its term and schedule')
   const bad = contractProblem(dealId, c)
   if (bad) return fail(bad)
   const all = [...(Q.billingPlan(dealId)?.milestones ?? []), ...milestones]
@@ -168,7 +184,7 @@ export function addVariation(dealId: string, v: Pick<BillingVariation, 'label' |
   if (g) return { ok: false, error: g }
   const p0 = Q.billingPlan(dealId)
   if (!p0?.contract) return { ok: false, error: 'Set the contract before adding a variation' }
-  const bad = validateVariation(v) ?? (approve ? approvalProblem(p0, v.amountCents) : null)
+  const bad = validateVariation(v, p0.contract.engagementType) ?? (approve ? approvalProblem(p0, v.amountCents) : null)
   if (bad) return { ok: false, error: bad }
   const now = F.nowIso()
   const me = Q.me().name
@@ -197,4 +213,123 @@ export function decideVariation(dealId: string, id: string, status: 'approved' |
   audit(status === 'approved' ? 'Variation approved' : 'Variation rejected', `${Q.deal(dealId)?.title ?? dealId}: ${cur.label}, ${formatCents(cur.amountCents)}`)
   commit()
   return { ok: true, variation: next }
+}
+
+// ── term agreements ──────────────────────────────────────────────────────────────────────────────
+export type TermContractInput = Omit<ContractInput, 'engagementType'>
+
+/** What a term agreement's contract must be: the one-off milestones (those planned already and the build fee) plus the schedule. */
+export function termBaseline(dealId: string, term: Pick<BillingTerm, 'startDate' | 'termMonths' | 'annualCents' | 'frequency' | 'timing' | 'escalation' | 'escalationBp'>, buildFee: readonly BillingMilestone[] = []): number {
+  return scheduleTotal(oneOffMilestones(Q.billingPlan(dealId))) + scheduleTotal(buildFee) + scheduleTotal(termSchedule(term))
+}
+
+/**
+ * Freeze the contract of a won Ardorio deal as a term agreement, once, with its term, the one-off milestones agreed
+ * with it (a build fee, say) after the ones already planned, and the instalments of termSchedule. The rules are those
+ * of setContract; the baseline must be the one-off milestones plus the schedule total. The server rebuilds the
+ * instalments from the term and stamps draftFrom and contractedBy: the values written here are what it will store.
+ */
+export function setTermAgreement(dealId: string, c: TermContractInput, term: TermInput, buildFee: readonly BillingMilestone[] = []): BillingResult {
+  const input: ContractInput = { ...c, engagementType: 'term-agreement' }
+  const bad = contractProblem(dealId, input) ?? validateTerm(term)
+  if (bad) return fail(bad)
+  if (buildFee.some(isInstalment)) return fail('A build fee is a one-off milestone, not an instalment')
+  const oneOffs = [...oneOffMilestones(Q.billingPlan(dealId)), ...buildFee]
+  const schedule = termSchedule(term)
+  const all = [...oneOffs, ...schedule]
+  const m = validateMilestones(all)
+  if (m) return fail(m)
+  const expected = scheduleTotal(oneOffs) + scheduleTotal(schedule)
+  if (c.baselineCents !== expected) return fail(`The contract must be the one-off milestones plus the schedule: ${formatCents(expected)} ex GST`)
+  const p = plan(dealId)
+  p.contract = { baselineCents: c.baselineCents, engagementType: 'term-agreement', contractedOn: c.contractedOn, contractedBy: Q.me().name, estimateAtWonCents: c.estimateAtWonCents }
+  p.term = { ...pickTerm(term), draftFrom: F.today() }
+  p.milestones = all.map(cleanMilestone)
+  audit('Term agreement set', `${Q.deal(dealId)?.title ?? dealId}: ${formatCents(c.baselineCents)} ex GST, ${schedule.length} instalment${schedule.length === 1 ? '' : 's'}${buildFee.length ? `, ${buildFee.length} one-off milestone${buildFee.length === 1 ? '' : 's'}` : ''}`)
+  commit()
+  return { ok: true }
+}
+
+/** Only the keys of a term a person sets, so nothing else from a form rides along. */
+function pickTerm(t: TermInput): TermInput {
+  return {
+    startDate: t.startDate, termMonths: t.termMonths, annualCents: t.annualCents, frequency: t.frequency, timing: t.timing,
+    escalation: t.escalation, escalationBp: t.escalationBp, exit: t.exit, breakNoticeDays: t.breakNoticeDays, autoDraft: t.autoDraft,
+  }
+}
+
+function termOf(dealId: string): { p: BillingPlan & { term: BillingTerm } } | { error: string } {
+  const g = guard(dealId)
+  if (g) return { error: g }
+  const p = Q.billingPlan(dealId)
+  if (!p?.term) return { error: 'This deal has no term agreement' }
+  // The server refuses any change to the term of a deal that is not won.
+  if (Q.deal(dealId)?.status !== 'won') return { error: 'This deal is not won: win it again before changing its term agreement' }
+  return { p: p as BillingPlan & { term: BillingTerm } }
+}
+
+/**
+ * Confirm the CPI rise of one year. Only the confirmation is written: the server stamps who and when, re-prices the
+ * instalments of that year and later that have no issued invoice (their drafts follow), and appends one approved
+ * variation for the difference. A client may not re-price instalments itself, so the schedule here changes when the
+ * server's answer arrives.
+ */
+export function confirmCpi(dealId: string, year: number, bp: number): BillingResult {
+  const r = termOf(dealId)
+  if ('error' in r) return fail(r.error)
+  const bad = cpiProblem(r.p.term, year, bp)
+  if (bad) return fail(bad)
+  r.p.term = { ...r.p.term, cpiConfirmed: [...(r.p.term.cpiConfirmed ?? []), { year, bp, confirmedOn: F.today(), confirmedBy: Q.me().name }] }
+  audit('Term CPI confirmed', `${Q.deal(dealId)?.title ?? dealId}: year ${year}, ${bp / 100}%`)
+  commit()
+  return { ok: true }
+}
+
+/**
+ * End a term agreement early, once; it cannot be undone. Only the end is written: the server stamps who and when,
+ * removes the un-issued instalments from the end date on, cuts one that spans it to end the day before, makes their
+ * drafts follow, and appends one approved variation of minus what was removed. Nothing is added to the schedule after
+ * that; what remains is still drafted while auto-draft is on. Issued instalments are kept; refunds or credits stay manual.
+ */
+export function endTermEarly(dealId: string, endedOn: string, reason: string): BillingResult {
+  const r = termOf(dealId)
+  if ('error' in r) return fail(r.error)
+  const bad = endProblem(r.p.term, endedOn, reason)
+  if (bad) return fail(bad)
+  r.p.term = { ...r.p.term, ended: { endedOn, reason: reason.trim(), endedBy: Q.me().name, recordedAt: F.nowIso() } }
+  audit('Term agreement ended early', `${Q.deal(dealId)?.title ?? dealId}: ends ${endedOn}`)
+  commit()
+  return { ok: true }
+}
+
+/**
+ * Turn automatic drafting of instalment invoices on or off. The only setting of a stored term a person may change; on an
+ * ended agreement it drafts the instalments that remain.
+ */
+export function setTermAutoDraft(dealId: string, on: boolean): BillingResult {
+  const r = termOf(dealId)
+  if ('error' in r) return fail(r.error)
+  if (r.p.term.autoDraft === on) return { ok: true }
+  r.p.term = { ...r.p.term, autoDraft: on }
+  audit(on ? 'Term auto-draft on' : 'Term auto-draft off', Q.deal(dealId)?.title ?? dealId)
+  commit()
+  return { ok: true }
+}
+
+/**
+ * Waive one instalment the client will not be billed for; it cannot be undone. Only the waiver is written: the server
+ * stamps who and when, refuses an instalment with an issued invoice, removes the instalment, deletes (or unlinks) its
+ * drafts and appends one approved variation of minus its amount ('Waived: <label>'). Ended agreements too. The caller
+ * checks the deal's invoices first (waiveProblem): this layer has none, so here only the instalment and reason are.
+ */
+export function waiveInstalment(dealId: string, milestoneId: string, reason: string): BillingResult {
+  const r = termOf(dealId)
+  if ('error' in r) return fail(r.error)
+  const bad = waiveProblem(r.p, milestoneId, reason, [])
+  if (bad) return fail(bad)
+  const label = r.p.milestones.find(m => m.id === milestoneId)?.label ?? milestoneId
+  r.p.term = { ...r.p.term, waived: [...(r.p.term.waived ?? []), { milestoneId, reason: reason.trim(), waivedOn: F.today(), waivedBy: Q.me().name }] }
+  audit('Term instalment waived', `${Q.deal(dealId)?.title ?? dealId}: ${label}`)
+  commit()
+  return { ok: true }
 }

@@ -74,7 +74,7 @@ describe('Won dialog, Contract step (Ardorio admins)', () => {
     expect(host.querySelector('ol[aria-label="Steps"] [aria-current="step"]')?.textContent).toBe('2 Contract')
     expect(amountField().value).toBe('60000.00')
     expect((field(host, 'Engagement type') as HTMLSelectElement).value).toBe('fixed-price')
-    expect([...(field(host, 'Engagement type') as HTMLSelectElement).options].map(o => o.textContent)).toEqual(['Fixed-price project', 'Time and materials', 'Support retainer'])
+    expect([...(field(host, 'Engagement type') as HTMLSelectElement).options].map(o => o.textContent)).toEqual(['Fixed-price project', 'Time and materials', 'Support retainer', 'Term agreement'])
     await settle(4)
     expect(text()).toContain('Billing client linked: Tidewater Foods')
     expect(chip()).toBe(`Scheduled ${formatCents(0)} of ${formatCents(6000000)}, ${formatCents(6000000)} unscheduled`)

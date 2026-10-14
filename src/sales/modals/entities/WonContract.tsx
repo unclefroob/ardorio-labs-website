@@ -6,13 +6,15 @@ import type { Company } from '../../data/types'
 import { Banner, Btn, Chip, Fld, Inp, Sel, Skel } from '../../kit'
 import { Icon } from '../../kit/Icon'
 import { useBillingLink } from '../../pages/companies/useBillingLink'
-import { ENGAGEMENT_LABEL, ENGAGEMENT_TYPES, isEngagementType, reconciliationLine, validateContractAmount, validateMilestones } from '../../shared/billing'
+import { ENGAGEMENT_LABEL, isEngagementType, reconciliationLine, validateContractAmount, validateMilestones, WON_ENGAGEMENT_TYPES } from '../../shared/billing'
 import { missingBilling } from '../../shared/invoices'
 import { formatCents, parseCents } from '../../shared/money'
+import { TermFields, type TermDraft, type TermErrs } from '../../pages/deals/TermForm'
 
 /** One row of the quick milestone plan, as typed. */
 export interface PlanRow { key: string; label: string; amount: string; date: string }
-export interface ContractDraft { amount: string; engagementType: EngagementType; rows: PlanRow[] }
+/** `term` is used when the engagement type is a term agreement: the contract is then the build fee plus the schedule. */
+export interface ContractDraft { amount: string; engagementType: EngagementType; rows: PlanRow[]; term?: TermDraft }
 
 export const newPlanRow = (): PlanRow => ({ key: uid('pr'), label: '', amount: '', date: '' })
 
@@ -48,12 +50,28 @@ export function checkContract(d: ContractDraft): ContractCheck {
  * The Contract step of the Won dialog, for Ardorio admins: the contracted amount (prefilled from the estimate),
  * the engagement type, the billing client, and an optional quick milestone plan reconciled live against the contract.
  */
-export function ContractStep({ draft, onChange, errs, company }: { draft: ContractDraft; onChange: (d: ContractDraft) => void; errs: { amountErr?: string; planErr?: string }; company: Company | undefined }) {
+export function ContractStep({ draft, onChange, errs, company, existingCents = 0 }: { draft: ContractDraft; onChange: (d: ContractDraft) => void; errs: { amountErr?: string; planErr?: string; termErrs?: TermErrs }; company: Company | undefined; existingCents?: number }) {
   const set = <K extends keyof ContractDraft>(k: K, v: ContractDraft[K]): void => onChange({ ...draft, [k]: v })
   const setRow = (key: string, patch: Partial<PlanRow>): void => set('rows', draft.rows.map(r => (r.key === key ? { ...r, ...patch } : r)))
   const contracted = parseCents(draft.amount)
   const scheduled = scheduledOf(draft.rows)
   const rec = contracted !== null && contracted > 0 ? reconciliationLine(scheduled, contracted, formatCents) : null
+  const engagement = (
+    <Fld label="Engagement type" hint={draft.engagementType === 'term-agreement' ? 'A multi-year agreement billed by schedule. No recurring revenue is counted for Ardorio.' : 'Shapes how billing is set up. No recurring revenue is counted for Ardorio.'}>
+      <Sel value={draft.engagementType} onChange={v => set('engagementType', v as EngagementType)} options={WON_ENGAGEMENT_TYPES.map(t => [t, ENGAGEMENT_LABEL[t]] as const)} />
+    </Fld>
+  )
+
+  if (draft.engagementType === 'term-agreement' && draft.term) {
+    const term = draft.term
+    return (
+      <div className="col" style={{ gap: 14 }}>
+        <div className="grid g2">{engagement}</div>
+        {company && <ClientPick company={company} />}
+        <TermFields draft={term} onChange={t => onChange({ ...draft, term: t })} errs={errs.termErrs ?? {}} existingCents={existingCents} />
+      </div>
+    )
+  }
 
   return (
     <div className="col" style={{ gap: 14 }}>
@@ -61,9 +79,7 @@ export function ContractStep({ draft, onChange, errs, company }: { draft: Contra
         <Fld label="Contracted amount (A$, ex GST)" req err={errs.amountErr} hint="Prefilled from the estimate. Frozen when you win; later changes go through variations.">
           <Inp className="mono" inputMode="decimal" value={draft.amount} onChange={v => set('amount', v)} aria-invalid={errs.amountErr ? true : undefined} />
         </Fld>
-        <Fld label="Engagement type" hint="Shapes how billing is set up. No recurring revenue is counted for Ardorio.">
-          <Sel value={draft.engagementType} onChange={v => set('engagementType', v as EngagementType)} options={ENGAGEMENT_TYPES.map(t => [t, ENGAGEMENT_LABEL[t]] as const)} />
-        </Fld>
+        {engagement}
       </div>
 
       {company && <ClientPick company={company} />}

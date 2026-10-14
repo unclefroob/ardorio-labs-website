@@ -17,9 +17,11 @@ import { invoiceRef, recordedLine } from '../../shared/externalInvoices'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
-import { ExternalChip, RetainerChip } from '../invoices/parts'
+import { ExternalChip, RetainerChip, TermChip } from '../invoices/parts'
 import { createDraftsForUnbilled } from './billingActions'
 import { ContractLedger } from './ContractLedger'
+import { TermAgreement, type TermPlan } from './TermAgreement'
+import { isInstalment } from '../../shared/term'
 import { moneyTarget, MoneyWarnings, ProjectMoney } from './DealMoney'
 
 /**
@@ -47,7 +49,9 @@ function Schedule({ deal }: { deal: Deal }) {
   // Statuses come from the invoice list, so until it has loaded no row action is offered.
   const known = !!inv.data
   const list: InvoiceDto[] = inv.data ?? []
-  const rows = scheduleRows(plan, list)
+  // A term agreement's instalments are in the Term card; this card lists the one-off milestones (a build fee, say).
+  const termPlan = plan?.term ? (plan as TermPlan) : null
+  const rows = scheduleRows(plan, list).filter(r => !termPlan || !isInstalment(r.milestone))
   const unbilled = unbilledRows(rows)
   const money = known ? moneyForDeal(deal, plan, list) : null
   const e = inv.error ? invoiceError(inv.error, 'load') : null
@@ -143,7 +147,8 @@ function Schedule({ deal }: { deal: Deal }) {
   const recordExternal = (): void => UI.open('recordExternal', { dealId: deal.id, onDone: (saved: InvoiceDto) => { setRecorded(recordedLine(saved)); inv.reload() } })
 
   const contracted = !!plan?.contract
-  const ofText = `Scheduled ${formatCents(scheduled)} of ${formatCents(target.cents)} ${contracted ? 'contracted' : 'estimate'}`
+  const instalmentCents = termPlan ? scheduled - rows.reduce((a, r) => a + r.milestone.amountCents, 0) : 0
+  const ofText = `Scheduled ${formatCents(scheduled)} of ${formatCents(target.cents)} ${contracted ? 'contracted' : 'estimate'}${termPlan ? `, ${formatCents(instalmentCents)} of it in the term schedule` : ''}`
 
   const milestones = (
     <Card
@@ -168,7 +173,7 @@ function Schedule({ deal }: { deal: Deal }) {
           </div>
         )}
 
-        {rows.length > 0 ? (
+        {rows.length > 0 || (termPlan && gap !== 0) ? (
           <div style={{ overflowX: 'auto' }}>
             <table className="tbl" aria-label="Milestones" style={{ minWidth: 760 }}>
               <thead><tr><th>Milestone</th><th style={{ textAlign: 'right' }}>Amount (ex GST)</th><th>Planned</th><th>State</th><th>Invoice</th><th /></tr></thead>
@@ -230,7 +235,7 @@ function Schedule({ deal }: { deal: Deal }) {
               </tfoot>
             </table>
           </div>
-        ) : !form && <div className="faint sm">No milestones yet. Add the agreed payments for this deal{retainer ? '' : ', or set up a monthly retainer'}.</div>}
+        ) : !form && <div className="faint sm">{termPlan ? 'No one-off milestones. The instalments are in the term schedule above.' : <>No milestones yet. Add the agreed payments for this deal{retainer ? '' : ', or set up a monthly retainer'}.</>}</div>}
 
         {rows.length > 0 && gap < 0 && (
           <Banner tone="warn" action={contracted ? <Btn size="sm" onClick={() => UI.open('addVariation', { dealId: deal.id })}>Add variation</Btn> : undefined}>
@@ -295,7 +300,7 @@ function Schedule({ deal }: { deal: Deal }) {
             </div>
             <RetainerNote retainer={retainer} today={today} paused={paused} />
             {retainerInvoices.map(i => (
-              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
+              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} /><TermChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
             {money && <div className="sm muted" aria-label="Retainer invoiced">Retainer invoiced {formatCents(money.retainerInvoiced)} ex GST, not counted in Contracted, Invoiced or Collected above.</div>}
             <ManualRetainerNote retainer={retainer} today={today} paused={paused} />
@@ -316,6 +321,7 @@ function Schedule({ deal }: { deal: Deal }) {
       {recorded && <Banner tone="ok" icon="check" action={<Btn size="sm" kind="ghost" aria-label="Dismiss" icon="x" onClick={() => setRecorded('')} />}>{recorded}</Banner>}
       <MoneyWarnings deal={deal} plan={plan} money={money} />
       <ProjectMoney deal={deal} plan={plan} invoices={known ? list : null} loading={inv.loading} />
+      {termPlan && <TermAgreement deal={deal} plan={termPlan} invoices={known ? list : null} loadError={e && e.kind !== 'denied' ? e.message : null} onReload={inv.reload} />}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
         {plan?.contract || deal.status === 'won' ? <div style={{ flex: '1 1 420px', minWidth: 0 }}><ContractLedger deal={deal} /></div> : null}
         <div style={{ flex: '2 1 560px', minWidth: 0 }}>{milestones}</div>

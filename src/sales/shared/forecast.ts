@@ -3,6 +3,7 @@ import { wallFromMs } from '../data/tz'
 import type { Company, Deal } from '../data/types'
 import { ardorioByDeal, isRetainerInvoice, milestoneState, nextRetainerDate, retainerPause, scheduleRows } from './billing'
 import { invoiceRef } from './externalInvoices'
+import { termCommitment } from './termMoney'
 import { isDay, withoutTest } from './invoices'
 import { monthName, monthsBetween } from './revenueReport'
 
@@ -23,19 +24,24 @@ import { monthName, monthsBetween } from './revenueReport'
 //
 // A retainer behind by several periods is forecast as the server scheduler drafts it: only the latest due period, this
 // month. The months it passes over are listed apart (retainerSkipped), to bill by hand, never as forecast invoices.
+//
+// A term agreement's instalments are its contract: each one with no live invoice is forecast on its plannedDate (its
+// invoice date), like a milestone, and never slipped (the dates are agreed). For a break agreement, the instalments
+// from the next anniversary on are not yet committed: they are listed on their dates in their own figure
+// (notCommitted), never in Forecast invoiced or collected, and the deal's backlog is the committed part only.
 
 export type FcSeries = 'project' | 'retainer' | 'pipeline'
-export type FcKind = 'milestone' | 'invoice' | 'retainer' | 'pipeline'
+export type FcKind = 'milestone' | 'instalment' | 'invoice' | 'retainer' | 'pipeline'
 /**
  * overdue-invoice: planned in the past and not invoiced; delivered: delivered and not invoiced; draft: a draft invoice
  * waits to be issued; overdue-collect: issued and the payment is later than the assumed days to pay; close-passed: an
  * open deal whose close date is in the past; not-on-deal: an issued invoice on no won deal; slipped: moved by the slip control.
  */
-export type FcFlag = 'overdue-invoice' | 'delivered' | 'draft' | 'overdue-collect' | 'close-passed' | 'not-on-deal' | 'slipped'
+export type FcFlag = 'overdue-invoice' | 'delivered' | 'draft' | 'overdue-collect' | 'close-passed' | 'not-on-deal' | 'slipped' | 'not-committed'
 
 export const FLAG_LABEL: Record<FcFlag, string> = {
   'overdue-invoice': 'Overdue to invoice', delivered: 'Delivered, not invoiced', draft: 'Draft invoice', 'overdue-collect': 'Overdue to collect',
-  'close-passed': 'Close date passed', 'not-on-deal': 'Not on a won deal', slipped: 'Slipped',
+  'close-passed': 'Close date passed', 'not-on-deal': 'Not on a won deal', slipped: 'Slipped', 'not-committed': 'Not yet committed',
 }
 
 export interface FcEntry {
@@ -75,6 +81,10 @@ export interface DealBacklog {
   unscheduled: number
   /** scheduled - backlog when positive: milestones still to bill add up to more than the contract still holds. */
   overScheduled: number
+  /** A break agreement's instalments the client may still break before: out of contracted for the backlog. 0 otherwise. */
+  notCommitted: number
+  /** The anniversary they depend on, or null. */
+  breakAt: string | null
 }
 
 /** A support-retainer contract: billed by its retainer, so kept out of the project backlog and shown beside the retainer. */
@@ -116,6 +126,8 @@ export interface Forecast {
   retainerContracts: RetainerContract[]
   /** Retainers more than one period behind: the months skipped, oldest first. */
   retainerSkipped: RetainerSkipped[]
+  /** Break agreements' instalments not yet committed, all deals: apart from the backlog. */
+  notCommitted: number
 }
 
 // ── days and months ──────────────────────────────────────────────────────────────────────────────
@@ -221,7 +233,7 @@ export function buildForecast(o: ForecastInput): Forecast {
   const retainerContracts: RetainerContract[] = []
   const retainerSkipped: RetainerSkipped[] = []
   const live = withoutTest(o.invoices).filter(i => i.status !== 'void')
-  const byDeal = ardorioByDeal(o.deals, o.companies, o.plans, o.invoices)
+  const byDeal = ardorioByDeal(o.deals, o.companies, o.plans, o.invoices, today)
   const planOf = new Map(o.plans.map(p => [p.dealId, p] as const))
   const onDeal = new Set<string>()
 
@@ -295,13 +307,20 @@ export function buildForecast(o: ForecastInput): Forecast {
 
       if (row.money.contracted === null) { noContract.push(d); continue }
 
-      // Milestones not yet invoiced: Planned, Delivered or with a draft invoice (a draft is not invoiced yet).
+      // Milestones not yet invoiced: Planned, Delivered or with a draft invoice (a draft is not invoiced yet). A term
+      // agreement's instalments the same, on their invoice dates and never slipped; a break agreement's not yet committed
+      // ones are kept out of scheduled and flagged, so they are counted apart.
+      const uncommitted = row.term?.notCommittedCents ? termCommitment(plan, row.money.contracted ?? 0, inv, today).ids : new Set<string>()
       let scheduled = 0
+      let notCommitted = 0
       for (const s of scheduleRows(plan, inv)) {
         const state = milestoneState(s)
         if (state === 'Invoiced' || state === 'Paid') continue
         const m = s.milestone
-        scheduled += m.amountCents
+        const instalment = m.kind === 'instalment'
+        const later = uncommitted.has(m.id)
+        if (later) notCommitted += m.amountCents
+        else scheduled += m.amountCents
         const flags: FcFlag[] = []
         let on: string | null
         if (state === 'Draft invoice') { on = today; flags.push('draft') }
@@ -309,11 +328,12 @@ export function buildForecast(o: ForecastInput): Forecast {
         else if (!m.plannedDate || !isDay(m.plannedDate)) on = null
         else if (m.plannedDate < today) { on = today; flags.push('overdue-invoice') }
         else {
-          on = slip ? addMonths(m.plannedDate, slip) : m.plannedDate
-          if (slip) flags.push('slipped')
+          on = slip && !instalment ? addMonths(m.plannedDate, slip) : m.plannedDate
+          if (slip && !instalment) flags.push('slipped')
         }
-        const c = on ? collect(on) : null
-        entries.push({ ...base, id: `ms:${d.id}:${m.id}`, series: 'project', kind: 'milestone', label: m.label, cents: m.amountCents, invoiceDay: on, collectDay: c?.day ?? null, issued: false, flags })
+        if (later) flags.push('not-committed')
+        const c = on && !later ? collect(on) : null
+        entries.push({ ...base, id: `ms:${d.id}:${m.id}`, series: 'project', kind: instalment ? 'instalment' : 'milestone', label: m.label, cents: m.amountCents, invoiceDay: on, collectDay: c?.day ?? null, issued: false, flags })
       }
 
       // A support-retainer contract is billed by its retainer: only its milestones are project backlog, and what the
@@ -326,15 +346,17 @@ export function buildForecast(o: ForecastInput): Forecast {
           left: Math.max(0, rest - forecastRetainer), beyond: Math.max(0, forecastRetainer - rest),
         })
         if (scheduled > 0) {
-          deals.push({ dealId: d.id, dealName: name, companyId: row.companyId, contracted: row.money.contracted, invoiced: row.money.invoiced, backlog: scheduled, scheduled, unscheduled: 0, overScheduled: 0 })
+          deals.push({ dealId: d.id, dealName: name, companyId: row.companyId, contracted: row.money.contracted, invoiced: row.money.invoiced, backlog: scheduled, scheduled, unscheduled: 0, overScheduled: 0, notCommitted: 0, breakAt: null })
         }
         continue
       }
       const invoiced = row.money.invoiced
-      const backlog = Math.max(0, row.money.contracted - invoiced)
+      // Only what is committed is backlog: a break agreement's later instalments are counted apart.
+      const backlog = Math.max(0, row.money.contracted - notCommitted - invoiced)
       deals.push({
         dealId: d.id, dealName: name, companyId: row.companyId, contracted: row.money.contracted, invoiced, backlog, scheduled,
         unscheduled: Math.max(0, backlog - scheduled), overScheduled: Math.max(0, scheduled - backlog),
+        notCommitted, breakAt: notCommitted > 0 ? row.term?.breakAt ?? null : null,
       })
     }
   }
@@ -365,7 +387,10 @@ export function buildForecast(o: ForecastInput): Forecast {
   }
 
   const sum = (f: (d: DealBacklog) => number): number => deals.reduce((a, d) => a + f(d), 0)
-  return { today, lagDays, slip, entries, deals, backlog: sum(d => d.backlog), unscheduled: sum(d => d.unscheduled), overScheduled: sum(d => d.overScheduled), noContract, retainerNoDate, retainerContracts, retainerSkipped }
+  return {
+    today, lagDays, slip, entries, deals, backlog: sum(d => d.backlog), unscheduled: sum(d => d.unscheduled), overScheduled: sum(d => d.overScheduled), noContract, retainerNoDate, retainerContracts, retainerSkipped,
+    notCommitted: sum(d => d.notCommitted),
+  }
 }
 
 // ── range and buckets ────────────────────────────────────────────────────────────────────────────
@@ -398,7 +423,7 @@ export function latestDay(entries: readonly FcEntry[]): string | null {
   return out
 }
 
-export type FcRole = 'invoiced' | 'collected' | 'retainer' | 'retainerCollected' | 'pipeline'
+export type FcRole = 'invoiced' | 'collected' | 'retainer' | 'retainerCollected' | 'pipeline' | 'notCommitted'
 export interface FcBucket {
   invoiced: number
   collected: number
@@ -407,10 +432,12 @@ export interface FcBucket {
   pipeline: number
   /** Pipeline value before weighting. */
   pipelineValue: number
+  /** Break agreements' instalments not yet committed, on their invoice dates: never in invoiced or collected. */
+  notCommitted: number
   /** Every entry counted in the bucket, with the figure it counts in. */
   items: Array<{ e: FcEntry; role: FcRole }>
 }
-export const emptyBucket = (): FcBucket => ({ invoiced: 0, collected: 0, retainer: 0, retainerCollected: 0, pipeline: 0, pipelineValue: 0, items: [] })
+export const emptyBucket = (): FcBucket => ({ invoiced: 0, collected: 0, retainer: 0, retainerCollected: 0, pipeline: 0, pipelineValue: 0, notCommitted: 0, items: [] })
 
 function add(b: FcBucket, e: FcEntry, role: FcRole): void {
   b[role] += e.cents
@@ -444,6 +471,7 @@ export function summarise(f: Pick<Forecast, 'entries'>, months: readonly string[
   }
   for (const e of f.entries) {
     if (e.series === 'pipeline') put(e, 'pipeline', e.invoiceDay)
+    else if (e.flags.includes('not-committed')) put(e, 'notCommitted', e.invoiceDay)
     else if (e.series === 'retainer') {
       if (!e.issued) put(e, 'retainer', e.invoiceDay)
       put(e, 'retainerCollected', e.collectDay)
@@ -465,6 +493,7 @@ function merge(into: FcBucket, b: FcBucket): void {
   into.retainerCollected += b.retainerCollected
   into.pipeline += b.pipeline
   into.pipelineValue += b.pipelineValue
+  into.notCommitted += b.notCommitted
   into.items.push(...b.items)
 }
 
