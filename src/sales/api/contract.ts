@@ -610,6 +610,7 @@ export type TermEscalation = 'none' | 'fixed' | 'cpi'
 export type TermExit = 'committed' | 'break'
 export interface TermCpiConfirmation { year: number; bp: number; confirmedOn: string; confirmedBy: string }
 export interface TermEnd { endedOn: string; reason: string; endedBy: string; recordedAt: string }
+export interface TermWaiver { milestoneId: string; reason: string; waivedOn: string; waivedBy: string }
 export interface BillingTerm {
   startDate: string            // YYYY-MM-DD, first day of the term
   termMonths: number           // integer 1..120
@@ -624,13 +625,16 @@ export interface BillingTerm {
   draftFrom: string            // server-set YYYY-MM-DD (org timezone) when the term is first stored; instalments dated before it are never auto-drafted
   cpiConfirmed?: TermCpiConfirmation[]  // append-only, server-stamped confirmedBy/confirmedOn
   ended?: TermEnd              // set once by an admin to end the agreement early; never unset
+  waived?: TermWaiver[]        // append-only: instalments the client will not be billed for, server-stamped waivedOn/waivedBy
 }
 // BillingMilestone gains: kind?: 'instalment' (absent = a one-off milestone); termYear?: number; periodStart?: string; periodEnd?: string
-// (YYYY-MM-DD, inclusive). For an instalment, plannedDate is its INVOICE DATE. An instalment is earned when invoiced (it has a
-// non-void, non-test invoice linked by milestoneId); deliveredOn is never set on an instalment (400 VALIDATION).
+// (YYYY-MM-DD, inclusive). For an instalment, plannedDate is its INVOICE DATE. An instalment is earned when its invoice is ISSUED
+// (a sent or paid, non-test invoice linked by milestoneId), never by a draft; deliveredOn is never set on an instalment (400 VALIDATION).
+// "Un-issued" below means no such invoice: a draft never fixes an instalment's amount.
 //
 // Schedule (pure helper termSchedule(term) in both repos, src/services/sales/billing/termSchedule.ts and src/sales/shared/termSchedule.ts,
-// identical results). addMonths keeps the day of month, clamped to the month's last day (31 Jan + 1 = 28/29 Feb).
+// identical results: both run the cases in the API's src/services/sales/billing/termSchedule.fixtures.json). addMonths keeps the day
+// of month, clamped to the month's last day (31 Jan + 1 = 28/29 Feb).
 //   periodMonths = 12 (annual) | 3 (quarterly) | 1 (monthly); termEnd = addMonths(startDate, termMonths) (exclusive).
 //   Period i (0-based) starts addMonths(startDate, i*periodMonths) and ends the day before min(addMonths(startDate, (i+1)*periodMonths), termEnd).
 //   Periods continue while the start is before termEnd; the last one may be short.
@@ -649,28 +653,48 @@ export interface BillingTerm {
 // escalationBp, exit and breakNoticeDays are frozen (a change is 400 VALIDATION; price changes go through variations). autoDraft may be
 // toggled. Instalments cannot be added, removed or re-priced by a client (400 VALIDATION); only the server changes them, below.
 //   Confirm CPI (escalation 'cpi'): append { year, bp } (year 2..years, not already confirmed, bp integer -1000..2000). The server stamps
-//   confirmedBy/confirmedOn, recomputes the schedule, re-prices every instalment of year >= that year that has no non-void, non-test invoice, and
+//   confirmedBy/confirmedOn, recomputes the schedule, re-prices every un-issued instalment of year >= that year, and
 //   appends ONE approved variation for the difference (label 'CPI year <y>: <bp/100>% (assumed <escalationBp/100>%)', server-stamped,
-//   skipped when the difference is 0), so contracted still equals the schedule. Instalments already invoiced keep their amounts.
+//   skipped when the difference is 0), so contracted still equals the schedule. Instalments already issued keep their amounts.
 //   End early: set ended { endedOn, reason (1..300) } once (endedOn >= startDate, before termEnd). The server stamps endedBy/recordedAt,
-//   removes every instalment with no non-void, non-test invoice whose periodStart >= endedOn, cuts an un-invoiced instalment whose period spans
-//   endedOn to round(amount * days(periodStart..endedOn-1) / days(period)), and appends ONE approved variation of minus the total removed
-//   (label 'Ended early on <endedOn>'). Invoiced instalments are kept; refunds or credits stay manual. Auto-drafting stops.
+//   removes every un-issued instalment whose periodStart >= endedOn, cuts an un-issued instalment whose period spans endedOn to
+//   round(amount * days(periodStart..endedOn-1) / days(period)) (a cut that rounds below 1 cent removes it), and appends ONE approved
+//   variation of minus the total removed (label 'Ended early on <endedOn>'). A cut instalment's periodEnd becomes endedOn - 1 day and,
+//   for 'arrears', its plannedDate too ('advance' keeps periodStart). Issued instalments are kept; refunds or credits stay manual. No
+//   instalment is ever added to an ended agreement: the ones that remain are still auto-drafted (below), and the reminders stop.
+//   Waive an instalment (any time, ended or not): append { milestoneId, reason (1..300) } to waived. The instalment must be one of the plan's
+//   and un-issued (cancel its invoice first). The server stamps waivedOn/waivedBy, removes the instalment and appends ONE approved variation
+//   'var_waive_<milestoneId>' of minus its amount (label 'Waived: <instalment label>'). The write may leave the waived instalment out of
+//   milestones or echo it. Append-only: a waiver never changes or goes. This is how one instalment the client will not pay stops being drafted.
+//   Drafts follow: after any of the three is saved, every draft linked to an instalment it re-priced takes the new amount when it has one line
+//   item at qty 1 and no automatic card link (a pasted card link is cleared); a draft linked to a removed instalment, or one that cannot
+//   be re-priced, is deleted when its source is 'term' and otherwise unlinked from the milestone (milestoneId cleared) and kept.
 //
-// Auto-drafting (server engine tick, like the retainer scheduler, same lease and org timezone): for each plan with term.autoDraft, no
-// term.ended, its deal won and not archived: every instalment with draftFrom <= plannedDate <= today and no non-void, non-test invoice linked to it
+// Auto-drafting (server engine tick, like the retainer scheduler, same lease and org timezone): for each plan with term.autoDraft (ended
+// or not: an ended plan drafts the instalments that remain), its deal won and not archived: every instalment with draftFrom <= plannedDate <= today and no non-void, non-test invoice linked to it
 // gets one draft invoice (source 'term', status draft, never issued or sent) for the deal's company billing client, linked
 // companyId/dealId/milestoneId, one line item '<deal name>: <label> (<periodStart> to <periodEnd>)' qty 1 at the instalment amount, GST
-// at the business default, notes empty. Idempotent under concurrent ticks (one invoice per instalment). No billing client on the company:
-// no draft, notification kind 'term-needs-billing-client' { dealId, companyId } once per instalment.
-// Notifications (to the deal owner): 'term-invoice-drafted' { invoiceId, invoiceNumber, dealId, milestoneId };
-// 'term-cpi-to-confirm' { dealId, year } once, 30 days before the first instalment of an unconfirmed CPI year;
-// 'term-break-window' { dealId, anniversary, noticeBy } once per anniversary, 30 days before noticeBy (exit 'break');
-// 'term-ending' { dealId, termEnd } once, 90 days before termEnd (time to renew).
+// at the business default, notes empty. Idempotent under concurrent ticks (one invoice per instalment): termKey '<dealId>:<milestoneId>:<n>',
+// n one more than the highest n in any invoice's termKey for that instalment, whatever that invoice's status or link now (0 for the
+// first), so an invoice relinked elsewhere or a deleted one never makes a used key look free. The draft is priced from the plan read
+// just before it is created and checked against the plan after: if Confirm CPI, End early or a waiver changed the instalment in between,
+// the draft follows it as above (a removed instalment's draft is deleted and no notification is sent).
+// An instalment whose draft is deleted, or whose invoice is cancelled or marked test, is drafted again on the next tick: waive it to stop that.
+// No billing client on the company: no draft, notification kind 'term-needs-billing-client' { dealId, companyId } once per instalment
+// (and recipient, below).
+// Notifications go to the people who can read the plan: every active ard admin or super user, once each, the deal owner included only
+// when they are one (a rep or manager who owns the deal is not told). Each 'once' below is once per recipient (deterministic ids per
+// recipient; one a recipient deleted is not brought back). Reminders are sent only while the agreement has not ended.
+// 'term-invoice-drafted' { invoiceId, invoiceNumber, dealId, milestoneId };
+// 'term-cpi-to-confirm' { dealId, year } once, from 30 days before the first instalment of an unconfirmed CPI year until its date;
+// 'term-break-window' { dealId, anniversary, noticeBy } once per anniversary, from 30 days before noticeBy until noticeBy (exit 'break');
+// 'term-ending' { dealId, termEnd } once, from 90 days before termEnd (time to renew).
 //
-// Reporting (web, pure helpers): contracted = baseline + approved variations as before. For exit 'break', committed = contracted minus the
-// un-invoiced instalments whose periodStart is on or after the next anniversary of startDate after today (none after termEnd); the rest
-// is "Not yet committed (break at <anniversary>)". Earned for an instalment = invoiced. The forecast places instalments on plannedDate.
+// Reporting (web, pure helpers): contracted = baseline + approved variations as before. For exit 'break' (not ended), the break point is
+// the first anniversary of startDate after today, before termEnd, whose noticeBy (anniversary minus breakNoticeDays) is today or later:
+// once an anniversary's noticeBy has passed the client can no longer break there. committed = contracted minus the un-issued instalments
+// whose periodStart is on or after the break point; those are "Not yet committed (break at <anniversary>)". No break point left: all of
+// it is committed. Earned for an instalment = issued. The forecast places instalments on plannedDate.
 // Invoiced and collected stay invoice based (revenue is recognised when invoiced). Renewal: termEnd and "ends in N days" on the deal and Customers.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */

@@ -94,8 +94,12 @@ describe('Contract: Ardorio term agreements', () => {
     expect(b).toContain("export type TermFrequency = 'annual' | 'quarterly' | 'monthly'")
     expect(b).toContain('amount = round(fee(y)*m1/12) - round(fee(y)*m0/12), so a full year\'s periods sum exactly to fee(y).')
     expect(b).toContain("{ field: 'contract.baselineCents', expectedCents }")
-    expect(b).toContain("appends ONE approved variation of minus the total removed\n//   (label 'Ended early on <endedOn>')")
-    expect(b.split('\n')).toHaveLength(73)
+    expect(b).toContain("appends ONE approved\n//   variation of minus the total removed (label 'Ended early on <endedOn>')")
+    expect(b).toContain('export interface TermWaiver { milestoneId: string; reason: string; waivedOn: string; waivedBy: string }')
+    expect(b).toContain("An instalment is earned when its invoice is ISSUED\n// (a sent or paid, non-test invoice linked by milestoneId), never by a draft")
+    expect(b).toContain('every active ard admin or super user, once each')
+    expect(b).toContain('whose noticeBy (anniversary minus breakNoticeDays) is today or later')
+    expect(b.split('\n')).toHaveLength(97)
   })
 
   it.skipIf(!apiFile || !existsSync(apiFile))('is identical to the API block', () => {

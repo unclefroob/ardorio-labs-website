@@ -5,8 +5,8 @@ import { addMonths, dayBefore, roundDiv, scheduleTotal, termEndDate, termSchedul
 // Term agreements on the web: what a person types, the checks the API runs on it, and what each action does to the
 // schedule, worked out the way the contract block "Ardorio term agreements" says the server does it. Pure helpers.
 
-/** The term as a person sets it. draftFrom, cpiConfirmed and ended belong to the server or to later actions. */
-export type TermInput = Omit<BillingTerm, 'draftFrom' | 'cpiConfirmed' | 'ended'>
+/** The term as a person sets it. draftFrom, cpiConfirmed, ended and waived belong to the server or to later actions. */
+export type TermInput = Omit<BillingTerm, 'draftFrom' | 'cpiConfirmed' | 'ended' | 'waived'>
 
 export const TERM_FREQUENCIES: readonly TermFrequency[] = ['annual', 'quarterly', 'monthly']
 export const FREQUENCY_LABEL: Record<TermFrequency, string> = { annual: 'Annually', quarterly: 'Quarterly', monthly: 'Monthly' }
