@@ -135,7 +135,7 @@ describe('Act on a stored term', () => {
     m.stop()
   })
 
-  it('endTermEarly writes the end once; it cannot be ended twice and auto-draft cannot come back on', async () => {
+  it('endTermEarly writes the end once; it cannot be ended twice, and auto-draft still toggles (what remains is drafted)', async () => {
     const m = await setup('admin', { billingPlans: [storedPlan()] })
     expect(m.Act.endTermEarly('dl1', '2027-01-01', '  ')).toMatchObject({ ok: false })
     expect(m.Act.endTermEarly('dl1', '2028-03-15', ' Client sold the business ')).toEqual({ ok: true })
@@ -144,7 +144,17 @@ describe('Act on a stored term', () => {
     expect(m.Act.endTermEarly('dl1', '2028-04-15', 'again')).toEqual({ ok: false, error: 'This agreement has already ended' })
     expect(m.Act.setTermAutoDraft('dl1', true)).toEqual({ ok: true })
     expect(m.Act.setTermAutoDraft('dl1', false)).toEqual({ ok: true })
-    expect(m.Act.setTermAutoDraft('dl1', true)).toEqual({ ok: false, error: 'This agreement has ended, so nothing more is drafted' })
+    expect(m.Act.setTermAutoDraft('dl1', true)).toEqual({ ok: true })
+    expect(m.Q.billingPlan('dl1')!.term).toMatchObject({ autoDraft: true, ended: { endedOn: '2028-03-15' } })
+    m.stop()
+  })
+
+  it('a deal that is no longer won cannot have its term changed, as the server refuses it', async () => {
+    const m = await setup('admin', { deals: [rec('dl1', ardDeal('dl1', { status: 'open' }).data)], billingPlans: [storedPlan()] })
+    const error = 'This deal is not won: win it again before changing its term agreement'
+    expect(m.Act.confirmCpi('dl1', 2, 300)).toEqual({ ok: false, error })
+    expect(m.Act.endTermEarly('dl1', '2027-01-01', 'x')).toEqual({ ok: false, error })
+    expect(m.Act.setTermAutoDraft('dl1', false)).toEqual({ ok: false, error })
     m.stop()
   })
 

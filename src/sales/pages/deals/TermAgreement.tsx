@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { BillingMilestone, BillingPlan, BillingTerm, InvoiceDto } from '../../api/contract'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
+import { Q } from '../../data/Q'
 import type { Deal } from '../../data/types'
 import { Banner, Btn, Card, Chip, Ck, Fld, Icon, Inp, TA } from '../../kit'
 import { scheduleRows, signedCents } from '../../shared/billing'
@@ -9,8 +10,8 @@ import { invoiceRef } from '../../shared/externalInvoices'
 import { fmtDay } from '../../shared/invoices'
 import { formatCents } from '../../shared/money'
 import {
-  bpText, daysBetween, endEffect, endProblem, EXIT_LABEL, FREQUENCY_LABEL, inDays, INSTALMENT_ICON, INSTALMENT_TONE, instalmentsOf, instalmentState, MAX_END_REASON, nextAnniversary, nextBreakAnniversary, noticeBy,
-  scheduleOutOfDate, termLastDay, TIMING_LABEL, unconfirmedCpiYears,
+  bpText, daysBetween, draftChangeText, endDateProblem, endEffect, endReasonProblem, EXIT_LABEL, FREQUENCY_LABEL, inDays, INSTALMENT_ICON, INSTALMENT_TONE, instalmentsOf, instalmentState,
+  MAX_END_REASON, nextAnniversary, nextBreakAnniversary, noticeBy, termActionPending, termLastDay, TIMING_LABEL, unconfirmedCpiYears, type DraftChange,
 } from '../../shared/term'
 import { scheduleTotal, termEndDate, termYears, yearlyFees } from '../../shared/termSchedule'
 import { UI } from '../../ui/store'
@@ -25,6 +26,11 @@ export function riseText(t: BillingTerm): string {
   return `CPI, assumed ${bpText(t.escalationBp)}% a year${done.length ? ` · ${done.join(', ')}` : ''}`
 }
 
+/** "Year 1 of 3, quarter 4: draft INV-0104 is removed." for each draft a change touches, or what to say when none. */
+function draftsText(drafts: readonly DraftChange[], labelOf: (id: string) => string, none: string): string {
+  return drafts.length ? drafts.map(d => `${labelOf(d.milestoneId)}: ${draftChangeText(d, formatCents)}`).join(' ') : none
+}
+
 /**
  * The term of a term agreement on the deal Billing tab: its dates, fee, billing, rise and exit, the automatic drafting,
  * and the schedule grouped by year with each instalment's invoice. Confirm CPI opens a dialog; ending early is
@@ -34,7 +40,8 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
   const t = plan.term
   const today = F.today()
   const [err, setErr] = useState('')
-  const [ending, setEnding] = useState<{ day: string; reason: string } | null>(null)
+  // `tried`: the person pressed the confirm button once, so each field shows its own problem from then on.
+  const [ending, setEnding] = useState<{ day: string; reason: string; tried: boolean } | null>(null)
   const [endErr, setEndErr] = useState('')
   const panel = useRef<HTMLDivElement>(null)
   useEffect(() => { if (ending) panel.current?.focus() }, [ending !== null]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -52,7 +59,9 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
   const rows = scheduleRows({ ...plan, milestones: instalmentsOf(plan) }, list)
   const byYear = new Map<number, typeof rows>()
   for (const r of rows) byYear.set(r.milestone.termYear ?? 1, [...(byYear.get(r.milestone.termYear ?? 1) ?? []), r])
-  const pending = known && scheduleOutOfDate(plan, list)
+  // Exact: this browser confirmed CPI or ended the agreement and the server has not answered yet (never guessed from amounts).
+  const pending = termActionPending(t, Q.storedBillingPlan(deal.id)?.term)
+  const labelOf = (id: string): string => plan.milestones.find(m => m.id === id)?.label ?? id
 
   const toggle = (on: boolean): void => {
     const r = Act.setTermAutoDraft(deal.id, on)
@@ -67,12 +76,15 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
   // Ending early and confirming CPI are worked out from which instalments are already invoiced: until the deal's
   // invoices are loaded their previews would be wrong, so both wait for them.
   const waiting = known ? null : loadError ? `${loadError} The deal's invoices did not load, so Confirm CPI and End agreement early wait until they do.` : "Loading the deal's invoices before Confirm CPI and End agreement early…"
-  const effect = known && ending && !endProblem(t, ending.day, ending.reason || 'x') ? endEffect(plan, ending.day, list) : null
+  const dayErr = ending ? endDateProblem(t, ending.day) : null
+  const reasonErr = ending ? endReasonProblem(ending.reason) : null
+  const effect = known && ending && !t.ended && !dayErr ? endEffect(plan, ending.day, list) : null
   const confirmEnd = (): void => {
     if (!ending) return
+    setEnding({ ...ending, tried: true })
     if (!known) return setEndErr("The deal's invoices are not loaded, so what ending does cannot be shown yet. Try again when they are.")
-    const bad = endProblem(t, ending.day, ending.reason)
-    if (bad) return setEndErr(bad)
+    if (t.ended) return setEndErr('This agreement has already ended')
+    if (dayErr || reasonErr) return setEndErr('')
     const eff = endEffect(plan, ending.day, list)
     const r = Act.endTermEarly(deal.id, ending.day, ending.reason)
     if (!r.ok) return setEndErr(r.error)
@@ -88,7 +100,7 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
         <span className="row wrap" style={{ gap: 6 }}>
           {t.ended ? <Chip tone="bad" icon="stop">Ended {fmtDay(t.ended.endedOn)}</Chip> : left > 0 ? <Chip icon="clock">Ends {inDays(left)}</Chip> : <Chip>Term over</Chip>}
           {cpiYears.length > 0 && <Btn size="sm" disabled={!known} title={waiting ?? undefined} onClick={() => UI.open('confirmCpi', { dealId: deal.id, year: cpiYears[0] })}>Confirm CPI for year {cpiYears[0]}</Btn>}
-          {!t.ended && left > 0 && !ending && <Btn size="sm" kind="ghost" disabled={!known} title={waiting ?? undefined} onClick={() => { setEndErr(''); setEnding({ day: today >= t.startDate ? today : t.startDate, reason: '' }) }}>End agreement early</Btn>}
+          {!t.ended && left > 0 && !ending && <Btn size="sm" kind="ghost" disabled={!known} title={waiting ?? undefined} onClick={() => { setEndErr(''); setEnding({ day: today >= t.startDate ? today : t.startDate, reason: '', tried: false }) }}>End agreement early</Btn>}
         </span>
       }
     >
@@ -101,10 +113,10 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
         )}
         {t.ended && (
           <Banner tone="warn" icon="stop">
-            <b>Ended early on {fmtDay(t.ended.endedOn)}.</b> {t.ended.reason} <span className="muted">· recorded {fmtDay(t.ended.recordedAt)} by {t.ended.endedBy}. Invoices already made are kept; refunds or credits are handled by hand.</span>
+            <b>Ended early on {fmtDay(t.ended.endedOn)}.</b> {t.ended.reason} <span className="muted">· recorded {fmtDay(t.ended.recordedAt)} by {t.ended.endedBy}. Issued invoices are kept; refunds or credits are handled by hand.</span>
           </Banner>
         )}
-        {pending && <div className="sm muted" role="status"><Icon n="refresh" s={13} /> Updating the schedule. The server re-prices the instalments and records the variation.</div>}
+        {pending && <div className="sm muted" role="status"><Icon n="refresh" s={13} /> Updating the schedule. The server applies the change, updates or removes the drafts it touches and records the variation.</div>}
 
         <dl className="grid g3" style={{ margin: 0 }} aria-label="Term">
           <div><dt className="faint sm">Start</dt><dd className="b">{fmtDay(t.startDate)}</dd></div>
@@ -136,14 +148,15 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
           </div>
         </dl>
 
+
         <div className="col" style={{ gap: 4 }}>
-          <Ck checked={t.autoDraft && !t.ended} disabled={!!t.ended} onChange={toggle}>
+          <Ck checked={t.autoDraft} onChange={toggle}>
             <span>Draft each instalment's invoice automatically on its invoice date</span>
           </Ck>
           <div className="faint sm" role="note" aria-label="Term automation">
-            {t.ended ? 'The agreement has ended, so nothing more is drafted.'
-              : t.autoDraft ? `A draft for the company's billing client is made on each invoice date from ${fmtDay(t.draftFrom)}. It is never sent automatically: you review and issue each one.`
-                : 'Off: no drafts are made. Create each instalment invoice yourself from the schedule.'}
+            {!t.autoDraft ? 'Off: no drafts are made. Create each instalment invoice yourself from the schedule.'
+              : t.ended ? `The agreement has ended, so no instalment is added. The ones that remain are still drafted on their invoice dates from ${fmtDay(t.draftFrom)}, never sent automatically: you review and issue each one.`
+                : `A draft for the company's billing client is made on each invoice date from ${fmtDay(t.draftFrom)}. It is never sent automatically: you review and issue each one.`}
           </div>
         </div>
 
@@ -153,8 +166,8 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
               <div className="b">End this agreement early?</div>
               {endErr && <Banner tone="bad">{endErr}</Banner>}
               <div className="grid g2">
-                <Fld label="Ends on" req hint={`From ${fmtDay(t.startDate)}, before ${fmtDay(end)}`}><Inp type="date" min={t.startDate} max={lastDay} value={ending.day} onChange={v => setEnding({ ...ending, day: v })} /></Fld>
-                <Fld label="Reason" req hint={`Up to ${MAX_END_REASON} characters`}><TA rows={2} value={ending.reason} onChange={v => setEnding({ ...ending, reason: v })} /></Fld>
+                <Fld label="Ends on" req err={ending.tried ? dayErr : null} hint={`From ${fmtDay(t.startDate)}, before ${fmtDay(end)}`}><Inp type="date" min={t.startDate} max={lastDay} value={ending.day} onChange={v => setEnding({ ...ending, day: v })} /></Fld>
+                <Fld label="Reason" req err={ending.tried ? reasonErr : null} hint={`Up to ${MAX_END_REASON} characters`}><TA rows={2} value={ending.reason} onChange={v => setEnding({ ...ending, reason: v })} /></Fld>
               </div>
               <div role="status" aria-label="What ending does" className="col sm" style={{ gap: 4 }}>
                 {effect ? (
@@ -162,13 +175,19 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
                     {effect.removed.length > 0
                       ? <div>Removed: {effect.removed.map(m => `${m.label} (${formatCents(m.amountCents)})`).join(', ')}.</div>
                       : <div>No instalment is removed.</div>}
-                    {effect.cut.map(c => <div key={c.id}>Cut: {c.label} from <span className="money">{formatCents(c.from)}</span> to <span className="money">{formatCents(c.to)}</span>, for {daysBetween(c.periodStart, effect.endedOn)} of {daysBetween(c.periodStart, c.periodEnd) + 1} days.</div>)}
-                    {effect.keptInvoiced.length > 0 && <div>Kept, already invoiced: {effect.keptInvoiced.map(m => m.label).join(', ')}. Refunds or credits are handled by hand.</div>}
+                    {effect.cut.map(c => (
+                      <div key={c.id}>
+                        Cut: {c.label} from <span className="money">{formatCents(c.from)}</span> to <span className="money">{formatCents(c.to)}</span>, for {daysBetween(c.periodStart, effect.endedOn)} of {daysBetween(c.periodStart, c.periodEnd) + 1} days.
+                        {' '}It now ends on {fmtDay(c.newPeriodEnd)}{c.newPlannedDate === c.newPeriodEnd ? ' and is invoiced that day' : ''}.
+                      </div>
+                    ))}
+                    {effect.keptIssued.length > 0 && <div>Kept, already issued: {effect.keptIssued.map(m => m.label).join(', ')}. Refunds or credits are handled by hand.</div>}
+                    <div>Drafts follow the change. {draftsText(effect.drafts, labelOf, 'None of these instalments has a draft invoice.')}</div>
                     <div>
                       {effect.removedCents
                         ? <>An approved variation of <b className="money">{signedCents(-effect.removedCents, formatCents)}</b> is added: {effect.label}.</>
                         : 'Nothing comes off the contract.'}
-                      {' '}Automatic drafting stops.
+                      {' '}Nothing is added to the schedule after this; what remains is still drafted on its invoice date while automatic drafting is on.
                     </div>
                   </>
                 ) : <div className="muted">{known ? 'Pick a day in the term to see which instalments are removed or cut.' : "Waiting for the deal's invoices to show which instalments are removed or cut."}</div>}
@@ -181,6 +200,7 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
             </div>
           </div>
         )}
+
 
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl" aria-label="Term schedule" style={{ minWidth: 760 }}>

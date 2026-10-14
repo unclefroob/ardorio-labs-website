@@ -263,13 +263,16 @@ function termOf(dealId: string): { p: BillingPlan & { term: BillingTerm } } | { 
   if (g) return { error: g }
   const p = Q.billingPlan(dealId)
   if (!p?.term) return { error: 'This deal has no term agreement' }
+  // The server refuses any change to the term of a deal that is not won.
+  if (Q.deal(dealId)?.status !== 'won') return { error: 'This deal is not won: win it again before changing its term agreement' }
   return { p: p as BillingPlan & { term: BillingTerm } }
 }
 
 /**
  * Confirm the CPI rise of one year. Only the confirmation is written: the server stamps who and when, re-prices the
- * instalments of that year and later that have no invoice, and appends one approved variation for the difference. A
- * client may not re-price instalments itself, so the schedule here changes when the server's answer arrives.
+ * instalments of that year and later that have no issued invoice (their drafts follow), and appends one approved
+ * variation for the difference. A client may not re-price instalments itself, so the schedule here changes when the
+ * server's answer arrives.
  */
 export function confirmCpi(dealId: string, year: number, bp: number): BillingResult {
   const r = termOf(dealId)
@@ -284,8 +287,9 @@ export function confirmCpi(dealId: string, year: number, bp: number): BillingRes
 
 /**
  * End a term agreement early, once; it cannot be undone. Only the end is written: the server stamps who and when,
- * removes the un-invoiced instalments from the end date on, cuts one that spans it, appends one approved variation of
- * minus what was removed, and stops drafting. Invoiced instalments are kept; refunds or credits stay manual.
+ * removes the un-issued instalments from the end date on, cuts one that spans it to end the day before, makes their
+ * drafts follow, and appends one approved variation of minus what was removed. Nothing is added to the schedule after
+ * that; what remains is still drafted while auto-draft is on. Issued instalments are kept; refunds or credits stay manual.
  */
 export function endTermEarly(dealId: string, endedOn: string, reason: string): BillingResult {
   const r = termOf(dealId)
@@ -298,14 +302,17 @@ export function endTermEarly(dealId: string, endedOn: string, reason: string): B
   return { ok: true }
 }
 
-/** Turn automatic drafting of instalment invoices on or off. The only part of a stored term a person may change. */
+/**
+ * Turn automatic drafting of instalment invoices on or off. The only setting of a stored term a person may change; on an
+ * ended agreement it drafts the instalments that remain.
+ */
 export function setTermAutoDraft(dealId: string, on: boolean): BillingResult {
   const r = termOf(dealId)
   if ('error' in r) return fail(r.error)
   if (r.p.term.autoDraft === on) return { ok: true }
-  if (r.p.term.ended && on) return fail('This agreement has ended, so nothing more is drafted')
   r.p.term = { ...r.p.term, autoDraft: on }
   audit(on ? 'Term auto-draft on' : 'Term auto-draft off', Q.deal(dealId)?.title ?? dealId)
   commit()
   return { ok: true }
 }
+

@@ -55,10 +55,64 @@ export const oneOffMilestones = (plan: Pick<BillingPlan, 'milestones'> | undefin
 export const instalmentsOf = (plan: Pick<BillingPlan, 'milestones'> | undefined): BillingMilestone[] => (plan?.milestones ?? []).filter(isInstalment)
 
 type LiveInvoice = Pick<InvoiceDto, 'milestoneId' | 'status'> & Partial<Pick<InvoiceDto, 'test'>>
+/** An invoice as the previews read it. With its lines, source and link, they can say exactly what happens to a draft. */
+export type TermInvoice = LiveInvoice & Partial<Pick<InvoiceDto, 'id' | 'invoiceNumber' | 'lineItems' | 'source' | 'paymentLinkIsAutomatic'>>
 
-/** Instalment ids that have a non-void, non-test invoice (a draft included): those keep their amounts when the schedule is re-priced or cut. Earned counts only issued ones (moneyForDeal). */
+/**
+ * Instalment ids that have a live (non-void, non-test) invoice, a draft included: an invoice is already on its way, so
+ * the instalment needs no new one. This never decides an amount: only an issued invoice fixes one (issuedIds).
+ */
 export function invoicedIds(invoices: readonly LiveInvoice[]): Set<string> {
   return new Set(withoutTest(invoices).filter(i => i.status !== 'void' && !!i.milestoneId).map(i => i.milestoneId as string))
+}
+
+/**
+ * Instalment ids that have an ISSUED invoice (sent or paid, not test). Only these keep their amounts when Confirm CPI,
+ * End early or a waiver changes the schedule, and only these are earned. A draft does not fix anything: it follows.
+ */
+export function issuedIds(invoices: readonly LiveInvoice[]): Set<string> {
+  return new Set(withoutTest(invoices).filter(i => (i.status === 'sent' || i.status === 'paid') && !!i.milestoneId).map(i => i.milestoneId as string))
+}
+
+/** What the server does to a draft of an instalment it re-prices or removes. */
+export type DraftFate = 'repriced' | 'removed' | 'unlinked'
+export interface DraftChange { invoiceId: string; ref: string; milestoneId: string; fate: DraftFate; /** The new amount when re-priced. */ to: number | null }
+
+/**
+ * The drafts that follow a change, as the server's termDrafts does it: each live draft of an instalment re-priced (to the
+ * new cents) or removed (null) takes the new amount when it has one line at qty 1 and no automatic card link; otherwise
+ * a draft the server made (source 'term') is removed and one made by hand is unlinked from the instalment and kept. A
+ * draft already at the new amount is left alone.
+ */
+export function draftChanges(changes: ReadonlyMap<string, number | null>, invoices: readonly TermInvoice[]): DraftChange[] {
+  const out: DraftChange[] = []
+  for (const i of withoutTest(invoices)) {
+    if (i.status !== 'draft' || !i.milestoneId || !changes.has(i.milestoneId)) continue
+    const to = changes.get(i.milestoneId) ?? null
+    const lines = i.lineItems
+    const subtotal = lines ? lines.reduce((a, l) => a + Math.round(l.qty * l.unitPriceCents), 0) : null
+    if (to !== null && subtotal === to) continue
+    const simple = (!lines || (lines.length === 1 && lines[0].qty === 1)) && !i.paymentLinkIsAutomatic
+    const fate: DraftFate = to !== null && simple ? 'repriced' : i.source === 'term' ? 'removed' : 'unlinked'
+    out.push({ invoiceId: i.id ?? '', ref: i.invoiceNumber || 'A draft', milestoneId: i.milestoneId, fate, to: fate === 'repriced' ? to : null })
+  }
+  return out
+}
+
+/** "Its draft INV-0104 takes the new amount, $3,135.00." and the like: one sentence per draft. */
+export function draftChangeText(d: DraftChange, fmt: (cents: number) => string): string {
+  if (d.fate === 'repriced') return `Its draft ${d.ref} takes the new amount, ${fmt(d.to ?? 0)}.`
+  if (d.fate === 'removed') return `Its draft ${d.ref} is removed.`
+  return `Its draft ${d.ref}, made by hand, is unlinked from the instalment and kept.`
+}
+
+/** A reason as the API takes it: plain text of 1 to `max` characters once trimmed. Null when it is fine. */
+export function reasonProblem(reason: string, max: number, ask: string): string | null {
+  const r = reason.trim()
+  if (r.length < 1 || r.length > max) return `${ask}, in 1 to ${max} characters`
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(r)) return 'The reason cannot contain control characters'
+  return null
 }
 
 /** Whole days from a to b (b - a). */
@@ -125,10 +179,12 @@ export interface CpiEffect {
   /** The year's fee as assumed now and once confirmed. */
   feeFrom: number
   feeTo: number
-  /** Un-invoiced instalments of that year and later, re-priced. */
+  /** Un-issued instalments of that year and later, re-priced (a drafted one included). */
   changes: CpiChange[]
-  /** Instalments of that year and later already invoiced: they keep their amounts. */
+  /** Instalments of that year and later with an issued invoice: they keep their amounts. */
   kept: BillingMilestone[]
+  /** The drafts of the re-priced instalments, and what happens to each. */
+  drafts: DraftChange[]
   /** The approved variation the server appends (0: none). */
   differenceCents: number
   label: string
@@ -148,16 +204,19 @@ export function cpiProblem(t: BillingTerm, year: number, bp: number | null): str
   if (t.ended) return 'This agreement has ended'
   if (!Number.isInteger(year) || year < 2 || year > termYears(t)) return `Choose a year from 2 to ${termYears(t)}`
   if ((t.cpiConfirmed ?? []).some(c => c.year === year)) return `CPI for year ${year} is already confirmed`
-  if (bp === null || !int(bp, MIN_CPI_BP, MAX_BP)) return 'The CPI rate is -10% to 20%, to two decimal places'
-  return null
+  return cpiRateProblem(bp)
 }
 
+/** The rate alone, for the field's own message. */
+export const cpiRateProblem = (bp: number | null): string | null =>
+  bp === null || !int(bp, MIN_CPI_BP, MAX_BP) ? 'The CPI rate is -10% to 20%, to two decimal places' : null
+
 /** What confirming CPI for `year` at `bp` does to the schedule and the contract, as the server applies it. */
-export function cpiEffect(plan: Pick<BillingPlan, 'milestones'> & { term: BillingTerm }, year: number, bp: number, invoices: readonly LiveInvoice[]): CpiEffect {
+export function cpiEffect(plan: Pick<BillingPlan, 'milestones'> & { term: BillingTerm }, year: number, bp: number, invoices: readonly TermInvoice[]): CpiEffect {
   const t = plan.term
   const confirmed = { ...t, cpiConfirmed: [...(t.cpiConfirmed ?? []), { year, bp, confirmedOn: '', confirmedBy: '' }] }
   const fresh = new Map(termSchedule(confirmed).map(m => [m.id, m] as const))
-  const done = invoicedIds(invoices)
+  const done = issuedIds(invoices)
   const changes: CpiChange[] = []
   const kept: BillingMilestone[] = []
   for (const m of instalmentsOf(plan)) {
@@ -167,20 +226,30 @@ export function cpiEffect(plan: Pick<BillingPlan, 'milestones'> & { term: Billin
     if (n && n.amountCents !== m.amountCents) changes.push({ id: m.id, label: m.label, from: m.amountCents, to: n.amountCents })
   }
   return {
-    year, bp, assumedBp: t.escalationBp, feeFrom: yearlyFees(t)[year - 1] ?? 0, feeTo: yearlyFees(confirmed)[year - 1] ?? 0, changes, kept,
+    year, bp, assumedBp: t.escalationBp, feeFrom: yearlyFees(t)[year - 1] ?? 0,
+    feeTo: yearlyFees(confirmed)[year - 1] ?? 0, changes, kept,
+    drafts: draftChanges(new Map(changes.map(c => [c.id, c.to] as const)), invoices),
     differenceCents: changes.reduce((a, c) => a + c.to - c.from, 0),
     label: `CPI year ${year}: ${bpText(bp)}% (assumed ${bpText(t.escalationBp)}%)`,
   }
 }
 
 // ── end early ────────────────────────────────────────────────────────────────────────────────────
-export interface EndCut { id: string; label: string; from: number; to: number; periodStart: string; periodEnd: string }
+export interface EndCut {
+  id: string; label: string; from: number; to: number; periodStart: string; periodEnd: string
+  /** After the cut: the period ends the day before the end, and an instalment billed in arrears is invoiced that day. */
+  newPeriodEnd: string
+  newPlannedDate: string
+}
 export interface EndEffect {
   endedOn: string
+  /** Removed whole: from the end on, or cut to less than a cent. */
   removed: BillingMilestone[]
   cut: EndCut[]
-  /** Instalments kept because they already have an invoice, in or after the end. */
-  keptInvoiced: BillingMilestone[]
+  /** Instalments kept because they have an issued invoice, in or after the end. */
+  keptIssued: BillingMilestone[]
+  /** The drafts of the removed and cut instalments, and what happens to each. */
+  drafts: DraftChange[]
   /** The total taken off the contract: the approved variation is minus this. */
   removedCents: number
   label: string
@@ -188,47 +257,60 @@ export interface EndEffect {
 
 export function endProblem(t: BillingTerm, endedOn: string, reason: string): string | null {
   if (t.ended) return 'This agreement has already ended'
+  return endDateProblem(t, endedOn) ?? endReasonProblem(reason)
+}
+
+/** The end date alone, for the field's own message. */
+export function endDateProblem(t: Pick<BillingTerm, 'startDate' | 'termMonths'>, endedOn: string): string | null {
   if (!isDay(endedOn)) return 'Pick the day the agreement ends'
   if (endedOn < t.startDate) return 'The end date cannot be before the term starts'
   if (endedOn >= termEndDate(t)) return `The end date must be before the term ends on ${termEndDate(t)}`
-  const r = reason.trim()
-  if (r.length < 1 || r.length > MAX_END_REASON) return `Say why it ends, in 1 to ${MAX_END_REASON} characters`
   return null
 }
 
-/** What ending on `endedOn` does: instalments removed, an instalment cut to the days before the end, and the variation. */
-export function endEffect(plan: Pick<BillingPlan, 'milestones'>, endedOn: string, invoices: readonly LiveInvoice[]): EndEffect {
-  const done = invoicedIds(invoices)
+/** The reason alone, for the field's own message. */
+export const endReasonProblem = (reason: string): string | null => reasonProblem(reason, MAX_END_REASON, 'Say why it ends')
+
+/**
+ * What ending on `endedOn` does, as the server applies it: un-issued instalments from the end on are removed; one that
+ * spans the end is cut to its days before the end (removed whole when that rounds below a cent), ends the day before
+ * the end and, billed in arrears, is invoiced that day; the drafts of all of them follow; and the variation.
+ */
+export function endEffect(plan: Pick<BillingPlan, 'milestones'> & { term?: Pick<BillingTerm, 'timing'> }, endedOn: string, invoices: readonly TermInvoice[]): EndEffect {
+  const done = issuedIds(invoices)
   const removed: BillingMilestone[] = []
   const cut: EndCut[] = []
-  const keptInvoiced: BillingMilestone[] = []
+  const keptIssued: BillingMilestone[] = []
   for (const m of instalmentsOf(plan)) {
     if (!m.periodStart || !m.periodEnd) continue
     const touches = m.periodStart >= endedOn || m.periodEnd >= endedOn
     if (!touches) continue
-    if (done.has(m.id)) { keptInvoiced.push(m); continue }
+    if (done.has(m.id)) { keptIssued.push(m); continue }
     if (m.periodStart >= endedOn) { removed.push(m); continue }
     const to = roundDiv(m.amountCents * daysBetween(m.periodStart, endedOn), daysBetween(m.periodStart, m.periodEnd) + 1)
-    cut.push({ id: m.id, label: m.label, from: m.amountCents, to, periodStart: m.periodStart, periodEnd: m.periodEnd })
+    if (to < 1) { removed.push(m); continue }
+    const arrears = (plan.term?.timing ?? (m.plannedDate === m.periodEnd ? 'arrears' : 'advance')) === 'arrears'
+    const newPeriodEnd = dayBefore(endedOn)
+    cut.push({
+      id: m.id, label: m.label, from: m.amountCents, to, periodStart: m.periodStart, periodEnd: m.periodEnd,
+      newPeriodEnd, newPlannedDate: arrears ? newPeriodEnd : m.plannedDate ?? m.periodStart,
+    })
   }
   const removedCents = scheduleTotal(removed) + cut.reduce((a, c) => a + c.from - c.to, 0)
-  return { endedOn, removed, cut, keptInvoiced, removedCents, label: `Ended early on ${endedOn}` }
+  const changes = new Map<string, number | null>([...removed.map(m => [m.id, null] as const), ...cut.map(c => [c.id, c.to] as const)])
+  return { endedOn, removed, cut, keptIssued, drafts: draftChanges(changes, invoices), removedCents, label: `Ended early on ${endedOn}` }
 }
 
-/** The server re-prices or trims instalments after an action; until its answer arrives the plan shows the old ones. */
-export function scheduleOutOfDate(plan: Pick<BillingPlan, 'milestones'> & { term: BillingTerm }, invoices: readonly LiveInvoice[]): boolean {
-  const t = plan.term
-  const done = invoicedIds(invoices)
-  const want = new Map(termSchedule(t).map(m => [m.id, m.amountCents] as const))
-  for (const m of instalmentsOf(plan)) {
-    if (done.has(m.id)) continue
-    if (t.ended) {
-      if (m.periodStart && m.periodStart >= t.ended.endedOn) return true
-      continue
-    }
-    if (want.has(m.id) && want.get(m.id) !== m.amountCents) return true
-  }
-  return false
+/**
+ * True while this browser has confirmed CPI or ended the agreement and the server has not yet answered: until it does, the schedule shown is the one from before. `server` is the term as the server last stored it
+ * (undefined when the plan has no server copy yet). Exact: it compares the two terms, never amounts against invoices,
+ * so a voided invoice or a cut instalment never makes the schedule look out of date.
+ */
+export function termActionPending(local: Pick<BillingTerm, 'cpiConfirmed' | 'ended' | 'waived'>, server: Pick<BillingTerm, 'cpiConfirmed' | 'ended' | 'waived'> | undefined): boolean {
+  if (!server) return false
+  return (local.cpiConfirmed?.length ?? 0) > (server.cpiConfirmed?.length ?? 0)
+    || (!!local.ended && !server.ended)
+    || (local.waived?.length ?? 0) > (server.waived?.length ?? 0)
 }
 
 /** "in 12 days", "today", "3 days ago". */

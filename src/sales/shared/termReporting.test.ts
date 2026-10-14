@@ -175,7 +175,7 @@ const PLAN_C: BillingPlan = { id: 'bp_brk', dealId: 'brk', businessId: 'ard', te
 const INV_C = [inv('c1', 'brk', 'inst_1_1', 5000000, 'paid', '2025-03-01'), inv('c2', 'brk', 'inst_2_1', 5150000, 'paid', '2026-03-01')]
 
 describe('term agreement C: break at each anniversary', () => {
-  it('committed is contracted minus the un-invoiced instalments from the next anniversary on', () => {
+  it('committed is contracted minus the un-issued instalments from the next anniversary on', () => {
     expect(PLAN_C.milestones.map(m => m.amountCents)).toEqual([5000000, 5150000, 5304500, 5463635, 5627544])
     const c = termCommitment(PLAN_C, C_TOTAL, INV_C, TODAY)
     expect(c.breakAt).toBe('2027-03-01')
@@ -185,9 +185,12 @@ describe('term agreement C: break at each anniversary', () => {
     expect(notCommittedLabel(c.breakAt!)).toBe('Not yet committed (break at 1 Mar 2027)')
   })
 
-  it('an instalment already invoiced is committed even after the anniversary, and none is left after the last anniversary', () => {
-    const early = inv('c3', 'brk', 'inst_3_1', 5304500, 'draft', '2026-10-01')
+  it('an instalment already issued is committed even after the anniversary, and none is left after the last anniversary', () => {
+    const early = inv('c3', 'brk', 'inst_3_1', 5304500, 'sent', '2026-10-01')
     expect(termCommitment(PLAN_C, C_TOTAL, [...INV_C, early], TODAY).notCommitted).toBe(5463635 + 5627544)
+    // A draft commits nothing: the server drafts on its own, and a draft follows a break like any other change.
+    const drafted = inv('c3', 'brk', 'inst_3_1', 5304500, 'draft', '2026-10-01')
+    expect(termCommitment(PLAN_C, C_TOTAL, [...INV_C, drafted], TODAY).notCommitted).toBe(5304500 + 5463635 + 5627544)
     // In the last year no anniversary is left before the term ends: everything is committed.
     expect(termCommitment(PLAN_C, C_TOTAL, INV_C, '2029-03-02')).toMatchObject({ notCommitted: 0, committed: C_TOTAL, breakAt: null })
     // A committed agreement never has an uncommitted part.

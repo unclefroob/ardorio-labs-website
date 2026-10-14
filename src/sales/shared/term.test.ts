@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { BillingTerm, InvoiceDto } from '../api/contract'
 import { moneyForDeal, validateMilestones, cleanMilestone, isRetainerInvoice } from './billing'
 import {
-  bpText, cpiEffect, cpiProblem, endEffect, endProblem, instalmentState, nextAnniversary, nextBreakAnniversary, noticeBy, pctToBp, scheduleOutOfDate, termLastDay, unconfirmedCpiYears, validateTerm, type TermInput,
+  bpText, cpiEffect, cpiProblem, draftChanges, endDateProblem, endEffect, endProblem, endReasonProblem, instalmentState, invoicedIds, issuedIds, nextAnniversary, nextBreakAnniversary, noticeBy, pctToBp,
+  termActionPending, termLastDay, unconfirmedCpiYears, validateTerm, type TermInput,
 } from './term'
 import { termSchedule } from './termSchedule'
 
@@ -137,12 +138,45 @@ describe('end early', () => {
   const plan = { term: t, milestones: termSchedule(t) }
   it('removes later instalments, cuts the one spanning the end by days, keeps invoiced ones', () => {
     // Quarter 2026-04-01..2026-06-30 is 91 days; ending on 2026-05-01 keeps 30 of them: round(300000 * 30 / 91) = 98901.
-    const e = endEffect(plan, '2026-05-01', [inv('inst_1_1', 'paid'), inv('inst_2_1', 'draft')])
-    expect(e.cut).toEqual([{ id: 'inst_1_2', label: 'Year 1 of 2, quarter 2', from: 300000, to: 98901, periodStart: '2026-04-01', periodEnd: '2026-06-30' }])
+    const e = endEffect(plan, '2026-05-01', [inv('inst_1_1', 'paid'), inv('inst_2_1', 'sent')])
+    expect(e.cut).toEqual([{
+      id: 'inst_1_2', label: 'Year 1 of 2, quarter 2', from: 300000, to: 98901, periodStart: '2026-04-01', periodEnd: '2026-06-30',
+      // In advance: the cut quarter now ends on 30 April and is still invoiced on 1 April.
+      newPeriodEnd: '2026-04-30', newPlannedDate: '2026-04-01',
+    }])
     expect(e.removed.map(m => m.id)).toEqual(['inst_1_3', 'inst_1_4', 'inst_2_2', 'inst_2_3', 'inst_2_4'])
-    expect(e.keptInvoiced.map(m => m.id)).toEqual(['inst_2_1'])
+    expect(e.keptIssued.map(m => m.id)).toEqual(['inst_2_1'])
     expect(e.removedCents).toBe(5 * 300000 + (300000 - 98901))
     expect(e.label).toBe('Ended early on 2026-05-01')
+  })
+  it('a draft keeps nothing: a drafted instalment is removed or cut, and the preview says what happens to the draft', () => {
+    const lines = (cents: number) => [{ description: 'Quarter', qty: 1, unitPriceCents: cents, amountCents: cents }]
+    const e = endEffect(plan, '2026-05-01', [
+      { ...inv('inst_1_2', 'draft'), id: 'd2', invoiceNumber: 'INV-0002', source: 'term' as const, lineItems: lines(300000) },
+      { ...inv('inst_1_3', 'draft'), id: 'd3', invoiceNumber: 'INV-0003', source: 'term' as const, lineItems: lines(300000) },
+      { ...inv('inst_1_4', 'draft'), id: 'd4', invoiceNumber: 'INV-0004', source: 'manual' as const, lineItems: lines(300000) },
+    ])
+    expect(e.keptIssued).toEqual([])
+    expect(e.cut.map(c => c.id)).toEqual(['inst_1_2'])
+    expect(e.removed.map(m => m.id)).toContain('inst_1_3')
+    expect(e.drafts).toEqual([
+      { invoiceId: 'd2', ref: 'INV-0002', milestoneId: 'inst_1_2', fate: 'repriced', to: 98901 },
+      { invoiceId: 'd3', ref: 'INV-0003', milestoneId: 'inst_1_3', fate: 'removed', to: null },
+      { invoiceId: 'd4', ref: 'INV-0004', milestoneId: 'inst_1_4', fate: 'unlinked', to: null },
+    ])
+  })
+  it('in arrears, the cut instalment is invoiced on its new last day', () => {
+    const a = term({ frequency: 'quarterly', termMonths: 24, startDate: '2026-01-01', annualCents: 1200000, timing: 'arrears' })
+    const e = endEffect({ term: a, milestones: termSchedule(a) }, '2026-05-01', [])
+    expect(e.cut).toMatchObject([{ id: 'inst_1_2', to: 98901, newPeriodEnd: '2026-04-30', newPlannedDate: '2026-04-30' }])
+  })
+  it('a cut that rounds below a cent removes the instalment, as the server does', () => {
+    // 4 cents a year: 1 cent a quarter; 1 day of a 91-day quarter rounds to 0.
+    const tiny = term({ frequency: 'quarterly', termMonths: 12, startDate: '2026-01-01', annualCents: 4 })
+    const e = endEffect({ term: tiny, milestones: termSchedule(tiny) }, '2026-04-02', [])
+    expect(e.cut).toEqual([])
+    expect(e.removed.map(m => m.id)).toEqual(['inst_1_2', 'inst_1_3', 'inst_1_4'])
+    expect(e.removedCents).toBe(3)
   })
   it('an end on a period start removes that period whole', () => {
     const e = endEffect(plan, '2026-04-01', [])
@@ -161,10 +195,52 @@ describe('end early', () => {
     expect(endProblem(t, '2026-05-01', 'x'.repeat(301))).toMatch(/Say why/)
     expect(endProblem({ ...t, ended: { endedOn: '2026-05-01', reason: 'x', endedBy: 'a', recordedAt: '' } }, '2026-06-01', 'x')).toMatch(/already ended/)
     expect(endProblem(t, '2026-01-01', 'Client closed')).toBeNull()
+    // Each field on its own, for its own message.
+    expect(endDateProblem(t, '')).toMatch(/Pick the day/)
+    expect(endDateProblem(t, '2026-05-01')).toBeNull()
+    expect(endReasonProblem(' ')).toMatch(/Say why it ends/)
+    expect(endReasonProblem('Gone\u0007')).toMatch(/control characters/)
+    expect(endReasonProblem('Gone\nfor good')).toBeNull()
   })
-  it('the schedule is out of date until the server answers', () => {
-    expect(scheduleOutOfDate(plan, [])).toBe(false)
-    expect(scheduleOutOfDate({ ...plan, term: { ...t, ended: { endedOn: '2026-05-01', reason: 'x', endedBy: '', recordedAt: '' } } }, [])).toBe(true)
+})
+
+describe('only an issued invoice fixes an instalment', () => {
+  const t = term({ termMonths: 36, escalation: 'cpi', escalationBp: 250, startDate: '2026-10-01', annualCents: 1000000 })
+  const plan = { term: t, milestones: termSchedule(t) }
+  it('issuedIds counts sent and paid, never a draft, a void or a test invoice; invoicedIds still sees the draft', () => {
+    const list = [inv('a', 'sent'), inv('b', 'paid'), inv('c', 'draft'), inv('d', 'void'), { ...inv('e', 'sent'), test: { markedAt: '', markedBy: '', reason: 'x' } }]
+    expect([...issuedIds(list)].sort()).toEqual(['a', 'b'])
+    expect([...invoicedIds(list)].sort()).toEqual(['a', 'b', 'c'])
+  })
+  it('Confirm CPI re-prices a drafted instalment and says its draft follows', () => {
+    const e = cpiEffect(plan, 2, 350, [{ ...inv('inst_2_1', 'draft'), id: 'd1', invoiceNumber: 'INV-0009', source: 'term' as const, lineItems: [{ description: 'x', qty: 1, unitPriceCents: 1025000, amountCents: 1025000 }] }])
+    expect(e.kept).toEqual([])
+    expect(e.changes.map(c => c.id)).toEqual(['inst_2_1', 'inst_3_1'])
+    expect(e.drafts).toEqual([{ invoiceId: 'd1', ref: 'INV-0009', milestoneId: 'inst_2_1', fate: 'repriced', to: 1035000 }])
+  })
+  it('draftChanges: two lines or an automatic card link cannot be re-priced; a draft already at the amount is left alone', () => {
+    const line = (cents: number, qty = 1) => ({ description: 'x', qty, unitPriceCents: cents, amountCents: cents * qty })
+    const base = { ...inv('m1', 'draft'), invoiceNumber: 'INV-1' }
+    expect(draftChanges(new Map([['m1', 500]]), [{ ...base, id: 'x', source: 'term' as const, lineItems: [line(200), line(100)] }])[0].fate).toBe('removed')
+    expect(draftChanges(new Map([['m1', 500]]), [{ ...base, id: 'x', source: 'manual' as const, lineItems: [line(400)], paymentLinkIsAutomatic: true }])[0].fate).toBe('unlinked')
+    expect(draftChanges(new Map([['m1', 500]]), [{ ...base, id: 'x', source: 'term' as const, lineItems: [line(250, 2)] }])).toEqual([])
+    expect(draftChanges(new Map([['m1', 500]]), [{ ...inv('m1', 'sent'), id: 'x', lineItems: [line(400)] }])).toEqual([])
+  })
+})
+
+describe('the schedule is being updated only while the server has not answered', () => {
+  const t = term({ termMonths: 36, escalation: 'cpi', escalationBp: 250 })
+  const cpi = [{ year: 2, bp: 300, confirmedOn: '', confirmedBy: '' }]
+  const ended = { endedOn: '2027-01-01', reason: 'x', endedBy: '', recordedAt: '' }
+  const waived = [{ milestoneId: 'inst_2_1', reason: 'x', waivedOn: '', waivedBy: '' }]
+  it('a confirmation, an end or a waiver the server copy lacks is pending; once it has it, nothing is', () => {
+    expect(termActionPending(t, t)).toBe(false)
+    expect(termActionPending({ ...t, cpiConfirmed: cpi }, t)).toBe(true)
+    expect(termActionPending({ ...t, ended }, t)).toBe(true)
+    expect(termActionPending({ ...t, waived }, t)).toBe(true)
+    expect(termActionPending({ ...t, cpiConfirmed: cpi, ended, waived }, { ...t, cpiConfirmed: cpi, ended, waived })).toBe(false)
+    // A plan the server has never stored has nothing to wait for.
+    expect(termActionPending({ ...t, ended }, undefined)).toBe(false)
   })
 })
 

@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { changes, rec } from '../../testing/fixtures'
+import { appliedResult, changes, rec } from '../../testing/fixtures'
 import { button, click, field, settle, type } from '../../testing/dom'
 import { ardDeal, CLIENT, dto, invoicingWorld, SETTINGS, setArdRole } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
@@ -9,6 +9,7 @@ import { fakeApi, json } from '../../testing/rosterioWorld'
 import { formatCents } from '../../shared/money'
 import { termSchedule } from '../../shared/termSchedule'
 import type { TermInput } from '../../shared/term'
+import type { BatchRequest, BatchResponse, OpResult } from '../../api/contract'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: () => Promise.resolve(changes([])), getBootstrap: vi.fn() }))
@@ -180,7 +181,8 @@ describe('Billing tab: term agreement', () => {
     const eff = dlg.querySelector('[aria-label="What confirming does"]')?.textContent ?? ''
     // Year 2 at 3.5%: $12,420 a year, $3,105 a quarter; year 3 then rises 3% to $12,792.60, $3,198.15 a quarter.
     expect(eff).toContain(`The year 2 fee changes from ${fmt(1236000)} to ${fmt(1242000)}, and the years after it rise from the new fee`)
-    expect(eff).toContain('8 instalments not yet invoiced are re-priced')
+    expect(eff).toContain('8 instalments not yet issued are re-priced')
+    expect(eff).toContain('Drafts follow the change. None of the re-priced instalments has a draft invoice.')
     expect(eff).toContain(`Year 2 of 3, quarter 1 ${fmt(309000)} to ${fmt(310500)}`)
     expect(eff).toContain(`An approved variation of +${fmt(4 * 1500 + 4 * 1545)} is added: CPI year 2: 3.5% (assumed 3%)`)
     await click(button(dlg, 'Confirm CPI'))
@@ -191,14 +193,34 @@ describe('Billing tab: term agreement', () => {
     expect(button(termCard(), 'Confirm CPI for year 3')).toBeTruthy()
   })
 
-  it('refuses a CPI rate out of range in the dialog', async () => {
+  it('refuses a CPI rate out of range in the dialog, on the rate field itself', async () => {
     const { plan } = await show()
     await click(button(termCard(), 'Confirm CPI for year 2'))
     const dlg = host.querySelector('[role="dialog"]') as HTMLElement
-    await type(field(dlg, 'CPI rate (%)'), '25')
+    const rate = field(dlg, 'CPI rate (%)') as HTMLInputElement
+    await type(rate, '25')
+    expect(rate.getAttribute('aria-invalid')).toBeNull()
     await click(button(dlg, 'Confirm CPI'))
     expect(dlg.querySelector('[role="alert"]')?.textContent).toContain('-10% to 20%')
+    expect(rate.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(rate.getAttribute('aria-describedby') ?? '')?.textContent).toBe('The CPI rate is -10% to 20%, to two decimal places')
     expect(plan().term?.cpiConfirmed).toBeUndefined()
+    // Fixed, the error goes.
+    await type(rate, '3.5')
+    expect(rate.getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('Confirm CPI re-prices a drafted instalment and says its draft takes the new amount', async () => {
+    const draft = dto({ id: 'q5', invoiceNumber: 'INV-0105', milestoneId: 'inst_2_1', status: 'draft', subtotalCents: 309000, source: 'term', issuedCount: 0, sentAt: null, lineItems: [{ description: 'Q', qty: 1, unitPriceCents: 309000, amountCents: 309000 }] })
+    await show({ invoices: [...INVOICES, draft] })
+    await click(button(termCard(), 'Confirm CPI for year 2'))
+    const dlg = host.querySelector('[role="dialog"][aria-label="Confirm CPI for year 2"]') as HTMLElement
+    await settle(8)
+    await type(field(dlg, 'CPI rate (%)'), '3.5')
+    const eff = dlg.querySelector('[aria-label="What confirming does"]')?.textContent ?? ''
+    expect(eff).toContain('8 instalments not yet issued are re-priced')
+    expect(eff).not.toContain('Already issued')
+    expect(eff).toContain(`Year 2 of 3, quarter 1: Its draft INV-0105 takes the new amount, ${fmt(310500)}.`)
   })
 
   it('End agreement early confirms in place: which instalments are removed or cut and the negative variation, irreversible', async () => {
@@ -209,13 +231,21 @@ describe('Billing tab: term agreement', () => {
     await type(field(panel, 'Ends on'), '2027-02-15')
     const eff = panel.querySelector('[aria-label="What ending does"]')?.textContent ?? ''
     // Quarter 1 Jan to 31 Mar 2027 is 90 days; 45 are kept: $3,090 becomes $1,545.
-    expect(eff).toContain(`Cut: Year 2 of 3, quarter 2 from ${fmt(309000)} to ${fmt(154500)}, for 45 of 90 days.`)
+    expect(eff).toContain(`Cut: Year 2 of 3, quarter 2 from ${fmt(309000)} to ${fmt(154500)}, for 45 of 90 days. It now ends on 14 Feb 2027.`)
+    expect(eff).toContain('Drafts follow the change. None of these instalments has a draft invoice.')
+    expect(eff).toContain('Nothing is added to the schedule after this; what remains is still drafted on its invoice date while automatic drafting is on.')
+    expect(eff).not.toContain('Automatic drafting stops')
     expect(eff).toContain('Removed: Year 2 of 3, quarter 3')
     expect(eff).toContain('Year 3 of 3, quarter 4')
     expect(eff).toContain(`An approved variation of −${fmt(2 * 309000 + 4 * 318270 + 154500)} is added: Ended early on 2027-02-15.`)
     expect(eff).toContain("This can't be undone.")
     await click(button(panel, 'End agreement'))
     expect(panel.querySelector('[role="alert"]')?.textContent).toContain('Say why it ends')
+    // The reason field carries its own error: invalid, and described by that message.
+    const reason = panel.querySelector('textarea') as HTMLTextAreaElement
+    expect(reason.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(reason.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Say why it ends, in 1 to 300 characters')
+    expect(field(panel, 'Ends on')?.getAttribute('aria-invalid')).toBeNull()
     expect(plan().term?.ended).toBeUndefined()
     await type(panel.querySelector('textarea'), 'Client moved to an in-house team')
     await click(button(panel, 'End agreement'))
@@ -223,7 +253,38 @@ describe('Billing tab: term agreement', () => {
     expect(host.querySelector('[role="group"][aria-label="End agreement early"]')).toBeNull()
     expect(termCard().textContent).toContain('Ended early on 15 Feb 2027.')
     expect(button(termCard(), 'End agreement early')).toBeUndefined()
-    expect((termCard().querySelector('input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
+    // Ended, what remains is still drafted while auto-draft is on, and it can still be switched.
+    expect((termCard().querySelector('input[type="checkbox"]') as HTMLInputElement).disabled).toBe(false)
+    expect(termCard().querySelector('[aria-label="Term automation"]')?.textContent).toContain('The agreement has ended, so no instalment is added. The ones that remain are still drafted on their invoice dates')
+  })
+
+  it('End early: a drafted instalment is cut like any other and its draft follows; the end date gets its own error', async () => {
+    await show()
+    await click(button(termCard(), 'End agreement early'))
+    const panel = host.querySelector('[role="group"][aria-label="End agreement early"]') as HTMLElement
+    // Year 1 quarter 4 (1 Jul to 30 Sep 2026, 92 days) has only a draft: ending on 15 Aug keeps 45 days of it.
+    await type(field(panel, 'Ends on'), '2026-08-15')
+    const eff = panel.querySelector('[aria-label="What ending does"]')?.textContent ?? ''
+    expect(eff).toContain(`Cut: Year 1 of 3, quarter 4 from ${fmt(300000)} to ${fmt(146739)}, for 45 of 92 days. It now ends on 14 Aug 2026.`)
+    expect(eff).toContain(`Year 1 of 3, quarter 4: Its draft INV-0104 takes the new amount, ${fmt(146739)}.`)
+    expect(eff).not.toContain('Kept, already issued')
+    // A day after the term: the date field says so itself once End agreement is pressed.
+    await type(field(panel, 'Ends on'), '2030-01-01')
+    await type(panel.querySelector('textarea'), 'Client left')
+    await click(button(panel, 'End agreement'))
+    const day = field(panel, 'Ends on') as HTMLInputElement
+    expect(day.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(day.getAttribute('aria-describedby') ?? '')?.textContent).toBe('The end date must be before the term ends on 2028-10-01')
+    expect((panel.querySelector('textarea') as HTMLTextAreaElement).getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('End early in arrears says the cut instalment is invoiced on its new last day', async () => {
+    const arrears = { ...TERM, timing: 'arrears' as const }
+    await show({ plan: { term: { ...arrears, draftFrom: '2025-09-20' }, milestones: [BUILD, ...termSchedule(arrears)] }, invoices: [] })
+    await click(button(termCard(), 'End agreement early'))
+    const panel = host.querySelector('[role="group"][aria-label="End agreement early"]') as HTMLElement
+    await type(field(panel, 'Ends on'), '2027-02-15')
+    expect(panel.querySelector('[aria-label="What ending does"]')?.textContent).toContain('It now ends on 14 Feb 2027 and is invoiced that day.')
   })
 
   it('keeps Confirm CPI and End agreement early off until the invoices load, and says so when they fail', async () => {
@@ -281,8 +342,8 @@ describe('Billing tab: term agreement', () => {
     expect(api.count('GET /sales/invoices?dealId=dl1')).toBe(before + 1)
     await type(field(dlg, 'CPI rate (%)'), '3.5')
     const eff = dlg.querySelector('[aria-label="What confirming does"]')?.textContent ?? ''
-    expect(eff).toContain('7 instalments not yet invoiced are re-priced')
-    expect(eff).toContain('Already invoiced, kept as they are: Year 2 of 3, quarter 1')
+    expect(eff).toContain('7 instalments not yet issued are re-priced')
+    expect(eff).toContain('Already issued, kept as they are: Year 2 of 3, quarter 1')
     expect(eff).toContain(`An approved variation of +${fmt(3 * 1500 + 4 * 1545)} is added`)
   })
 
@@ -303,6 +364,47 @@ describe('Billing tab: term agreement', () => {
     const { api } = await show({ role: 'manager' })
     expect(text()).toBe('')
     expect(api.count('GET /sales/invoices?dealId=dl1')).toBe(0)
+  })
+})
+
+describe('Billing tab: "Updating the schedule" only while the server has not answered', () => {
+  it('shows after Confirm CPI and goes once the server stores it', async () => {
+    const { plan } = await show()
+    const { postBatch } = await import('../../api/records')
+    vi.mocked(postBatch).mockImplementation(async (req: BatchRequest): Promise<BatchResponse> => ({
+      serverNow: '2026-10-09T10:00:00.000Z',
+      results: req.ops.map((op, i): OpResult => {
+        // The server re-prices year 2 and later and records the variation.
+        const t = { ...PLAN.term, cpiConfirmed: [{ year: 2, bp: 350, confirmedOn: '2026-10-09', confirmedBy: 'Me Myself' }] }
+        return appliedResult(i, op.collection, op.id, 2, { ...PLAN, term: t, milestones: [BUILD, ...termSchedule(t)] })
+      }),
+    }))
+    await click(button(termCard(), 'Confirm CPI for year 2'))
+    const dlg = host.querySelector('[role="dialog"][aria-label="Confirm CPI for year 2"]') as HTMLElement
+    await settle(8)
+    await type(field(dlg, 'CPI rate (%)'), '3.5')
+    await click(button(dlg, 'Confirm CPI'))
+    expect(termCard().textContent).toContain('Updating the schedule')
+    await act(async () => { await m.sync.flush() })
+    await settle(4)
+    expect(plan().milestones.find(x => x.id === 'inst_2_1')?.amountCents).toBe(310500)
+    expect(termCard().textContent).not.toContain('Updating the schedule')
+  })
+
+  it('never shows for an instalment kept at its old amount whose invoice was later cancelled', async () => {
+    // CPI for year 2 was confirmed while year 2 quarter 1 had an issued invoice, so the server kept it at $3,090. That
+    // invoice was then cancelled: the instalment now has no issued invoice and differs from the schedule, for good.
+    const t = { ...TERM, draftFrom: '2025-09-20', cpiConfirmed: [{ year: 2, bp: 350, confirmedOn: '2026-10-01', confirmedBy: 'Ryan' }] }
+    const kept = termSchedule(t).map(x => (x.id === 'inst_2_1' ? { ...x, amountCents: 309000 } : x))
+    const voided = dto({ id: 'q5', invoiceNumber: 'INV-0105', milestoneId: 'inst_2_1', status: 'void', subtotalCents: 309000, source: 'term' })
+    await show({ plan: { term: t, milestones: [BUILD, ...kept] }, invoices: [...INVOICES, voided] })
+    expect(termCard().textContent).not.toContain('Updating the schedule')
+    // The same for an ended agreement that kept an issued instalment after the end, since cancelled.
+    const ended = { ...TERM, draftFrom: '2025-09-20', ended: { endedOn: '2026-11-01', reason: 'Left', endedBy: 'Ryan', recordedAt: '2026-10-01T00:00:00Z' } }
+    act(() => root.unmount())
+    root = createRoot(host)
+    await show({ plan: { term: ended }, invoices: [...INVOICES, dto({ id: 'q6', invoiceNumber: 'INV-0106', milestoneId: 'inst_2_2', status: 'void', subtotalCents: 309000, source: 'term' })] })
+    expect(termCard().textContent).not.toContain('Updating the schedule')
   })
 })
 
