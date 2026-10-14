@@ -17,7 +17,7 @@ import { invoiceRef, recordedLine } from '../../shared/externalInvoices'
 import { fmtDay, statusChip } from '../../shared/invoices'
 import { centsToInput, formatCents, parseCents } from '../../shared/money'
 import { UI } from '../../ui/store'
-import { ExternalChip, RetainerChip } from '../invoices/parts'
+import { ExternalChip, RetainerChip, TermChip } from '../invoices/parts'
 import { createDraftsForUnbilled } from './billingActions'
 import { ContractLedger } from './ContractLedger'
 import { TermAgreement, type TermPlan } from './TermAgreement'
@@ -300,7 +300,7 @@ function Schedule({ deal }: { deal: Deal }) {
             </div>
             <RetainerNote retainer={retainer} today={today} paused={paused} />
             {retainerInvoices.map(i => (
-              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
+              <div key={i.id} className="rowx"><span>{invLink(i)} <span className="faint sm">{fmtDay(i.issueDate)}</span></span><span className="row" style={{ gap: 4 }}><RetainerChip inv={i} /><TermChip inv={i} />{(() => { const c = statusChip(i); return <Chip tone={c.tone} icon={c.icon}>{c.label}</Chip> })()}</span></div>
             ))}
             {money && <div className="sm muted" aria-label="Retainer invoiced">Retainer invoiced {formatCents(money.retainerInvoiced)} ex GST, not counted in Contracted, Invoiced or Collected above.</div>}
             <ManualRetainerNote retainer={retainer} today={today} paused={paused} />

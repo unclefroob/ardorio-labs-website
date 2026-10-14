@@ -23,10 +23,26 @@ export function kindAction(n: Pick<Notification, 'kind' | 'data'>, canBill: bool
     const num = str(d.invoiceNumber)
     return { label: num ? `Open draft ${num}` : 'Open draft invoice', go: () => UI.nav('invoice', { id }) }
   }
-  if (n.kind === 'retainer-needs-billing-client') {
+  if (n.kind === 'retainer-needs-billing-client' || n.kind === 'term-needs-billing-client') {
     const id = str(d.companyId)
     if (!id) return null
     return { label: canBill ? 'Add billing details' : 'Open company', go: () => UI.nav('company', { id, q: canBill ? { tab: 'overview', focus: 'billing-details' } : { tab: 'overview' } }) }
+  }
+  // Term agreements (contract block "Ardorio term agreements"): the drafted invoice, else the deal's Billing tab, where
+  // the Term card confirms CPI, shows the break window and the end. Anyone who cannot bill gets the deal itself.
+  if (n.kind === 'term-invoice-drafted') {
+    const id = str(d.invoiceId)
+    if (!id || !canBill) return null
+    const num = str(d.invoiceNumber)
+    return { label: num ? `Open draft ${num}` : 'Open draft invoice', go: () => UI.nav('invoice', { id }) }
+  }
+  if (n.kind === 'term-cpi-to-confirm' || n.kind === 'term-break-window' || n.kind === 'term-ending') {
+    const id = str(d.dealId)
+    if (!id) return null
+    if (!canBill) return { label: 'Open deal', go: () => UI.nav('deal', { id }) }
+    const year = typeof d.year === 'number' ? d.year : null
+    const label = n.kind === 'term-cpi-to-confirm' ? (year ? `Confirm CPI for year ${year}` : 'Confirm CPI') : n.kind === 'term-break-window' ? 'Review the break window' : 'Plan the renewal'
+    return { label, go: () => UI.nav('deal', { id, q: { tab: 'billing' } }) }
   }
   return null
 }
@@ -82,7 +98,7 @@ export function Notifications() {
                 return (
                   <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
                     <Btn size="xs" onClick={e => { e.stopPropagation(); Act.readNotif(n.id); k.go() }}>{k.label}</Btn>
-                    {dealId && <Btn size="xs" kind="ghost" onClick={e => { e.stopPropagation(); open({ ...n, kind: undefined, link: { page: 'deal', id: dealId } }) }}>Open deal</Btn>}
+                    {dealId && k.label !== 'Open deal' && <Btn size="xs" kind="ghost" onClick={e => { e.stopPropagation(); open({ ...n, kind: undefined, link: { page: 'deal', id: dealId } }) }}>Open deal</Btn>}
                   </div>
                 )
               })()}

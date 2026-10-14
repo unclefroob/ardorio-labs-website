@@ -11,7 +11,7 @@ import { formatCents, formatCentsTile } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
-import { CustomerLink, ExternalChip, MethodChip, RetainerChip, StatusChip, TestChip, milestoneLabel } from './parts'
+import { CustomerLink, ExternalChip, MethodChip, RetainerChip, TermChip, StatusChip, TestChip, milestoneLabel } from './parts'
 import { InvoicesDenied } from './states'
 
 const SHOW_TEST_KEY = 'sos.invoices.showTest'
@@ -87,7 +87,7 @@ export function Invoices() {
       k: 'status', l: 'Status', sort: r => (r.overdue ? 'overdue' : r.status),
       r: r => (
         <div>
-          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><RetainerChip inv={r} /><ExternalChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
+          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><RetainerChip inv={r} /><TermChip inv={r} /><ExternalChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
           {r.voided && <div className="void-cell sm" style={{ marginTop: 2 }}>{voidReasonLabel(r.voided.reason)} · {fmtDay(r.voided.voidedAt)}</div>}
           {r.payment && <div className="faint sm" style={{ marginTop: 2 }}>{fmtDay(r.payment.paidAt)}</div>}
         </div>
