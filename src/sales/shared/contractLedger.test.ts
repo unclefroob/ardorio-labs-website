@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BillingContract, BillingPlan, BillingVariation } from '../api/contract'
 import { dto } from '../testing/invoicingWorld'
 import {
-  approvalProblem, approvedVariations, cleanMilestone, contractedCents, moneyForDeal, nextVariationLabel, proposedVariations, reconciliationLine, signedCents, validateContract,
+  approvalProblem, approvedVariations, cleanMilestone, contractCapOf, contractedCents, MAX_CENTS, MAX_TERM_CONTRACT_CENTS, moneyForDeal, nextVariationLabel, proposedVariations, reconciliationLine, signedCents, validateContract,
   validateContractAmount, validateVariation, variationEffect, wonDay,
 } from './billing'
 import { formatCents } from './money'
@@ -119,6 +119,19 @@ describe('contract and variation validation', () => {
     expect(validateContractAmount(100_000_001)).toMatch(/from \$0.01/)
     expect(validateContractAmount(4800000)).toBeNull()
   })
+  it('a term agreement contract has the larger cap the API gives it (MAX_TERM_CONTRACT_CENTS), every other type keeps MAX_CENTS', () => {
+    expect(MAX_TERM_CONTRACT_CENTS).toBe(10_000_000_000)
+    expect(contractCapOf('term-agreement')).toBe(MAX_TERM_CONTRACT_CENTS)
+    for (const t of ['fixed-price', 'time-materials', 'support-retainer', undefined] as const) expect(contractCapOf(t)).toBe(MAX_CENTS)
+    // 5 years at $250,000 a year is $1,250,000.
+    const term = { ...CONTRACT, engagementType: 'term-agreement' as const, baselineCents: 125_000_000 }
+    expect(validateContract(term, TODAY)).toBeNull()
+    expect(validateContract({ ...term, baselineCents: MAX_TERM_CONTRACT_CENTS }, TODAY)).toBeNull()
+    expect(validateContract({ ...term, baselineCents: MAX_TERM_CONTRACT_CENTS + 1 }, TODAY)).toMatch(/from \$0.01 to 100000000\.00/)
+    expect(validateContract({ ...CONTRACT, baselineCents: 125_000_000 }, TODAY)).toMatch(/from \$0.01 to 1000000\.00/)
+    expect(validateContractAmount(125_000_000, 'term-agreement')).toBeNull()
+    expect(validateContractAmount(125_000_000)).toMatch(/from \$0.01/)
+  })
   it('a whole contract needs an engagement type and a contract day', () => {
     expect(validateContract(CONTRACT, TODAY)).toBeNull()
     expect(validateContract({ ...CONTRACT, engagementType: 'monthly' as never }, TODAY)).toBe('Choose an engagement type')
@@ -149,6 +162,14 @@ describe('contract and variation validation', () => {
     // The API allows a reason of at most 500 characters.
     expect(validateVariation({ ...ok, reason: 'x'.repeat(500) })).toBeNull()
     expect(validateVariation({ ...ok, reason: 'x'.repeat(501) })).toMatch(/at most 500/)
+  })
+  it('a variation on a term agreement may be up to MAX_TERM_CONTRACT_CENTS either way, as the API allows', () => {
+    const ok = { label: 'VO-1 Year 2 CPI', amountCents: 150_000_000, reason: 'CPI' }
+    expect(validateVariation(ok)).toMatch(/either way/)
+    expect(validateVariation(ok, 'fixed-price')).toMatch(/either way/)
+    expect(validateVariation(ok, 'term-agreement')).toBeNull()
+    expect(validateVariation({ ...ok, amountCents: -MAX_TERM_CONTRACT_CENTS }, 'term-agreement')).toBeNull()
+    expect(validateVariation({ ...ok, amountCents: MAX_TERM_CONTRACT_CENTS + 1 }, 'term-agreement')).toMatch(/either way/)
   })
 })
 

@@ -24,7 +24,7 @@ const HATCH = 'ard-fc-hatch'
 const HATCH_CSS = 'repeating-linear-gradient(45deg, var(--fg3) 0 2px, transparent 2px 5px)'
 const SERIES = ['Forecast invoiced', 'Forecast collected', 'Weighted pipeline'] as const
 const COLORS = ['var(--b-inv)', 'var(--b-col)', `url(#${HATCH})`] as const
-const ROLE_LABEL: Record<FcRole, string> = { invoiced: 'to invoice', collected: 'to collect', retainer: 'retainer to invoice', retainerCollected: 'retainer to collect', pipeline: 'weighted pipeline' }
+const ROLE_LABEL: Record<FcRole, string> = { invoiced: 'to invoice', collected: 'to collect', retainer: 'retainer to invoice', retainerCollected: 'retainer to collect', pipeline: 'weighted pipeline', notCommitted: 'not yet committed' }
 const plural = (n: number, w: string): string => `${n} ${w}${n === 1 ? '' : 's'}`
 /** The keys of one table among the open rows of both. */
 const sub = (open: ReadonlySet<string>, p: string): Set<string> => new Set([...open].filter(k => k.startsWith(p)).map(k => k.slice(p.length)))
@@ -69,7 +69,7 @@ function Drill({ b, id }: { b: Pick<FcBucket, 'items'>; id: string }) {
                 <span>{e.kind === 'pipeline' ? 'Open deal' : e.label}</span>
                 <span className="muted"> · {ROLE_LABEL[role]} · {itemWhen(e, role)} · </span>
                 <span className="money">{itemAmount(e, role)}</span>
-                {e.flags.filter(f => f !== 'not-on-deal' || role !== 'pipeline').map(f => <Chip key={f} tone={f === 'slipped' ? '' : f === 'draft' || f === 'delivered' ? 'acc' : 'warn'} style={{ marginLeft: 6 }}>{FLAG_LABEL[f]}</Chip>)}
+                {e.flags.filter(f => f !== 'not-on-deal' || role !== 'pipeline').map(f => <Chip key={f} tone={f === 'slipped' || f === 'not-committed' ? '' : f === 'draft' || f === 'delivered' ? 'acc' : 'warn'} style={{ marginLeft: 6 }}>{FLAG_LABEL[f]}</Chip>)}
               </li>
             ))}
           </ul>
@@ -94,6 +94,12 @@ function UnscheduledDrill({ deals, id }: { deals: readonly DealBacklog[]; id: st
       ))}
     </ul>
   )
+}
+
+/** Break agreements' instalments not yet committed, deal by deal, each on its invoice date. */
+function NotCommittedDrill({ f, id }: { f: Forecast; id: string }) {
+  const items = f.entries.filter(e => e.flags.includes('not-committed')).map(e => ({ e, role: 'notCommitted' as const }))
+  return <Drill b={{ items }} id={id} />
 }
 
 interface Row { key: string; label: string; b: FcBucket; muted?: boolean }
@@ -158,6 +164,19 @@ function ForecastTable({ caption, first, rows, total, unscheduled, f, open, togg
             <td colSpan={4} className="sm muted">No month: add milestones on the deal’s Billing tab.</td>
           </tr>
           {open.has(uKey) && <tr><td colSpan={6} style={{ background: 'var(--surf2)' }}><UnscheduledDrill deals={f.deals} id={`${base}-${uKey}`} /></td></tr>}
+          {f.notCommitted > 0 && (
+            <tr data-row="notcommitted">
+              <th scope="row" style={{ fontWeight: 'inherit' }}>
+                <span className="row" style={{ gap: 6 }}>
+                  {expander('notcommitted', 'Not yet committed')}
+                  <span className="muted">Not yet committed (break agreements)</span>
+                </span>
+              </th>
+              <td style={R} className="money">{fmt(f.notCommitted)}</td>
+              <td colSpan={4} className="sm muted">Instalments after the next anniversary the client may break at: not in the backlog or the forecast above.</td>
+            </tr>
+          )}
+          {f.notCommitted > 0 && open.has('notcommitted') && <tr><td colSpan={6} style={{ background: 'var(--surf2)' }}><NotCommittedDrill f={f} id={`${base}-notcommitted`} /></td></tr>}
         </tbody>
         <tfoot>
           <tr>
@@ -290,7 +309,7 @@ function ForecastBody({ invoices, today, range, slip, setSlip, lagText, setLagTe
       </div>
 
       <div className="grid g6" style={{ marginBottom: 6 }}>
-        <Tile label="Contracted backlog" value={fmt(f.backlog)} sub={`Contracted minus invoiced · ${plural(dealsWithContract, 'deal')}`} />
+        <Tile label="Contracted backlog" value={fmt(f.backlog)} sub={`Contracted minus invoiced · ${plural(dealsWithContract, 'deal')}${f.notCommitted > 0 ? ` · ${fmt(f.notCommitted)} not yet committed apart` : ''}`} />
         <Tile label="Forecast invoiced" value={fmt(s.inRange.invoiced)} sub={`${rangeLabel}${overdueInv > 0 ? ` · ${fmt(overdueInv)} overdue to invoice` : ''}`} />
         <Tile label="Forecast collected" value={fmt(s.inRange.collected)} sub={`${rangeLabel} · ${lagDays} days to pay`} />
         <Tile label="Weighted pipeline" value={fmt(s.inRange.pipeline)} sub={`${rangeLabel} · ${fmt(pipeWeighted)} of ${fmt(pipeAll)} unweighted in all`} title="Open Ardorio deals: value × stage probability, in the month of the close date. Never added to contracted figures." />
@@ -299,9 +318,17 @@ function ForecastBody({ invoices, today, range, slip, setSlip, lagText, setLagTe
       </div>
       <div className="sm" id={ids.recId} data-reconcile style={{ marginBottom: 12 }}>{recon}</div>
 
-      {(f.noContract.length > 0 || f.retainerNoDate.length > 0 || f.retainerSkipped.length > 0 || f.retainerContracts.length > 0 || slip > 0) && (
+      {(f.noContract.length > 0 || f.retainerNoDate.length > 0 || f.retainerSkipped.length > 0 || f.retainerContracts.length > 0 || slip > 0 || f.notCommitted > 0) && (
         <div className="col" style={{ gap: 8, marginBottom: 12 }}>
-          {slip > 0 && <Banner tone="info">Planned milestones not yet delivered are moved {plural(slip, 'month')} later. Overdue and delivered milestones, issued invoices and the pipeline stay where they are.</Banner>}
+          {slip > 0 && <Banner tone="info">Planned milestones not yet delivered are moved {plural(slip, 'month')} later. Overdue and delivered milestones, term agreement instalments (their dates are agreed), issued invoices and the pipeline stay where they are.</Banner>}
+          {f.notCommitted > 0 && (
+            <Banner tone="info">
+              {fmt(f.notCommitted)} of term agreement instalments is not yet committed: the client may break at the next anniversary, so it is kept out of the backlog and the forecast:{' '}
+              {f.deals.filter(d => d.notCommitted > 0).map((d, i) => (
+                <Fragment key={d.dealId}>{i > 0 && '; '}<Link to="deal" id={d.dealId} q={{ tab: 'billing' }}>{d.dealName}</Link>{` ${fmt(d.notCommitted)}${d.breakAt ? ` (break at ${fmtDay(d.breakAt)})` : ''}`}</Fragment>
+              ))}.
+            </Banner>
+          )}
           {f.noContract.length > 0 && (
             <Banner tone="info">
               {plural(f.noContract.length, 'won deal')} {f.noContract.length === 1 ? 'has' : 'have'} no contract yet and {f.noContract.length === 1 ? 'is' : 'are'} not in the forecast:{' '}
@@ -360,7 +387,7 @@ function ForecastBody({ invoices, today, range, slip, setSlip, lagText, setLagTe
         </Card>
       </div>
       <div style={{ marginTop: 14 }}>
-        <Banner>As recorded in SalesOS. Milestones not yet invoiced are forecast on their planned date; overdue and delivered ones this month. Collected is the forecast invoice date plus the days to pay; issued invoices are collected from their issue date. The retainer continues monthly and is drawn to the end of the range only; one behind by several months is forecast once, this month, as the scheduler drafts only the latest month. Cancelled and test invoices are left out.</Banner>
+        <Banner>As recorded in SalesOS. Milestones not yet invoiced are forecast on their planned date; overdue and delivered ones this month. Term agreement instalments are forecast on their invoice dates. Collected is the forecast invoice date plus the days to pay; issued invoices are collected from their issue date. The retainer continues monthly and is drawn to the end of the range only; one behind by several months is forecast once, this month, as the scheduler drafts only the latest month. Cancelled and test invoices are left out.</Banner>
       </div>
     </section>
   )

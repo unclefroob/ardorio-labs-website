@@ -13,7 +13,7 @@ import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
 import { TestBanner, testItems, useTestActions, type TestOps } from './testActions'
 import { MoreMenu, type MoreItem } from './MoreMenu'
-import { ExternalChip, milestoneLabel, personName, RetainerChip, StatusChip, TestChip } from './parts'
+import { ExternalChip, milestoneLabel, personName, RetainerChip, TermChip, StatusChip, TestChip } from './parts'
 import { Activity, Totals } from './rail'
 import { PaidLinksCard } from './LinkPickers'
 
@@ -115,7 +115,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
   return (
     <div className="page">
       <PageHead
-        title={<span className="row" style={{ gap: 10 }}>{name}<StatusChip inv={inv} /><TestChip inv={inv} /><RetainerChip inv={inv} /><ExternalChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
+        title={<span className="row" style={{ gap: 10 }}>{name}<StatusChip inv={inv} /><TestChip inv={inv} /><RetainerChip inv={inv} /><TermChip inv={inv} /><ExternalChip inv={inv} />{inv.payment && <Chip>{METHOD_LABELS[inv.payment.method]}</Chip>}</span>}
         sub={sub}
         crumb={[<Link key="i" to="invoices">Invoices</Link>, name]}
       >

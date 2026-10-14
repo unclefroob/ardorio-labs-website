@@ -1,0 +1,286 @@
+{
+  "about": "Shared cases for termSchedule(term) from the contract block 'Ardorio term agreements'. This file lives in the API (src/services/sales/billing/termSchedule.fixtures.json) and the web keeps an identical copy (src/sales/shared/termSchedule.fixtures.json). The API's unit test runs every case; the web's runs its copy, and with ARDORIO_API_DIR set also runs every case of the API's file and checks the two files are the same. count, total, fees and amounts are the whole schedule; rows[].index is 0-based and lists fields that must match exactly.",
+  "cases": [
+    {
+      "name": "5 years, annual, in advance, no rise",
+      "term": { "startDate": "2026-07-01", "termMonths": 60, "annualCents": 1200000, "frequency": "annual", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 5, "total": 6000000, "fees": [1200000, 1200000, 1200000, 1200000, 1200000],
+        "amounts": [1200000, 1200000, 1200000, 1200000, 1200000],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 5", "plannedDate": "2026-07-01", "periodStart": "2026-07-01", "periodEnd": "2027-06-30", "termYear": 1, "kind": "instalment" },
+          { "index": 4, "id": "inst_5_1", "label": "Year 5 of 5", "plannedDate": "2030-07-01", "periodStart": "2030-07-01", "periodEnd": "2031-06-30", "termYear": 5, "kind": "instalment" }
+        ]
+      }
+    },
+    {
+      "name": "2 years, quarterly, in arrears, fixed 3%, starting on the 31st",
+      "term": { "startDate": "2026-01-31", "termMonths": 24, "annualCents": 1000000, "frequency": "quarterly", "timing": "arrears", "escalation": "fixed", "escalationBp": 300 },
+      "expect": {
+        "count": 8, "total": 2030000, "fees": [1000000, 1030000],
+        "amounts": [250000, 250000, 250000, 250000, 257500, 257500, 257500, 257500],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 2, quarter 1", "plannedDate": "2026-04-29", "periodStart": "2026-01-31", "periodEnd": "2026-04-29", "termYear": 1 },
+          { "index": 1, "id": "inst_1_2", "label": "Year 1 of 2, quarter 2", "plannedDate": "2026-07-30", "periodStart": "2026-04-30", "periodEnd": "2026-07-30", "termYear": 1 },
+          { "index": 3, "id": "inst_1_4", "periodStart": "2026-10-31", "periodEnd": "2027-01-30" },
+          { "index": 4, "id": "inst_2_1", "label": "Year 2 of 2, quarter 1", "plannedDate": "2027-04-29", "periodStart": "2027-01-31", "periodEnd": "2027-04-29", "termYear": 2 },
+          { "index": 7, "id": "inst_2_4", "label": "Year 2 of 2, quarter 4", "plannedDate": "2028-01-30", "periodStart": "2027-10-31", "periodEnd": "2028-01-30", "termYear": 2 }
+        ]
+      }
+    },
+    {
+      "name": "1 year, monthly, in advance: cents spread so the year sums exactly",
+      "term": { "startDate": "2026-03-15", "termMonths": 12, "annualCents": 100000, "frequency": "monthly", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 12, "total": 100000, "fees": [100000],
+        "amounts": [8333, 8334, 8333, 8333, 8334, 8333, 8333, 8334, 8333, 8333, 8334, 8333],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 1, month 1", "plannedDate": "2026-03-15", "periodStart": "2026-03-15", "periodEnd": "2026-04-14" },
+          { "index": 11, "id": "inst_1_12", "label": "Year 1 of 1, month 12", "plannedDate": "2027-02-15", "periodStart": "2027-02-15", "periodEnd": "2027-03-14" }
+        ]
+      }
+    },
+    {
+      "name": "18 months, annual, in arrears, fixed 5%: the short last year bills its 6 months",
+      "term": { "startDate": "2026-07-01", "termMonths": 18, "annualCents": 1200000, "frequency": "annual", "timing": "arrears", "escalation": "fixed", "escalationBp": 500 },
+      "expect": {
+        "count": 2, "total": 1830000, "fees": [1200000, 1260000],
+        "amounts": [1200000, 630000],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 2", "plannedDate": "2027-06-30", "periodStart": "2026-07-01", "periodEnd": "2027-06-30" },
+          { "index": 1, "id": "inst_2_1", "label": "Year 2 of 2", "plannedDate": "2027-12-31", "periodStart": "2027-07-01", "periodEnd": "2027-12-31", "termYear": 2 }
+        ]
+      }
+    },
+    {
+      "name": "3 years, CPI assumed 2.5%, year 2 confirmed at 3.5%",
+      "term": { "startDate": "2026-10-01", "termMonths": 36, "annualCents": 1000000, "frequency": "annual", "timing": "advance", "escalation": "cpi", "escalationBp": 250, "cpiConfirmed": [{"year": 2, "bp": 350, "confirmedOn": "2027-09-01", "confirmedBy": "Ryan"}] },
+      "expect": {
+        "count": 3, "total": 3095875, "fees": [1000000, 1035000, 1060875],
+        "amounts": [1000000, 1035000, 1060875],
+        "rows": []
+      }
+    },
+    {
+      "name": "3 years, CPI assumed 2.5%, nothing confirmed",
+      "term": { "startDate": "2026-10-01", "termMonths": 36, "annualCents": 1000000, "frequency": "annual", "timing": "advance", "escalation": "cpi", "escalationBp": 250 },
+      "expect": {
+        "count": 3, "total": 3075625, "fees": [1000000, 1025000, 1050625],
+        "amounts": [1000000, 1025000, 1050625],
+        "rows": []
+      }
+    },
+    {
+      "name": "2 years, CPI assumed 3%, year 2 confirmed at -1%",
+      "term": { "startDate": "2026-10-01", "termMonths": 24, "annualCents": 1000000, "frequency": "annual", "timing": "advance", "escalation": "cpi", "escalationBp": 300, "cpiConfirmed": [{"year": 2, "bp": -100, "confirmedOn": "2027-09-01", "confirmedBy": "Ryan"}] },
+      "expect": {
+        "count": 2, "total": 1990000, "fees": [1000000, 990000],
+        "amounts": [1000000, 990000],
+        "rows": []
+      }
+    },
+    {
+      "name": "half cents round away from zero within a year",
+      "term": { "startDate": "2026-01-01", "termMonths": 12, "annualCents": 6, "frequency": "monthly", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 12, "total": 6, "fees": [6],
+        "amounts": [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+        "rows": []
+      }
+    },
+    {
+      "name": "half cents round away from zero on the yearly rise",
+      "term": { "startDate": "2026-01-01", "termMonths": 24, "annualCents": 5, "frequency": "annual", "timing": "advance", "escalation": "fixed", "escalationBp": 1000 },
+      "expect": {
+        "count": 2, "total": 11, "fees": [5, 6],
+        "amounts": [5, 6],
+        "rows": []
+      }
+    },
+    {
+      "name": "starting on 29 February",
+      "term": { "startDate": "2028-02-29", "termMonths": 24, "annualCents": 100000, "frequency": "annual", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 2, "total": 200000, "fees": [100000, 100000],
+        "amounts": [100000, 100000],
+        "rows": [
+          { "index": 0, "plannedDate": "2028-02-29", "periodStart": "2028-02-29", "periodEnd": "2029-02-27" },
+          { "index": 1, "plannedDate": "2029-02-28", "periodStart": "2029-02-28", "periodEnd": "2030-02-27" }
+        ]
+      }
+    },
+    {
+      "name": "one month, in arrears, across the new year",
+      "term": { "startDate": "2026-12-31", "termMonths": 1, "annualCents": 1200000, "frequency": "monthly", "timing": "arrears", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 1, "total": 100000, "fees": [1200000],
+        "amounts": [100000],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 1, month 1", "plannedDate": "2027-01-30", "periodStart": "2026-12-31", "periodEnd": "2027-01-30" }
+        ]
+      }
+    },
+    {
+      "name": "14 months, quarterly: the last quarter is 2 months",
+      "term": { "startDate": "2026-01-01", "termMonths": 14, "annualCents": 1200000, "frequency": "quarterly", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 5, "total": 1400000, "fees": [1200000, 1200000],
+        "amounts": [300000, 300000, 300000, 300000, 200000],
+        "rows": [
+          { "index": 4, "id": "inst_2_1", "label": "Year 2 of 2, quarter 1", "plannedDate": "2027-01-01", "periodStart": "2027-01-01", "periodEnd": "2027-02-28", "termYear": 2 }
+        ]
+      }
+    },
+    {
+      "name": "1 year, quarterly, in arrears from 1 July: each invoice on its period end",
+      "term": { "startDate": "2026-07-01", "termMonths": 12, "annualCents": 1200000, "frequency": "quarterly", "timing": "arrears", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 4, "total": 1200000, "fees": [1200000],
+        "amounts": [300000, 300000, 300000, 300000],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "plannedDate": "2026-09-30", "periodStart": "2026-07-01", "periodEnd": "2026-09-30" },
+          { "index": 1, "id": "inst_1_2", "plannedDate": "2026-12-31", "periodStart": "2026-10-01", "periodEnd": "2026-12-31" },
+          { "index": 2, "id": "inst_1_3", "plannedDate": "2027-03-31", "periodStart": "2027-01-01", "periodEnd": "2027-03-31" },
+          { "index": 3, "id": "inst_1_4", "plannedDate": "2027-06-30", "periodStart": "2027-04-01", "periodEnd": "2027-06-30" }
+        ]
+      }
+    },
+    {
+      "name": "5 years, annual, fixed 3%: each year compounds from the rounded fee before",
+      "term": { "startDate": "2026-07-01", "termMonths": 60, "annualCents": 1000000, "frequency": "annual", "timing": "advance", "escalation": "fixed", "escalationBp": 300 },
+      "expect": {
+        "count": 5, "total": 5309136, "fees": [1000000, 1030000, 1060900, 1092727, 1125509],
+        "amounts": [1000000, 1030000, 1060900, 1092727, 1125509],
+        "rows": []
+      }
+    },
+    {
+      "name": "3 years, fixed 1% on 50 cents: 51 cents, then 52",
+      "term": { "startDate": "2026-07-01", "termMonths": 36, "annualCents": 50, "frequency": "annual", "timing": "advance", "escalation": "fixed", "escalationBp": 100 },
+      "expect": {
+        "count": 3, "total": 153, "fees": [50, 51, 52],
+        "amounts": [50, 51, 52],
+        "rows": []
+      }
+    },
+    {
+      "name": "3 years, CPI assumed 3%, year 2 confirmed at 3.5% and year 3 at -0.5%",
+      "term": { "startDate": "2026-07-01", "termMonths": 36, "annualCents": 1000000, "frequency": "annual", "timing": "advance", "escalation": "cpi", "escalationBp": 300, "cpiConfirmed": [{"year": 2, "bp": 350, "confirmedOn": "2027-06-01", "confirmedBy": "Ryan"},{"year": 3, "bp": -50, "confirmedOn": "2028-06-01", "confirmedBy": "Ryan"}] },
+      "expect": {
+        "count": 3, "total": 3064825, "fees": [1000000, 1035000, 1029825],
+        "amounts": [1000000, 1035000, 1029825],
+        "rows": []
+      }
+    },
+    {
+      "name": "5 years, quarterly, fixed 2.5% on an odd fee: each year's quarters sum exactly to its fee",
+      "term": { "startDate": "2026-07-01", "termMonths": 60, "annualCents": 1000001, "frequency": "quarterly", "timing": "advance", "escalation": "fixed", "escalationBp": 250 },
+      "expect": {
+        "count": 20, "total": 5256334, "fees": [1000001, 1025001, 1050626, 1076892, 1103814],
+        "amounts": [250000, 250001, 250000, 250000, 256250, 256251, 256250, 256250, 262657, 262656, 262657, 262656, 269223, 269223, 269223, 269223, 275954, 275953, 275954, 275953],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 5, quarter 1" },
+          { "index": 1, "label": "Year 1 of 5, quarter 2" },
+          { "index": 3, "label": "Year 1 of 5, quarter 4" },
+          { "index": 4, "id": "inst_2_1" },
+          { "index": 7, "id": "inst_2_4" }
+        ]
+      }
+    },
+    {
+      "name": "1 year, monthly, 1 dollar: 8 and 9 cents in turn",
+      "term": { "startDate": "2026-07-01", "termMonths": 12, "annualCents": 100, "frequency": "monthly", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 12, "total": 100, "fees": [100],
+        "amounts": [8, 9, 8, 8, 9, 8, 8, 9, 8, 8, 9, 8],
+        "rows": [
+          { "index": 11, "id": "inst_1_12", "label": "Year 1 of 1, month 12", "periodStart": "2027-06-01", "periodEnd": "2027-06-30" }
+        ]
+      }
+    },
+    {
+      "name": "4 months, monthly, in arrears from 31 January of a leap year: each day clamps to its month",
+      "term": { "startDate": "2028-01-31", "termMonths": 4, "annualCents": 1200, "frequency": "monthly", "timing": "arrears", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 4, "total": 400, "fees": [1200],
+        "amounts": [100, 100, 100, 100],
+        "rows": [
+          { "index": 0, "periodStart": "2028-01-31", "periodEnd": "2028-02-28", "plannedDate": "2028-02-28" },
+          { "index": 1, "periodStart": "2028-02-29", "periodEnd": "2028-03-30", "plannedDate": "2028-03-30" },
+          { "index": 2, "periodStart": "2028-03-31", "periodEnd": "2028-04-29", "plannedDate": "2028-04-29" },
+          { "index": 3, "periodStart": "2028-04-30", "periodEnd": "2028-05-30", "plannedDate": "2028-05-30" }
+        ]
+      }
+    },
+    {
+      "name": "3 months, monthly, from 31 January: the term ends on 30 April",
+      "term": { "startDate": "2026-01-31", "termMonths": 3, "annualCents": 1200, "frequency": "monthly", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 3, "total": 300, "fees": [1200],
+        "amounts": [100, 100, 100],
+        "rows": [
+          { "index": 0, "periodStart": "2026-01-31", "periodEnd": "2026-02-27" },
+          { "index": 1, "periodStart": "2026-02-28", "periodEnd": "2026-03-30" },
+          { "index": 2, "periodStart": "2026-03-31", "periodEnd": "2026-04-29" }
+        ]
+      }
+    },
+    {
+      "name": "14 months, quarterly, fixed 5%: year 2 is one 2-month period at its share of the year-2 fee",
+      "term": { "startDate": "2026-07-01", "termMonths": 14, "annualCents": 1200000, "frequency": "quarterly", "timing": "advance", "escalation": "fixed", "escalationBp": 500 },
+      "expect": {
+        "count": 5, "total": 1410000, "fees": [1200000, 1260000],
+        "amounts": [300000, 300000, 300000, 300000, 210000],
+        "rows": [
+          { "index": 4, "id": "inst_2_1", "label": "Year 2 of 2, quarter 1", "termYear": 2, "periodStart": "2027-07-01", "periodEnd": "2027-08-31", "amountCents": 210000 }
+        ]
+      }
+    },
+    {
+      "name": "18 months, annual, odd fee: year 2 is half of the year-2 fee",
+      "term": { "startDate": "2026-07-01", "termMonths": 18, "annualCents": 1000001, "frequency": "annual", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 2, "total": 1500002, "fees": [1000001, 1000001],
+        "amounts": [1000001, 500001],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 2", "periodStart": "2026-07-01", "periodEnd": "2027-06-30", "amountCents": 1000001 },
+          { "index": 1, "id": "inst_2_1", "label": "Year 2 of 2", "periodStart": "2027-07-01", "periodEnd": "2027-12-31", "amountCents": 500001 }
+        ]
+      }
+    },
+    {
+      "name": "30 months, quarterly, odd fee: year 3 is two quarters summing to half its fee",
+      "term": { "startDate": "2026-07-01", "termMonths": 30, "annualCents": 1000003, "frequency": "quarterly", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 10, "total": 2500008, "fees": [1000003, 1000003, 1000003],
+        "amounts": [250001, 250001, 250000, 250001, 250001, 250001, 250000, 250001, 250001, 250001],
+        "rows": [
+          { "index": 9, "id": "inst_3_2", "periodEnd": "2028-12-31" }
+        ]
+      }
+    },
+    {
+      "name": "1 month: one instalment of a twelfth of the year",
+      "term": { "startDate": "2026-07-01", "termMonths": 1, "annualCents": 1200006, "frequency": "annual", "timing": "advance", "escalation": "none", "escalationBp": 0 },
+      "expect": {
+        "count": 1, "total": 100001, "fees": [1200006],
+        "amounts": [100001],
+        "rows": [
+          { "index": 0, "id": "inst_1_1", "label": "Year 1 of 1", "amountCents": 100001, "termYear": 1, "periodStart": "2026-07-01", "periodEnd": "2026-07-31", "plannedDate": "2026-07-01", "kind": "instalment" }
+        ]
+      }
+    },
+    {
+      "name": "10 years, monthly, the largest fee and rise: 120 instalments",
+      "term": { "startDate": "2026-07-01", "termMonths": 120, "annualCents": 100000000, "frequency": "monthly", "timing": "advance", "escalation": "fixed", "escalationBp": 2000 },
+      "expect": {
+        "count": 120, "total": 2595868211, "fees": [100000000, 120000000, 144000000, 172800000, 207360000, 248832000, 298598400, 358318080, 429981696, 515978035],
+        "amounts": [8333333, 8333334, 8333333, 8333333, 8333334, 8333333, 8333333, 8333334, 8333333, 8333333, 8333334, 8333333, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 10000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 12000000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 14400000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 17280000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 20736000, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 24883200, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 29859840, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 35831808, 42998170, 42998169, 42998170, 42998169, 42998170, 42998170, 42998169, 42998170, 42998169, 42998170, 42998169, 42998170],
+        "rows": [
+          { "index": 0, "label": "Year 1 of 10, month 1" },
+          { "index": 119, "id": "inst_10_12", "label": "Year 10 of 10, month 12", "periodEnd": "2036-06-30" }
+        ]
+      }
+    }
+  ]
+}

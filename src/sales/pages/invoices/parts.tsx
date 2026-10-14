@@ -22,6 +22,11 @@ export function RetainerChip({ inv }: { inv: Pick<InvoiceDto, 'source'> }) {
   return inv.source === 'retainer' ? <Chip icon="refresh" title="Drafted automatically from the deal's monthly retainer">From retainer</Chip> : null
 }
 
+/** One instalment of a term agreement, drafted by the server or made by hand for it. An icon and words, never colour alone. */
+export function TermChip({ inv }: { inv: Pick<InvoiceDto, 'source'> }) {
+  return inv.source === 'term' ? <Chip icon="cal" title="An instalment of the deal's term agreement, drafted automatically on its invoice date">From term agreement</Chip> : null
+}
+
 /**
  * Recorded from outside SalesOS (Xero, another system, a bank transfer): an icon and words, never colour alone. The
  * title says the source and who recorded it.

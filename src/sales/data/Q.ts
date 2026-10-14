@@ -1,6 +1,6 @@
 import { F } from './F'
 import { heldNoLonger } from './meetings'
-import { idx, S } from './store'
+import { idx, metaMap, S } from './store'
 import { ageDays, applySignalAdjust, computeSignalAdjust, NO_ADJUST, type PendingClosure, type SignalAdjust, type SignalAdjustPart } from './signalAdjust'
 import { isSimAct, simReplied } from './simulated'
 import { isVoided } from './voided'
@@ -120,6 +120,11 @@ export const Q = {
 
   /** The billing plan of an Ardorio deal (id bp_<dealId>), if one has been saved. */
   billingPlan: (dealId: string | null | undefined): BillingPlan | undefined => (dealId ? S.billingPlans.find(p => p.dealId === dealId) : undefined),
+  /** That plan as the server last stored it (the synced copy, without edits not yet answered), or undefined. */
+  storedBillingPlan: (dealId: string | null | undefined): BillingPlan | undefined => {
+    const p = dealId ? S.billingPlans.find(x => x.dealId === dealId) : undefined
+    return (p ? metaMap('billingPlans').get(p.id)?.snap ?? undefined : undefined) as BillingPlan | undefined
+  },
   /** Planned, Draft invoice, Invoiced or Paid, from the invoices loaded for that deal. */
   milestoneStatus: (milestoneId: string, invoices: ReadonlyArray<Pick<InvoiceDto, 'milestoneId' | 'status'>>): MilestoneStatus => milestoneStatus(milestoneId, invoices),
   /** Ardorio billing is visible to, and editable by, admins of that business only. */

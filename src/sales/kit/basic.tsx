@@ -95,11 +95,16 @@ export function Seg({ opts, value, onChange, label }: { opts: readonly SegDef[];
   )
 }
 
-/** Binds the label to a single control child through a generated id; other children are left alone. */
+/**
+ * Binds the label to a single control child through a generated id; other children are left alone. With an error, that
+ * control is also marked aria-invalid (unless it says otherwise) and described by the error, which has its own id.
+ */
 export function Fld({ label, hint, err, children, style, req }: { label?: ReactNode; hint?: ReactNode; err?: ReactNode; children?: ReactNode; style?: CSSProperties; req?: boolean }) {
   const gen = useId()
-  const only = isValidElement<{ id?: string }>(children) ? children : null
+  const only = isValidElement<{ id?: string; 'aria-invalid'?: boolean | 'true' | 'false'; 'aria-describedby'?: string }>(children) ? children : null
   const id = only?.props.id ?? gen
+  const errId = `${id}-err`
+  const invalid = only && err ? { 'aria-invalid': only.props['aria-invalid'] ?? true, 'aria-describedby': [only.props['aria-describedby'], errId].filter(Boolean).join(' ') } : null
   return (
     <div className="fld" style={style}>
       {label && (
@@ -108,8 +113,8 @@ export function Fld({ label, hint, err, children, style, req }: { label?: ReactN
           {req && <span style={{ color: 'var(--bad2)' }}> *</span>}
         </label>
       )}
-      {only && !only.props.id ? cloneElement(only, { id }) : children}
-      {err ? <div className="err" role="alert">{err}</div> : hint && <div className="hint">{hint}</div>}
+      {only && (!only.props.id || invalid) ? cloneElement(only, { ...(only.props.id ? {} : { id }), ...invalid }) : children}
+      {err ? <div id={errId} className="err" role="alert">{err}</div> : hint && <div className="hint">{hint}</div>}
     </div>
   )
 }
