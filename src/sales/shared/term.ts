@@ -19,6 +19,7 @@ export const MAX_BP = 2000
 export const MIN_CPI_BP = -1000
 export const MAX_NOTICE_DAYS = 365
 export const MAX_END_REASON = 300
+export const MAX_WAIVE_REASON = 300
 
 const int = (n: unknown, lo: number, hi: number): boolean => typeof n === 'number' && Number.isInteger(n) && n >= lo && n <= hi
 
@@ -301,8 +302,41 @@ export function endEffect(plan: Pick<BillingPlan, 'milestones'> & { term?: Pick<
   return { endedOn, removed, cut, keptIssued, drafts: draftChanges(changes, invoices), removedCents, label: `Ended early on ${endedOn}` }
 }
 
+// ── waive an instalment ──────────────────────────────────────────────────────────────────────────
+export interface WaiveEffect {
+  instalment: BillingMilestone
+  /** The approved variation the server appends is minus this. */
+  amountCents: number
+  label: string
+  drafts: DraftChange[]
+}
+
+/** Why `milestoneId` cannot be waived with `reason`, as the API checks it, or null. */
+export function waiveProblem(plan: Pick<BillingPlan, 'milestones'> & { term: BillingTerm }, milestoneId: string, reason: string, invoices: readonly LiveInvoice[]): string | null {
+  return waivableProblem(plan, milestoneId, invoices) ?? waiveReasonProblem(reason)
+}
+
+/** Whether the instalment itself can be waived: one of the plan's, not waived already, and un-issued. */
+export function waivableProblem(plan: Pick<BillingPlan, 'milestones'> & { term: BillingTerm }, milestoneId: string, invoices: readonly LiveInvoice[]): string | null {
+  if ((plan.term.waived ?? []).some(w => w.milestoneId === milestoneId)) return 'This instalment is already waived'
+  if (!instalmentsOf(plan).some(m => m.id === milestoneId)) return 'That instalment is no longer on this agreement'
+  if (issuedIds(invoices).has(milestoneId)) return 'This instalment has an issued invoice: cancel the invoice before waiving it'
+  return null
+}
+
+/** The reason alone, for the field's own message. */
+export const waiveReasonProblem = (reason: string): string | null => reasonProblem(reason, MAX_WAIVE_REASON, 'Say why it is waived')
+
+/** What waiving does: the instalment goes, minus its amount is added as an approved variation, and its drafts follow. */
+export function waiveEffect(plan: Pick<BillingPlan, 'milestones'>, milestoneId: string, invoices: readonly TermInvoice[]): WaiveEffect | null {
+  const m = instalmentsOf(plan).find(x => x.id === milestoneId)
+  if (!m) return null
+  return { instalment: m, amountCents: m.amountCents, label: `Waived: ${m.label}`.slice(0, 120), drafts: draftChanges(new Map([[m.id, null]]), invoices) }
+}
+
 /**
- * True while this browser has confirmed CPI or ended the agreement and the server has not yet answered: until it does, the schedule shown is the one from before. `server` is the term as the server last stored it
+ * True while this browser has confirmed CPI, ended the agreement or waived an instalment and the server has not yet
+ * answered: until it does, the schedule shown is the one from before. `server` is the term as the server last stored it
  * (undefined when the plan has no server copy yet). Exact: it compares the two terms, never amounts against invoices,
  * so a voided invoice or a cut instalment never makes the schedule look out of date.
  */

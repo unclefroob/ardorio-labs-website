@@ -3,7 +3,7 @@ import type { BillingTerm, InvoiceDto } from '../api/contract'
 import { moneyForDeal, validateMilestones, cleanMilestone, isRetainerInvoice } from './billing'
 import {
   bpText, cpiEffect, cpiProblem, draftChanges, endDateProblem, endEffect, endProblem, endReasonProblem, instalmentState, invoicedIds, issuedIds, nextAnniversary, nextBreakAnniversary, noticeBy, pctToBp,
-  termActionPending, termLastDay, unconfirmedCpiYears, validateTerm, type TermInput,
+  termActionPending, termLastDay, unconfirmedCpiYears, validateTerm, waivableProblem, waiveEffect, waiveProblem, waiveReasonProblem, type TermInput,
 } from './term'
 import { termSchedule } from './termSchedule'
 
@@ -225,6 +225,28 @@ describe('only an issued invoice fixes an instalment', () => {
     expect(draftChanges(new Map([['m1', 500]]), [{ ...base, id: 'x', source: 'manual' as const, lineItems: [line(400)], paymentLinkIsAutomatic: true }])[0].fate).toBe('unlinked')
     expect(draftChanges(new Map([['m1', 500]]), [{ ...base, id: 'x', source: 'term' as const, lineItems: [line(250, 2)] }])).toEqual([])
     expect(draftChanges(new Map([['m1', 500]]), [{ ...inv('m1', 'sent'), id: 'x', lineItems: [line(400)] }])).toEqual([])
+  })
+})
+
+describe('waive an instalment', () => {
+  const t = term({ frequency: 'quarterly', termMonths: 12, startDate: '2026-01-01', annualCents: 1200000 })
+  const plan = { term: t, milestones: termSchedule(t) }
+  it('is the amount off the contract as Waived: <label>, and its draft follows', () => {
+    const e = waiveEffect(plan, 'inst_1_2', [{ ...inv('inst_1_2', 'draft'), id: 'd', invoiceNumber: 'INV-0042', source: 'term' as const }])
+    expect(e).toMatchObject({ amountCents: 300000, label: 'Waived: Year 1 of 1, quarter 2' })
+    expect(e?.drafts).toEqual([{ invoiceId: 'd', ref: 'INV-0042', milestoneId: 'inst_1_2', fate: 'removed', to: null }])
+    expect(waiveEffect(plan, 'nope', [])).toBeNull()
+  })
+  it('refuses what the API refuses: an issued one, one already waived, one not on the plan, and a bad reason', () => {
+    expect(waivableProblem(plan, 'inst_1_2', [inv('inst_1_2', 'sent')])).toMatch(/cancel the invoice before waiving/)
+    expect(waivableProblem(plan, 'inst_1_2', [inv('inst_1_2', 'draft'), inv('inst_1_2', 'void')])).toBeNull()
+    expect(waivableProblem({ ...plan, term: { ...t, waived: [{ milestoneId: 'inst_1_2', reason: 'x', waivedOn: '', waivedBy: '' }] } }, 'inst_1_2', [])).toMatch(/already waived/)
+    expect(waivableProblem(plan, 'm_build', [])).toMatch(/no longer on this agreement/)
+    expect(waiveReasonProblem('')).toMatch(/Say why it is waived, in 1 to 300/)
+    expect(waiveReasonProblem('x'.repeat(301))).toMatch(/1 to 300/)
+    expect(waiveProblem(plan, 'inst_1_2', ' Client paused Q2 ', [])).toBeNull()
+    // An ended agreement can still waive what remains.
+    expect(waiveProblem({ ...plan, term: { ...t, ended: { endedOn: '2026-05-01', reason: 'x', endedBy: '', recordedAt: '' } } }, 'inst_1_2', 'x', [])).toBeNull()
   })
 })
 

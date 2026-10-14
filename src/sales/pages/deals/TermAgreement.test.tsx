@@ -367,6 +367,75 @@ describe('Billing tab: term agreement', () => {
   })
 })
 
+describe('Billing tab: waive an instalment', () => {
+  const waiveBtn = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="Waive ${label}"]`)
+
+  it('is offered for un-issued instalments only, drafted ones included', async () => {
+    await show()
+    expect(waiveBtn('Year 1 of 3, quarter 1')).toBeNull()
+    expect(waiveBtn('Year 1 of 3, quarter 2')).toBeNull()
+    expect(waiveBtn('Year 1 of 3, quarter 3')).toBeNull()
+    expect(waiveBtn('Year 1 of 3, quarter 4')).toBeTruthy()
+    expect(waiveBtn('Year 2 of 3, quarter 1')).toBeTruthy()
+  })
+
+  it('confirms in place: the amount, the negative variation, the draft removed, and a required reason', async () => {
+    const { plan } = await show()
+    await click(waiveBtn('Year 1 of 3, quarter 4'))
+    const panel = host.querySelector('[role="group"][aria-label="Waive instalment"]') as HTMLElement
+    expect(document.activeElement).toBe(panel)
+    const eff = panel.querySelector('[aria-label="What waiving does"]')?.textContent ?? ''
+    expect(eff).toContain(`The client is not billed for it: ${fmt(300000)} ex GST, for 1 Jul 2026 to 30 Sep 2026.`)
+    expect(eff).toContain(`An approved variation of −${fmt(300000)} is added: Waived: Year 1 of 3, quarter 4.`)
+    expect(eff).toContain('Its draft INV-0104 is removed.')
+    expect(eff).toContain("This can't be undone.")
+    await click(button(panel, 'Waive instalment'))
+    const reason = panel.querySelector('textarea') as HTMLTextAreaElement
+    expect(reason.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(reason.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Say why it is waived, in 1 to 300 characters')
+    expect(plan().term?.waived).toBeUndefined()
+    await type(reason, 'Client paused the service for this quarter')
+    expect(reason.getAttribute('aria-invalid')).toBeNull()
+    await click(button(panel, 'Waive instalment'))
+    expect(plan().term?.waived).toEqual([{ milestoneId: 'inst_1_4', reason: 'Client paused the service for this quarter', waivedOn: '2026-10-09', waivedBy: 'Me Myself' }])
+    expect(host.querySelector('[role="group"][aria-label="Waive instalment"]')).toBeNull()
+    // Until the server removes it, the row says Waived and the card says the schedule is being updated.
+    expect(scheduleRows()[3]).toContain('Waived')
+    expect(waiveBtn('Year 1 of 3, quarter 4')).toBeNull()
+    expect(termCard().textContent).toContain('Updating the schedule')
+  })
+
+  it('says so when the instalment has no draft, and cancelling changes nothing', async () => {
+    const { plan } = await show()
+    await click(waiveBtn('Year 2 of 3, quarter 1'))
+    const panel = host.querySelector('[role="group"][aria-label="Waive instalment"]') as HTMLElement
+    expect(panel.textContent).toContain('It has no draft invoice to remove.')
+    await click(button(panel, 'Cancel'))
+    expect(host.querySelector('[role="group"][aria-label="Waive instalment"]')).toBeNull()
+    expect(plan().term?.waived).toBeUndefined()
+  })
+
+  it('lists the waived instalments in the Term card: which, how much, who, when and why', async () => {
+    const waived = SCHEDULE.find(x => x.id === 'inst_2_2')!
+    await show({
+      plan: {
+        milestones: [BUILD, ...SCHEDULE.filter(x => x.id !== 'inst_2_2')],
+        term: { ...TERM, draftFrom: '2025-09-20', waived: [{ milestoneId: 'inst_2_2', reason: 'Client paused', waivedOn: '2026-09-30', waivedBy: 'Ryan' }] },
+        variations: [{ id: 'var_waive_inst_2_2', label: `Waived: ${waived.label}`, amountCents: -waived.amountCents, reason: 'Client paused', status: 'approved', createdAt: '2026-09-30T00:00:00Z', createdBy: 'Ryan', decidedAt: '2026-09-30T00:00:00Z', decidedBy: 'Ryan' }],
+      },
+    })
+    const list = termCard().querySelector('[aria-label="Waived instalments"]')?.textContent ?? ''
+    expect(list).toContain(`Year 2 of 3, quarter 2 · −${fmt(309000)} · waived 30 Sep 2026 by Ryan: Client paused`)
+    // The server copy already has the waiver: nothing is pending.
+    expect(termCard().textContent).not.toContain('Updating the schedule')
+  })
+
+  it('an ended agreement can still waive what remains', async () => {
+    await show({ plan: { term: { ...TERM, draftFrom: '2025-09-20', ended: { endedOn: '2027-01-01', reason: 'Left', endedBy: 'Ryan', recordedAt: '2026-10-01T00:00:00Z' } } } })
+    expect(waiveBtn('Year 2 of 3, quarter 1')).toBeTruthy()
+  })
+})
+
 describe('Billing tab: "Updating the schedule" only while the server has not answered', () => {
   it('shows after Confirm CPI and goes once the server stores it', async () => {
     const { plan } = await show()

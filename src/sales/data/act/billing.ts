@@ -6,7 +6,7 @@ import {
   validateVariation, approvalProblem,
 } from '../../shared/billing'
 import { formatCents } from '../../shared/money'
-import { cpiProblem, endProblem, isInstalment, oneOffMilestones, validateTerm, type TermInput } from '../../shared/term'
+import { cpiProblem, endProblem, isInstalment, oneOffMilestones, validateTerm, waiveProblem, type TermInput } from '../../shared/term'
 import { scheduleTotal, termSchedule } from '../../shared/termSchedule'
 import { commit } from '../commit'
 import { audit } from '../internals'
@@ -316,3 +316,20 @@ export function setTermAutoDraft(dealId: string, on: boolean): BillingResult {
   return { ok: true }
 }
 
+/**
+ * Waive one instalment the client will not be billed for; it cannot be undone. Only the waiver is written: the server
+ * stamps who and when, refuses an instalment with an issued invoice, removes the instalment, deletes (or unlinks) its
+ * drafts and appends one approved variation of minus its amount ('Waived: <label>'). Ended agreements too. The caller
+ * checks the deal's invoices first (waiveProblem): this layer has none, so here only the instalment and reason are.
+ */
+export function waiveInstalment(dealId: string, milestoneId: string, reason: string): BillingResult {
+  const r = termOf(dealId)
+  if ('error' in r) return fail(r.error)
+  const bad = waiveProblem(r.p, milestoneId, reason, [])
+  if (bad) return fail(bad)
+  const label = r.p.milestones.find(m => m.id === milestoneId)?.label ?? milestoneId
+  r.p.term = { ...r.p.term, waived: [...(r.p.term.waived ?? []), { milestoneId, reason: reason.trim(), waivedOn: F.today(), waivedBy: Q.me().name }] }
+  audit('Term instalment waived', `${Q.deal(dealId)?.title ?? dealId}: ${label}`)
+  commit()
+  return { ok: true }
+}

@@ -10,8 +10,9 @@ import { invoiceRef } from '../../shared/externalInvoices'
 import { fmtDay } from '../../shared/invoices'
 import { formatCents } from '../../shared/money'
 import {
-  bpText, daysBetween, draftChangeText, endDateProblem, endEffect, endReasonProblem, EXIT_LABEL, FREQUENCY_LABEL, inDays, INSTALMENT_ICON, INSTALMENT_TONE, instalmentsOf, instalmentState,
-  MAX_END_REASON, nextAnniversary, nextBreakAnniversary, noticeBy, termActionPending, termLastDay, TIMING_LABEL, unconfirmedCpiYears, type DraftChange,
+  bpText, daysBetween, draftChangeText, endDateProblem, endEffect, endReasonProblem, EXIT_LABEL, FREQUENCY_LABEL, inDays, INSTALMENT_ICON, INSTALMENT_TONE, instalmentsOf, instalmentState, issuedIds,
+  MAX_END_REASON, MAX_WAIVE_REASON, nextAnniversary, nextBreakAnniversary, noticeBy, termActionPending, termLastDay, TIMING_LABEL, unconfirmedCpiYears, waivableProblem, waiveEffect, waiveReasonProblem,
+  type DraftChange,
 } from '../../shared/term'
 import { scheduleTotal, termEndDate, termYears, yearlyFees } from '../../shared/termSchedule'
 import { UI } from '../../ui/store'
@@ -33,8 +34,8 @@ function draftsText(drafts: readonly DraftChange[], labelOf: (id: string) => str
 
 /**
  * The term of a term agreement on the deal Billing tab: its dates, fee, billing, rise and exit, the automatic drafting,
- * and the schedule grouped by year with each instalment's invoice. Confirm CPI opens a dialog; ending early is
- * confirmed in place. Ardorio admins only (the Billing tab is already gated).
+ * the instalments waived, and the schedule grouped by year with each instalment's invoice. Confirm CPI opens a dialog;
+ * ending early and waiving an instalment are confirmed in place. Ardorio admins only (the Billing tab is already gated).
  */
 export function TermAgreement({ deal, plan, invoices, loadError = null, onReload }: { deal: Deal; plan: TermPlan; invoices: InvoiceDto[] | null; loadError?: string | null; onReload: () => void }) {
   const t = plan.term
@@ -45,6 +46,10 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
   const [endErr, setEndErr] = useState('')
   const panel = useRef<HTMLDivElement>(null)
   useEffect(() => { if (ending) panel.current?.focus() }, [ending !== null]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [waiving, setWaiving] = useState<{ id: string; reason: string; tried: boolean } | null>(null)
+  const [waiveErr, setWaiveErr] = useState('')
+  const waivePanel = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (waiving) waivePanel.current?.focus() }, [waiving?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const known = invoices !== null
   const list = invoices ?? []
@@ -59,8 +64,12 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
   const rows = scheduleRows({ ...plan, milestones: instalmentsOf(plan) }, list)
   const byYear = new Map<number, typeof rows>()
   for (const r of rows) byYear.set(r.milestone.termYear ?? 1, [...(byYear.get(r.milestone.termYear ?? 1) ?? []), r])
-  // Exact: this browser confirmed CPI or ended the agreement and the server has not answered yet (never guessed from amounts).
+  // Exact: this browser confirmed CPI, ended or waived and the server has not answered yet (never guessed from amounts).
   const pending = termActionPending(t, Q.storedBillingPlan(deal.id)?.term)
+  const issued = issuedIds(list)
+  const waivedIds = new Set((t.waived ?? []).map(w => w.milestoneId))
+  // Waiving needs the invoices (an issued instalment cannot be waived) and a won deal; ended agreements too.
+  const canWaive = known && Q.canAdmin('ard') && deal.status === 'won'
   const labelOf = (id: string): string => plan.milestones.find(m => m.id === id)?.label ?? id
 
   const toggle = (on: boolean): void => {
@@ -93,6 +102,23 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
     UI.toast(`Agreement ends on ${fmtDay(eff.endedOn)}. ${eff.removedCents ? `${formatCents(eff.removedCents)} comes off the contract as an approved variation.` : 'Nothing comes off the contract.'}`)
   }
 
+  const waived = waiving && known ? waiveEffect(plan, waiving.id, list) : null
+  const startWaive = (m: BillingMilestone): void => { setWaiveErr(''); setEnding(null); setWaiving({ id: m.id, reason: '', tried: false }) }
+  const confirmWaive = (): void => {
+    if (!waiving) return
+    setWaiving({ ...waiving, tried: true })
+    if (!known) return setWaiveErr("The deal's invoices are not loaded, so whether this instalment can be waived cannot be checked yet. Try again when they are.")
+    const bad = waivableProblem(plan, waiving.id, list)
+    if (bad) return setWaiveErr(bad)
+    if (waiveReasonProblem(waiving.reason)) return setWaiveErr('')
+    const eff = waiveEffect(plan, waiving.id, list)
+    const r = Act.waiveInstalment(deal.id, waiving.id, waiving.reason)
+    if (!r.ok) return setWaiveErr(r.error)
+    setWaiving(null)
+    setWaiveErr('')
+    UI.toast(`${eff?.instalment.label ?? 'The instalment'} is waived. ${eff ? `${formatCents(eff.amountCents)} comes off the contract as an approved variation.` : ''}`.trim())
+  }
+
   return (
     <Card
       title="Term agreement"
@@ -100,7 +126,7 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
         <span className="row wrap" style={{ gap: 6 }}>
           {t.ended ? <Chip tone="bad" icon="stop">Ended {fmtDay(t.ended.endedOn)}</Chip> : left > 0 ? <Chip icon="clock">Ends {inDays(left)}</Chip> : <Chip>Term over</Chip>}
           {cpiYears.length > 0 && <Btn size="sm" disabled={!known} title={waiting ?? undefined} onClick={() => UI.open('confirmCpi', { dealId: deal.id, year: cpiYears[0] })}>Confirm CPI for year {cpiYears[0]}</Btn>}
-          {!t.ended && left > 0 && !ending && <Btn size="sm" kind="ghost" disabled={!known} title={waiting ?? undefined} onClick={() => { setEndErr(''); setEnding({ day: today >= t.startDate ? today : t.startDate, reason: '', tried: false }) }}>End agreement early</Btn>}
+          {!t.ended && left > 0 && !ending && <Btn size="sm" kind="ghost" disabled={!known} title={waiting ?? undefined} onClick={() => { setEndErr(''); setWaiving(null); setEnding({ day: today >= t.startDate ? today : t.startDate, reason: '', tried: false }) }}>End agreement early</Btn>}
         </span>
       }
     >
@@ -148,6 +174,22 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
           </div>
         </dl>
 
+        {(t.waived ?? []).length > 0 && (
+          <div className="col" style={{ gap: 4 }}>
+            <div className="b sm">Waived instalments</div>
+            <ul aria-label="Waived instalments" className="col sm" style={{ margin: 0, paddingLeft: 18, gap: 2 }}>
+              {(t.waived ?? []).map(w => {
+                const v = (plan.variations ?? []).find(x => x.id === `var_waive_${w.milestoneId}`) ?? (plan.variations ?? []).find(x => x.id.startsWith(`var_waive_${w.milestoneId}_`))
+                const label = v ? v.label.replace(/^Waived: /, '') : labelOf(w.milestoneId)
+                return (
+                  <li key={w.milestoneId}>
+                    <b>{label}</b>{v ? <> · <span className="money">{signedCents(v.amountCents, formatCents)}</span></> : null} · waived {fmtDay(w.waivedOn)} by {w.waivedBy}: {w.reason}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="col" style={{ gap: 4 }}>
           <Ck checked={t.autoDraft} onChange={toggle}>
@@ -201,6 +243,32 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
           </div>
         )}
 
+        {waiving && (
+          <div ref={waivePanel} tabIndex={-1} className="card" style={{ boxShadow: 'none', background: 'var(--surf2)' }} role="group" aria-label="Waive instalment">
+            <div className="card-b col" style={{ gap: 10 }}>
+              <div className="b">Waive {waived?.instalment.label ?? labelOf(waiving.id)}?</div>
+              {waiveErr && <Banner tone="bad">{waiveErr}</Banner>}
+              {waived && (
+                <div role="status" aria-label="What waiving does" className="col sm" style={{ gap: 4 }}>
+                  <div>
+                    The client is not billed for it: <b className="money">{formatCents(waived.amountCents)}</b> ex GST
+                    {waived.instalment.periodStart && waived.instalment.periodEnd ? <>, for {fmtDay(waived.instalment.periodStart)} to {fmtDay(waived.instalment.periodEnd)}</> : null}.
+                  </div>
+                  <div>An approved variation of <b className="money">{signedCents(-waived.amountCents, formatCents)}</b> is added: {waived.label}.</div>
+                  <div>{waived.drafts.length ? waived.drafts.map(d => draftChangeText(d, formatCents)).join(' ') : 'It has no draft invoice to remove.'}</div>
+                  <div className="b">This can't be undone.</div>
+                </div>
+              )}
+              <Fld label="Reason" req err={waiving.tried ? waiveReasonProblem(waiving.reason) : null} hint={`Up to ${MAX_WAIVE_REASON} characters, kept with the waiver`}>
+                <TA rows={2} value={waiving.reason} onChange={v => setWaiving({ ...waiving, reason: v })} />
+              </Fld>
+              <span className="row" style={{ gap: 6 }}>
+                <Btn size="sm" kind="danger" disabled={!known} onClick={confirmWaive}>Waive instalment</Btn>
+                <Btn size="sm" onClick={() => { setWaiving(null); setWaiveErr('') }}>Cancel</Btn>
+              </span>
+            </div>
+          </div>
+        )}
 
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl" aria-label="Term schedule" style={{ minWidth: 760 }}>
@@ -216,13 +284,16 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
                       <td className="sm">{fmtDay(m.periodStart)} to {fmtDay(m.periodEnd)}</td>
                       <td>{fmtDay(m.plannedDate)}</td>
                       <td className="money" style={{ textAlign: 'right' }}>{formatCents(m.amountCents)}</td>
-                      <td>{known ? <Chip tone={INSTALMENT_TONE[st]} icon={INSTALMENT_ICON[st]}>{st}</Chip> : <span className="faint">…</span>}</td>
+                      <td>{waivedIds.has(m.id) ? <Chip icon="stop">Waived</Chip> : known ? <Chip tone={INSTALMENT_TONE[st]} icon={INSTALMENT_ICON[st]}>{st}</Chip> : <span className="faint">…</span>}</td>
                       <td>
                         {r.invoice
                           ? <a className="mono" href={`/sales/invoices/${r.invoice.id}`} onClick={ev => { ev.preventDefault(); open(r.invoice!.id) }}>{invoiceRef(r.invoice)}</a>
                           : known && st === 'Due' ? <Btn size="xs" onClick={() => create(m)}>Create invoice</Btn> : <span className="faint">Not invoiced</span>}
                         {r.invoice?.status === 'paid' && <div className="faint sm">Paid {fmtDay(r.invoice.payment?.paidAt)}</div>}
                         {r.invoice && (r.invoice.status === 'sent') && <div className="faint sm">Due {fmtDay(r.invoice.dueDate)}</div>}
+                        {canWaive && !issued.has(m.id) && !waivedIds.has(m.id) && waiving?.id !== m.id && (
+                          <div><Btn size="xs" kind="ghost" aria-label={`Waive ${m.label}`} onClick={() => startWaive(m)}>Waive</Btn></div>
+                        )}
                       </td>
                     </tr>
                   )

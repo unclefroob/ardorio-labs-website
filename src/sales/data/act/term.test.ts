@@ -186,3 +186,38 @@ describe('Act on a stored term', () => {
     m.stop()
   })
 })
+
+describe('Act.waiveInstalment', () => {
+  it('appends only the waiver, trimmed and stamped; the server removes the instalment and records the variation', async () => {
+    const m = await setup('admin', { billingPlans: [storedPlan()] })
+    const before = m.Q.billingPlan('dl1')!.milestones
+    expect(m.Act.waiveInstalment('dl1', 'inst_2_1', ' Client paused for a year ')).toEqual({ ok: true })
+    const p = m.Q.billingPlan('dl1')!
+    expect(p.term?.waived).toEqual([{ milestoneId: 'inst_2_1', reason: 'Client paused for a year', waivedOn: '2026-10-09', waivedBy: 'Me Myself' }])
+    expect(p.milestones).toEqual(before)
+    await vi.advanceTimersByTimeAsync(300)
+    const [op] = plansIn(m.post.mock.calls[0][0])
+    expect(op.op === 'put' ? Object.keys(op.set ?? {}) : []).toEqual(['term'])
+    m.stop()
+  })
+
+  it('refuses what the API refuses: twice, an instalment not on the plan, a one-off milestone, a bad reason, a manager', async () => {
+    const m = await setup('admin', { billingPlans: [storedPlan()] })
+    expect(m.Act.waiveInstalment('dl1', 'inst_2_1', '')).toEqual({ ok: false, error: 'Say why it is waived, in 1 to 300 characters' })
+    expect(m.Act.waiveInstalment('dl1', 'inst_9_1', 'x')).toEqual({ ok: false, error: 'That instalment is no longer on this agreement' })
+    expect(m.Act.waiveInstalment('dl1', 'bf1', 'x')).toEqual({ ok: false, error: 'That instalment is no longer on this agreement' })
+    expect(m.Act.waiveInstalment('dl1', 'inst_2_1', 'x')).toEqual({ ok: true })
+    expect(m.Act.waiveInstalment('dl1', 'inst_2_1', 'again')).toEqual({ ok: false, error: 'This instalment is already waived' })
+    m.stop()
+    const mgr = await setup('manager', { billingPlans: [storedPlan()] })
+    expect(mgr.Act.waiveInstalment('dl1', 'inst_2_1', 'x')).toMatchObject({ ok: false })
+    mgr.stop()
+  })
+
+  it('works on an ended agreement, as the API allows', async () => {
+    const m = await setup('admin', { billingPlans: [storedPlan()] })
+    expect(m.Act.endTermEarly('dl1', '2029-03-15', 'Client sold the business')).toEqual({ ok: true })
+    expect(m.Act.waiveInstalment('dl1', 'inst_2_1', 'Never billed')).toEqual({ ok: true })
+    m.stop()
+  })
+})
