@@ -3,6 +3,7 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
+import { isVoided } from '../../data/voided'
 import type { BusinessId, Company, CompanyRel, Task } from '../../data/types'
 import { BizDot, BulkBar, Btn, Chip, DataTable, Empty, FilterBar, Menu, Owner, SearchInp, Seg, Sel, TONE, download, toCSV, type Col } from '../../kit'
 import { ArchivedChip, RestoreRowBtn } from '../../shared/archiveUi'
@@ -36,7 +37,7 @@ function buildRows(arch: boolean): Row[] {
     const ds = S.deals.filter(d => d.companyId === c.id && sc.includes(d.businessId) && d.status === 'open' && d.archived !== true)
     const next = S.tasks.filter(t => t.companyId === c.id && sc.includes(t.businessId) && !Q.done(t)).sort((a, b) => a.due.localeCompare(b.due))[0]
     const lastContact = myr.map(r => r.lastContacted).filter((x): x is string => !!x).sort().pop() ?? ''
-    const lastAct = S.activities.filter(a => a.companyId === c.id && sc.includes(a.businessId)).reduce((m, a) => (a.ts > m ? a.ts : m), '')
+    const lastAct = S.activities.filter(a => a.companyId === c.id && sc.includes(a.businessId) && !isVoided(a)).reduce((m, a) => (a.ts > m ? a.ts : m), '')
     return { ...c, rels, myr, deals: ds.length, pipe: ds.reduce((s, d) => s + d.value, 0), next, last: lastAct || lastContact, owner: myr[0]?.ownerId, pri: myr[0]?.priority }
   })
 }

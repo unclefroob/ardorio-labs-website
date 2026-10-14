@@ -1,5 +1,6 @@
 import { S } from './store'
 import type { Activity, Message, Thread } from './types'
+import { isVoided } from './voided'
 
 /**
  * Simulated mail.
@@ -47,8 +48,11 @@ export function isSimAct(a: Activity): boolean {
   return false
 }
 
-/** Activities that really happened. Use it for every count, goal, report and score. */
-export const realActs = <T extends Activity>(acts: readonly T[]): T[] => acts.filter(a => !isSimAct(a))
+/**
+ * Activities that really happened: not simulated, and not voided as logged in error (data/voided.ts). Use it for
+ * every count, goal, report and score.
+ */
+export const realActs = <T extends Activity>(acts: readonly T[]): T[] => acts.filter(a => !isSimAct(a) && !isVoided(a))
 
 export type SimLevel = 'all' | 'some' | null
 

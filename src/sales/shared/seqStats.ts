@@ -1,4 +1,5 @@
 import { isSimAct, isSimMsg } from '../data/simulated'
+import { isVoided } from '../data/voided'
 import { S } from '../data/store'
 import type { Enrolment, Message, Sequence } from '../data/types'
 
@@ -42,7 +43,7 @@ export function seqStats(s: Sequence): SeqStats {
   const pos = rep.filter(t => POSITIVE.includes(t.classification?.cat ?? ''))
   const cids = new Set(en.map(e => e.contactId))
   const meet =
-    S.activities.filter(a => a.type === 'meeting_booked' && !isSimAct(a) && a.contactId != null && cids.has(a.contactId) && en.some(e => e.contactId === a.contactId && a.ts >= e.startedAt)).length +
+    S.activities.filter(a => a.type === 'meeting_booked' && !isSimAct(a) && !isVoided(a) && a.contactId != null && cids.has(a.contactId) && en.some(e => e.contactId === a.contactId && a.ts >= e.startedAt)).length +
     en.filter(e => e.reason === 'Meeting booked' && !simMeetingExit(e)).length
   const tasks = S.tasks.filter(t => t.seqId === s.id)
   return {
@@ -57,7 +58,7 @@ export function seqStats(s: Sequence): SeqStats {
     unsub: en.filter(e => e.status === 'unsubscribed').length,
     bounced: en.filter(e => e.status === 'bounced').length,
     emailsToSend: tasks.filter(t => t.kind === 'email' && t.status !== 'Completed' && t.status !== 'Cancelled').length,
-    opens: S.activities.filter(a => a.type === 'email_open' && a.seqId === s.id).length,
+    opens: S.activities.filter(a => a.type === 'email_open' && a.seqId === s.id && !isVoided(a)).length,
     tasksDone: tasks.filter(t => t.status === 'Completed').length,
     tasks: tasks.length,
     msgs,

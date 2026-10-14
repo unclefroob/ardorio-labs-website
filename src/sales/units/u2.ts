@@ -5,6 +5,7 @@ import { Customers } from '../pages/customers/Customers'
 import { LogMeeting } from '../modals/comms/LogMeeting'
 import { MeetingBrief } from '../modals/comms/MeetingBrief'
 import { CancelMeeting, RescheduleMeeting } from '../modals/comms/MeetingChange'
+import { VoidActivity } from '../modals/entities/VoidActivity'
 import { CheckSignals } from '../modals/comms/CheckSignals'
 import { Compose } from '../modals/comms/Compose'
 import { Enrol } from '../modals/comms/Enrol'
@@ -22,7 +23,7 @@ import { SendEmailTask } from '../modals/comms/SendEmailTask'
 export const u2: UnitModule = {
   pages: { deals: Deals, deal: Deal, customers: Customers, rosterioCustomers: Customers },
   modals: {
-    logMeeting: LogMeeting, meetingBrief: MeetingBrief, cancelMeeting: CancelMeeting, rescheduleMeeting: RescheduleMeeting, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findMobile: FindMobile, findPeople: FindPeople,
+    logMeeting: LogMeeting, meetingBrief: MeetingBrief, cancelMeeting: CancelMeeting, rescheduleMeeting: RescheduleMeeting, voidActivity: VoidActivity, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findMobile: FindMobile, findPeople: FindPeople,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
     reassign: Reassign, addSuppression: AddSuppression, sendEmailTask: SendEmailTask,
   },

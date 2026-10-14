@@ -531,6 +531,12 @@ export interface Activity {
   dup?: boolean
   /** True when a simulated path recorded this (no real email, reply or tracking event). Never counted in metrics. */
   simulated?: boolean
+  /** Logged in error (contract: activity void). Once true it never changes again; never counted anywhere. */
+  voided?: boolean
+  voidedAt?: Iso
+  /** The voiding person's display name, written by the server. */
+  voidedBy?: string
+  voidReason?: string
   [k: string]: unknown
 }
 

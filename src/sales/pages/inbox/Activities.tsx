@@ -3,6 +3,8 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isAhead, isOverdue } from '../../data/meetings'
 import { isSimAct } from '../../data/simulated'
+import { canVoidActivity, voidedLine } from '../../data/voidRules'
+import { isVoided } from '../../data/voided'
 import { S, useStore } from '../../data/store'
 import type { Activity } from '../../data/types'
 import { AIC, BizDot, Btn, Card, Chip, DataTable, DlLink, Empty, FilterBar, Fld, Icon, Inp, Owner, SearchInp, Sel, SimChip, download, toCSV, type Col } from '../../kit'
@@ -70,6 +72,8 @@ export function Activities({ route }: { route: Route }) {
       (!q || (Q.actVisible(a) && includesCI(a.subject + ' ' + (a.desc ?? ''), q)) || includesCI(Q.company(a.companyId)?.name, q)),
     )
     .sort((a, b) => b.ts.localeCompare(a.ts))
+  const counted = rows.filter(a => !isVoided(a)).length
+  const voidedN = rows.length - counted
   const filtered = !!(ty || u || bz || from || q)
   const clear = (): void => { setTy(''); setU(''); setBz(''); setFrom(''); setQ('') }
 
@@ -88,8 +92,9 @@ export function Activities({ route }: { route: Route }) {
         return (
           <span className="row">
             <Icon n={ic} s={13} style={{ color: 'var(--fg3)' }} />
-            <span className="trunc" style={{ maxWidth: 340 }}>{Q.actVisible(a) ? a.subject : <><Icon n="lock" s={11} /> Private email: content restricted</>}</span>
+            <span className={'trunc' + (isVoided(a) ? ' strike' : '')} style={{ maxWidth: 340 }}>{Q.actVisible(a) ? a.subject : <><Icon n="lock" s={11} /> Private email: content restricted</>}</span>
             {isSimAct(a) && <SimChip />}
+            {isVoided(a) && <Chip icon="x" title={voidedLine(a)}>Logged in error</Chip>}
           </span>
         )
       },
@@ -102,16 +107,32 @@ export function Activities({ route }: { route: Route }) {
     { k: 'b', l: 'Business', r: a => <BizDot b={a.businessId} />, sort: a => a.businessId },
     { k: 'd', l: 'Deal', nosort: true, r: a => (a.dealId ? <DlLink id={a.dealId} /> : '—') },
     { k: 'outcome', l: 'Outcome', r: a => (a.outcome ? <Chip>{a.outcome}</Chip> : '—') },
+    {
+      k: 'void', l: 'Correction', nosort: true,
+      r: a => isVoided(a)
+        ? <span className="faint xs">{voidedLine(a)}</span>
+        : canVoidActivity(a)
+          ? (
+            <Btn
+              size="xs" kind="ghost" aria-label={`Mark ${Q.actVisible(a) ? `“${a.subject ?? ''}”` : 'this activity'} as logged in error`}
+              onKeyDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); UI.open('voidActivity', { id: a.id }) }}
+            >
+              Logged in error
+            </Btn>
+          )
+          : '',
+    },
   ]
 
   const exportCsv = (): void =>
-    download('activities.csv', toCSV([['Date', 'Type', 'User', 'Business', 'Company', 'Contact', 'Subject', 'Outcome']].concat(
-      rows.map(a => [a.ts, typeLabel(a.type), Q.user(a.actorId)?.name ?? '', Q.biz(a.businessId)?.name ?? '', Q.company(a.companyId)?.name ?? '', Q.contact(a.contactId)?.name ?? '', Q.actVisible(a) ? (a.subject ?? '') : 'Private email', a.outcome ?? ''])),
+    download('activities.csv', toCSV([['Date', 'Type', 'User', 'Business', 'Company', 'Contact', 'Subject', 'Outcome', 'Logged in error']].concat(
+      rows.map(a => [a.ts, typeLabel(a.type), Q.user(a.actorId)?.name ?? '', Q.biz(a.businessId)?.name ?? '', Q.company(a.companyId)?.name ?? '', Q.contact(a.contactId)?.name ?? '', Q.actVisible(a) ? (a.subject ?? '') : 'Private email', a.outcome ?? '', isVoided(a) ? (a.voidReason ?? 'Yes') : ''])),
     ))
 
   return (
     <div className="page" style={{ maxWidth: 'none' }}>
-      <PageHead title="Activities" sub={`${rows.length} interaction${rows.length === 1 ? '' : 's'} · one central activity log shown on every related record`}>
+      <PageHead title="Activities" sub={`${counted} interaction${counted === 1 ? '' : 's'}${voidedN ? ` (${voidedN} logged in error, not counted)` : ''} · one central activity log shown on every related record`}>
         <Btn icon="download" disabled={!rows.length} onClick={exportCsv}>Export</Btn>
       </PageHead>
       {all.length === 0 ? (

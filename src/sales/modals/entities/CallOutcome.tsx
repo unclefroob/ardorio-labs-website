@@ -3,6 +3,7 @@ import { Act, type BookedMeeting } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
+import { isVoided } from '../../data/voided'
 import type { BusinessId, Contact, Task } from '../../data/types'
 import { Btn, Ck, Fld, Inp, TA } from '../../kit/basic'
 import { Icon } from '../../kit/Icon'
@@ -50,7 +51,7 @@ function CallForm({ t, ct, b, companyId, dealId }: { t?: Task; ct?: Contact; b: 
   const booked = f.outcome === 'Meeting Booked'
   const clock = F.nowIso()
   const knownDeal = dealId ?? t?.dealId ?? null
-  const last = ct ? S.activities.filter(a => a.contactId === ct.id && Q.actVisible(a)).sort((a, c) => c.ts.localeCompare(a.ts))[0] : undefined
+  const last = ct ? S.activities.filter(a => a.contactId === ct.id && Q.actVisible(a) && !isVoided(a)).sort((a, c) => c.ts.localeCompare(a.ts))[0] : undefined
 
   const pick = (o: string): void => {
     set({

@@ -8,6 +8,7 @@ import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Ic
 import { DealFieldInput } from '../../shared/forms'
 import { tryMove } from '../../shared/moves'
 import { askReopen } from '../../shared/reopen'
+import { standingActs } from '../../data/voided'
 import { isOverdue } from '../../data/meetings'
 import { MeetingHistory, MeetingMenu, MeetingStatusChip, OutcomePrompt } from '../../shared/meetingUi'
 import { askArchive } from '../../shared/archiveActions'
@@ -205,7 +206,7 @@ export function Deal({ route }: { route: Route }) {
         tabs={[
           ['overview', 'Overview'],
           ['people', 'Stakeholders', d.contactIds.length],
-          ['activity', 'Activity', acts.length],
+          ['activity', 'Activity', standingActs(acts).length],
           ['tasks', 'Tasks', tasks.filter(t => !Q.done(t)).length],
           ['notes', 'Notes', (d.notes || []).length],
           ['emails', 'Emails', ths.length],

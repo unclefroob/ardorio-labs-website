@@ -2,6 +2,7 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
+import { isVoided } from '../../data/voided'
 import type { Task } from '../../data/types'
 import {
   Av, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DataTable, Due, Empty, Icon, Kpi, Menu, Prog, TONE, type Col, type MenuItem,
@@ -22,7 +23,7 @@ const ENGAGED = ['Interested', 'Meeting Requested', 'More Information Requested'
 
 function CallRow({ t }: { t: Task }) {
   const c = Q.contact(t.contactId)
-  const last = c ? S.activities.filter(a => a.contactId === c.id && Q.actVisible(a) && a.id !== t.id).sort((a, b) => b.ts.localeCompare(a.ts))[0] : undefined
+  const last = c ? S.activities.filter(a => a.contactId === c.id && Q.actVisible(a) && a.id !== t.id && !isVoided(a)).sort((a, b) => b.ts.localeCompare(a.ts))[0] : undefined
   const li = safeHref(c?.linkedin)
   const items: MenuItem[] = [
     { label: 'Log outcome', icon: 'check', onClick: () => UI.open('callOutcome', { taskId: t.id }) },
