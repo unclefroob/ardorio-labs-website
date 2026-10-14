@@ -5,6 +5,8 @@ import type { Deal } from '../../data/types'
 import { Btn, Card, Chip, Fld, Inp, Sel } from '../../kit'
 import { RosCalc, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
+import { describePricing, priceTotals, pricingOf } from '../../shared/dealPricing'
+import { PricingFields } from './PricingFields'
 
 interface CommercialForm {
   value: string
@@ -31,6 +33,7 @@ export function Commercials({ d }: { d: Deal }) {
   const price = toNum(f.fields.price)
   const pthV = d.businessId === 'pth' && eligible > 0 && price > 0 ? Math.round(eligible * price) : null
   const valueNum = pthV ?? toNum(f.value)
+  const ardPriced = d.businessId === 'ard'
 
   const save = (): void => {
     const months = toNum(f.contractMonths)
@@ -52,18 +55,19 @@ export function Commercials({ d }: { d: Deal }) {
             <RosCalc f={f.fields} set={setF2} />
           ) : (
             <div className="grid g2">
+              {ardPriced && <PricingFields state={{ value: f.value, months: f.contractMonths, fields: f.fields }} onChange={s => { set('value', s.value); set('contractMonths', s.months); set('fields', s.fields) }} disabled={!can} />}
               {d.businessId === 'pth' && (
                 <>
                   <Fld label="Eligible students"><Inp value={text(f.fields.eligible)} onChange={v => setF2('eligible', +v || '')} disabled={!can} inputMode="numeric" /></Fld>
                   <Fld label="Price per student / yr (A$)"><Inp value={text(f.fields.price)} onChange={v => setF2('price', +v || '')} disabled={!can} inputMode="decimal" /></Fld>
                 </>
               )}
-              <Fld
-                label={d.businessId === 'ard' ? 'Estimated project value' : 'Annual contract value'}
+              {!ardPriced && <Fld
+                label={'Annual contract value'}
                 hint={pthV ? 'Calculated: ' + F.num(eligible) + ' × ' + F.money(price) + ' = ' + F.money(pthV) : undefined}
               >
                 <Inp value={pthV != null ? String(pthV) : f.value} onChange={v => set('value', v.replace(/[^0-9.]/g, ''))} disabled={!can || pthV != null} inputMode="decimal" />
-              </Fld>
+              </Fld>}
               {d.businessId === 'adv' && (
                 <Fld label="Per employee / month" hint="Derived">
                   <div className="sm num">{toNum(f.fields.employees) > 0 ? F.money(valueNum / 12 / toNum(f.fields.employees)) : '—'}</div>
@@ -78,7 +82,7 @@ export function Commercials({ d }: { d: Deal }) {
             </div>
           )}
           <div className="grid g3">
-            <Fld label="Contract term (months)"><Inp value={f.contractMonths} onChange={v => set('contractMonths', v)} disabled={!can} inputMode="numeric" /></Fld>
+            {!ardPriced && <Fld label="Contract term (months)"><Inp value={f.contractMonths} onChange={v => set('contractMonths', v)} disabled={!can} inputMode="numeric" /></Fld>}
             <Fld label="Probability %" hint={'Stage default ' + (Q.stage(d)?.prob ?? 0) + '%'}><Inp value={f.probability} onChange={v => set('probability', v)} disabled={!can} inputMode="numeric" /></Fld>
             <Fld label="Forecast category"><Sel value={f.forecast} onChange={v => set('forecast', v)} options={pl.forecast} disabled={!can} /></Fld>
             <Fld label="Expected close"><Inp type="date" value={f.close} onChange={v => set('close', v)} disabled={!can} /></Fld>
@@ -95,6 +99,7 @@ export function Commercials({ d }: { d: Deal }) {
               <dt>ARR</dt><dd className="num">{F.money(d.mrr * 12)}</dd>
             </>
           )}
+          {(() => { const pr = d.businessId === 'ard' ? pricingOf(d.fields) : null; return pr && (pr.amount > 0 || pr.oneOff > 0) ? <><dt>Price</dt><dd>{describePricing(pr, d.contractMonths, F.money)}{priceTotals(pr, d.contractMonths).annual != null && <span className="muted"> · {F.money(priceTotals(pr, d.contractMonths).annual ?? 0)} a year</span>}</dd></> : null })()}
           <dt>Weighted</dt><dd className="num">{F.money(Q.weighted(d))}</dd>
           <dt>Total contract</dt><dd className="num">{F.money(d.recurring ? (d.value / 12) * d.contractMonths : d.value)}</dd>
           <dt>Recurring</dt><dd>{d.recurring ? 'Yes' : 'No (project)'}</dd>
