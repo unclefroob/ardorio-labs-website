@@ -11,6 +11,7 @@ import {
   buildForecast, byFinancialYear, drillByDeal, FC_RANGES, FLAG_LABEL, forecastBars, lagLine, latestDay, parseLag, paymentLag, rangeMonths, SLIPS, summarise,
   type DealBacklog, type FcBucket, type FcEntry, type FcRange, type FcRole, type Forecast,
 } from '../../shared/forecast'
+import { retainerSpanLabel } from '../../shared/billing'
 import { fmtDay } from '../../shared/invoices'
 import { formatCentsTile } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
@@ -298,7 +299,7 @@ function ForecastBody({ invoices, today, range, slip, setSlip, lagText, setLagTe
       </div>
       <div className="sm" id={ids.recId} data-reconcile style={{ marginBottom: 12 }}>{recon}</div>
 
-      {(f.noContract.length > 0 || f.retainerNoDate.length > 0 || slip > 0) && (
+      {(f.noContract.length > 0 || f.retainerNoDate.length > 0 || f.retainerSkipped.length > 0 || f.retainerContracts.length > 0 || slip > 0) && (
         <div className="col" style={{ gap: 8, marginBottom: 12 }}>
           {slip > 0 && <Banner tone="info">Planned milestones not yet delivered are moved {plural(slip, 'month')} later. Overdue and delivered milestones, issued invoices and the pipeline stay where they are.</Banner>}
           {f.noContract.length > 0 && (
@@ -311,6 +312,26 @@ function ForecastBody({ invoices, today, range, slip, setSlip, lagText, setLagTe
             <Banner tone="info">
               {plural(f.retainerNoDate.length, 'retainer')} {f.retainerNoDate.length === 1 ? 'has' : 'have'} no next invoice date, so nothing is forecast for {f.retainerNoDate.length === 1 ? 'it' : 'them'}:{' '}
               {f.retainerNoDate.map((d, i) => <Fragment key={d.id}>{i > 0 && ', '}<Link to="deal" id={d.id} q={{ tab: 'billing' }}>{d.title || d.name}</Link></Fragment>)}.
+            </Banner>
+          )}
+          {f.retainerSkipped.length > 0 && (
+            <Banner tone="warn">
+              {plural(f.retainerSkipped.length, 'retainer')} {f.retainerSkipped.length === 1 ? 'is' : 'are'} more than a month behind. Only the latest month is forecast, as the scheduler drafts only that one; the months before it are skipped, so bill them by hand if they were not:{' '}
+              {f.retainerSkipped.map((r, i) => (
+                <Fragment key={r.deal.id}>{i > 0 && '; '}<Link to="deal" id={r.deal.id} q={{ tab: 'billing' }}>{r.deal.title || r.deal.name}</Link> (skipped {retainerSpanLabel(r.periods)})</Fragment>
+              ))}.
+            </Banner>
+          )}
+          {f.retainerContracts.length > 0 && (
+            <Banner tone="info">
+              Support retainer contracts are billed by their retainer, so they are kept out of the project backlog and Unscheduled:{' '}
+              {f.retainerContracts.map((r, i) => (
+                <Fragment key={r.dealId}>
+                  {i > 0 && '; '}<Link to="deal" id={r.dealId} q={{ tab: 'billing' }}>{r.dealName}</Link>
+                  {` contracted ${fmt(r.contracted)}, invoiced ${fmt(r.invoiced)}${r.scheduled > 0 ? `, ${fmt(r.scheduled)} in milestones` : ''}, retainer forecast to ${monthName(last)} ${fmt(r.forecastRetainer)}, `}
+                  {r.beyond > 0 ? `${fmt(r.beyond)} past the contract` : `${fmt(r.left)} of the contract left after it`}
+                </Fragment>
+              ))}.
             </Banner>
           )}
         </div>
@@ -339,7 +360,7 @@ function ForecastBody({ invoices, today, range, slip, setSlip, lagText, setLagTe
         </Card>
       </div>
       <div style={{ marginTop: 14 }}>
-        <Banner>As recorded in SalesOS. Milestones not yet invoiced are forecast on their planned date; overdue and delivered ones this month. Collected is the forecast invoice date plus the days to pay; issued invoices are collected from their issue date. The retainer continues monthly and is drawn to the end of the range only. Cancelled and test invoices are left out.</Banner>
+        <Banner>As recorded in SalesOS. Milestones not yet invoiced are forecast on their planned date; overdue and delivered ones this month. Collected is the forecast invoice date plus the days to pay; issued invoices are collected from their issue date. The retainer continues monthly and is drawn to the end of the range only; one behind by several months is forecast once, this month, as the scheduler drafts only the latest month. Cancelled and test invoices are left out.</Banner>
       </div>
     </section>
   )

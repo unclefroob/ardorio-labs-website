@@ -236,6 +236,59 @@ describe('Ardorio forecast: retainer', () => {
     expect(s.byMonth.get('2026-11')).toMatchObject({ retainerCollected: 400000, retainer: 0, collected: 0 })
     expect(s.byMonth.get('2026-10')?.retainer).toBe(200000)
   })
+
+  it('keeps a support-retainer contract out of the project backlog and Unscheduled, and reports what it holds beside the retainer', () => {
+    const sr = contract(2400000, { engagementType: 'support-retainer' })
+    const { f, s } = run({ deals: [deal('d1')], plans: [plan('d1', { contract: sr, retainer: R() })], retainerUntil: '2027-06-30' }, 'm12')
+    expect(f.backlog).toBe(0)
+    expect(f.unscheduled).toBe(0)
+    expect(f.deals).toEqual([])
+    // November 2026 to June 2027: eight periods of $2,000.
+    expect(s.inRange.retainer).toBe(1600000)
+    expect(s.inRange.invoiced).toBe(0)
+    expect(f.retainerContracts).toEqual([{ dealId: 'd1', dealName: 'd1', companyId: 'co1', contracted: 2400000, invoiced: 0, scheduled: 0, forecastRetainer: 1600000, left: 800000, beyond: 0 }])
+    expect(reconcileGap(f, s)).toBe(0)
+  })
+
+  it('says when the retainer forecast runs past a support-retainer contract', () => {
+    const sr = contract(2400000, { engagementType: 'support-retainer' })
+    const { f } = run({ deals: [deal('d1')], plans: [plan('d1', { contract: sr, retainer: R() })] })
+    // November 2026 to December 2028: 26 periods, $52,000 against $24,000.
+    expect(f.retainerContracts[0]).toMatchObject({ forecastRetainer: 5200000, left: 0, beyond: 2800000 })
+    expect(f.backlog).toBe(0)
+  })
+
+  it('counts only the milestones of a support-retainer contract as project backlog, and its retainer invoices against the contract', () => {
+    const sr = contract(2400000, { engagementType: 'support-retainer' })
+    const invoices = [dto({ id: 'r1', dealId: 'd1', companyId: 'co1', milestoneId: null, status: 'paid', source: 'retainer', subtotalCents: 200000, issueDate: '2026-10-05' })]
+    const { f, s } = run({ deals: [deal('d1')], plans: [plan('d1', { contract: sr, milestones: [ms('setup', 5000, '2026-12-01')], retainer: R() })], invoices, retainerUntil: '2027-06-30' }, 'm12')
+    expect(f.backlog).toBe(500000)
+    expect(f.unscheduled).toBe(0)
+    expect(f.deals).toMatchObject([{ dealId: 'd1', backlog: 500000, scheduled: 500000, unscheduled: 0, overScheduled: 0 }])
+    expect(f.retainerContracts[0]).toMatchObject({ invoiced: 200000, scheduled: 500000, forecastRetainer: 1600000, left: 100000, beyond: 0 })
+    expect(reconcileGap(f, s)).toBe(0)
+  })
+
+  it('forecasts a retainer that is behind as the scheduler drafts it: only the latest period, this month, the rest skipped', () => {
+    const { f, s } = run({ deals: [deal('d1')], plans: [plan('d1', { retainer: R({ nextInvoiceDate: '2026-04-05' }) })] }, 'm12')
+    const due = f.entries.filter(e => e.series === 'retainer' && e.invoiceDay === TODAY)
+    expect(due).toHaveLength(1)
+    expect(due[0]).toMatchObject({ label: 'Retainer, October 2026', cents: 200000, flags: ['overdue-invoice'] })
+    expect(s.byMonth.get('2026-10')?.retainer).toBe(200000)
+    expect(s.byMonth.get('2026-11')?.retainer).toBe(200000)
+    expect(f.retainerSkipped).toEqual([{ deal: expect.objectContaining({ id: 'd1' }), periods: ['2026-04-05', '2026-05-05', '2026-06-05', '2026-07-05', '2026-08-05', '2026-09-05'] }])
+    expect(f.entries.some(e => e.id === 'ret:d1:2026-09-05')).toBe(false)
+  })
+
+  it('skips nothing for one period due, and leaves out the period the server already claimed', () => {
+    const one = run({ deals: [deal('d1')], plans: [plan('d1', { retainer: R({ nextInvoiceDate: '2026-10-14' }) })] }, 'm12')
+    expect(one.f.retainerSkipped).toEqual([])
+    expect(one.f.entries.find(e => e.id === 'ret:d1:2026-10-14')).toMatchObject({ invoiceDay: TODAY, flags: [] })
+    // Claimed August: the server finishes that draft, then catches up from September to October.
+    const claimed = run({ deals: [deal('d1')], plans: [plan('d1', { retainer: R({ nextInvoiceDate: '2026-08-05', lastDraftedFor: '2026-08-05' }) })] }, 'm12')
+    expect(claimed.s.byMonth.get('2026-10')?.retainer).toBe(200000)
+    expect(claimed.f.retainerSkipped.map(r => r.periods)).toEqual([['2026-09-05']])
+  })
 })
 
 describe('Ardorio forecast: weighted pipeline', () => {

@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import type { InvoiceDto } from '../../api/contract'
+import type { BootstrapRecord, InvoiceDto } from '../../api/contract'
 import { changes, rec } from '../../testing/fixtures'
 import { button, click, settle, type } from '../../testing/dom'
 import { ardDeal, dto, invoicingWorld, setArdRole } from '../../testing/invoicingWorld'
@@ -57,7 +57,7 @@ const INVOICES: InvoiceDto[] = [
   dto({ id: 't', invoiceNumber: 'INV-t', dealId: 'rit', companyId: 'co1', milestoneId: 'a2', status: 'paid', subtotalCents: 7000000, test: { markedAt: '2026-09-01', markedBy: 'u', reason: 'demo' } }),
 ]
 
-async function show(o: { role?: Parameters<typeof setArdRole>[1]; route?: unknown; invoices?: InvoiceDto[]; status?: number } = {}) {
+async function show(o: { role?: Parameters<typeof setArdRole>[1]; route?: unknown; invoices?: InvoiceDto[]; status?: number; deals?: BootstrapRecord[]; plans?: BootstrapRecord[] } = {}) {
   m = await loadSales()
   m.bootstrap.hydrate(invoicingWorld({
     pipelines: [rec('pl1', { businessId: 'ard', name: 'Ardorio', fields: [], stages: [{ id: 'sg1', name: 'Proposal', prob: 40, required: [], won: false, lost: false }] })],
@@ -68,9 +68,11 @@ async function show(o: { role?: Parameters<typeof setArdRole>[1]; route?: unknow
       ardDeal('rit', { title: 'Ritchies platform', value: 970000 }),
       ardDeal('op2', { status: 'open', value: 100000, close: '', probability: 10 }),
       ardDeal('nc', { title: 'No contract deal', value: 5000 }),
+      ...(o.deals ?? []),
     ],
     billingPlans: [
       rec('bp_rit', { dealId: 'rit', businessId: 'ard', milestones: RIT_MS, contract: CONTRACT(97000000) }),
+      ...(o.plans ?? []),
     ],
   }))
   setArdRole(m, o.role === undefined ? 'admin' : o.role)
@@ -211,6 +213,23 @@ describe('Reports › Ardorio revenue › Forecast', () => {
     }
     await show({ role: 'super' })
     expect(section()).not.toBeNull()
+  })
+
+  it('keeps a support-retainer contract out of the project backlog, and forecasts a retainer that is behind only once', async () => {
+    // $24,000 support retainer at $2,000 a month, next invoice 5 June 2026: four months behind on 9 October.
+    await show({
+      deals: [ardDeal('sup', { title: 'Support desk', value: 24000 })],
+      plans: [rec('bp_sup', { dealId: 'sup', businessId: 'ard', milestones: [], contract: { ...CONTRACT(2400000), engagementType: 'support-retainer' }, retainer: { amountCents: 200000, interval: 'monthly', nextInvoiceDate: '2026-06-05' } })],
+    })
+    expect(tile('Contracted backlog')).toEqual({ v: '$878,545', s: 'Contracted minus invoiced · 1 deal' })
+    expect(tile('Unscheduled')?.v).toBe('$10,000')
+    expect(host.querySelector('[data-reconcile]')?.textContent).toBe('Backlog $878,545 = $477,409 in range + $391,136 later + $0 no date + $10,000 unscheduled.')
+    const byMonth = table('Ardorio forecast by month')
+    expect(rowOf(byMonth, 'Oct 2026')[3]).toBe('$2,000')
+    expect(rowOf(byMonth, 'Nov 2026')[3]).toBe('$2,000')
+    expect(host.textContent).toContain('Support retainer contracts are billed by their retainer, so they are kept out of the project backlog and Unscheduled: Support desk contracted $24,000, invoiced $0, retainer forecast to Sep 2027 $24,000, $0 of the contract left after it.')
+    expect(host.textContent).toContain('1 retainer is more than a month behind. Only the latest month is forecast')
+    expect(host.textContent).toContain('Support desk (skipped June 2026 to September 2026)')
   })
 
   it('says so when the invoice list is refused', async () => {

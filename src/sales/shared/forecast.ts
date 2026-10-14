@@ -16,6 +16,13 @@ import { monthName, monthsBetween } from './revenueReport'
 // delivered milestone or one with a draft invoice is forecast this month and flagged; one with no planned date is in
 // No date. What the contract still holds beyond those milestones is Unscheduled, never spread over months. So for each
 // deal: backlog (contracted - invoiced) = forecast milestones + unscheduled, and the totals always reconcile.
+//
+// A support-retainer contract is billed by its retainer, so it is not project backlog: only milestones it may carry
+// are. What its contract still holds is reported apart (retainerContracts), next to the retainer series and offset by
+// the retainer periods forecast in the view, never as project Unscheduled.
+//
+// A retainer behind by several periods is forecast as the server scheduler drafts it: only the latest due period, this
+// month. The months it passes over are listed apart (retainerSkipped), to bill by hand, never as forecast invoices.
 
 export type FcSeries = 'project' | 'retainer' | 'pipeline'
 export type FcKind = 'milestone' | 'invoice' | 'retainer' | 'pipeline'
@@ -60,7 +67,7 @@ export interface DealBacklog {
   companyId: string
   contracted: number
   invoiced: number
-  /** contracted - invoiced, never below 0. */
+  /** contracted - invoiced, never below 0. For a support-retainer contract, only its milestones still to invoice. */
   backlog: number
   /** Forecast milestones of this deal. */
   scheduled: number
@@ -69,6 +76,27 @@ export interface DealBacklog {
   /** scheduled - backlog when positive: milestones still to bill add up to more than the contract still holds. */
   overScheduled: number
 }
+
+/** A support-retainer contract: billed by its retainer, so kept out of the project backlog and shown beside the retainer. */
+export interface RetainerContract {
+  dealId: string
+  dealName: string
+  companyId: string
+  contracted: number
+  /** Issued project and retainer invoices of the deal. */
+  invoiced: number
+  /** Milestones still to invoice: these are in the project backlog. */
+  scheduled: number
+  /** Retainer forecast for the deal and not yet issued: the periods in the view and any draft waiting. */
+  forecastRetainer: number
+  /** contracted - invoiced - scheduled - forecastRetainer, never below 0: what the contract still holds after the view. */
+  left: number
+  /** The retainer forecast in the view runs past the contract by this much. */
+  beyond: number
+}
+
+/** Retainer periods the server scheduler passes over when it catches up: bill them by hand if they were not. */
+export interface RetainerSkipped { deal: Deal; periods: string[] }
 
 export interface Forecast {
   today: string
@@ -84,6 +112,10 @@ export interface Forecast {
   noContract: Deal[]
   /** Active retainers with no next invoice date: nothing can be forecast for them. */
   retainerNoDate: Deal[]
+  /** Support-retainer contracts, apart from the project backlog. */
+  retainerContracts: RetainerContract[]
+  /** Retainers more than one period behind: the months skipped, oldest first. */
+  retainerSkipped: RetainerSkipped[]
 }
 
 // ── days and months ──────────────────────────────────────────────────────────────────────────────
@@ -186,6 +218,8 @@ export function buildForecast(o: ForecastInput): Forecast {
   const deals: DealBacklog[] = []
   const noContract: Deal[] = []
   const retainerNoDate: Deal[] = []
+  const retainerContracts: RetainerContract[] = []
+  const retainerSkipped: RetainerSkipped[] = []
   const live = withoutTest(o.invoices).filter(i => i.status !== 'void')
   const byDeal = ardorioByDeal(o.deals, o.companies, o.plans, o.invoices)
   const planOf = new Map(o.plans.map(p => [p.dealId, p] as const))
@@ -213,6 +247,7 @@ export function buildForecast(o: ForecastInput): Forecast {
       }
 
       // The support retainer: its amount every month from the next invoice date, while the deal is won and live.
+      let forecastRetainer = 0
       if (plan?.retainer && retainerPause(d) === null) {
         const r = plan.retainer
         // A draft the scheduler (or a person) made waits to be issued: this month.
@@ -223,23 +258,39 @@ export function buildForecast(o: ForecastInput): Forecast {
         }
         if (!r.nextInvoiceDate || !isDay(r.nextInvoiceDate)) retainerNoDate.push(d)
         else {
+          // Periods due by today (not the one already claimed) collapse to the latest, as the scheduler's
+          // latestDuePeriod drafts only that one: the earlier ones are skipped, not forecast.
+          const due: string[] = []
+          const until = o.retainerUntil > today ? o.retainerUntil : today
           let cur = r.nextInvoiceDate
           let anchor = r.anchorDay
-          for (let n = 0; cur <= o.retainerUntil && n < MAX_RETAINER_PERIODS; n++) {
+          for (let n = 0; cur <= until && n < MAX_RETAINER_PERIODS; n++) {
             if (cur !== r.lastDraftedFor) {
-              const late = cur < today
-              const on = late ? today : cur
-              const c = collect(on)
-              entries.push({
-                ...base, id: `ret:${d.id}:${cur}`, series: 'retainer', kind: 'retainer', label: `Retainer, ${monthName(cur.slice(0, 7), true)}`,
-                cents: r.amountCents, invoiceDay: on, collectDay: c.day, issued: false, flags: late ? ['overdue-invoice'] : [],
-              })
+              if (cur <= today) due.push(cur)
+              else if (cur <= o.retainerUntil) {
+                const c = collect(cur)
+                entries.push({
+                  ...base, id: `ret:${d.id}:${cur}`, series: 'retainer', kind: 'retainer', label: `Retainer, ${monthName(cur.slice(0, 7), true)}`,
+                  cents: r.amountCents, invoiceDay: cur, collectDay: c.day, issued: false, flags: [],
+                })
+              }
             }
             const nx = nextRetainerDate(cur, anchor)
             cur = nx.next
             anchor = nx.anchorDay
           }
+          const latest = due[due.length - 1]
+          if (latest) {
+            const late = latest < today
+            const c = collect(today)
+            entries.push({
+              ...base, id: `ret:${d.id}:${latest}`, series: 'retainer', kind: 'retainer', label: `Retainer, ${monthName(latest.slice(0, 7), true)}`,
+              cents: r.amountCents, invoiceDay: today, collectDay: c.day, issued: false, flags: late ? ['overdue-invoice'] : [],
+            })
+          }
+          if (due.length > 1) retainerSkipped.push({ deal: d, periods: due.slice(0, -1) })
         }
+        for (const e of entries) if (e.dealId === d.id && e.series === 'retainer' && !e.issued) forecastRetainer += e.cents
       }
 
       if (row.money.contracted === null) { noContract.push(d); continue }
@@ -265,8 +316,21 @@ export function buildForecast(o: ForecastInput): Forecast {
         entries.push({ ...base, id: `ms:${d.id}:${m.id}`, series: 'project', kind: 'milestone', label: m.label, cents: m.amountCents, invoiceDay: on, collectDay: c?.day ?? null, issued: false, flags })
       }
 
-      // Support retainer contracts are billed by their retainer invoices, as the unscheduled gap counts them.
-      const invoiced = row.money.invoiced + (row.engagement === 'support-retainer' ? row.money.retainerInvoiced : 0)
+      // A support-retainer contract is billed by its retainer: only its milestones are project backlog, and what the
+      // contract still holds is reported beside the retainer, offset by the retainer periods in the view.
+      if (row.engagement === 'support-retainer') {
+        const invoiced = row.money.invoiced + row.money.retainerInvoiced
+        const rest = Math.max(0, row.money.contracted - invoiced - scheduled)
+        retainerContracts.push({
+          dealId: d.id, dealName: name, companyId: row.companyId, contracted: row.money.contracted, invoiced, scheduled, forecastRetainer,
+          left: Math.max(0, rest - forecastRetainer), beyond: Math.max(0, forecastRetainer - rest),
+        })
+        if (scheduled > 0) {
+          deals.push({ dealId: d.id, dealName: name, companyId: row.companyId, contracted: row.money.contracted, invoiced: row.money.invoiced, backlog: scheduled, scheduled, unscheduled: 0, overScheduled: 0 })
+        }
+        continue
+      }
+      const invoiced = row.money.invoiced
       const backlog = Math.max(0, row.money.contracted - invoiced)
       deals.push({
         dealId: d.id, dealName: name, companyId: row.companyId, contracted: row.money.contracted, invoiced, backlog, scheduled,
@@ -301,7 +365,7 @@ export function buildForecast(o: ForecastInput): Forecast {
   }
 
   const sum = (f: (d: DealBacklog) => number): number => deals.reduce((a, d) => a + f(d), 0)
-  return { today, lagDays, slip, entries, deals, backlog: sum(d => d.backlog), unscheduled: sum(d => d.unscheduled), overScheduled: sum(d => d.overScheduled), noContract, retainerNoDate }
+  return { today, lagDays, slip, entries, deals, backlog: sum(d => d.backlog), unscheduled: sum(d => d.unscheduled), overScheduled: sum(d => d.overScheduled), noContract, retainerNoDate, retainerContracts, retainerSkipped }
 }
 
 // ── range and buckets ────────────────────────────────────────────────────────────────────────────
