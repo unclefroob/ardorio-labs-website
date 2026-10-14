@@ -501,6 +501,13 @@ export interface InvoiceInput {
   gstRate?: number; notes?: string; issueDate: string; paymentTermsDays: number; dueDate?: string
   offerCardPayment?: boolean; paymentLinkUrl?: string
 }
+/**
+ * PUT /invoices/:id payment link: paymentLinkUrl left out (or sent unchanged) keeps the link in place. A different URL
+ * (pasted, or '' to clear) replaces it and is kept even when the same save changes the total. The automatic (Stripe) link
+ * is switched off at Stripe whenever it is replaced, cleared or the total changes; an unchanged pasted link is cleared
+ * when the total changes. If the automatic link cannot be switched off (Stripe error or not configured) nothing is saved:
+ * 409 LINK_DEACTIVATION_FAILED, details { linkId }.
+ */
 export interface VoidInvoiceInput { reason: InvoiceVoidReason; note?: string; linkStillLiveAcknowledged?: boolean }
 /** POST /invoices/:id/mark-test. `reason` is trimmed, 1..200 chars, plain text, no control characters. */
 export interface MarkTestInput { reason: string }
