@@ -87,13 +87,13 @@ describe('Customers page: Rosterio revenue', () => {
     expect(host.querySelector('.g5')).toBeNull()
   })
 
-  it('puts a Monthly revenue column on the Paid tab: price, seats, a custom-contract chip and a dash for no price', async () => {
+  it('puts a Monthly revenue column on the Paid tab: price, seats, a custom contract per user and a dash for no price', async () => {
     await show(PRICED)
     expect(text()).toContain('Monthly revenue')
-    expect(text()).toContain('340 seats')
     expect(text()).toContain('6 seats')
-    expect(text()).toContain('Custom contract')
-    expect([...host.querySelectorAll('.chip')].filter(c => c.textContent === 'Custom contract')).toHaveLength(1)
+    // A custom contract is one flat price: no seat count, but what it comes to per user (A$4,500 / 340).
+    expect(text()).not.toContain('340 seats')
+    expect(text()).toContain('Custom contract · A$13.24 per user')
     const dash = host.querySelector('[title="No price returned"]')
     expect(dash?.textContent).toBe('—')
   })
