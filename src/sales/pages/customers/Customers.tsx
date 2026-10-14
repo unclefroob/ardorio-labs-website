@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
-import { accountTab, defaultProduct, isRosterioTab, wonCustomers, type RosterioTab } from '../../shared/customers'
+import { defaultProduct, isRosterioTab, payingCount, wonCustomers, type RosterioTab } from '../../shared/customers'
 import { useRosterioAccounts } from '../../data/rosterio'
+import { testAccountIds } from '../../data/rosterioTest'
 import { Btn, Empty, Seg } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { openArdorioReport } from '../../shared/reportLinks'
@@ -32,7 +33,8 @@ export function Customers({ route }: { route: Route }) {
   }
 
   const count = (b: string): number | undefined => {
-    if (b === 'ros') return live ? live.accounts.filter(a => accountTab(a) === 'paid').length : undefined
+    // Test accounts (an App Store review login, say) are not customers.
+    if (b === 'ros') return live ? payingCount(live.accounts, testAccountIds()) : undefined
     return wonCustomers(S.deals.filter(d => d.archived !== true), S.companies, b as 'ard').length
   }
 

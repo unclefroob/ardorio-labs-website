@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RosterioAccount } from '../api/contract'
 import type { Company, Deal } from '../data/types'
-import { accountTab, defaultProduct, isPriced, isRosterioTab, mrrOf, statusTab, trialDaysLeft, wonCustomers, wonThisQuarter } from './customers'
+import { accountTab, customerAccounts, defaultProduct, isPriced, isRosterioTab, mrrOf, payingCount, statusTab, trialDaysLeft, wonCustomers, wonThisQuarter } from './customers'
 import { standing } from '../data/rosterio'
 
 const NOW = Date.parse('2026-10-11T00:00:00Z')
@@ -32,6 +32,31 @@ describe('which tab an account belongs to', () => {
   it('knows the tab names', () => {
     expect(isRosterioTab('needs')).toBe(true)
     expect(isRosterioTab('all')).toBe(false)
+  })
+})
+
+describe('test accounts', () => {
+  const tests = new Set(['t'])
+  it('a marked account is on Test accounts whatever its standing, and an unmarked one is where it always was', () => {
+    expect(accountTab(acct({ id: 't' }), NOW, tests)).toBe('test')
+    expect(accountTab(acct({ id: 't', isTrial: true, trialEndDate: '2026-10-15T00:00:00Z' }), NOW, tests)).toBe('test')
+    expect(accountTab(acct({ id: 't', isActive: false }), NOW, tests)).toBe('test')
+    expect(accountTab(acct({ id: 'a' }), NOW, tests)).toBe('paid')
+    expect(accountTab(acct({ id: 't' }), NOW)).toBe('paid')
+    expect(isRosterioTab('test')).toBe(true)
+  })
+
+  it('paying counts and customer lists leave test accounts out', () => {
+    const all = [acct({ id: 'a' }), acct({ id: 't' }), acct({ id: 'b', isTrial: true })]
+    expect(payingCount(all, tests, NOW)).toBe(1)
+    expect(payingCount(all, new Set(), NOW)).toBe(2)
+    expect(customerAccounts(all, tests).map(a => a.id)).toEqual(['a', 'b'])
+  })
+
+  it('MRR built from the Paid tab never includes a test account', () => {
+    const all = [acct({ id: 'a', monthlyCost: 100 }), acct({ id: 't', monthlyCost: 0 })]
+    const paid = all.filter(a => accountTab(a, NOW, tests) === 'paid')
+    expect(mrrOf(paid)).toEqual({ total: 100, priced: 1, paying: 1 })
   })
 })
 
