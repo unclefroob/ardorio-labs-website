@@ -31,7 +31,8 @@ export function reopenEffects(d: Deal, then?: string): ReopenEffects | null {
       ? `Then you are asked to mark it ${thenSt.won ? 'won' : 'lost'} again.`
       : `Then it moves to ${thenSt.name}, with that stage’s usual checks.`)
   }
-  points.push(won ? 'Its won date and won notes are cleared.' : 'Its lost reason is cleared. Tasks cancelled when it was lost stay cancelled.')
+  points.push(won ? 'Its won date and won notes are cleared.' : 'Its lost reason and lost notes are cleared. Tasks cancelled when it was lost stay cancelled.')
+  if (won && d.recordedWonDirectly) points.push('It was recorded as won directly. That mark moves to the deal’s history, so winning it again counts as a pipeline win.')
   if (won) {
     const co = Q.company(d.companyId)?.name ?? 'The company'
     const rel = Q.rel(d.companyId, d.businessId)

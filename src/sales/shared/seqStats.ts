@@ -26,12 +26,13 @@ const POSITIVE = ['Interested', 'Meeting Requested', 'More Information Requested
 
 /**
  * Did a simulated event end this enrolment with "Meeting booked"? Flagged ones are; an older one is when every
- * meeting_booked activity for the contact since it enrolled is simulated (a real meeting always logs a real one).
+ * meeting_booked activity for the contact since it enrolled is simulated or logged in error (a real meeting always logs a
+ * real one).
  */
 export function simMeetingExit(e: Enrolment): boolean {
   if (e.reasonSimulated === true) return true
   const backing = S.activities.filter(a => a.type === 'meeting_booked' && a.contactId === e.contactId && a.ts >= e.startedAt)
-  return backing.length > 0 && backing.every(isSimAct)
+  return backing.length > 0 && backing.every(a => isSimAct(a) || isVoided(a))
 }
 
 export function seqStats(s: Sequence): SeqStats {

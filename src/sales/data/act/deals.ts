@@ -203,7 +203,7 @@ export function otherWonDeals(d: Pick<Deal, 'id' | 'companyId' | 'businessId'>):
 
 /**
  * Reopen a won or lost deal (contract: deal reopen). It returns to the stage it was in before it closed, and the won and
- * lost fields are cleared (closedAt, lostReason, wonNotes). reopenedBy is the server's, which also stamps reopenedAt.
+ * lost fields are cleared (closedAt, lostReason, wonNotes, lostNotes). reopenedBy is the server's, which also stamps reopenedAt.
  * A won deal's company stops being a customer of the business unless another won deal keeps it one. An Ardorio billing
  * plan is left exactly as it is: its contract stays frozen, and the server drafts no retainer invoice while the deal
  * is not won. Returns the stage it went back to.
@@ -222,6 +222,7 @@ export function reopenDeal(id: string): Stage | undefined {
     closedAt: null, lostReason: '', stageChangedAt: now, reopenedAt: now,
   })
   if ('wonNotes' in d) delete d.wonNotes
+  if ('lostNotes' in d) delete d.lostNotes
   d.stageHistory.push({ stageId: st.id, ts: now })
   if (was === 'won') {
     const rel = Q.rel(d.companyId, d.businessId)

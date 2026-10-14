@@ -113,9 +113,10 @@ describe('Act.reopenDeal', () => {
   })
 
   it('a lost deal: lost reason cleared, relationship untouched, falls back to the last open stage without history', async () => {
-    const m = await setup({ deals: [deal('d1', { status: 'lost', stageId: 'ros_lost', lostReason: 'Price', wonNotes: undefined, stageHistory: [] })], companyRels: [rel('ros', 'Lead')] })
+    const m = await setup({ deals: [deal('d1', { status: 'lost', stageId: 'ros_lost', lostReason: 'Price', lostNotes: 'Went with a rival', wonNotes: undefined, stageHistory: [] })], companyRels: [rel('ros', 'Lead')] })
     expect(m.Act.reopenDeal('d1')?.id).toBe('ros_neg')
     expect(d(m)).toMatchObject({ status: 'open', stageId: 'ros_neg', lostReason: '', closedAt: null })
+    expect(d(m)).not.toHaveProperty('lostNotes')
     expect(m.Q.rel('co1', 'ros')?.status).toBe('Lead')
   })
 
@@ -156,6 +157,11 @@ describe('the reopen confirmation', () => {
       'Acme is no longer a Rosterio customer; it shows as an active opportunity.',
       'The reopen is recorded in the activity log and the audit log.',
     ])
+  })
+
+  it('a deal recorded as won directly says that mark moves to its history', async () => {
+    const m = await setup({ deals: [deal('d1', { recordedWonDirectly: true })], companyRels: [rel('ros', 'Customer')] })
+    expect(m.reopen.reopenEffects(d(m)!)?.points).toContain('It was recorded as won directly. That mark moves to the deal’s history, so winning it again counts as a pipeline win.')
   })
 
   it('Ardorio admin: the frozen contract, kept milestones and the paused retainer', async () => {
