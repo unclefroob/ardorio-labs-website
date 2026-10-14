@@ -1,8 +1,9 @@
 import type { BillingMilestone, BillingTerm, TermFrequency } from '../api/contract'
 
 // The schedule of a term agreement, exactly as the contract block "Ardorio term agreements" defines it. The API has the
-// same helper (src/services/sales/billing/termSchedule.ts) and both are checked against termSchedule.fixtures.json, so the
-// instalments the web previews are the ones the server stores. Pure: no clock, no store.
+// same helper (src/services/sales/billing/termSchedule.ts) and both run every case of one table, the API's
+// termSchedule.fixtures.json (the web keeps an identical copy; with ARDORIO_API_DIR set its test runs the API's file),
+// so the instalments the web previews are the ones the server stores. Pure: no clock, no store.
 
 /** Months in one billing period. */
 export const PERIOD_MONTHS: Record<TermFrequency, number> = { annual: 12, quarterly: 3, monthly: 1 }

@@ -14,39 +14,46 @@ interface Case {
 const FIXTURES = 'src/sales/shared/termSchedule.fixtures.json'
 const table = JSON.parse(readFileSync(join(process.cwd(), FIXTURES), 'utf8')) as { cases: Case[] }
 
-describe('termSchedule: the shared fixture table', () => {
-  it('has cases', () => { expect(table.cases.length).toBeGreaterThanOrEqual(10) })
-  for (const c of table.cases) {
-    it(c.name, () => {
-      const list = termSchedule(c.term)
-      expect(list).toHaveLength(c.expect.count)
-      expect(list.map(m => m.amountCents)).toEqual(c.expect.amounts)
-      expect(scheduleTotal(list)).toBe(c.expect.total)
-      expect(yearlyFees(c.term)).toEqual(c.expect.fees)
-      for (const { index, ...want } of c.expect.rows) expect(list[index]).toMatchObject(want)
-      // Every instalment is a dated instalment of its year, and the periods tile the term with no gap or overlap.
-      list.forEach((m, i) => {
-        expect(m.kind).toBe('instalment')
-        expect(m.plannedDate).toBe(c.term.timing === 'advance' ? m.periodStart : m.periodEnd)
-        if (i > 0) expect(m.periodStart).toBe(nextDay(list[i - 1].periodEnd!))
-      })
-      expect(list[0].periodStart).toBe(c.term.startDate)
-      expect(nextDay(list[list.length - 1].periodEnd!)).toBe(termEndDate(c.term))
-      // A full year's instalments sum exactly to that year's fee.
-      for (let y = 1; y <= termYears(c.term); y++) {
-        const inYear = list.filter(m => m.termYear === y)
-        const months = Math.min(12, c.term.termMonths - (y - 1) * 12)
-        if (months === 12) expect(scheduleTotal(inYear)).toBe(c.expect.fees[y - 1])
-      }
-    })
-  }
-
-  // Set ARDORIO_API_DIR to an API checkout to check the API runs the same table.
-  const apiDir = process.env.ARDORIO_API_DIR
-  const apiFixtures = apiDir ? join(apiDir, 'src/services/sales/billing/termSchedule.fixtures.json') : ''
-  it.skipIf(!apiFixtures || !existsSync(apiFixtures))('is the same table as the API', () => {
-    expect(JSON.parse(readFileSync(apiFixtures, 'utf8'))).toEqual(table)
+/** Every check one case makes of the web's termSchedule. */
+function checkCase(c: Case): void {
+  const list = termSchedule(c.term)
+  expect(list).toHaveLength(c.expect.count)
+  expect(list.map(m => m.amountCents)).toEqual(c.expect.amounts)
+  expect(scheduleTotal(list)).toBe(c.expect.total)
+  expect(yearlyFees(c.term)).toEqual(c.expect.fees)
+  for (const { index, ...want } of c.expect.rows) expect(list[index]).toMatchObject(want)
+  // Every instalment is a dated instalment of its year, and the periods tile the term with no gap or overlap.
+  list.forEach((m, i) => {
+    expect(m.kind).toBe('instalment')
+    expect(m.plannedDate).toBe(c.term.timing === 'advance' ? m.periodStart : m.periodEnd)
+    if (i > 0) expect(m.periodStart).toBe(nextDay(list[i - 1].periodEnd!))
   })
+  expect(list[0].periodStart).toBe(c.term.startDate)
+  expect(nextDay(list[list.length - 1].periodEnd!)).toBe(termEndDate(c.term))
+  // A full year's instalments sum exactly to that year's fee.
+  for (let y = 1; y <= termYears(c.term); y++) {
+    const inYear = list.filter(m => m.termYear === y)
+    const months = Math.min(12, c.term.termMonths - (y - 1) * 12)
+    if (months === 12) expect(scheduleTotal(inYear)).toBe(c.expect.fees[y - 1])
+  }
+}
+
+describe('termSchedule: the shared fixture table', () => {
+  it('has the cases of both repos', () => { expect(table.cases.length).toBeGreaterThanOrEqual(25) })
+  for (const c of table.cases) it(c.name, () => checkCase(c))
+})
+
+// The API keeps the table (src/services/sales/billing/termSchedule.fixtures.json) and its unit test runs every case
+// against the API's termSchedule. Set ARDORIO_API_DIR to an API checkout and this runs every case of the API's own file
+// against the web's termSchedule, and checks the web's copy is that same table: so both give identical results.
+// Without it these are skipped and only the web's copy is checked.
+const apiDir = process.env.ARDORIO_API_DIR
+const apiFixtures = apiDir ? join(apiDir, 'src/services/sales/billing/termSchedule.fixtures.json') : ''
+const apiTable = apiFixtures && existsSync(apiFixtures) ? JSON.parse(readFileSync(apiFixtures, 'utf8')) as { cases: Case[] } : null
+
+describe.skipIf(!apiTable)('termSchedule: the API\'s fixture table, on the web', () => {
+  it('the web keeps the same table as the API', () => { expect(table).toEqual(apiTable) })
+  for (const c of apiTable?.cases ?? []) it(`API case: ${c.name}`, () => checkCase(c))
 })
 
 function nextDay(day: string): string {
