@@ -480,7 +480,7 @@ export interface InvoicePayment { method: InvoicePaymentMethod; paidAt: string; 
 export interface InvoiceTestInfo { markedAt: string; markedBy: string; reason: string }
 // Who made the invoice: a person, or the retainer scheduler (always as a draft), or a person recording one made outside
 // SalesOS ('external', see below). Every existing invoice reads as 'manual'.
-export type InvoiceSource = 'manual' | 'retainer' | 'external'
+export type InvoiceSource = 'manual' | 'retainer' | 'external' | 'term'
 export interface InvoiceDto {
   id: string; invoiceNumber: string; clientSlug: string; clientName: string
   companyId: string | null; dealId: string | null; milestoneId: string | null
@@ -520,7 +520,7 @@ export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCent
 export interface BillingClientDetails { email?: string; contactName?: string; abn?: string; address?: string }
 export interface BillingClient { slug: string; clientName: string; billing: BillingClientDetails; linkedCompanyId: string | null }
 export interface BillingClientInput { clientName: string; billing: BillingClientDetails }
-export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string; deliveredOn?: string | null; deliveredBy?: string }
+export interface BillingMilestone { id: string; label: string; amountCents: number; plannedDate?: string; deliveredOn?: string | null; deliveredBy?: string; kind?: 'instalment'; termYear?: number; periodStart?: string; periodEnd?: string }
 // lastDraftedFor: YYYY-MM-DD of the retainer period already drafted; written only by the server (a client write
 // never changes it). When a plan's nextInvoiceDate is on or before today (org timezone) and lastDraftedFor differs,
 // the server engine drafts the invoice (source 'retainer', status draft, never issued or sent) and moves
@@ -530,7 +530,7 @@ export interface BillingMilestone { id: string; label: string; amountCents: numb
 // does not list the key. A client never writes it; a claim by hand moves nextInvoiceDate alone.
 export interface BillingRetainer { amountCents: number; interval: 'monthly'; nextInvoiceDate?: string; lastDraftedFor?: string; anchorDay?: number }
 // sales record collection 'billingPlans': id = 'bp_' + dealId; business 'ard'; write role admin
-export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer; contract?: BillingContract; variations?: BillingVariation[] }
+export interface BillingPlan { id: string; dealId: string; businessId: 'ard'; milestones: BillingMilestone[]; retainer?: BillingRetainer; contract?: BillingContract; variations?: BillingVariation[]; term?: BillingTerm }
 // Notifications written by the retainer scheduler (the usual notifications record: userId, ts, read, type, title, body,
 // link) carry two extra keys, kind and data:
 //   kind 'retainer-invoice-drafted'      data { invoiceId, invoiceNumber, dealId }   to the deal owner
@@ -540,7 +540,7 @@ export type RetainerNotificationKind = 'retainer-invoice-drafted' | 'retainer-ne
 export interface RetainerInvoiceDraftedData { invoiceId: string; invoiceNumber: string; dealId: string }
 export interface RetainerNeedsBillingClientData { dealId: string; companyId: string }
 // ---- Ardorio contract ledger ----
-export type EngagementType = 'fixed-price' | 'time-materials' | 'support-retainer'
+export type EngagementType = 'fixed-price' | 'time-materials' | 'support-retainer' | 'term-agreement'
 export type VariationStatus = 'proposed' | 'approved' | 'rejected'
 export interface BillingVariation { id: string; label: string; amountCents: number; reason: string; status: VariationStatus; createdAt: string; createdBy: string; decidedAt?: string; decidedBy?: string }
 // amountCents is SIGNED (a reduction is negative), ex GST, non-zero, |amount| <= 100000000.
@@ -598,6 +598,80 @@ export interface RevenueReport { from: string; to: string; source: RevenueSource
 // Activity void: an existing activity may change ONLY by gaining { voided: true, voidedAt (ISO), voidedBy (display name, server-set), voidReason (plain text 1..300) }, written by the activity's actor or a manager+ of its business; once voided it cannot be un-voided or changed again. Voided activities are excluded from every count, metric, goal, report and timeline total (shown struck through with the reason).
 // Deal reopen writes reopenedAt, reopenedBy and clears won/lost fields (closedAt, lostReason, wonNotes if present); stage returns to the stage before close from stageHistory (fallback: the pipeline's last open stage).
 // Reopening a deal recorded as won directly ends that classification: recordedWonDirectly and recordedWonBy are removed, so a later win through the pipeline counts as a pipeline win (and the recorded-won future-date rule no longer applies). They are not lost: the server appends { recordedWonBy: string | null, reopenedAt (ISO), reopenedBy (display name) } to deal.recordedWonHistory, an append-only, server-set list (client values ignored, like reopenedAt/reopenedBy). Reports that classify won value use recordedWonDirectly as it is now; recordedWonHistory is audit only.
+
+// ---- Ardorio term agreements ----
+// A term agreement is a multi-year contract billed by schedule (for example 5 years, the same fee each year). It is an
+// Ardorio deal like any other: one contract frozen at Won, an immutable variations ledger, milestones, invoices. There is
+// still no MRR or ARR for Ardorio; views may show the annual fee of a term agreement as "Annual fee".
+// EngagementType gains 'term-agreement'. BillingPlan gains term?: BillingTerm. InvoiceSource gains 'term'.
+export type TermFrequency = 'annual' | 'quarterly' | 'monthly'
+export type TermTiming = 'advance' | 'arrears'
+export type TermEscalation = 'none' | 'fixed' | 'cpi'
+export type TermExit = 'committed' | 'break'
+export interface TermCpiConfirmation { year: number; bp: number; confirmedOn: string; confirmedBy: string }
+export interface TermEnd { endedOn: string; reason: string; endedBy: string; recordedAt: string }
+export interface BillingTerm {
+  startDate: string            // YYYY-MM-DD, first day of the term
+  termMonths: number           // integer 1..120
+  annualCents: number          // year-1 fee ex GST, integer 1..100000000
+  frequency: TermFrequency
+  timing: TermTiming
+  escalation: TermEscalation
+  escalationBp: number         // 'fixed': the yearly rise; 'cpi': the ASSUMED yearly rise until a year is confirmed; 'none': 0. Integer 0..2000 (basis points)
+  exit: TermExit               // 'break': the client may end the agreement at any anniversary of startDate
+  breakNoticeDays: number      // 'break' only (else 0): notice the client must give before an anniversary, integer 0..365
+  autoDraft: boolean           // the server drafts each instalment's invoice on its invoice date
+  draftFrom: string            // server-set YYYY-MM-DD (org timezone) when the term is first stored; instalments dated before it are never auto-drafted
+  cpiConfirmed?: TermCpiConfirmation[]  // append-only, server-stamped confirmedBy/confirmedOn
+  ended?: TermEnd              // set once by an admin to end the agreement early; never unset
+}
+// BillingMilestone gains: kind?: 'instalment' (absent = a one-off milestone); termYear?: number; periodStart?: string; periodEnd?: string
+// (YYYY-MM-DD, inclusive). For an instalment, plannedDate is its INVOICE DATE. An instalment is earned when invoiced (it has a
+// non-void, non-test invoice linked by milestoneId); deliveredOn is never set on an instalment (400 VALIDATION).
+//
+// Schedule (pure helper termSchedule(term) in both repos, src/services/sales/billing/termSchedule.ts and src/sales/shared/termSchedule.ts,
+// identical results). addMonths keeps the day of month, clamped to the month's last day (31 Jan + 1 = 28/29 Feb).
+//   periodMonths = 12 (annual) | 3 (quarterly) | 1 (monthly); termEnd = addMonths(startDate, termMonths) (exclusive).
+//   Period i (0-based) starts addMonths(startDate, i*periodMonths) and ends the day before min(addMonths(startDate, (i+1)*periodMonths), termEnd).
+//   Periods continue while the start is before termEnd; the last one may be short.
+//   termYear y = floor(i*periodMonths/12) + 1; years = ceil(termMonths/12).
+//   Yearly fee: fee(1) = annualCents; fee(y) = round(fee(y-1) * (10000 + rate(y)) / 10000) where rate(y) = 0 for 'none', escalationBp for
+//   'fixed', and for 'cpi' the confirmed bp of year y if cpiConfirmed has it, else escalationBp. Rounding is half away from zero on integers.
+//   Within year y, with m0/m1 the whole months from the start of year y to the period's start/end (a short last period simply has fewer
+//   months, since termMonths is whole months), amount = round(fee(y)*m1/12) - round(fee(y)*m0/12), so a full year's periods sum exactly to fee(y).
+//   Instalment id 'inst_<y>_<k>' (k = 1-based period within the year); label 'Year <y> of <years>' (annual) or 'Year <y> of <years>,
+//   quarter <k>' / 'Year <y> of <years>, month <k>'; plannedDate = periodStart ('advance') or periodEnd ('arrears').
+//
+// Writing a term (billingPlans, ard admins or super, deal won). The term is first set together with a contract whose engagementType is
+// 'term-agreement'. The SERVER then replaces any client-sent instalments with termSchedule(term) (one-off milestones, e.g. a build fee,
+// are kept) and stamps draftFrom. contract.baselineCents must equal the one-off milestones plus the schedule total, else 400 VALIDATION
+// { field: 'contract.baselineCents', expectedCents }. After that, startDate, termMonths, annualCents, frequency, timing, escalation,
+// escalationBp, exit and breakNoticeDays are frozen (a change is 400 VALIDATION; price changes go through variations). autoDraft may be
+// toggled. Instalments cannot be added, removed or re-priced by a client (400 VALIDATION); only the server changes them, below.
+//   Confirm CPI (escalation 'cpi'): append { year, bp } (year 2..years, not already confirmed, bp integer -1000..2000). The server stamps
+//   confirmedBy/confirmedOn, recomputes the schedule, re-prices every instalment of year >= that year that has no non-void, non-test invoice, and
+//   appends ONE approved variation for the difference (label 'CPI year <y>: <bp/100>% (assumed <escalationBp/100>%)', server-stamped,
+//   skipped when the difference is 0), so contracted still equals the schedule. Instalments already invoiced keep their amounts.
+//   End early: set ended { endedOn, reason (1..300) } once (endedOn >= startDate, before termEnd). The server stamps endedBy/recordedAt,
+//   removes every instalment with no non-void, non-test invoice whose periodStart >= endedOn, cuts an un-invoiced instalment whose period spans
+//   endedOn to round(amount * days(periodStart..endedOn-1) / days(period)), and appends ONE approved variation of minus the total removed
+//   (label 'Ended early on <endedOn>'). Invoiced instalments are kept; refunds or credits stay manual. Auto-drafting stops.
+//
+// Auto-drafting (server engine tick, like the retainer scheduler, same lease and org timezone): for each plan with term.autoDraft, no
+// term.ended, its deal won and not archived: every instalment with draftFrom <= plannedDate <= today and no non-void, non-test invoice linked to it
+// gets one draft invoice (source 'term', status draft, never issued or sent) for the deal's company billing client, linked
+// companyId/dealId/milestoneId, one line item '<deal name>: <label> (<periodStart> to <periodEnd>)' qty 1 at the instalment amount, GST
+// at the business default, notes empty. Idempotent under concurrent ticks (one invoice per instalment). No billing client on the company:
+// no draft, notification kind 'term-needs-billing-client' { dealId, companyId } once per instalment.
+// Notifications (to the deal owner): 'term-invoice-drafted' { invoiceId, invoiceNumber, dealId, milestoneId };
+// 'term-cpi-to-confirm' { dealId, year } once, 30 days before the first instalment of an unconfirmed CPI year;
+// 'term-break-window' { dealId, anniversary, noticeBy } once per anniversary, 30 days before noticeBy (exit 'break');
+// 'term-ending' { dealId, termEnd } once, 90 days before termEnd (time to renew).
+//
+// Reporting (web, pure helpers): contracted = baseline + approved variations as before. For exit 'break', committed = contracted minus the
+// un-invoiced instalments whose periodStart is on or after the next anniversary of startDate after today (none after termEnd); the rest
+// is "Not yet committed (break at <anniversary>)". Earned for an instalment = invoiced. The forecast places instalments on plannedDate.
+// Invoiced and collected stay invoice based (revenue is recognised when invoiced). Renewal: termEnd and "ends in N days" on the deal and Customers.
 
 /** GET/PUT /sales/invoices/settings: the business profile of GET/PUT /settings/business, plus a read-only `stripeConfigured`. */
 export interface InvoiceBankDetails { accountName: string; bsb: string; accountNumber: string; payId: string }

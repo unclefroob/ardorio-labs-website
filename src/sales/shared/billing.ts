@@ -374,14 +374,17 @@ export function wonNotInvoiced(deals: readonly Deal[], companies: readonly Compa
 // deal.value is only the estimate. At Won a contract is frozen on the billing plan; later changes are variations in
 // an append-only ledger. Contracted = baseline + approved variations, and it is the denominator everywhere.
 
+/** The engagement types a plain contract may have. A term agreement is set with its schedule (see WON_ENGAGEMENT_TYPES). */
 export const ENGAGEMENT_TYPES: readonly EngagementType[] = ['fixed-price', 'time-materials', 'support-retainer']
-export const ENGAGEMENT_LABEL: Record<EngagementType, string> = { 'fixed-price': 'Fixed-price project', 'time-materials': 'Time and materials', 'support-retainer': 'Support retainer' }
+/** Every engagement type the Won dialog and Set contract offer: the plain ones and a term agreement, which needs its term. */
+export const WON_ENGAGEMENT_TYPES: readonly EngagementType[] = [...ENGAGEMENT_TYPES, 'term-agreement']
+export const ENGAGEMENT_LABEL: Record<EngagementType, string> = { 'fixed-price': 'Fixed-price project', 'time-materials': 'Time and materials', 'support-retainer': 'Support retainer', 'term-agreement': 'Term agreement' }
 export const VARIATION_LABEL: Record<VariationStatus, string> = { proposed: 'Proposed', approved: 'Approved', rejected: 'Rejected' }
 export const VARIATION_TONE: Record<VariationStatus, '' | 'ok' | 'warn' | 'bad'> = { proposed: 'warn', approved: 'ok', rejected: '' }
 /** The API's limit on a variation's reason. */
 export const MAX_REASON = 500
 
-export const isEngagementType = (x: unknown): x is EngagementType => typeof x === 'string' && (ENGAGEMENT_TYPES as readonly string[]).includes(x)
+export const isEngagementType = (x: unknown): x is EngagementType => typeof x === 'string' && (WON_ENGAGEMENT_TYPES as readonly string[]).includes(x)
 
 export const approvedVariations = (plan: Pick<BillingPlan, 'variations'> | undefined): BillingVariation[] => (plan?.variations ?? []).filter(v => v.status === 'approved')
 export const proposedVariations = (plan: Pick<BillingPlan, 'variations'> | undefined): BillingVariation[] => (plan?.variations ?? []).filter(v => v.status === 'proposed')
