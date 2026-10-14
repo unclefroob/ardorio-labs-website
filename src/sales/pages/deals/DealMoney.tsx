@@ -126,7 +126,7 @@ export function ProjectMoney({ deal, plan, invoices, loading }: { deal: Deal; pl
               </div>
             ))}
             <div className="sm muted">
-              The tall marker is the {contract ? 'contracted amount' : 'estimate: no contract is recorded yet'}. Earned counts delivered milestones{plan?.term ? ' and invoiced instalments' : ''}.
+              The tall marker is the {contract ? 'contracted amount' : 'estimate: no contract is recorded yet'}. Earned counts delivered milestones{plan?.term ? ' and instalments with an issued invoice; a draft is not earned until it is issued' : ''}.
               {m.retainerInvoiced > 0 && ` Support retainer invoices (${fmt(m.retainerInvoiced)}) are not counted here.`}
             </div>
           </div>

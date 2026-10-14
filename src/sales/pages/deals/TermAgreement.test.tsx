@@ -151,10 +151,13 @@ describe('Billing tab: term agreement', () => {
     expect(host.querySelector('table[aria-label="Milestones"] tfoot')?.textContent).toContain('All scheduled')
   })
 
-  it('earned counts invoiced instalments (draft included) and the delivered build fee', async () => {
+  it('earned counts instalments with an issued invoice and the delivered build fee, never a draft', async () => {
     await show({ plan: { milestones: [{ ...BUILD, deliveredOn: '2025-11-01' }, ...SCHEDULE] } })
-    expect(host.querySelector('[data-bar="Earned"]')?.getAttribute('aria-label')).toBe(`Earned ${fmt(500000 + 4 * 300000)} of ${fmt(PLAN.contract.baselineCents)} contracted`)
-    expect(text()).toContain('Earned counts delivered milestones and invoiced instalments.')
+    // Quarters 1 to 3 are paid or sent; quarter 4 only has a draft (as the server makes on its own), so it is not earned.
+    expect(host.querySelector('[data-bar="Earned"]')?.getAttribute('aria-label')).toBe(`Earned ${fmt(500000 + 3 * 300000)} of ${fmt(PLAN.contract.baselineCents)} contracted`)
+    // Earned never runs ahead of Invoiced on instalments: here both count the same three quarters.
+    expect(host.querySelector('[data-bar="Invoiced"]')?.getAttribute('aria-label')).toContain(`Invoiced ${fmt(3 * 300000)} of`)
+    expect(text()).toContain('Earned counts delivered milestones and instalments with an issued invoice; a draft is not earned until it is issued.')
   })
 
   it('toggles auto-draft and says what it does', async () => {

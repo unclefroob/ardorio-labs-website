@@ -56,7 +56,7 @@ export const instalmentsOf = (plan: Pick<BillingPlan, 'milestones'> | undefined)
 
 type LiveInvoice = Pick<InvoiceDto, 'milestoneId' | 'status'> & Partial<Pick<InvoiceDto, 'test'>>
 
-/** Instalment ids that have a non-void, non-test invoice: those are earned and keep their amounts. */
+/** Instalment ids that have a non-void, non-test invoice (a draft included): those keep their amounts when the schedule is re-priced or cut. Earned counts only issued ones (moneyForDeal). */
 export function invoicedIds(invoices: readonly LiveInvoice[]): Set<string> {
   return new Set(withoutTest(invoices).filter(i => i.status !== 'void' && !!i.milestoneId).map(i => i.milestoneId as string))
 }

@@ -219,7 +219,7 @@ export function TermAgreement({ deal, plan, invoices, loadError = null, onReload
             </tfoot>
           </table>
         </div>
-        {known && <div className="faint sm">An instalment is earned when it is invoiced. Revenue is recognised when invoiced; nothing here is counted as recurring revenue. <Btn size="xs" kind="ghost" onClick={onReload}>Refresh invoices</Btn></div>}
+        {known && <div className="faint sm">An instalment is earned when its invoice is issued; a draft is not earned until then. Revenue is recognised when invoiced; nothing here is counted as recurring revenue. <Btn size="xs" kind="ghost" onClick={onReload}>Refresh invoices</Btn></div>}
       </div>
     </Card>
   )

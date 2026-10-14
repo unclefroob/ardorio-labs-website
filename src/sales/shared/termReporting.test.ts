@@ -66,10 +66,17 @@ describe('term agreement A: 5 years annual in advance, with a build fee', () => 
     expect(unscheduledGap(m, 'term-agreement')).toBe(0)
   })
 
-  it('a draft instalment invoice earns the instalment but is not invoiced yet', () => {
-    const m = moneyForDeal(deal('five'), PLAN_A, [...INV_A, inv('y2d', 'five', 'inst_2_1', 6000000, 'draft', '2026-11-01')])
-    expect(m.earned).toBe(16000000)
-    expect(m.invoiced).toBe(10000000)
+  it('a draft instalment invoice neither earns the instalment nor counts as invoiced: issuing it does both', () => {
+    // Revenue is recognised when invoiced. The server drafts on each invoice date by itself, so a draft earns nothing.
+    const draft = moneyForDeal(deal('five'), PLAN_A, [...INV_A, inv('y2d', 'five', 'inst_2_1', 6000000, 'draft', '2026-11-01')])
+    expect(draft.earned).toBe(10000000)
+    expect(draft.invoiced).toBe(10000000)
+    const sent = moneyForDeal(deal('five'), PLAN_A, [...INV_A, inv('y2d', 'five', 'inst_2_1', 6000000, 'sent', '2026-11-01')])
+    expect(sent.earned).toBe(16000000)
+    expect(sent.invoiced).toBe(16000000)
+    // A cancelled or test invoice never earns it either.
+    expect(moneyForDeal(deal('five'), PLAN_A, [...INV_A, inv('y2d', 'five', 'inst_2_1', 6000000, 'void', '2026-11-01')]).earned).toBe(10000000)
+    expect(moneyForDeal(deal('five'), PLAN_A, [...INV_A, inv('y2d', 'five', 'inst_2_1', 6000000, 'sent', '2026-11-01', { test: TEST })]).earned).toBe(10000000)
   })
 
   it('Customers by deal: the agreement with its annual fee and end, and every issued invoice as the revenue report counts it', () => {

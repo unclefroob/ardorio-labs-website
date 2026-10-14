@@ -519,8 +519,10 @@ export function moneyForDeal(deal: Pick<Deal, 'id' | 'value'>, plan: Pick<Billin
   const contracted = contractedCents(plan)
   const milestones = plan?.milestones ?? []
   const scheduled = milestones.reduce((a, m) => a + m.amountCents, 0)
-  // A one-off milestone is earned when delivered; a term agreement's instalment when it has a live (non-void, non-test) invoice.
-  const billedIds = new Set(withoutTest(invoices).filter(i => i.status !== 'void' && !!i.milestoneId && (i.dealId === undefined || i.dealId === deal.id)).map(i => i.milestoneId as string))
+  // A one-off milestone is earned when delivered; a term agreement's instalment when it has an issued (sent or paid,
+  // non-test) invoice. Revenue is recognised when invoiced, so a draft, which the server makes on its own on each invoice
+  // date, earns nothing until a person issues it, as it adds nothing to Invoiced.
+  const billedIds = new Set(withoutTest(invoices).filter(i => (i.status === 'sent' || i.status === 'paid') && !!i.milestoneId && (i.dealId === undefined || i.dealId === deal.id)).map(i => i.milestoneId as string))
   const earned = milestones.filter(m => (m.kind === 'instalment' ? billedIds.has(m.id) : !!m.deliveredOn)).reduce((a, m) => a + m.amountCents, 0)
   let invoiced = 0, collected = 0, retainerInvoiced = 0
   for (const i of withoutTest(invoices)) {
