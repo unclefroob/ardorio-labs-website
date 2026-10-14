@@ -1,5 +1,7 @@
-import { cloneElement, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactElement, type ReactNode } from 'react'
+import { cloneElement, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactElement, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { UI } from '../ui/store'
+import { menuBox } from './menuBox'
 import { Btn } from './basic'
 import { Icon } from './Icon'
 import { useFocusTrap } from './util'
@@ -76,7 +78,7 @@ export interface MenuItemDef {
 export type MenuItem = MenuItemDef | '-' | null | false | undefined
 
 interface TriggerProps {
-  onClick?: () => void
+  onClick?: (e: MouseEvent<HTMLElement>) => void
   'aria-expanded'?: boolean
   'aria-haspopup'?: 'menu'
 }
@@ -84,10 +86,38 @@ interface TriggerProps {
 export function Menu({ trigger, items, align, width }: { trigger: ReactElement<TriggerProps>; items: readonly MenuItem[]; align?: 'right' | 'left'; width?: number }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState<CSSProperties | null>(null)
+  // Drawn into the app root so it keeps the app's styles; with no root (a bare kit test) it stays inline.
+  const [host, setHost] = useState<Element | null>(null)
+  const toggle = (e: MouseEvent<HTMLElement>): void => {
+    // A trigger that calls onClick without its event still opens, just inline.
+    setHost(e?.currentTarget?.closest('.sos') ?? null)
+    setBox(null)
+    setOpen(!open)
+  }
+  useLayoutEffect(() => {
+    if (!open || !host) return
+    const place = (): void => {
+      const t = ref.current
+      const m = menuRef.current
+      if (!t || !m) return
+      setBox(menuBox(t.getBoundingClientRect(), m.scrollHeight, m.offsetWidth, window.innerWidth, window.innerHeight, align))
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, host, align])
   useEffect(() => {
     if (!open) return
     const out = (e: globalThis.MouseEvent): void => {
-      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) setOpen(false)
+      if (!(e.target instanceof Node)) return
+      if (ref.current?.contains(e.target) || menuRef.current?.contains(e.target)) return
+      setOpen(false)
     }
     const key = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -102,39 +132,44 @@ export function Menu({ trigger, items, align, width }: { trigger: ReactElement<T
       document.removeEventListener('keydown', key, true)
     }
   }, [open])
-  const pos: CSSProperties = { top: 'calc(100% + 4px)', ...(align === 'right' ? { right: 0 } : { left: 0 }), ...(width ? { minWidth: width } : null) }
+  const size: CSSProperties = width ? { minWidth: width } : {}
+  const pos: CSSProperties = host
+    // Measured hidden on the first frame, then placed.
+    ? { ...size, ...(box ?? { position: 'fixed', top: 0, left: 0, visibility: 'hidden' }) }
+    : { top: 'calc(100% + 4px)', ...(align === 'right' ? { right: 0 } : { left: 0 }), ...size }
+  const list = (
+    <div ref={menuRef} className="menu" role="menu" style={pos} onClick={e => e.stopPropagation()}>
+      {items.map((it, i) => {
+        if (!it) return null
+        if (it === '-') return <div key={i} className="msep" role="separator" />
+        if (it.head) return <div key={i} className="mlab">{it.label}</div>
+        return (
+          <button
+            key={i}
+            type="button"
+            role="menuitem"
+            className="mi"
+            disabled={it.disabled}
+            title={it.title}
+            onClick={() => {
+              setOpen(false)
+              it.onClick?.()
+            }}
+          >
+            {it.icon && <Icon n={it.icon} s={14} style={{ color: 'var(--fg3)' }} />}
+            {it.dot && <span className="dot" style={{ background: it.dot }} />}
+            <span style={{ flex: 1 }}>{it.label}</span>
+            {it.right != null && <span className="faint xs">{it.right}</span>}
+            {it.checked && <Icon n="check" s={13} />}
+          </button>
+        )
+      })}
+    </div>
+  )
   return (
     <span ref={ref} style={{ position: 'relative', display: 'inline-flex' }} onClick={e => e.stopPropagation()}>
-      {cloneElement(trigger, { onClick: () => setOpen(!open), 'aria-expanded': open, 'aria-haspopup': 'menu' })}
-      {open && (
-        <div className="menu" role="menu" style={pos}>
-          {items.map((it, i) => {
-            if (!it) return null
-            if (it === '-') return <div key={i} className="msep" role="separator" />
-            if (it.head) return <div key={i} className="mlab">{it.label}</div>
-            return (
-              <button
-                key={i}
-                type="button"
-                role="menuitem"
-                className="mi"
-                disabled={it.disabled}
-                title={it.title}
-                onClick={() => {
-                  setOpen(false)
-                  it.onClick?.()
-                }}
-              >
-                {it.icon && <Icon n={it.icon} s={14} style={{ color: 'var(--fg3)' }} />}
-                {it.dot && <span className="dot" style={{ background: it.dot }} />}
-                <span style={{ flex: 1 }}>{it.label}</span>
-                {it.right != null && <span className="faint xs">{it.right}</span>}
-                {it.checked && <Icon n="check" s={13} />}
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {cloneElement(trigger, { onClick: toggle, 'aria-expanded': open, 'aria-haspopup': 'menu' })}
+      {open && (host ? createPortal(list, host) : list)}
     </span>
   )
 }
