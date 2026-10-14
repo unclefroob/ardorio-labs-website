@@ -208,6 +208,79 @@ describe('Billing tab: term agreement', () => {
     expect((termCard().querySelector('input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
   })
 
+  it('keeps Confirm CPI and End agreement early off until the invoices load, and says so when they fail', async () => {
+    m = await loadSales()
+    m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', ardDeal('dl1').data)], billingPlans: [rec('bp_dl1', PLAN)] }))
+    setArdRole(m, 'admin')
+    let fail = true
+    fakeApi({
+      'GET /sales/invoices?dealId=dl1': () => (fail ? json(500, { error: 'Server error', code: 'INTERNAL' }) : json(200, { invoices: INVOICES })),
+      'GET /sales/invoices/clients': () => json(200, { clients: [CLIENT] }),
+      'GET /sales/invoices/settings': () => json(200, SETTINGS),
+    })
+    const { BillingCard } = await import('./BillingCard')
+    const { Q } = await import('../../data/Q')
+    const { Hosts } = await import('../../shell/Hosts')
+    await act(async () => { root.render(<><BillingCard deal={Q.deal('dl1')!} /><Hosts /></>) })
+    await settle(8)
+    const cpi = button(termCard(), 'Confirm CPI for year 2') as HTMLButtonElement
+    const endBtn = button(termCard(), 'End agreement early') as HTMLButtonElement
+    expect(cpi.disabled).toBe(true)
+    expect(endBtn.disabled).toBe(true)
+    expect(termCard().textContent).toContain("The deal's invoices did not load, so Confirm CPI and End agreement early wait until they do.")
+    await click(endBtn)
+    expect(host.querySelector('[role="group"][aria-label="End agreement early"]')).toBeNull()
+    expect(m.ui.UI.get().modals).toEqual([])
+    fail = false
+    await click(button(termCard(), 'Try again'))
+    await settle(8)
+    expect((button(termCard(), 'Confirm CPI for year 2') as HTMLButtonElement).disabled).toBe(false)
+    expect((button(termCard(), 'End agreement early') as HTMLButtonElement).disabled).toBe(false)
+    expect(termCard().textContent).not.toContain('did not load')
+  })
+
+  it('Confirm CPI works from the invoices as they are when it opens, not a list handed to it earlier', async () => {
+    let invoices = INVOICES
+    m = await loadSales()
+    m.bootstrap.hydrate(invoicingWorld({ deals: [rec('dl1', ardDeal('dl1').data)], billingPlans: [rec('bp_dl1', PLAN)] }))
+    setArdRole(m, 'admin')
+    const api = fakeApi({
+      'GET /sales/invoices?dealId=dl1': () => json(200, { invoices }),
+      'GET /sales/invoices/clients': () => json(200, { clients: [CLIENT] }),
+      'GET /sales/invoices/settings': () => json(200, SETTINGS),
+    })
+    const { BillingCard } = await import('./BillingCard')
+    const { Q } = await import('../../data/Q')
+    const { Hosts } = await import('../../shell/Hosts')
+    await act(async () => { root.render(<><BillingCard deal={Q.deal('dl1')!} /><Hosts /></>) })
+    await settle(8)
+    // Year 2 quarter 1 is invoiced elsewhere after the card loaded.
+    invoices = [...INVOICES, dto({ id: 'q5', invoiceNumber: 'INV-0105', milestoneId: 'inst_2_1', status: 'sent', subtotalCents: 309000, source: 'term', dueDate: '2026-11-30' })]
+    const before = api.count('GET /sales/invoices?dealId=dl1')
+    await click(button(termCard(), 'Confirm CPI for year 2'))
+    const dlg = host.querySelector('[role="dialog"][aria-label="Confirm CPI for year 2"]') as HTMLElement
+    await settle(8)
+    expect(api.count('GET /sales/invoices?dealId=dl1')).toBe(before + 1)
+    await type(field(dlg, 'CPI rate (%)'), '3.5')
+    const eff = dlg.querySelector('[aria-label="What confirming does"]')?.textContent ?? ''
+    expect(eff).toContain('7 instalments not yet invoiced are re-priced')
+    expect(eff).toContain('Already invoiced, kept as they are: Year 2 of 3, quarter 1')
+    expect(eff).toContain(`An approved variation of +${fmt(3 * 1500 + 4 * 1545)} is added`)
+  })
+
+  it('Confirm CPI waits for the invoices and says when they fail to load', async () => {
+    await show()
+    fakeApi({ 'GET /sales/invoices?dealId=dl1': () => json(500, { error: 'Server error', code: 'INTERNAL' }) })
+    await click(button(termCard(), 'Confirm CPI for year 2'))
+    const dlg = host.querySelector('[role="dialog"][aria-label="Confirm CPI for year 2"]') as HTMLElement
+    await settle(8)
+    expect(dlg.textContent).toContain("The deal's invoices did not load, so CPI cannot be confirmed until they do.")
+    expect((button(dlg, 'Confirm CPI') as HTMLButtonElement).disabled).toBe(true)
+    await type(field(dlg, 'CPI rate (%)'), '3.5')
+    expect(dlg.querySelector('[aria-label="What confirming does"]')?.textContent).not.toContain('re-priced')
+    expect(m.store.S.billingPlans.find(p => p.dealId === 'dl1')?.term?.cpiConfirmed).toBeUndefined()
+  })
+
   it('is not shown to anyone but admins of Ardorio', async () => {
     const { api } = await show({ role: 'manager' })
     expect(text()).toBe('')

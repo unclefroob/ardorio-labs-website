@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import type { BillingTerm, InvoiceDto } from '../../api/contract'
+import type { BillingTerm } from '../../api/contract'
+import { invoiceError, listInvoices } from '../../api/invoices'
 import { Act } from '../../data/Act'
+import { useLoad } from '../../data/invoicing'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import { Banner, Btn, Fld, Inp, Modal, Sel } from '../../kit'
@@ -13,10 +15,13 @@ import { MissingModal } from '../entities/guards'
 
 /**
  * Confirm the CPI rise of one year of a term agreement: the rate, and what it does to the remaining instalments and
- * the contract before anything is saved. Instalments already invoiced keep their amounts. Admins of Ardorio only.
+ * the contract before anything is saved. Instalments already invoiced keep their amounts. The deal's invoices are
+ * loaded here, when the dialog opens, so the preview is never worked out from a stale or missing list; until they are
+ * loaded nothing can be confirmed. Admins of Ardorio only.
  */
-export function ConfirmCpi({ dealId, year: first, invoices = [] }: { dealId: string; year?: number; invoices?: InvoiceDto[] }) {
+export function ConfirmCpi({ dealId, year: first }: { dealId: string; year?: number }) {
   useStore()
+  const inv = useLoad(s => listInvoices({ dealId }, s).then(r => r.invoices), `cpi:${dealId}`)
   const deal = Q.deal(dealId)
   const plan = Q.billingPlan(dealId)
   const years = plan?.term ? unconfirmedCpiYears(plan.term) : []
@@ -26,10 +31,13 @@ export function ConfirmCpi({ dealId, year: first, invoices = [] }: { dealId: str
   if (!deal || !plan?.term || !years.length) return <MissingModal title="Confirm CPI" what="CPI year to confirm" />
   const term: BillingTerm = plan.term
 
+  const invoices = inv.data
+  const loadErr = inv.error ? invoiceError(inv.error, 'load').message : ''
   const bp = pctToBp(rate)
-  const eff = bp !== null && !cpiProblem(term, year, bp) ? cpiEffect({ ...plan, term }, year, bp, invoices) : null
+  const eff = invoices && bp !== null && !cpiProblem(term, year, bp) ? cpiEffect({ ...plan, term }, year, bp, invoices) : null
 
   const save = (): void => {
+    if (!invoices) return setErr("The deal's invoices are not loaded, so what confirming does cannot be shown yet")
     const bad = cpiProblem(term, year, bp)
     if (bad || bp === null) return setErr(bad ?? 'Enter the CPI rate')
     const e = cpiEffect({ ...plan, term }, year, bp, invoices)
@@ -44,10 +52,11 @@ export function ConfirmCpi({ dealId, year: first, invoices = [] }: { dealId: str
       title={`Confirm CPI for year ${year}`}
       sub={deal.name}
       width={600}
-      footer={<><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" onClick={save}>Confirm CPI</Btn></>}
+      footer={<><Btn onClick={UI.close}>Cancel</Btn><Btn kind="pri" disabled={!invoices} onClick={save}>Confirm CPI</Btn></>}
     >
       <div className="col" style={{ gap: 14 }}>
         {err && <Banner tone="bad">{err}</Banner>}
+        {loadErr && <Banner tone="bad" action={<Btn size="sm" onClick={inv.reload}>Try again</Btn>}>{loadErr} The deal's invoices did not load, so CPI cannot be confirmed until they do.</Banner>}
         <div className="grid g2">
           <Fld label="Year">
             <Sel value={String(year)} onChange={v => setYear(+v)} options={years.map(y => [String(y), `Year ${y}`] as const)} />
@@ -72,7 +81,7 @@ export function ConfirmCpi({ dealId, year: first, invoices = [] }: { dealId: str
                     : 'No variation is added: the contract does not change.'}
                 </div>
               </>
-            ) : <div className="sm muted">Enter the CPI rate to see how the remaining instalments change.</div>}
+            ) : <div className="sm muted">{invoices ? 'Enter the CPI rate to see how the remaining instalments change.' : loadErr ? "Waiting for the deal's invoices." : "Loading the deal's invoices to see which instalments are already invoiced…"}</div>}
             <div className="sm muted">The confirmation is recorded with your name, {Q.me().name}, and today's date. It can't be changed later.</div>
           </div>
         </div>

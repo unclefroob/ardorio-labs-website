@@ -30,7 +30,7 @@ export function riseText(t: BillingTerm): string {
  * and the schedule grouped by year with each instalment's invoice. Confirm CPI opens a dialog; ending early is
  * confirmed in place. Ardorio admins only (the Billing tab is already gated).
  */
-export function TermAgreement({ deal, plan, invoices, onReload }: { deal: Deal; plan: TermPlan; invoices: InvoiceDto[] | null; onReload: () => void }) {
+export function TermAgreement({ deal, plan, invoices, loadError = null, onReload }: { deal: Deal; plan: TermPlan; invoices: InvoiceDto[] | null; loadError?: string | null; onReload: () => void }) {
   const t = plan.term
   const today = F.today()
   const [err, setErr] = useState('')
@@ -62,9 +62,13 @@ export function TermAgreement({ deal, plan, invoices, onReload }: { deal: Deal; 
   const open = (id: string): void => UI.nav('invoice', { id })
   const create = (m: BillingMilestone): void => UI.nav('invoice', { id: 'new', q: { companyId: deal.companyId, dealId: deal.id, milestoneId: m.id } })
 
-  const effect = ending && !endProblem(t, ending.day, ending.reason || 'x') ? endEffect(plan, ending.day, list) : null
+  // Ending early and confirming CPI are worked out from which instalments are already invoiced: until the deal's
+  // invoices are loaded their previews would be wrong, so both wait for them.
+  const waiting = known ? null : loadError ? `${loadError} The deal's invoices did not load, so Confirm CPI and End agreement early wait until they do.` : "Loading the deal's invoices before Confirm CPI and End agreement early…"
+  const effect = known && ending && !endProblem(t, ending.day, ending.reason || 'x') ? endEffect(plan, ending.day, list) : null
   const confirmEnd = (): void => {
     if (!ending) return
+    if (!known) return setEndErr("The deal's invoices are not loaded, so what ending does cannot be shown yet. Try again when they are.")
     const bad = endProblem(t, ending.day, ending.reason)
     if (bad) return setEndErr(bad)
     const eff = endEffect(plan, ending.day, list)
@@ -81,13 +85,18 @@ export function TermAgreement({ deal, plan, invoices, onReload }: { deal: Deal; 
       right={
         <span className="row wrap" style={{ gap: 6 }}>
           {t.ended ? <Chip tone="bad" icon="stop">Ended {fmtDay(t.ended.endedOn)}</Chip> : left > 0 ? <Chip icon="clock">Ends {inDays(left)}</Chip> : <Chip>Term over</Chip>}
-          {cpiYears.length > 0 && <Btn size="sm" onClick={() => UI.open('confirmCpi', { dealId: deal.id, year: cpiYears[0], invoices: list })}>Confirm CPI for year {cpiYears[0]}</Btn>}
-          {!t.ended && left > 0 && !ending && <Btn size="sm" kind="ghost" onClick={() => { setEndErr(''); setEnding({ day: today >= t.startDate ? today : t.startDate, reason: '' }) }}>End agreement early</Btn>}
+          {cpiYears.length > 0 && <Btn size="sm" disabled={!known} title={waiting ?? undefined} onClick={() => UI.open('confirmCpi', { dealId: deal.id, year: cpiYears[0] })}>Confirm CPI for year {cpiYears[0]}</Btn>}
+          {!t.ended && left > 0 && !ending && <Btn size="sm" kind="ghost" disabled={!known} title={waiting ?? undefined} onClick={() => { setEndErr(''); setEnding({ day: today >= t.startDate ? today : t.startDate, reason: '' }) }}>End agreement early</Btn>}
         </span>
       }
     >
       <div className="col" style={{ gap: 14 }}>
         {err && <Banner tone="bad">{err}</Banner>}
+        {waiting && (cpiYears.length > 0 || (!t.ended && left > 0)) && (
+          loadError
+            ? <Banner tone="bad" action={<Btn size="sm" onClick={onReload}>Try again</Btn>}>{waiting}</Banner>
+            : <div className="sm muted" role="status" aria-label="Invoices loading">{waiting}</div>
+        )}
         {t.ended && (
           <Banner tone="warn" icon="stop">
             <b>Ended early on {fmtDay(t.ended.endedOn)}.</b> {t.ended.reason} <span className="muted">· recorded {fmtDay(t.ended.recordedAt)} by {t.ended.endedBy}. Invoices already made are kept; refunds or credits are handled by hand.</span>
@@ -155,11 +164,11 @@ export function TermAgreement({ deal, plan, invoices, onReload }: { deal: Deal; 
                       {' '}Automatic drafting stops.
                     </div>
                   </>
-                ) : <div className="muted">Pick a day in the term to see which instalments are removed or cut.</div>}
+                ) : <div className="muted">{known ? 'Pick a day in the term to see which instalments are removed or cut.' : "Waiting for the deal's invoices to show which instalments are removed or cut."}</div>}
                 <div className="b">This can't be undone.</div>
               </div>
               <span className="row" style={{ gap: 6 }}>
-                <Btn size="sm" kind="danger" onClick={confirmEnd}>End agreement</Btn>
+                <Btn size="sm" kind="danger" disabled={!known} onClick={confirmEnd}>End agreement</Btn>
                 <Btn size="sm" onClick={() => { setEnding(null); setEndErr('') }}>Cancel</Btn>
               </span>
             </div>

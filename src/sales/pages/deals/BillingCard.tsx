@@ -321,7 +321,7 @@ function Schedule({ deal }: { deal: Deal }) {
       {recorded && <Banner tone="ok" icon="check" action={<Btn size="sm" kind="ghost" aria-label="Dismiss" icon="x" onClick={() => setRecorded('')} />}>{recorded}</Banner>}
       <MoneyWarnings deal={deal} plan={plan} money={money} />
       <ProjectMoney deal={deal} plan={plan} invoices={known ? list : null} loading={inv.loading} />
-      {termPlan && <TermAgreement deal={deal} plan={termPlan} invoices={known ? list : null} onReload={inv.reload} />}
+      {termPlan && <TermAgreement deal={deal} plan={termPlan} invoices={known ? list : null} loadError={e && e.kind !== 'denied' ? e.message : null} onReload={inv.reload} />}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
         {plan?.contract || deal.status === 'won' ? <div style={{ flex: '1 1 420px', minWidth: 0 }}><ContractLedger deal={deal} /></div> : null}
         <div style={{ flex: '2 1 560px', minWidth: 0 }}>{milestones}</div>
