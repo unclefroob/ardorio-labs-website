@@ -228,3 +228,24 @@ describe('sortArdorio', () => {
     expect(sortArdorio(out.companies, 'collected', -1).map(c => c.name)).toEqual(['Kestrel Logistics', 'Harbour Group', 'Northgate'])
   })
 })
+
+describe('ardorioByDeal: an invoice counts on its linked company, not on its billing client', () => {
+  // The production case: an invoice issued to 'test-client', which is linked to no company, then linked to the company
+  // (and deal) it belongs to, whose own billing client is a different one. Every figure follows companyId/dealId.
+  const strip = (x: unknown): string => JSON.stringify(x, (k, v) => (k === 'clientSlug' || k === 'clientName' ? undefined : v))
+
+  it('gives the same figures whatever client the invoices are billed to', () => {
+    const asTestClient = INV.map(i => ({ ...i, clientSlug: 'test-client', clientName: 'Test Client' }))
+    expect(strip(ardorioByDeal(DEALS, COS, [P1, P2], asTestClient))).toBe(strip(run()))
+  })
+
+  it('a sent invoice billed to Test Client on Harbour’s deal is in Harbour’s deal row, not unlinked', () => {
+    const extra = dto({ id: 'tc', clientSlug: 'test-client', clientName: 'Test Client', dealId: 'dl1', companyId: 'co1', milestoneId: 'm3', status: 'sent', overdue: true, subtotalCents: 500000 })
+    const before = run().companies.find(c => c.companyId === 'co1')!.deals[0].money
+    const after = ardorioByDeal(DEALS, COS, [P1, P2], [...INV, extra])
+    const row = after.companies.find(c => c.companyId === 'co1')!.deals[0].money
+    expect(row.invoiced - before.invoiced).toBe(500000)
+    expect(row.outstanding - before.outstanding).toBe(500000)
+    expect(after.unlinked.map(i => i.id)).not.toContain('tc')
+  })
+})
