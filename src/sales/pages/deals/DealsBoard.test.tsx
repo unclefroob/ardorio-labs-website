@@ -67,28 +67,43 @@ async function show(page: ReactElement, Hosts: () => ReactElement) {
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 16)
 
-describe('Deals board: closed columns show the last 90 days and link to the rest', () => {
-  it('lists a recent won deal, says older ones are hidden, and opens them all in the list', async () => {
+describe('Deals board: closed columns show a chosen period and link to the rest', () => {
+  it('shows the last 30 days by default, switches period from the header, remembers it, and lists the rest', async () => {
     const t = await setup({
       deals: [
         deal('dl1', 'Roster rollout'),
         deal('dl2', 'Training day', { stageId: 's2', status: 'won', probability: 100, closedAt: daysAgo(10), stageChangedAt: daysAgo(10) }),
+        deal('dl4', 'Pilot', { stageId: 's2', status: 'won', probability: 100, closedAt: daysAgo(60), stageChangedAt: daysAgo(60) }),
         deal('dl3', 'App build', { stageId: 's2', status: 'won', probability: 100, closedAt: daysAgo(105), stageChangedAt: daysAgo(105) }),
       ],
     })
     const { Deals } = await import('./Deals')
     await show(<Deals route={{ page: 'deals' }} />, t.Hosts)
-    const won = host.querySelector('[aria-label="Closed Won, closed in the last 90 days"]')
-    expect(won?.textContent).toContain('Training day')
-    expect(won?.textContent).not.toContain('App build')
-    expect(won?.textContent).toContain('last 90 days')
-    expect(won?.textContent).toContain('1 older won')
-    expect(host.querySelector('[aria-label="Closed Lost, closed in the last 90 days"]')?.querySelector('.kc-f')).toBeNull()
-    if (!won) throw new Error('no won column')
-    await click(button(won as HTMLElement, 'View all 2'))
+    const col = () => host.querySelector('.kb > .kc.closed') as HTMLElement
+    expect(col().getAttribute('aria-label')).toBe('Closed Won, closed in the last 30 days')
+    expect(col().textContent).toContain('Training day')
+    expect(col().textContent).not.toContain('Pilot')
+    expect(col().textContent).toContain('2 older won')
+    const seg = () => col().querySelector('[role="group"][aria-label="Closed Won: show deals closed in"]') as HTMLElement
+    expect(seg().querySelector('[aria-pressed="true"]')?.textContent).toBe('30d')
+
+    await click(button(seg(), '90d'))
+    expect(col().getAttribute('aria-label')).toBe('Closed Won, closed in the last 90 days')
+    expect(col().textContent).toContain('Pilot')
+    expect(col().textContent).not.toContain('App build')
+    expect(col().textContent).toContain('1 older won')
+    expect(JSON.parse(localStorage.getItem('salesos.board.closed') ?? '{}')).toEqual({ s2: '90' })
+
+    await click(button(seg(), 'All'))
+    expect(col().textContent).toContain('App build')
+    expect(col().querySelector('.kc-f')).toBeNull()
+
+    await click(button(seg(), '30d'))
+    await click(button(col(), 'View all 3'))
     expect(host.querySelector('.kb')).toBeNull()
     expect(host.textContent).toContain('App build')
     expect(host.textContent).toContain('Training day')
+    expect(host.textContent).toContain('Pilot')
     expect(host.textContent).not.toContain('Roster rollout')
   })
 

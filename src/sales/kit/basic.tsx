@@ -79,9 +79,9 @@ export function Tabs({ tabs, value, onChange }: { tabs: readonly TabDef[]; value
 
 export type SegDef = string | readonly [key: string, label: ReactNode, icon?: string]
 
-export function Seg({ opts, value, onChange, label }: { opts: readonly SegDef[]; value: string; onChange: (k: string) => void; label?: string }) {
+export function Seg({ opts, value, onChange, label, className }: { opts: readonly SegDef[]; value: string; onChange: (k: string) => void; label?: string; className?: string }) {
   return (
-    <div className="seg" role="group" aria-label={label}>
+    <div className={'seg' + (className ? ' ' + className : '')} role="group" aria-label={label}>
       {opts.map(o => {
         const [k, l, ic] = typeof o === 'string' ? [o, o, undefined] : o
         return (

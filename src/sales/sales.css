@@ -105,6 +105,8 @@
 .sos .seg button{border:0;background:none;padding:0 10px;height:28px;cursor:pointer;color:var(--fg2);font-weight:500;font-size:12px;display:flex;align-items:center;gap:5px}
 .sos .seg button+button{border-left:1px solid var(--line)}
 .sos .seg button.on{background:var(--acc-soft);color:var(--acc-ink)}
+.sos .seg.xs button{height:24px;padding:0 7px}
+.sos .kc-per{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
 .sos .fld{display:flex;flex-direction:column;gap:5px;min-width:0}
 .sos .fld>label{font-size:12px;font-weight:600;color:var(--fg2)}
 .sos .fld .hint{font-size:12px;color:var(--fg3)}
@@ -337,6 +339,7 @@
 .sos .inp,.sos select.inp{height:44px}
 .sos .inp.sm{height:40px}
 .sos .seg button{height:40px;padding:0 14px}
+.sos .seg.xs button{height:40px;padding:0 11px;font-size:12px}
 .sos .ni{padding:11px 10px}
 .sos .tab{padding:12px 14px}
 .sos .mi{padding:11px 10px}
