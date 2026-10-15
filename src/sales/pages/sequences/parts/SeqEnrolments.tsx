@@ -4,6 +4,7 @@ import type { Sequence } from '../../../data/types'
 import { Btn, Card, Empty, FilterBar, Seg } from '../../../kit'
 import { EST } from '../../../kit/util'
 import type { SeqStats } from '../../../shared/seqStats'
+import { useMailState } from '../../../mail/client'
 import { UI } from '../../../ui/store'
 import { EnrolTable } from '../../companies/parts/EnrolTable'
 
@@ -15,6 +16,7 @@ export function SeqEnrolments({ s, st }: { s: Sequence; st: SeqStats }) {
   st.en.forEach(e => { counts[e.status] = (counts[e.status] ?? 0) + 1 })
   const rows = st.en.filter(e => !f || e.status === f)
   const canEnrol = Q.canEdit(s.businessId)
+  const sims = useMailState().s === 'off'
   const enrolBtn = canEnrol && (
     <Btn kind="pri" icon="plus" disabled={s.status !== 'active'} title={s.status !== 'active' ? 'Activate the sequence to enrol' : undefined} onClick={() => UI.open('enrol', { seqId: s.id })}>
       Enrol contacts
@@ -25,7 +27,7 @@ export function SeqEnrolments({ s, st }: { s: Sequence; st: SeqStats }) {
       pad={false} title="Enrolments"
       right={st.en.length > 0 && (
         <>
-          {canEnrol && <Btn size="sm" icon="reply" onClick={() => UI.open('simReply', { contactId: st.en.find(e => LIVE.includes(e.status))?.contactId })}>Simulate reply</Btn>}
+          {canEnrol && sims && <Btn size="sm" icon="reply" onClick={() => UI.open('simReply', { contactId: st.en.find(e => LIVE.includes(e.status))?.contactId })}>Simulate reply</Btn>}
           {canEnrol && <Btn size="sm" kind="pri" icon="plus" disabled={s.status !== 'active'} onClick={() => UI.open('enrol', { seqId: s.id })}>Enrol</Btn>}
         </>
       )}

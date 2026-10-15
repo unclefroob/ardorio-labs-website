@@ -32,7 +32,8 @@ const navBtn = { width: '100%' } as const
 export function Inbox({ route }: { route: Route }) {
   useStore()
   const me = Q.me()
-  const live = useMailState().s === 'live'
+  const mail = useMailState().s
+  const live = mail === 'live'
   const [fold, setFold] = useState<Fold>(isFold(route.q?.folder) ? route.q.folder : 'all')
   const [mb, setMb] = useState('')
   const [q, setQ] = useState('')
@@ -135,7 +136,7 @@ export function Inbox({ route }: { route: Route }) {
             <span className="faint xs">{rows.length}</span>
             <span className="sp" />
             {filtered && <Btn size="xs" kind="ghost" onClick={clear}>Clear</Btn>}
-            {Q.anyAdmin() && <Btn size="xs" icon="reply" onClick={() => UI.open('simReply', {})}>Simulate reply</Btn>}
+            {Q.anyAdmin() && mail === 'off' && <Btn size="xs" icon="reply" onClick={() => UI.open('simReply', {})}>Simulate reply</Btn>}
           </div>
           <SearchInp value={q} onChange={setQ} w={400} placeholder="Search conversations" />
         </div>
