@@ -2,7 +2,7 @@ import { applyCompanyProfile, applyBusinessChange, undoBusinessChange, archiveCo
 import { addVariation, claimRetainerPeriod, confirmCpi, decideVariation, endTermEarly, markDelivered, retainerClaimProblem, saveMilestones, saveRetainer, setContract, setTermAgreement, setTermAutoDraft, termBaseline, waiveInstalment } from './act/billing'
 import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
-import { correctClass, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
+import { correctClass, linkThreadDeal, logCall, markThread, saveMeeting, markEmailSent, sendEmail, shareThread, simEvent, simulateReply } from './act/mail'
 import { voidActivity } from './act/activities'
 import { markTestAccount, unmarkTestAccount } from './act/rosterioTest'
 import { cancelMeeting, deleteMeeting, markMeetingNoShow, rescheduleMeeting } from './act/meetings'
@@ -41,7 +41,7 @@ export const Act = {
   createTask, updateTask, completeTask, snoozeTask, cancelTask, deleteTask,
   voidActivity,
   logCall, saveMeeting, cancelMeeting, markMeetingNoShow, rescheduleMeeting, deleteMeeting,
-  sendEmail, markEmailSent, skipEmailTask, stopEmailing, markThread, shareThread,
+  sendEmail, markEmailSent, skipEmailTask, stopEmailing, markThread, shareThread, linkThreadDeal,
   saveSequence, setSeqStatus, archiveSequence, restoreSequence, dupSequence, enrol, setEnrol,
   simulateReply, correctClass, simEvent,
   addSuppression, removeSuppression,
