@@ -6,6 +6,7 @@ import { Q } from '../../data/Q'
 import { S } from '../../data/store'
 import { pollOnce } from '../../data/sync'
 import type { BusinessId } from '../../data/types'
+import { useMailState } from '../../mail/client'
 import { Banner, BizDot, Btn, Card, Chip, Fld, Sel, Spinner } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
@@ -48,6 +49,7 @@ function WorkspaceCard() {
 }
 
 function TriggerCard() {
+  const sims = useMailState().s === 'off'
   const live = S.enrolments.filter(e => ['active', 'awaiting_task'].includes(e.status) && Q.inScope(e.businessId))
   const first = live[0]?.contactId
   const need = (): string | undefined => {
@@ -64,6 +66,8 @@ function TriggerCard() {
     Act.simEvent(kind, c)
     UI.toast(msg(Q.contact(c)?.name ?? 'contact'))
   }
+  // With real Gmail connected these would write pretend replies, opens and clicks into real contacts' histories.
+  if (!sims) return <Card title="Email & sequence triggers" icon="mail"><Banner tone="info">Real Gmail is connected, so the pretend email and sequence triggers are switched off.</Banner></Card>
   return (
     <Card title="Email & sequence triggers" icon="mail">
       {live.length === 0 && <div style={{ marginBottom: 10 }}><Banner tone="info">Nothing to trigger yet: no contacts are in an active sequence in this workspace.</Banner></div>}
