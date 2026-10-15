@@ -253,6 +253,17 @@ export function markThread(id: string, p: Partial<Thread>): void {
   commit()
 }
 
+/** Link a conversation to a deal (or unlink it). A thread links only to a deal of its own business; anything else is ignored. */
+export function linkThreadDeal(id: string, dealId: string | null): void {
+  const t = idx.threads.get(id)
+  if (!t) return
+  const d = dealId ? idx.deals.get(dealId) : undefined
+  if (dealId && (!d || d.businessId !== t.businessId)) return
+  t.dealId = dealId
+  audit(dealId ? 'Email linked to deal' : 'Email unlinked from deal', `${t.subject}${d ? ' → ' + d.name : ''}`)
+  commit()
+}
+
 export function shareThread(id: string, uids: string[]): void {
   const t = idx.threads.get(id)
   if (!t) return

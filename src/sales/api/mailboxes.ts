@@ -20,3 +20,6 @@ export const setSendingApi = (id: string, enabled: boolean) =>
 /** Send one email through a connected mailbox. Nothing is sent unless this resolves; a failure says so. */
 export interface SendMailBody { mailboxId: string; to: string; cc?: string; subject: string; body: string; threadId?: string; businessId?: string; contactId?: string; dealId?: string | null }
 export const sendMailApi = (body: SendMailBody) => salesFetch<{ threadId: string; messageId: string; gmailId: string; recorded: boolean }>('/mail/send', { method: 'POST', body })
+
+/** The original HTML of a synced message (null when there is none or it cannot be had). Untrusted: sanitise it before showing it. */
+export const messageHtmlApi = (id: string, signal?: AbortSignal) => salesFetch<{ html: string | null }>(`/mail/messages/${encodeURIComponent(id)}/html`, { signal })
