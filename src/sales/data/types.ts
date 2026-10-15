@@ -404,6 +404,8 @@ export interface Thread {
   contactId?: string
   companyId?: string
   dealId: string | null
+  /** 'customer': about a paying customer's account, not a sales deal (then dealId is null). */
+  relation?: 'customer'
   seqId?: string
   enrolmentId?: string
   visibility: 'private' | 'shared'

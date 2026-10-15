@@ -15,6 +15,7 @@ import { UI } from '../../ui/store'
 import { BizRels } from './BizRels'
 import { CompanyBilling } from './BillingCard'
 import { CompanyIntel } from './CompanyIntel'
+import { CompanyEmails } from './CompanyEmails'
 import { ActFilter } from './parts/ActFilter'
 import { Notes } from './parts/Notes'
 import { RosterioCard } from '../deals/RosterioCard'
@@ -144,7 +145,7 @@ export function Company({ route }: { route: Route }) {
       <Tabs
         value={tab}
         onChange={setTab}
-        tabs={[['overview', 'Overview'], ['contacts', 'Contacts', cts.length], ['deals', 'Deals', deals.length], ['activity', 'Activities', standingActs(acts).length], ['intel', 'Intelligence'], ['notes', 'Notes', (c.notes ?? []).length], ['rels', 'Business relationships', rels.length]]}
+        tabs={[['overview', 'Overview'], ['contacts', 'Contacts', cts.length], ['deals', 'Deals', deals.length], ['emails', 'Emails', S.threads.filter(x => x.companyId === c.id && !x.archived).length], ['activity', 'Activities', standingActs(acts).length], ['intel', 'Intelligence'], ['notes', 'Notes', (c.notes ?? []).length], ['rels', 'Business relationships', rels.length]]}
       />
       {tab === 'overview' && (
         <div className="split">
@@ -227,6 +228,7 @@ export function Company({ route }: { route: Route }) {
           {hiddenDeals > 0 && <div className="faint sm" style={{ padding: 12 }}><Icon n="lock" s={12} /> {hiddenDeals} deal(s) belong to businesses you can't access. Use “Request introduction” to coordinate.</div>}
         </Card>
       )}
+      {tab === 'emails' && <CompanyEmails c={c} />}
       {tab === 'activity' && <Card><ActFilter items={acts} /></Card>}
       {tab === 'intel' && <CompanyIntel c={c} b={b} readOnly={archived} />}
       {tab === 'notes' && <Notes kind="company" id={c.id} b={b} notes={c.notes} readOnly={archived} />}
