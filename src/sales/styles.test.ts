@@ -121,4 +121,13 @@ describe('tab bars', () => {
     expect(rule).toContain('overflow-y:hidden')
     expect(css).not.toMatch(/\.sos \.tab\{[^}]*margin-bottom:-1px/)
   })
+
+  it('real email wraps inside its card: long links and recipient lists never push the reader sideways', () => {
+    const rule = (sel: string): string => css.match(new RegExp(`\\.sos ${sel.replace('.', '\\.')}\\{([^}]*)\\}`))?.[1] ?? ''
+    expect(rule('.msg-b')).toMatch(/overflow-wrap:anywhere/)
+    expect(rule('.msg-to')).toMatch(/overflow-wrap:anywhere/)
+    expect(rule('.msg-w')).toMatch(/min-width:0/)
+    expect(rule('.msg')).toMatch(/min-width:0/)
+    expect(rule('.msg-dt')).toMatch(/white-space:nowrap/)
+  })
 })
