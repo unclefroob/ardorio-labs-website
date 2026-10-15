@@ -25,6 +25,7 @@ import { BillingCard } from './BillingCard'
 import { Commercials } from './Commercials'
 import { DealAI } from './DealAI'
 import { LinkBtn } from './LinkBtn'
+import { ScopeCard } from './ScopeCard'
 import { Stakeholders } from './Stakeholders'
 import { Link } from '../../kit'
 
@@ -218,12 +219,7 @@ export function Deal({ route }: { route: Route }) {
       {tab === 'overview' && (
         <div className="split">
           <div className="col" style={{ gap: 14 }}>
-            <Card title="Description / scope">
-              {d.description ? <div className="sm" style={{ whiteSpace: 'pre-wrap' }}>{d.description}</div> : <div className="faint sm">No scope summary yet.</div>}
-              {can && (
-                <Btn size="xs" kind="ghost" icon="edit" style={{ marginTop: 8 }} onClick={() => UI.ask(v => { if (v != null) Act.updateDeal(d.id, { description: v }) }, 'Scope summary', d.description)}>Edit</Btn>
-              )}
-            </Card>
+            <ScopeCard d={d} can={can} />
             <Card
               title={bizName + ' fields'}
               right={can && ef && (
