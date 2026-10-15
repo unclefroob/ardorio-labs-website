@@ -9,7 +9,7 @@ import type { Mailbox } from '../../data/types'
 import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, SimChip, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
 import { fmtResets, phoneLeft, usePhoneStatus } from '../../phone/client'
-import { connectMailboxApi, disconnectMailboxApi, syncMailboxApi } from '../../api/mailboxes'
+import { connectMailboxApi, disconnectMailboxApi, setSendingApi, syncMailboxApi } from '../../api/mailboxes'
 import { mailReturnMessage, readMailReturn, useMailState } from '../../mail/client'
 import { leaveTo } from '../../mail/navigate'
 import { SalesHttpError } from '../../api/http'
@@ -21,7 +21,7 @@ import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
 const BOUNDARIES = ['Email provider', 'Email sync', 'Email sending', 'Lead enrichment', 'Company research', 'AI assistant', 'Sequence scheduler', 'Notifications', 'Authentication', 'Audit logging']
-const LIVE_NOTE = 'Gmail is read only. SalesOS reads mail to and from people who are in your CRM and files it in the Inbox; it does not send. A personal mailbox is private to its owner: nobody else, including admins, can read it in SalesOS.'
+const LIVE_NOTE = 'SalesOS reads mail to and from people who are in your CRM and files it in the Inbox. Sending is off until the mailbox owner switches it on; every send is checked against the suppression list first. A personal mailbox is private to its owner: nobody else, including admins, can read it in SalesOS.'
 const SIM_NOTE = 'Simulated: no real email is sent yet. Mail from these mailboxes is recorded in SalesOS only and does not count in goals or reports.'
 const LI = ['Saving and opening profile URLs', 'Manual logging of connection requests, messages and responses', 'Manual LinkedIn tasks inside sequences']
 
@@ -50,6 +50,23 @@ export function Integrations() {
     setBusy(id)
     try { await disconnectMailboxApi(id); await pollOnce(); UI.toast('Mailbox disconnected. Mail already in SalesOS stays.') } catch (e) { fail(e) } finally { setBusy(null) }
   }
+  // Sending needs one more Google permission the first time, so turning it on may take the person to Google and back.
+  const setSend = async (m: Mailbox, on: boolean): Promise<void> => {
+    setBusy(m.id)
+    try {
+      const r = await setSendingApi(m.id, on)
+      if (r.url) {
+        const url = r.url
+        UI.confirm({
+          title: 'Allow SalesOS to send email?', confirm: 'Continue to Google', onConfirm: () => leaveTo(url),
+          body: `Google will ask you to allow sending from ${m.address}. SalesOS only sends when you press Send, and every send is checked against the suppression list first. You can switch it off here at any time.`,
+        })
+      } else {
+        await pollOnce()
+        UI.toast(r.enabled ? `Sending is on for ${m.address}` : `Sending is off for ${m.address}`)
+      }
+    } catch (e) { fail(e) } finally { setBusy(null) }
+  }
   const syncNow = async (id: string): Promise<void> => {
     setBusy(id)
     try {
@@ -74,7 +91,7 @@ export function Integrations() {
     { k: 's', l: 'Status', sort: m => m.status, r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status === 'connected' ? 'Connected' : 'Disconnected, reauthorisation required'}</Chip> },
     { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3 }}>{m.businessIds.map(b => <BizChip key={b} b={b} />)}</span> },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
-    { k: 'send', l: 'Sending', nosort: true, r: m => live ? <span className="faint xs">Read only</span> : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
+    { k: 'send', l: 'Sending', nosort: true, r: m => live ? (m.ownerId === me.id ? <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
     {
       k: 'a', l: '', nosort: true,
       r: m => {
@@ -105,6 +122,7 @@ export function Integrations() {
     { k: 's', l: 'Status', r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status}</Chip> },
     { k: 'au', l: 'Authorised users', nosort: true, r: m => (m.authorised.length ? <span className="row" style={{ gap: 2 }}>{m.authorised.map(u => <Av key={u} u={Q.user(u)} s={20} />)}</span> : <span className="faint xs">Nobody yet</span>) },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
+    ...(live ? [{ k: 'send', l: 'Sending', nosort: true, r: (m: Mailbox) => (Q.canAdmin(m.businessIds[0] ?? '') ? <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) } as Col<Mailbox>] : []),
     {
       k: 'a', l: '', nosort: true,
       r: m => {
@@ -141,7 +159,7 @@ export function Integrations() {
     <div className="page" style={{ maxWidth: 1200 }}>
       <PageHead title="Integrations" sub="Connections to other services. Anything marked Simulated is a stand-in: it sends and fetches nothing real." />
       <div className="col" style={{ gap: 14 }}>
-        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<span className="row" style={{ gap: 8 }}>{canAddPersonal && adding !== 'personal' && <Btn size="xs" icon="plus" onClick={() => setAdding('personal')}>Add mailbox</Btn>}{live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
+        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<span className="row" style={{ gap: 8 }}>{canAddPersonal && adding !== 'personal' && <Btn size="xs" icon="plus" onClick={() => setAdding('personal')}>Add mailbox</Btn>}{live ? <Chip tone="ok">Gmail</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
           {adding === 'personal' && <AddMailbox kind="personal" onDone={() => setAdding(null)} />}
           <DataTable
             rows={personal}
@@ -150,7 +168,7 @@ export function Integrations() {
           />
           <div className="faint xs" style={{ padding: 10 }}>{live ? LIVE_NOTE : SIM_NOTE}{mail.s === 'off' && mail.reason ? ` Real Gmail is not available yet: ${mail.reason}.` : ''}</div>
         </Card>
-        <Card title="Shared business inboxes" icon="users" right={<span className="row" style={{ gap: 8 }}>{adm && adding !== 'shared' && <Btn size="xs" icon="plus" onClick={() => setAdding('shared')}>Add shared inbox</Btn>}{live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
+        <Card title="Shared business inboxes" icon="users" right={<span className="row" style={{ gap: 8 }}>{adm && adding !== 'shared' && <Btn size="xs" icon="plus" onClick={() => setAdding('shared')}>Add shared inbox</Btn>}{live ? <Chip tone="ok">Gmail</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
           {adding === 'shared' && <AddMailbox kind="shared" onDone={() => setAdding(null)} />}
           <DataTable
             rows={shared}

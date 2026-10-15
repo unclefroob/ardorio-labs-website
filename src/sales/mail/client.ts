@@ -43,12 +43,12 @@ export function useMailState(): MailState {
 export function clearMailState(): void { cached = undefined; inflight = null; emit() }
 
 /** Where Google sends the browser back to, read once: ?mailbox=connected|error&reason=… */
-export interface MailReturn { ok: boolean; reason?: string }
+export interface MailReturn { ok: boolean; reason?: string; sending?: boolean }
 export function readMailReturn(search: string): MailReturn | null {
   const q = new URLSearchParams(search)
   const m = q.get('mailbox')
   if (m !== 'connected' && m !== 'error') return null
-  return { ok: m === 'connected', reason: q.get('reason') ?? undefined }
+  return { ok: m === 'connected', reason: q.get('reason') ?? undefined, ...(q.get('sending') === '1' ? { sending: true } : {}) }
 }
 
 const REASONS: Record<string, string> = {
@@ -57,9 +57,11 @@ const REASONS: Record<string, string> = {
   'already-connected': 'That Google account is already connected to another mailbox.',
   'not-allowed': 'You are not allowed to connect this mailbox.',
   'no-mailbox': 'That mailbox no longer exists.',
+  'missing-send-scope': 'Google did not allow sending, so sending stays off. Turn it on again and allow “Send email on your behalf”.',
   'missing-scope': 'Google did not give read access. Connect again and allow “Read your email”.',
   'no-refresh-token': 'Google did not return a lasting connection. Remove SalesOS under your Google account’s connected apps, then connect again.',
   'bad-state': 'The sign-in link expired. Press Connect again.',
   'not-configured': 'Mailbox connections are not set up on the server.',
 }
-export const mailReturnMessage = (r: MailReturn): string => (r.ok ? 'Mailbox connected. Mail from your contacts will appear in the Inbox shortly.' : REASONS[r.reason ?? ''] ?? 'The mailbox could not be connected. Try again.')
+export const mailReturnMessage = (r: MailReturn): string =>
+  r.ok ? (r.sending ? 'Sending is on for this mailbox. Use Compose or Reply in the Inbox.' : 'Mailbox connected. Mail from your contacts will appear in the Inbox shortly.') : REASONS[r.reason ?? ''] ?? 'The mailbox could not be connected. Try again.'
