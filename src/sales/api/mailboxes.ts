@@ -23,3 +23,6 @@ export const sendMailApi = (body: SendMailBody) => salesFetch<{ threadId: string
 
 /** The original HTML of a synced message (null when there is none or it cannot be had), and the pictures it carries inside itself by Content-ID. Untrusted: sanitise it before showing it. */
 export const messageHtmlApi = (id: string, signal?: AbortSignal) => salesFetch<{ html: string | null; images?: Record<string, string> }>(`/mail/messages/${encodeURIComponent(id)}/html`, { signal })
+
+/** Send a sequence's waiting email task through Gmail. The server checks it is still the step to send, sends, and completes the task. */
+export const sendTaskApi = (taskId: string) => salesFetch<{ threadId: string; messageId: string; gmailId: string; recorded: boolean }>(`/mail/send-task/${encodeURIComponent(taskId)}`, { method: 'POST' })
