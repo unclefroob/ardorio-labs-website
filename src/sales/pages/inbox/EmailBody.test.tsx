@@ -33,10 +33,10 @@ const msg = (o: Partial<Message> = {}): Message => ({
   id: 'ms1', threadId: 'th1', dir: 'in', from: 'jo@acme.test', to: 'me@example.com', subject: 'Hi', body: 'PLAIN TEXT VERSION', ts: '2026-10-09T09:00', status: 'received', gmailId: 'g1', ...o,
 } as Message)
 
-async function show(status: { configured: boolean }, m: Message, html: string | null | Error) {
+async function show(status: { configured: boolean }, m: Message, html: string | null | Error, images?: Record<string, string>) {
   mailStatusApi.mockResolvedValue(status)
   if (html instanceof Error) messageHtmlApi.mockRejectedValue(html)
-  else messageHtmlApi.mockResolvedValue({ html })
+  else messageHtmlApi.mockResolvedValue({ html, ...(images ? { images } : {}) })
   await loadSales()
   const { EmailBody, clearEmailBodies } = await import('./parts/EmailBody')
   clearEmailBodies()
@@ -125,5 +125,29 @@ describe('an email shown as the sender wrote it', () => {
     await show({ configured: false }, msg(), '<p>x</p>')
     expect(messageHtmlApi).not.toHaveBeenCalled()
     expect(frame()).toBeNull()
+  })
+})
+
+describe('embedded pictures and wrapped text', () => {
+  it('puts the pictures the server sent into the mail, with remote images still hidden', async () => {
+    await show({ configured: true }, msg(), '<p>Logo:</p><img src="cid:logo1"><img src="https://track.test/p.gif">', { logo1: 'data:image/png;base64,iVBORw0KGgo=' })
+    const s = frame()!.srcdoc
+    expect(s).toContain('data:image/png;base64,iVBORw0KGgo=')
+    expect(s).not.toContain('track.test')
+    expect(s).not.toContain('cid:')
+  })
+
+  const WRAPPED = 'I am trying to manually add the staff timesheets for this week; I\nam having an issue with the staff doing double shift in different\nareas.\n\nThank you,\nAlice'
+
+  it('Gmail text shown without HTML has its wrapped lines joined into paragraphs', async () => {
+    await show({ configured: true }, msg({ body: WRAPPED }), null)
+    expect(frame()).toBeNull()
+    expect(host.querySelector('.msg-b')?.innerHTML).toContain('this week; I am having an issue with the staff doing double shift in different areas.')
+    expect(host.querySelector('.msg-b')?.innerHTML).toContain('Thank you,<br>Alice')
+  })
+
+  it('text that did not come from Gmail is shown exactly as written', async () => {
+    await show({ configured: true }, msg({ gmailId: undefined, body: WRAPPED }), null)
+    expect(host.querySelector('.msg-b')?.innerHTML).toContain('this week; I<br>am having an issue')
   })
 })

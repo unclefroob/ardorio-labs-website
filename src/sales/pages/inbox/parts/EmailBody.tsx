@@ -3,11 +3,13 @@ import { messageHtmlApi } from '../../../api/mailboxes'
 import { F } from '../../../data/F'
 import type { Message } from '../../../data/types'
 import { emailDoc, foldQuotes } from '../../../mail/emailHtml'
+import { reflowText } from '../../../mail/reflow'
 import { useMailState } from '../../../mail/client'
 import { Btn } from '../../../kit'
 
-// What was fetched this session, by message id. null = Gmail has no HTML for it (show the text).
-const cache = new Map<string, string | null>()
+// What was fetched this session, by message id. html null = Gmail has no HTML for it (show the text).
+interface Fetched { html: string | null; images: Record<string, string> }
+const cache = new Map<string, Fetched>()
 export const clearEmailBodies = (): void => cache.clear()
 
 const SANDBOX = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox' // no allow-scripts: the frame can never run script
@@ -20,19 +22,19 @@ const SANDBOX = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox' 
 export function EmailBody({ m }: { m: Message }) {
   const live = useMailState().s === 'live'
   const eligible = live && !!m.gmailId && m.status !== 'draft'
-  const [html, setHtml] = useState<string | null | undefined>(() => (cache.has(m.id) ? cache.get(m.id) : undefined))
+  const [got, setGot] = useState<Fetched | null | undefined>(() => cache.get(m.id))
   const [images, setImages] = useState(false)
 
   useEffect(() => {
     if (!eligible || cache.has(m.id)) return // (a cached body was already read into state when this component was made)
     const ctl = new AbortController()
     messageHtmlApi(m.id, ctl.signal)
-      .then(r => { cache.set(m.id, r.html); setHtml(r.html) })
-      .catch(() => { if (!ctl.signal.aborted) setHtml(null) }) // not cached: the next open tries again
+      .then(r => { const f = { html: r.html, images: r.images ?? {} }; cache.set(m.id, f); setGot(f) })
+      .catch(() => { if (!ctl.signal.aborted) setGot(null) }) // not cached: the next open tries again
     return () => ctl.abort()
   }, [eligible, m.id])
 
-  const doc = useMemo(() => (html ? emailDoc(html, images) : null), [html, images])
+  const doc = useMemo(() => (got?.html ? emailDoc(got.html, images, got.images) : null), [got, images])
   const frame = useRef<HTMLIFrameElement>(null)
   const sized = useRef<ResizeObserver | null>(null)
 
@@ -53,7 +55,8 @@ export function EmailBody({ m }: { m: Message }) {
     d.addEventListener('load', fit, true) // images arriving after the first paint
   }
 
-  if (!doc) return <div className="sm msg-b" dangerouslySetInnerHTML={{ __html: F.body(m.body) }} />
+  // No HTML to show: the stored text. Mail from Gmail arrives hard-wrapped at about 78 characters, so its lines are joined back into paragraphs.
+  if (!doc) return <div className="sm msg-b" dangerouslySetInnerHTML={{ __html: F.body(m.gmailId ? reflowText(m.body) : m.body) }} />
   return (
     <div className="email-body">
       {doc.blockedImages > 0 && !images && (

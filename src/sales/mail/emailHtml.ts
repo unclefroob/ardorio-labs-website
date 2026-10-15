@@ -47,7 +47,12 @@ const cleanCss = (css: string, images: boolean): string => {
   return c
 }
 
-export function emailDoc(raw: string, images: boolean): EmailDoc {
+/**
+ * `inline` holds the pictures the mail carries inside itself, by Content-ID, as data: addresses from the server. They are part of the mail and
+ * make no request, so they show even while remote images are hidden.
+ */
+export function emailDoc(raw: string, images: boolean, inline: Readonly<Record<string, string>> = {}): EmailDoc {
+  const byCid = new Map(Object.entries(inline).map(([k, v]) => [k.toLowerCase(), v] as const))
   const purify = DOMPurify(window)
   let blocked = 0
   purify.addHook('afterSanitizeAttributes', node => {
@@ -62,6 +67,12 @@ export function emailDoc(raw: string, images: boolean): EmailDoc {
     }
     if (tag === 'img') {
       let src = (el.getAttribute('src') ?? '').trim()
+      if (/^cid:/i.test(src)) {
+        let cid = src.slice(4).replace(/^<|>$/g, '')
+        try { cid = decodeURIComponent(cid) } catch { /* keep as written */ }
+        const data = byCid.get(cid.toLowerCase())
+        if (data && INLINE_IMAGE.test(data)) { el.setAttribute('src', data); return }
+      }
       if (INLINE_IMAGE.test(src)) return // embedded in the mail itself: no request
       if (src.startsWith('//')) src = 'https:' + src
       if (/^https:\/\//i.test(src)) {

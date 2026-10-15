@@ -21,5 +21,5 @@ export const setSendingApi = (id: string, enabled: boolean) =>
 export interface SendMailBody { mailboxId: string; to: string; cc?: string; subject: string; body: string; threadId?: string; businessId?: string; contactId?: string; dealId?: string | null }
 export const sendMailApi = (body: SendMailBody) => salesFetch<{ threadId: string; messageId: string; gmailId: string; recorded: boolean }>('/mail/send', { method: 'POST', body })
 
-/** The original HTML of a synced message (null when there is none or it cannot be had). Untrusted: sanitise it before showing it. */
-export const messageHtmlApi = (id: string, signal?: AbortSignal) => salesFetch<{ html: string | null }>(`/mail/messages/${encodeURIComponent(id)}/html`, { signal })
+/** The original HTML of a synced message (null when there is none or it cannot be had), and the pictures it carries inside itself by Content-ID. Untrusted: sanitise it before showing it. */
+export const messageHtmlApi = (id: string, signal?: AbortSignal) => salesFetch<{ html: string | null; images?: Record<string, string> }>(`/mail/messages/${encodeURIComponent(id)}/html`, { signal })

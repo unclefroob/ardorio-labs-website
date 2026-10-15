@@ -94,6 +94,36 @@ describe('email HTML is made safe before it is shown', () => {
   })
 })
 
+describe('pictures the mail carries inside itself (cid:)', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo='
+  const srcs = (raw: string, images: boolean, inline: Record<string, string>): Array<string | null> =>
+    [...body(emailDoc(raw, images, inline).srcdoc).querySelectorAll('img')].map(i => i.getAttribute('src'))
+
+  it('shows them from the server\'s data, even while remote images are hidden, and does not count them as blocked', () => {
+    const e = emailDoc('<img src="cid:logo123"><img src="https://track.test/p.gif">', false, { logo123: PNG })
+    expect(body(e.srcdoc).querySelectorAll('img')[0].getAttribute('src')).toBe(PNG)
+    expect(body(e.srcdoc).querySelectorAll('img')[1].getAttribute('src')).toBeNull()
+    expect(e.blockedImages).toBe(1) // only the remote one can be asked for
+  })
+
+  it('matches the id however it is written: case, angle brackets, percent-encoding', () => {
+    expect(srcs('<img src="cid:Logo%40X.test">', false, { 'logo@x.test': PNG })).toEqual([PNG])
+    expect(srcs('<img src="CID:<abc>">', false, { ABC: PNG })).toEqual([PNG])
+  })
+
+  it('removes a cid the server did not supply, without offering Show images', () => {
+    const e = emailDoc('<img src="cid:missing">', false, {})
+    expect(srcs('<img src="cid:missing">', true, {})).toEqual([null])
+    expect(e.blockedImages).toBe(0)
+  })
+
+  it('accepts only plain raster data from the server: never svg or anything else, whatever the data says', () => {
+    expect(srcs('<img src="cid:a"><img src="cid:b"><img src="cid:c">', false, {
+      a: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=', b: 'javascript:alert(1)', c: 'https://track.test/p.gif',
+    })).toEqual([null, null, null])
+  })
+})
+
 describe('folding the quoted history of a reply', () => {
   const frame = (raw: string): Document => { const d = doc(raw); foldQuotes(d); return d }
 
