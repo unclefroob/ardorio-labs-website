@@ -8,3 +8,7 @@ export const mailStatusApi = (signal?: AbortSignal) => salesFetch<MailStatus>('/
 export const connectMailboxApi = (id: string) => salesFetch<{ url: string }>(`/mailboxes/${encodeURIComponent(id)}/connect`, { method: 'POST' })
 export const disconnectMailboxApi = (id: string) => salesFetch<{ ok: true }>(`/mailboxes/${encodeURIComponent(id)}/disconnect`, { method: 'POST' })
 export const syncMailboxApi = (id: string) => salesFetch<{ ran: boolean; reason: string | null; stored: number; fetched: number }>(`/mailboxes/${encodeURIComponent(id)}/sync`, { method: 'POST' })
+
+/** Add a mailbox record. The server decides the owner (the caller, for a personal mailbox); the request never names one. */
+export interface NewMailboxBody { address: string; type: 'personal' | 'shared'; businessIds: string[]; name?: string }
+export const createMailboxApi = (body: NewMailboxBody) => salesFetch<{ id: string }>('/mailboxes', { method: 'POST', body })

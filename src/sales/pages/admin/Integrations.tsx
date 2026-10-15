@@ -13,6 +13,7 @@ import { connectMailboxApi, disconnectMailboxApi, syncMailboxApi } from '../../a
 import { mailReturnMessage, readMailReturn, useMailState } from '../../mail/client'
 import { leaveTo } from '../../mail/navigate'
 import { SalesHttpError } from '../../api/http'
+import { AddMailbox } from './AddMailbox'
 import { pollOnce } from '../../data/sync'
 import { EnrichActivity } from './EnrichActivity'
 import { RosterioLinkCard } from './RosterioLinkCard'
@@ -30,6 +31,8 @@ export function Integrations() {
   const [busy, setBusy] = useState<string | null>(null)
   const mail = useMailState()
   const live = mail.s === 'live'
+  const [adding, setAdding] = useState<'personal' | 'shared' | null>(null)
+  const canAddPersonal = Q.myBiz().some(b => Q.canEdit(b))
   // Google sends the browser back here with the result of consent in the address; say it once and clear it.
   useEffect(() => {
     const r = readMailReturn(window.location.search)
@@ -138,19 +141,21 @@ export function Integrations() {
     <div className="page" style={{ maxWidth: 1200 }}>
       <PageHead title="Integrations" sub="Connections to other services. Anything marked Simulated is a stand-in: it sends and fetches nothing real." />
       <div className="col" style={{ gap: 14 }}>
-        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>} pad={false}>
+        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<span className="row" style={{ gap: 8 }}>{canAddPersonal && adding !== 'personal' && <Btn size="xs" icon="plus" onClick={() => setAdding('personal')}>Add mailbox</Btn>}{live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
+          {adding === 'personal' && <AddMailbox kind="personal" onDone={() => setAdding(null)} />}
           <DataTable
             rows={personal}
             cols={personalCols}
-            empty={<Empty icon="mail" title="No personal mailbox connected" body="Mailboxes are provisioned for your account by an administrator. Once one is added you can connect it here and choose whether sequences may send from it." />}
+            empty={<Empty icon="mail" title="No personal mailbox connected" body="Add the Google address you sign in with, then press Connect Gmail. SalesOS only reads mail to and from people in your CRM." />}
           />
           <div className="faint xs" style={{ padding: 10 }}>{live ? LIVE_NOTE : SIM_NOTE}{mail.s === 'off' && mail.reason ? ` Real Gmail is not available yet: ${mail.reason}.` : ''}</div>
         </Card>
-        <Card title="Shared business inboxes" icon="users" right={live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>} pad={false}>
+        <Card title="Shared business inboxes" icon="users" right={<span className="row" style={{ gap: 8 }}>{adm && adding !== 'shared' && <Btn size="xs" icon="plus" onClick={() => setAdding('shared')}>Add shared inbox</Btn>}{live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
+          {adding === 'shared' && <AddMailbox kind="shared" onDone={() => setAdding(null)} />}
           <DataTable
             rows={shared}
             cols={sharedCols}
-            empty={<Empty icon="inbox" title="No shared inboxes" body="Shared inboxes for your businesses will appear here, with the people who are authorised to use them." />}
+            empty={<Empty icon="inbox" title="No shared inboxes" body="An admin can add a shared inbox such as hello@ for a business, then connect it by signing in as that address." />}
           />
           <div className="faint xs" style={{ padding: 10 }}>{live ? 'A shared inbox is connected by a business admin signing in as that address. Its mail is shared with that business only. ' : `${SIM_NOTE} `}Knowing an address never grants access.</div>
         </Card>
