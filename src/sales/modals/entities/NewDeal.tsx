@@ -115,7 +115,7 @@ function NewDealForm({ b0, companyId, contactIds, title }: { b0: BusinessId; com
         {keyFields.map(fd => (
           <Fld key={fd.key} label={fd.label}><DealFieldInput fd={fd} value={f.fields[fd.key]} onChange={v => setField(fd.key, v)} companyId={f.companyId} /></Fld>
         ))}
-        <Fld label="Description / scope summary" style={{ gridColumn: '1/-1' }}><TA value={f.description} onChange={v => set('description', v)} rows={2} /></Fld>
+        <Fld label="Description / scope summary" style={{ gridColumn: '1/-1' }}><TA value={f.description} onChange={v => set('description', v)} rows={6} /></Fld>
       </div>
     </Modal>
   )
