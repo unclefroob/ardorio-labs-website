@@ -12,6 +12,12 @@ function d(s: string | Date | null | undefined): Date | null
 function d(s: string | Date | null | undefined): Date | null {
   if (!s) return null
   if (s instanceof Date) return s
+  // A time written with its zone (the server writes "2026-10-15T01:20:00.000Z" for synced mail) is an instant: read it in the org
+  // timezone like everything else, instead of taking its digits as local time (which put synced mail 11 hours early).
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const ms = Date.parse(s)
+    if (!Number.isNaN(ms)) s = wallFromMs(ms)
+  }
   const [a, b] = s.split('T')
   const [y, m, day] = a.split('-').map(Number)
   const [h, mi] = (b || '00:00').split(':').map(Number)
@@ -77,6 +83,11 @@ function rel(s: string | null | undefined): string {
   return dd < 0 ? `${-dd}d ago` : `in ${dd}d`
 }
 
+/** A time as a number for sorting, whether it was written as wall time or with a zone. */
+function ms(s: string | null | undefined): number {
+  return s ? d(s).getTime() : 0
+}
+
 function money(n: number | null | undefined, compact?: boolean | number): string {
   if (n == null || Number.isNaN(n)) return '—'
   if (compact) {
@@ -125,6 +136,7 @@ export const F = {
   iso,
   now: nowDate,
   nowIso,
+  ms,
   today: (): string => nowIso().slice(0, 10),
   addDays,
   addHours,
