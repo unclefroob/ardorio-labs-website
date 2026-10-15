@@ -1,4 +1,5 @@
 import { F } from '../F'
+import { regenIds } from '../../shared/seqFlow'
 import { uid } from '../ids'
 import { nudgeEngine } from '../engineNudge'
 import { act, audit, ensureRels } from '../internals'
@@ -51,7 +52,8 @@ export function dupSequence(id: string): Sequence | undefined {
   c.ownerId = S.session.userId
   c.createdAt = now
   c.updatedAt = now
-  for (const x of c.steps) x.id = uid('st')
+  // New ids for every step, paths included, so the copy never shares a step (or a sent-once guard) with the original.
+  c.steps = regenIds(c.steps, () => uid('st'))
   S.sequences.push(c)
   idx.sequences.set(c.id, c)
   commit()
