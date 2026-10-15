@@ -350,6 +350,8 @@ export interface Sequence {
   businessDays: boolean
   exits: string[]
   steps: SeqStep[]
+  /** What happens after a reply, changed for this sequence (shared/replyRules.ts). Unset: the business's defaults. */
+  replyRules?: Partial<Record<string, Record<string, unknown>>>
   createdAt: Iso
   updatedAt: Iso
   /** Archived sequences also carry status 'archived'. Older ones have only the status. Admins only (server-enforced). */

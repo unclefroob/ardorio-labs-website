@@ -43,11 +43,11 @@ async function show(steps: SeqStep[] = FLOW, role: 'sales' | 'viewer' = 'sales')
   setRole(m, role)
   const { Builder } = await import('./Builder')
   const base: Omit<Draft, 'steps'> = { id: 'sq1', name: 'S', businessId: 'ros', ownerId: 'u-me', createdBy: 'u-me', description: '', mailboxId: '', status: 'draft', shared: true, dailyLimit: 40, window: [9, 17] as [number, number], businessDays: true, exits: [], createdAt: '', updatedAt: '' }
+  latest = steps
   function Host() {
     const [st, setSt] = useState<SeqStep[]>(steps)
     const [sel, setSel] = useState<{ i: number; lane?: 'yes' | 'no'; j?: number }>({ i: 0 })
-    latest = st
-    return <Builder dr={{ ...base, steps: st }} upd={p => { if (p.steps) setSt(p.steps) }} sel={sel} setSel={setSel} can={role === 'sales'} />
+    return <Builder dr={{ ...base, steps: st }} upd={p => { if (p.steps) { latest = p.steps; setSt(p.steps) } }} sel={sel} setSel={setSel} can={role === 'sales'} />
   }
   await act(async () => { root.render(<Host />) })
   await settle(2)
