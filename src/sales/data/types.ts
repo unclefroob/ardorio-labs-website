@@ -558,7 +558,7 @@ export interface Notification {
 
 export interface AuditEntry { id: string; actorId: string; action: string; target: string; ts: Iso }
 export interface ImportJob {
-  id: string; name: string; businessId: BusinessId; by: string; ts: Iso
+  id: string; name: string; businessId: BusinessId; businessIds?: BusinessId[]; by: string; ts: Iso
   total: number; created: number; updated: number; skipped: number; status: string
 }
 export interface SavedView { id: string; page: string; name: string; q: Record<string, unknown>; ownerId: string }
