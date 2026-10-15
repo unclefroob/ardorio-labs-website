@@ -4,6 +4,7 @@ import { Act } from '../data/Act'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
 import { Icon, Menu, type MenuItem } from '../kit'
+import { useMailState } from '../mail/client'
 import { navParent } from '../routes'
 import { UI, useUi } from '../ui/store'
 import { NAV, navItemVisible } from './nav'
@@ -20,6 +21,7 @@ function counts(): Record<string, number> {
 }
 
 export function Sidebar() {
+  const live = useMailState().s === 'live'
   useStore()
   const ui = useUi()
   const ws = S.session.ws
@@ -90,7 +92,7 @@ export function Sidebar() {
           </svg>
           <div>
             <div className="b sm">Ardorio SalesOS</div>
-            <div className="faint xs">Simulated email and calendar integrations</div>
+            <div className="faint xs">{live ? 'Gmail connected (read only). Calendar is simulated.' : 'Simulated email and calendar integrations'}</div>
           </div>
         </div>
       </div>

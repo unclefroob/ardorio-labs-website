@@ -218,7 +218,15 @@
 .sos .th:hover{background:var(--hover)}
 .sos .th.on{background:var(--acc-soft)}
 .sos .th.unread .subj{font-weight:700}
-.sos .msg{background:var(--surf);border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.sos .msg{background:var(--surf);border:1px solid var(--line);border-radius:9px;padding:12px 14px;min-width:0}
+/* Real email: long recipient lists and links (calendar invites, tracking URLs) must wrap inside the card, never push the page sideways. */
+.sos .msg-h{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.sos .msg-w{flex:1;min-width:0}
+.sos .msg-top{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.sos .msg-top .sp{flex:1 1 0;min-width:0}
+.sos .msg-dt{white-space:nowrap}
+.sos .msg-to{margin-top:2px;overflow-wrap:anywhere}
+.sos .msg-b{line-height:1.6;overflow-wrap:anywhere;word-break:break-word}
 .sos .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 .sos .cal-d{background:var(--surf);border:1px solid var(--line);border-radius:8px;min-height:140px;padding:6px;display:flex;flex-direction:column;gap:4px}
 .sos .cal-d.today{border-color:var(--acc)}

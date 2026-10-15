@@ -400,6 +400,9 @@ export interface Thread {
   updatedAt: Iso
   /** True when this thread was started by a simulated path (simulated mail). See data/simulated.ts for legacy records. */
   simulated?: boolean
+  /** Set on threads that come from Gmail: the Gmail thread this is, and where it came from. */
+  gmailThreadId?: string
+  source?: string
   [k: string]: unknown
 }
 export interface Message {
@@ -421,6 +424,10 @@ export interface Message {
   sentAt?: string
   /** True when this was never really sent or received (simulated mail). See data/simulated.ts for legacy records. */
   simulated?: boolean
+  /** Set on mail read from or sent through Gmail (written by the server). Such a message is never simulated. */
+  gmailId?: string
+  /** The message's own Message-ID header, used to thread replies. */
+  rfcId?: string
   [k: string]: unknown
 }
 

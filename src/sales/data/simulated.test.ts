@@ -195,3 +195,20 @@ describe('a simulated meeting booked never counts in sequence stats', () => {
     expect(seqStats(n.store.S.sequences[0]).meetings).toBe(1)
   })
 })
+
+describe('mail that came from Gmail', () => {
+  it('is never simulated: an inbound message with a Gmail id and no flag is real', () => {
+    expect(isSimMsg(msg({ dir: 'in', status: 'received', gmailId: 'g1' }))).toBe(false)
+    expect(isSimMsg(msg({ dir: 'out', status: 'sent', gmailId: 'g2' }))).toBe(false)
+  })
+
+  it('without a Gmail id the legacy guess still applies', () => {
+    expect(isSimMsg(msg({ dir: 'in', status: 'received' }))).toBe(true)
+  })
+
+  it('a thread of Gmail mail is not simulated, and a reply to it is not a simulated reply', () => {
+    const ms = [msg({ id: 'a', dir: 'in', status: 'received', gmailId: 'g1' }), msg({ id: 'b', dir: 'out', status: 'sent', gmailId: 'g2' })]
+    expect(simThread(thread(), ms)).toBeNull()
+    expect(simReplied(thread(), ms)).toBe(false)
+  })
+})
