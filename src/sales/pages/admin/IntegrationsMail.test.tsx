@@ -17,11 +17,12 @@ const connectMailboxApi = vi.fn()
 const disconnectMailboxApi = vi.fn()
 const syncMailboxApi = vi.fn()
 const createMailboxApi = vi.fn()
+const setMailboxBusinessesApi = vi.fn()
 const setSendingApi = vi.fn()
 vi.mock('../../api/mailboxes', () => ({
   mailStatusApi: (...a: unknown[]) => mailStatusApi(...a), connectMailboxApi: (...a: unknown[]) => connectMailboxApi(...a),
   disconnectMailboxApi: (...a: unknown[]) => disconnectMailboxApi(...a), syncMailboxApi: (...a: unknown[]) => syncMailboxApi(...a),
-  createMailboxApi: (...a: unknown[]) => createMailboxApi(...a), setSendingApi: (...a: unknown[]) => setSendingApi(...a),
+  createMailboxApi: (...a: unknown[]) => createMailboxApi(...a), setMailboxBusinessesApi: (...a: unknown[]) => setMailboxBusinessesApi(...a), setSendingApi: (...a: unknown[]) => setSendingApi(...a),
 }))
 const leaveTo = vi.fn()
 vi.mock('../../mail/navigate', () => ({ leaveTo: (u: string) => leaveTo(u) }))
@@ -30,7 +31,7 @@ let host: HTMLDivElement
 let root: Root
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  for (const f of [mailStatusApi, connectMailboxApi, disconnectMailboxApi, syncMailboxApi, createMailboxApi, setSendingApi, leaveTo]) f.mockReset()
+  for (const f of [mailStatusApi, connectMailboxApi, disconnectMailboxApi, syncMailboxApi, createMailboxApi, setSendingApi, setMailboxBusinessesApi, leaveTo]) f.mockReset()
   window.history.replaceState(null, '', '/')
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -264,5 +265,31 @@ describe('switching sending on', () => {
     expect(readMailReturn('?mailbox=connected&id=mb1&sending=1')).toEqual({ ok: true, reason: undefined, sending: true })
     expect(mailReturnMessage({ ok: true, sending: true })).toContain('Sending is on')
     expect(mailReturnMessage({ ok: false, reason: 'missing-send-scope' })).toContain('sending stays off')
+  })
+})
+
+describe('changing a connected mailbox\'s businesses', () => {
+  it('the owner can open Edit and save a new set of businesses, sent to the server', async () => {
+    setMailboxBusinessesApi.mockResolvedValue({ businessIds: ['ros'] })
+    await show({ configured: true }, [box('mb1')], 'admin')
+    await click(host.querySelector<HTMLButtonElement>('button[aria-label="Change businesses for mb1@example.com"]'))
+    expect(host.textContent).toContain('Businesses for mb1@example.com')
+    await click(button(host, 'Save'))
+    expect(setMailboxBusinessesApi).toHaveBeenCalledWith('mb1', ['ros'])
+  })
+
+  it('refuses an empty choice before calling the server', async () => {
+    await show({ configured: true }, [box('mb1')])
+    await click(host.querySelector<HTMLButtonElement>('button[aria-label="Change businesses for mb1@example.com"]'))
+    const ck = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+    await click(ck)
+    await click(button(host, 'Save'))
+    expect(setMailboxBusinessesApi).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('Choose at least one business')
+  })
+
+  it('nobody but the owner sees Edit on a personal mailbox', async () => {
+    await show({ configured: true }, [box('theirs', { ownerId: 'u-other' })], 'admin')
+    expect(host.querySelector('button[aria-label="Change businesses for theirs@example.com"]')).toBeNull()
   })
 })
