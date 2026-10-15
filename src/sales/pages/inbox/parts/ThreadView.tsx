@@ -152,19 +152,23 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
             const who = m.dir === 'in' ? (ct?.name ?? m.from) : (Q.senderOf(Q.mailbox(m.mailboxId ?? t.mailboxId))?.name ?? m.from)
             return (
               <div key={m.id} className="msg" style={border}>
-                <div className="row xs" style={{ marginBottom: 8 }}>
+                <div className="msg-h xs">
                   <Av name={who} s={22} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="b sm">{m.dir === 'in' ? (ct?.name ?? m.from) : m.from}</div>
-                    <div className="faint">to {m.to}{m.cc ? ' · cc ' + m.cc : ''}</div>
+                  <div className="msg-w">
+                    {/* The name and date sit on one line that wraps as a whole, so a long recipient list never squeezes them. */}
+                    <div className="msg-top">
+                      <span className="b sm">{m.dir === 'in' ? (ct?.name ?? m.from) : m.from}</span>
+                      <span className="sp" />
+                      {m.status === 'draft' && <Chip>Draft</Chip>}
+                      {m.status === 'bounced' && <Chip tone="bad">Bounced</Chip>}
+                      {m.dir === 'out' && m.status === 'sent' && m.manual && <Chip tone="ok" icon="check">Sent by hand</Chip>}
+                      {isSimMsg(m) && <SimChip>{m.dir === 'in' ? 'Received (simulated)' : 'Sent (simulated)'}</SimChip>}
+                      <span className="faint msg-dt">{F.dt(m.ts)}</span>
+                    </div>
+                    <div className="faint msg-to">to {m.to}{m.cc ? ' · cc ' + m.cc : ''}</div>
                   </div>
-                  <span className="faint">{F.dt(m.ts)}</span>
-                  {m.status === 'draft' && <Chip>Draft</Chip>}
-                  {m.status === 'bounced' && <Chip tone="bad">Bounced</Chip>}
-                  {m.dir === 'out' && m.status === 'sent' && m.manual && <Chip tone="ok" icon="check">Sent by hand</Chip>}
-                  {isSimMsg(m) && <SimChip>{m.dir === 'in' ? 'Received (simulated)' : 'Sent (simulated)'}</SimChip>}
                 </div>
-                <div className="sm" style={{ lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: F.body(m.body) }} />
+                <div className="sm msg-b" dangerouslySetInnerHTML={{ __html: F.body(m.body) }} />
                 {m.status === 'draft' && can && <Btn size="sm" style={{ marginTop: 10 }} onClick={() => UI.open('compose', { threadId: t.id, subject: m.subject, body: m.body, draftId: m.id, contactId: t.contactId })}>Edit draft</Btn>}
               </div>
             )

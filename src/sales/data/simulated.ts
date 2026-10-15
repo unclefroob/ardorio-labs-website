@@ -17,14 +17,14 @@ import { isVoided } from './voided'
  *
  * Records written before the flag existed are identified like this:
  * - an outbound message with status 'sent' and no `manual` flag can only have come from `sendEmail`;
- * - every inbound message so far came from `simulateReply` (nothing syncs real mail);
+ * - every inbound message without a `gmailId` came from `simulateReply`;
  * - an `email_out` activity whose description ends in "(simulated)" came from `sendEmail`;
  * - every `email_in` activity so far came from `simulateReply`;
  * - an `email_open` / `link_click` activity whose subject says "simulated" came from `simEvent`.
  * A legacy demo "meeting booked via scheduling link" cannot be told apart from a real one, so it still counts.
  *
- * When real mail sync lands it must write `simulated: false` on what it records, so the legacy rules
- * above stop applying to real mail.
+ * Mail synced from Gmail (or sent through it) carries `gmailId` and is never simulated; the server also writes `simulated: false`
+ * on it, so the legacy rules above never apply to real mail.
  */
 
 const UNSENT = new Set(['draft', 'pending', 'discarded', 'scheduled'])
@@ -32,6 +32,8 @@ const UNSENT = new Set(['draft', 'pending', 'discarded', 'scheduled'])
 /** Was this message never really sent or received? Drafts and queued messages are never "simulated sends". */
 export function isSimMsg(m: Message): boolean {
   if (UNSENT.has(m.status)) return false
+  // Mail read from or sent through Gmail carries its Gmail id: never simulated, whatever the legacy rules below would guess.
+  if (m.gmailId) return false
   if (m.simulated === true) return true
   if (m.simulated === false || m.manual) return false
   if (m.dir === 'in') return true

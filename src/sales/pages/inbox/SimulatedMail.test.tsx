@@ -38,13 +38,15 @@ async function render(sel?: string) {
   const m = await loadSales()
   m.bootstrap.hydrate(salesWorld({
     businesses: [ROS],
-    threads: [thread('th1', 'Legacy simulated'), thread('th2', 'Sent by hand'), thread('th3', 'Mixed')],
+    threads: [thread('th1', 'Legacy simulated'), thread('th2', 'Sent by hand'), thread('th3', 'Mixed'), thread('th4', 'Real Gmail')],
     messages: [
       // A reply written before the flag existed: every inbound message so far came from Simulate reply.
       msg('ms1', 'th1', { dir: 'in', status: 'received', from: 'sam@example.com', to: 'me@example.com' }),
       msg('ms2', 'th2', { dir: 'out', status: 'sent', manual: true }),
       msg('ms3', 'th3', { dir: 'out', status: 'sent', manual: true }),
       msg('ms4', 'th3', { dir: 'in', status: 'received', simulated: true, from: 'sam@example.com', to: 'me@example.com', ts: '2026-10-09T09:30' }),
+      // Mail read from Gmail: no `simulated` flag at all, but it carries its Gmail id, so the legacy "every inbound is simulated" guess must not apply.
+      msg('ms5', 'th4', { dir: 'in', status: 'received', from: 'sam@example.com', to: 'me@example.com', gmailId: '18f3a', body: 'See https://calendar.google.com/calendar/event?action=VIEW&eid=NXVxYWszc2hrcWx1cjJzbWVkMHA1NjdpZzQgcnlhbkBhcmRvcmlvLmNv' }),
     ],
   }))
   const { Inbox } = await import('./Inbox')
@@ -81,5 +83,16 @@ describe('Simulated mail in the Inbox', () => {
     const r = host.querySelector('.ib-r') as HTMLElement
     expect(r.textContent).not.toContain('imulated conversation')
     expect(r.textContent).not.toContain('No real email is sent or received yet')
+  })
+
+  it('real Gmail mail is never marked simulated, in the list or in the reader, and its header and links are built to wrap', async () => {
+    await render('th4')
+    expect(chip(row('Real Gmail'), 'Simulated')).toBeUndefined()
+    expect(host.textContent).not.toContain('Received (simulated)')
+    expect(host.textContent).not.toContain('No real email is sent or received yet. Simulated messages')
+    const card = host.querySelector('.ib-r .msg') as HTMLElement
+    expect(card.querySelector('.msg-h .msg-w .msg-top')).not.toBeNull()
+    expect(card.querySelector('.msg-to')?.textContent).toContain('to me@example.com')
+    expect(card.querySelector('.msg-b')?.textContent).toContain('calendar.google.com')
   })
 })
