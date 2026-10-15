@@ -14,6 +14,7 @@ import { mailReturnMessage, readMailReturn, useMailState } from '../../mail/clie
 import { leaveTo } from '../../mail/navigate'
 import { SalesHttpError } from '../../api/http'
 import { AddMailbox } from './AddMailbox'
+import { EditMailboxBusinesses } from './EditMailboxBusinesses'
 import { pollOnce } from '../../data/sync'
 import { EnrichActivity } from './EnrichActivity'
 import { RosterioLinkCard } from './RosterioLinkCard'
@@ -32,6 +33,7 @@ export function Integrations() {
   const mail = useMailState()
   const live = mail.s === 'live'
   const [adding, setAdding] = useState<'personal' | 'shared' | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
   const canAddPersonal = Q.myBiz().some(b => Q.canEdit(b))
   // Google sends the browser back here with the result of consent in the address; say it once and clear it.
   useEffect(() => {
@@ -89,7 +91,7 @@ export function Integrations() {
   const personalCols: Col<Mailbox>[] = [
     { k: 'address', l: 'Account', r: m => <div><b>{m.address}</b><div className="faint xs">{Q.user(m.ownerId)?.name}</div></div> },
     { k: 's', l: 'Status', sort: m => m.status, r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status === 'connected' ? 'Connected' : 'Disconnected, reauthorisation required'}</Chip> },
-    { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3 }}>{m.businessIds.map(b => <BizChip key={b} b={b} />)}</span> },
+    { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3, flexWrap: 'wrap' }}>{m.businessIds.map(b => <BizChip key={b} b={b} />)}{m.ownerId === me.id && <Btn size="xs" kind="ghost" onClick={() => setEditing(m.id)} aria-label={'Change businesses for ' + m.address}>Edit</Btn>}</span> },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
     { k: 'send', l: 'Sending', nosort: true, r: m => live ? (m.ownerId === me.id ? <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
     {
@@ -118,7 +120,7 @@ export function Integrations() {
   ]
   const sharedCols: Col<Mailbox>[] = [
     { k: 'address', l: 'Mailbox', r: m => <b>{m.address}</b> },
-    { k: 'b', l: 'Business', nosort: true, r: m => (m.businessIds[0] ? <BizChip b={m.businessIds[0]} /> : '—') },
+    { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3 }}>{m.businessIds[0] ? <BizChip b={m.businessIds[0]} /> : '—'}{m.businessIds.some(b => Q.canAdmin(b)) && <Btn size="xs" kind="ghost" onClick={() => setEditing(m.id)} aria-label={'Change business for ' + m.address}>Edit</Btn>}</span> },
     { k: 's', l: 'Status', r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status}</Chip> },
     { k: 'au', l: 'Authorised users', nosort: true, r: m => (m.authorised.length ? <span className="row" style={{ gap: 2 }}>{m.authorised.map(u => <Av key={u} u={Q.user(u)} s={20} />)}</span> : <span className="faint xs">Nobody yet</span>) },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
@@ -161,6 +163,7 @@ export function Integrations() {
       <div className="col" style={{ gap: 14 }}>
         <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<span className="row" style={{ gap: 8 }}>{canAddPersonal && adding !== 'personal' && <Btn size="xs" icon="plus" onClick={() => setAdding('personal')}>Add mailbox</Btn>}{live ? <Chip tone="ok">Gmail</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
           {adding === 'personal' && <AddMailbox kind="personal" onDone={() => setAdding(null)} />}
+          {personal.filter(m => m.id === editing).map(m => <EditMailboxBusinesses key={m.id} m={m} onDone={() => setEditing(null)} />)}
           <DataTable
             rows={personal}
             cols={personalCols}
@@ -170,6 +173,7 @@ export function Integrations() {
         </Card>
         <Card title="Shared business inboxes" icon="users" right={<span className="row" style={{ gap: 8 }}>{adm && adding !== 'shared' && <Btn size="xs" icon="plus" onClick={() => setAdding('shared')}>Add shared inbox</Btn>}{live ? <Chip tone="ok">Gmail</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
           {adding === 'shared' && <AddMailbox kind="shared" onDone={() => setAdding(null)} />}
+          {shared.filter(m => m.id === editing).map(m => <EditMailboxBusinesses key={m.id} m={m} onDone={() => setEditing(null)} />)}
           <DataTable
             rows={shared}
             cols={sharedCols}
