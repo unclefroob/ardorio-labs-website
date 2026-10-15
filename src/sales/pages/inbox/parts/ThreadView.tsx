@@ -113,7 +113,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
 
   const menu = [
     { label: t.unread ? 'Mark read' : 'Mark unread', icon: 'mail', disabled: !can, onClick: () => Act.markThread(t.id, { unread: !t.unread }) },
-    { label: t.needsReply ? 'Mark as handled' : 'Mark needs reply', icon: 'reply', disabled: !can, onClick: () => Act.markThread(t.id, { needsReply: !t.needsReply }) },
+    { label: t.needsReply ? "Doesn't need a reply" : 'Needs a reply', icon: 'reply', disabled: !can, onClick: () => Act.markThread(t.id, { needsReply: !t.needsReply }) },
     { label: t.archived ? 'Unarchive' : 'Archive', icon: 'archive', disabled: !can, onClick: () => Act.markThread(t.id, { archived: !t.archived }) },
     t.visibility === 'private' && t.ownerId === me.id && { label: 'Share with team…', icon: 'users', onClick: share },
     Q.anyAdmin() && sims && { label: 'Simulate reply on this thread', icon: 'zap', onClick: () => UI.open('simReply', { contactId: t.contactId, threadId: t.id }) },
@@ -128,6 +128,9 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
       <div className="row wrap" style={{ marginBottom: 12 }}>
         <Btn kind="ghost" size="sm" icon="left" className="hamb" aria-label="Back to conversations" onClick={onClose} />
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, flex: 1, minWidth: 200 }}>{t.subject}</h2>
+        {t.needsReply && can && (
+          <Btn size="sm" icon="check" onClick={() => { Act.markThread(t.id, { needsReply: false }); UI.toast('Marked as not needing a reply. A new message from them asks again.') }}>Doesn't need a reply</Btn>
+        )}
         <Menu align="right" trigger={<Btn size="sm" icon="more" aria-label="Conversation actions" />} items={menu} />
       </div>
       <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}>
