@@ -61,7 +61,7 @@ export function Inbox({ route }: { route: Route }) {
   const rows = all
     .filter(match)
     .filter(t => (!mb || t.mailboxId === mb) && (!needle || `${t.subject} ${Q.contact(t.contactId)?.name ?? ''} ${Q.company(t.companyId)?.name ?? ''}`.toLowerCase().includes(needle)))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .sort((a, b) => F.ms(b.updatedAt) - F.ms(a.updatedAt))
 
   const counts: Partial<Record<Fold, number>> = {
     unread: all.filter(x => x.unread && !x.archived).length,
@@ -142,7 +142,7 @@ export function Inbox({ route }: { route: Route }) {
         </div>
         {rows.length ? rows.map(x => {
           const ms = msgsOf(x)
-          const last = ms.filter(m => m.status !== 'discarded').sort((a, b) => a.ts.localeCompare(b.ts)).pop()
+          const last = ms.filter(m => m.status !== 'discarded').sort((a, b) => F.ms(a.ts) - F.ms(b.ts)).pop()
           const sim = simThread(x, ms)
           const c = Q.contact(x.contactId)
           const prefix = last ? (last.status === 'draft' ? 'Draft — ' : last.dir === 'out' ? 'You: ' : '') : ''

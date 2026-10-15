@@ -246,7 +246,7 @@ export const Q = {
     const u = Q.me()
     return t.ownerId === u.id || (t.sharedWith || []).includes(u.id)
   },
-  msgs: (tid: string): Message[] => S.messages.filter(m => m.threadId === tid).sort((a, b) => a.ts.localeCompare(b.ts)),
+  msgs: (tid: string): Message[] => S.messages.filter(m => m.threadId === tid).sort((a, b) => F.ms(a.ts) - F.ms(b.ts)),
   myMailboxes(b?: string): Mailbox[] {
     const u = Q.me()
     return S.mailboxes.filter(m => (!b || m.businessIds.includes(b as BusinessId)) && (m.type === 'personal' ? m.ownerId === u.id : m.authorised.includes(u.id) || u.super))
