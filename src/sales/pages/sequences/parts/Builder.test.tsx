@@ -2,8 +2,8 @@ import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SeqStep } from '../../../data/types'
+import type { Draft } from './conds'
 import { button, click, settle } from '../../../testing/dom'
-import { rec } from '../../../testing/fixtures'
 import { loadSales } from '../../../testing/load'
 import { rosterioWorld, setRole } from '../../../testing/rosterioWorld'
 
@@ -42,7 +42,7 @@ async function show(steps: SeqStep[] = FLOW, role: 'sales' | 'viewer' = 'sales')
   m.bootstrap.hydrate(rosterioWorld())
   setRole(m, role)
   const { Builder } = await import('./Builder')
-  const base = { id: 'sq1', name: 'S', businessId: 'ros', ownerId: 'u-me', createdBy: 'u-me', description: '', mailboxId: '', status: 'draft', shared: true, dailyLimit: 40, window: [9, 17] as [number, number], businessDays: true, exits: [], createdAt: '', updatedAt: '' }
+  const base: Omit<Draft, 'steps'> = { id: 'sq1', name: 'S', businessId: 'ros', ownerId: 'u-me', createdBy: 'u-me', description: '', mailboxId: '', status: 'draft', shared: true, dailyLimit: 40, window: [9, 17] as [number, number], businessDays: true, exits: [], createdAt: '', updatedAt: '' }
   function Host() {
     const [st, setSt] = useState<SeqStep[]>(steps)
     const [sel, setSel] = useState<{ i: number; lane?: 'yes' | 'no'; j?: number }>({ i: 0 })
