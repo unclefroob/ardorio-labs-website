@@ -9,12 +9,18 @@ import type { Mailbox } from '../../data/types'
 import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, SimChip, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
 import { fmtResets, phoneLeft, usePhoneStatus } from '../../phone/client'
+import { connectMailboxApi, disconnectMailboxApi, syncMailboxApi } from '../../api/mailboxes'
+import { mailReturnMessage, readMailReturn, useMailState } from '../../mail/client'
+import { leaveTo } from '../../mail/navigate'
+import { SalesHttpError } from '../../api/http'
+import { pollOnce } from '../../data/sync'
 import { EnrichActivity } from './EnrichActivity'
 import { RosterioLinkCard } from './RosterioLinkCard'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
 const BOUNDARIES = ['Email provider', 'Email sync', 'Email sending', 'Lead enrichment', 'Company research', 'AI assistant', 'Sequence scheduler', 'Notifications', 'Authentication', 'Audit logging']
+const LIVE_NOTE = 'Gmail is read only. SalesOS reads mail to and from people who are in your CRM and files it in the Inbox; it does not send. A personal mailbox is private to its owner: nobody else, including admins, can read it in SalesOS.'
 const SIM_NOTE = 'Simulated: no real email is sent yet. Mail from these mailboxes is recorded in SalesOS only and does not count in goals or reports.'
 const LI = ['Saving and opening profile URLs', 'Manual logging of connection requests, messages and responses', 'Manual LinkedIn tasks inside sequences']
 
@@ -22,6 +28,33 @@ export function Integrations() {
   const me = Q.me()
   const adm = Q.anyAdmin()
   const [busy, setBusy] = useState<string | null>(null)
+  const mail = useMailState()
+  const live = mail.s === 'live'
+  // Google sends the browser back here with the result of consent in the address; say it once and clear it.
+  useEffect(() => {
+    const r = readMailReturn(window.location.search)
+    if (!r) return
+    UI.toast(mailReturnMessage(r))
+    window.history.replaceState(null, '', window.location.pathname)
+    if (r.ok) void pollOnce()
+  }, [])
+  const fail = (e: unknown): void => { UI.toast(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Try again.') }
+  const goGoogle = async (id: string): Promise<void> => {
+    setBusy(id)
+    try { leaveTo((await connectMailboxApi(id)).url) } catch (e) { setBusy(null); fail(e) }
+  }
+  const dropGoogle = async (id: string): Promise<void> => {
+    setBusy(id)
+    try { await disconnectMailboxApi(id); await pollOnce(); UI.toast('Mailbox disconnected. Mail already in SalesOS stays.') } catch (e) { fail(e) } finally { setBusy(null) }
+  }
+  const syncNow = async (id: string): Promise<void> => {
+    setBusy(id)
+    try {
+      const r = await syncMailboxApi(id)
+      await pollOnce()
+      UI.toast(!r.ran ? 'A sync is already running for this mailbox.' : r.stored ? `${r.stored} new message${r.stored === 1 ? '' : 's'} filed` : 'Up to date')
+    } catch (e) { fail(e) } finally { setBusy(null) }
+  }
   const connect = (id: string, p: Partial<Mailbox>): void => {
     setBusy(id)
     window.setTimeout(() => {
@@ -38,14 +71,29 @@ export function Integrations() {
     { k: 's', l: 'Status', sort: m => m.status, r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status === 'connected' ? 'Connected' : 'Disconnected, reauthorisation required'}</Chip> },
     { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3 }}>{m.businessIds.map(b => <BizChip key={b} b={b} />)}</span> },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
-    { k: 'send', l: 'Sending', nosort: true, r: m => <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
+    { k: 'send', l: 'Sending', nosort: true, r: m => live ? <span className="faint xs">Read only</span> : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
     {
       k: 'a', l: '', nosort: true,
-      r: m => (m.ownerId === me.id || adm) && (busy === m.id
-        ? <span className="row sm"><Spinner />Connecting…</span>
-        : m.status === 'connected'
-          ? <Btn size="xs" kind="ghost" onClick={() => connect(m.id, { status: 'disconnected' })}>Disconnect</Btn>
-          : <Btn size="xs" kind="pri" onClick={() => connect(m.id, { status: 'connected' })}>Reconnect</Btn>),
+      r: m => {
+        const mine = m.ownerId === me.id
+        if (live) {
+          // Only the owner connects a personal mailbox (the server refuses anyone else); an admin may only disconnect it.
+          if (busy === m.id) return <span className="row sm"><Spinner />Working…</span>
+          return (
+            <span className="row" style={{ gap: 2 }}>
+              {m.status === 'connected' && mine && <Btn size="xs" kind="ghost" onClick={() => void syncNow(m.id)}>Sync now</Btn>}
+              {m.status === 'connected'
+                ? (mine || adm) && <Btn size="xs" kind="ghost" onClick={() => void dropGoogle(m.id)}>Disconnect</Btn>
+                : mine && <Btn size="xs" kind="pri" onClick={() => void goGoogle(m.id)}>Connect Gmail</Btn>}
+            </span>
+          )
+        }
+        return (mine || adm) && (busy === m.id
+          ? <span className="row sm"><Spinner />Connecting…</span>
+          : m.status === 'connected'
+            ? <Btn size="xs" kind="ghost" onClick={() => connect(m.id, { status: 'disconnected' })}>Disconnect</Btn>
+            : <Btn size="xs" kind="pri" onClick={() => connect(m.id, { status: 'connected' })}>Reconnect</Btn>)
+      },
     },
   ]
   const sharedCols: Col<Mailbox>[] = [
@@ -72,7 +120,14 @@ export function Integrations() {
             />
             {busy === m.id
               ? <Spinner />
-              : <Btn size="xs" kind="ghost" onClick={() => connect(m.id, { status: m.status === 'connected' ? 'disconnected' : 'connected' })}>{m.status === 'connected' ? 'Disconnect' : 'Reconnect'}</Btn>}
+              : live
+                ? (
+                  <>
+                    {m.status === 'connected' && <Btn size="xs" kind="ghost" onClick={() => void syncNow(m.id)}>Sync now</Btn>}
+                    <Btn size="xs" kind={m.status === 'connected' ? 'ghost' : 'pri'} onClick={() => void (m.status === 'connected' ? dropGoogle(m.id) : goGoogle(m.id))}>{m.status === 'connected' ? 'Disconnect' : 'Connect Gmail'}</Btn>
+                  </>
+                )
+                : <Btn size="xs" kind="ghost" onClick={() => connect(m.id, { status: m.status === 'connected' ? 'disconnected' : 'connected' })}>{m.status === 'connected' ? 'Disconnect' : 'Reconnect'}</Btn>}
           </span>
         )
       },
@@ -81,23 +136,23 @@ export function Integrations() {
 
   return (
     <div className="page" style={{ maxWidth: 1200 }}>
-      <PageHead title="Integrations" sub="All integrations are mock providers. No real credentials are requested or stored." />
+      <PageHead title="Integrations" sub="Connections to other services. Anything marked Simulated is a stand-in: it sends and fetches nothing real." />
       <div className="col" style={{ gap: 14 }}>
-        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<SimChip>Simulated mailbox</SimChip>} pad={false}>
+        <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>} pad={false}>
           <DataTable
             rows={personal}
             cols={personalCols}
             empty={<Empty icon="mail" title="No personal mailbox connected" body="Mailboxes are provisioned for your account by an administrator. Once one is added you can connect it here and choose whether sequences may send from it." />}
           />
-          <div className="faint xs" style={{ padding: 10 }}>{SIM_NOTE}</div>
+          <div className="faint xs" style={{ padding: 10 }}>{live ? LIVE_NOTE : SIM_NOTE}{mail.s === 'off' && mail.reason ? ` Real Gmail is not available yet: ${mail.reason}.` : ''}</div>
         </Card>
-        <Card title="Shared business inboxes" icon="users" right={<SimChip>Simulated mailbox</SimChip>} pad={false}>
+        <Card title="Shared business inboxes" icon="users" right={live ? <Chip tone="ok">Gmail, read only</Chip> : <SimChip>Simulated mailbox</SimChip>} pad={false}>
           <DataTable
             rows={shared}
             cols={sharedCols}
             empty={<Empty icon="inbox" title="No shared inboxes" body="Shared inboxes for your businesses will appear here, with the people who are authorised to use them." />}
           />
-          <div className="faint xs" style={{ padding: 10 }}>{SIM_NOTE} Production design: delegated or authorised shared-mailbox access. Knowing an address never grants access.</div>
+          <div className="faint xs" style={{ padding: 10 }}>{live ? 'A shared inbox is connected by a business admin signing in as that address. Its mail is shared with that business only. ' : `${SIM_NOTE} `}Knowing an address never grants access.</div>
         </Card>
         <div className="grid g2">
           <EnrichCard />
