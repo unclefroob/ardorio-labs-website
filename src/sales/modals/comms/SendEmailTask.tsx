@@ -1,7 +1,11 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { sendTaskApi } from '../../api/mailboxes'
+import { SalesHttpError } from '../../api/http'
+import { pollOnce } from '../../data/sync'
+import { useMailState } from '../../mail/client'
 import { Act } from '../../data/Act'
 import { Q } from '../../data/Q'
-import { useStore } from '../../data/store'
+import { S, useStore } from '../../data/store'
 import type { Task } from '../../data/types'
 import { Banner, Btn, Chip, Icon, Modal } from '../../kit'
 import { UI } from '../../ui/store'
@@ -47,8 +51,32 @@ function Draft({ t }: { t: Task }) {
   const sup = open && ct ? Q.suppressed(ct, t.businessId) : null
   const sendable = open && !sup
   const co = Q.company(t.companyId ?? ct?.companyId)
+  const mb = Q.mailbox(t.mailboxId)
+  const me = Q.me()
+  const live = useMailState().s === 'live'
+  // Send now when Gmail is live, sending is on for this mailbox, and this person may use it (the server checks all of it again).
+  const mayUse = !!mb && (mb.type === 'personal' ? mb.ownerId === me.id : mb.authorised.includes(me.id) || mb.businessIds.some(b => Q.canAdmin(b)))
+  const canGmail = live && !!mb && mb.status === 'connected' && mb.canSend && mayUse
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
 
   if (!d) return null
+
+  const sendNow = async (): Promise<void> => {
+    if (!UI.guard(t.businessId, 'Sending email')) return
+    setErr('')
+    setBusy(true)
+    try {
+      await sendTaskApi(t.id)
+      await pollOnce()
+      UI.close()
+      UI.toast('Sent from ' + (mb?.address ?? d.from) + '. The sequence moves on to the next step.')
+    } catch (e) {
+      setErr(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const markSent = (): void => {
     if (!UI.guard(t.businessId, 'Marking emails as sent')) return
@@ -103,8 +131,13 @@ function Draft({ t }: { t: Task }) {
           <>
             <Btn kind="ghost" onClick={stop}>Stop emailing this contact</Btn>
             <span style={{ flex: 1 }} />
-            <Btn onClick={skip}>Skip this email</Btn>
-            <Btn kind="pri" icon="check" onClick={markSent} disabled={!sendable}>Mark as sent</Btn>
+            <Btn onClick={skip} disabled={busy}>Skip this email</Btn>
+            {canGmail ? (
+              <>
+                <Btn icon="check" onClick={markSent} disabled={!sendable || busy}>I sent it myself</Btn>
+                <Btn kind="pri" icon="send" onClick={() => void sendNow()} disabled={!sendable || busy}>{busy ? 'Sending…' : 'Send now'}</Btn>
+              </>
+            ) : <Btn kind="pri" icon="check" onClick={markSent} disabled={!sendable}>Mark as sent</Btn>}
           </>
         ) : (
           <Btn onClick={UI.close}>Close</Btn>
@@ -112,11 +145,17 @@ function Draft({ t }: { t: Task }) {
       }
     >
       <div className="col gap12">
-        {open && (
+        {open && (canGmail ? (
           <Banner tone="info" icon="send">
-            SalesOS does not send email. Copy this into your own mail client, send it from <strong>{d.from}</strong>, then come back and mark it as sent.
+            Send now sends this from <strong>{mb?.address}</strong> through Gmail{S.enrolments.find(x => x.id === t.enrolmentId)?.threadId ? ', in the same conversation as the earlier steps' : ''}. If the contact has replied or been suppressed since, nothing is sent.
           </Banner>
-        )}
+        ) : (
+          <Banner tone="info" icon="send">
+            {live && mb && !mb.canSend ? <>Sending is off for <strong>{mb.address}</strong>, so copy </> : <>SalesOS does not send email. Copy </>}
+            this into your own mail client, send it from <strong>{d.from}</strong>, then come back and mark it as sent.
+          </Banner>
+        ))}
+        {err && <Banner tone="bad">{err}</Banner>}
         {sup && (
           <Banner tone="bad">
             {ct?.name} is suppressed ({sup.reason.toLowerCase()}). Do not email them. You can skip this step or stop emailing the contact.
