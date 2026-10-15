@@ -275,7 +275,26 @@
 @media (max-width:600px){.sos .g4,.sos .g5,.sos .g6{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sos .ph h1{font-size:22px}
 .sos .top{padding:0 10px;gap:6px}}
-.sos .builder{grid-template-columns:minmax(260px,360px) minmax(0,1fr)}
+.sos .builder{grid-template-columns:minmax(320px,560px) minmax(0,1fr)}
+/* Sequence flow: steps down the page; a Check splits into Yes and No paths that sit side by side and join back. */
+.sos .flow{display:flex;flex-direction:column}
+.sos .flow-node{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;align-items:start}
+.sos .flow-card,.sos .flow-mini{display:block;width:100%;text-align:left;font:inherit;color:inherit;border:1px solid var(--line);border-radius:9px;background:var(--surf);padding:10px 12px;cursor:pointer}
+.sos .flow-mini{padding:7px 10px;border-radius:8px}
+.sos .flow-card.on,.sos .flow-mini.on{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+.sos .flow-card.chk{border-style:dashed;border-color:var(--acc-line,var(--line2))}
+.sos .step-ic.chk{border-style:dashed;background:var(--acc-soft);color:var(--acc-ink)}
+.sos .flow-link{display:flex;align-items:center;gap:8px;min-height:32px;margin-left:16px;padding-left:16px;border-left:2px solid var(--line2)}
+.sos .flow-add{display:grid;place-items:center;width:24px;height:24px;margin-left:-29px;border-radius:50%;border:1px dashed var(--line2);background:var(--surf);color:var(--fg3);cursor:pointer;padding:0}
+.sos .flow-add:hover:not(:disabled),.sos .flow-add:focus-visible{border-style:solid;border-color:var(--acc);color:var(--acc)}
+.sos .flow-lane .flow-add{margin-left:0}
+.sos .flow-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0 0 46px;padding:10px;border:1px dashed var(--line2);border-radius:12px;background:var(--surf2)}
+.sos .flow-lane{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sos .flow-lh{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700}
+.sos .flow-lh.yes{color:var(--ok)}
+.sos .flow-lh.no{color:var(--bad)}
+.sos .flow-always{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surf);color:var(--ok)}
+.sos .flow-always b{color:var(--fg)}
 .sos .two{grid-template-columns:280px minmax(0,1fr)}
 @media (max-width:1180px){.sos .builder{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){.sos .two{grid-template-columns:minmax(0,1fr)}}

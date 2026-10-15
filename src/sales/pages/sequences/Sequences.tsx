@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { allSteps } from '../../shared/seqFlow'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
@@ -42,7 +43,7 @@ export function Sequences({ route }: { route?: Route }) {
     },
     { k: 'status', l: 'Status', r: s => (seqArchived(s) ? <span className="faint">—</span> : <Chip tone={STATUS_TONE[s.status] ?? ''}>{s.status}</Chip>) },
     { k: 'ownerId', l: 'Owner', r: s => <Owner id={s.ownerId} /> },
-    { k: 'n', l: 'Steps', right: true, r: s => s.steps.length, sort: s => s.steps.length },
+    { k: 'n', l: 'Steps', right: true, r: s => allSteps(s.steps).length, sort: s => allSteps(s.steps).length },
     { k: 'e', l: 'Enrolled', right: true, r: s => s.st.enrolled, sort: s => s.st.enrolled },
     { k: 'a', l: 'Active', right: true, r: s => s.st.active, sort: s => s.st.active },
     { k: 'c', l: 'Completed', right: true, r: s => s.st.completed, sort: s => s.st.completed },

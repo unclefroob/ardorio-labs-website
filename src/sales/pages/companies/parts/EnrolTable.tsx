@@ -1,4 +1,5 @@
 import type { FC } from 'react'
+import { enrolPosLabel } from '../../../shared/seqFlow'
 import { Act } from '../../../data/Act'
 import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
@@ -77,7 +78,7 @@ export const EnrolTable: FC<EnrolTableProps> = ({ rows, showSeq, showContact, on
         </div>
       ),
     },
-    { k: 'step', l: 'Step', r: e => { const n = Q.seq(e.seqId)?.steps.length ?? 0; return Math.min(e.stepIdx + 1, n) + ' / ' + n }, sort: e => e.stepIdx },
+    { k: 'step', l: 'Step', r: e => { const n = Q.seq(e.seqId)?.steps.length ?? 0; return e.lane ? enrolPosLabel(e) : Math.min(e.stepIdx + 1, n) + ' / ' + n }, sort: e => e.stepIdx },
     { k: 'next', l: 'Next due', r: e => (e.nextDue ? F.rel(e.nextDue) : '—'), sort: e => e.nextDue },
     { k: 'own', l: 'Owner', r: e => <Owner id={e.ownerId} /> },
     { k: 'start', l: 'Started', r: e => F.date(e.startedAt) },

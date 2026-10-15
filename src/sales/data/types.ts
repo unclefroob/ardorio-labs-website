@@ -304,7 +304,7 @@ export interface Template {
 
 export interface SeqStep {
   id: string
-  type: 'email' | 'call' | 'linkedin' | 'task' | 'wait' | 'branch'
+  type: 'email' | 'call' | 'linkedin' | 'task' | 'wait' | 'branch' | 'end'
   delay?: number
   unit?: string
   subject?: string
@@ -320,6 +320,17 @@ export interface SeqStep {
   approval?: string
   cond?: string
   onFalse?: string
+  /** Email: true = a follow-up in the conversation the first email started; false = a new email; unset = older steps. */
+  reply?: boolean
+  /** Check ('branch'): the Yes and No paths (one level deep), what happens after each, and the step an "opened" question names. */
+  yes?: SeqStep[]
+  no?: SeqStep[]
+  afterYes?: 'join' | 'end'
+  afterNo?: 'join' | 'end'
+  condStepId?: string
+  /** End: the lead status to set, and a review task this many days later. */
+  leadStatus?: string
+  reviewDays?: number
   [k: string]: unknown
 }
 export interface Sequence {
@@ -356,6 +367,10 @@ export interface Enrolment {
   mailboxId: string
   status: string
   stepIdx: number
+  /** On a Check's path: which one, and where on it (the engine sets these). */
+  lane?: 'yes' | 'no'
+  laneIdx?: number
+  pathTaken?: 'yes' | 'no'
   nextDue: Iso | null
   startedAt: Iso
   threadId: string | null

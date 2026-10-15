@@ -28,7 +28,8 @@ export const STEP: Record<string, readonly [icon: string, label: string]> = {
   linkedin: ['li', 'LinkedIn task'],
   task: ['checksq', 'General task'],
   wait: ['hourglass', 'Wait / delay'],
-  branch: ['branch', 'Conditional branch'],
+  branch: ['branch', 'Check'],
+  end: ['flag', 'End here'],
 }
 
 export const SECTIONS = [['summary', 'Meeting summary'], ['situation', 'Current situation'], ['problems', 'Problems identified'], ['requirements', 'Requirements'], ['budget', 'Budget / commercial discussion'], ['decision', 'Decision-makers'], ['timeline', 'Timeline'], ['objections', 'Objections']] as const

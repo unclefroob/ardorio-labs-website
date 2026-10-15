@@ -1,4 +1,5 @@
 import { seqArchived } from '../../data/archive'
+import { allSteps } from '../../shared/seqFlow'
 import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
@@ -106,7 +107,7 @@ function EnrolFlow({ p }: { p: Props }) {
           <div className="grid g3">
             <Fld label="Sequence">
               <div className="row"><BizDot b={seq.businessId} /><b>{seq.name}</b></div>
-              <div className="faint xs">{seq.steps.length} steps · email steps become tasks to send</div>
+              <div className="faint xs">{allSteps(seq.steps).length} steps · email steps become tasks to send</div>
             </Fld>
             <Fld label="Sender mailbox">
               {mbs.length ? (
