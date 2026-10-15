@@ -7,8 +7,10 @@ import { Q } from '../../../data/Q'
 import { isSimMsg, simThread } from '../../../data/simulated'
 import { S, useStore } from '../../../data/store'
 import type { Thread } from '../../../data/types'
-import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Link, Menu, Owner, RichText, ScoreRing, Sel, Sim, SimChip, TOKENS } from '../../../kit'
+import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Link, Menu, Owner, RichText, ScoreRing, SearchInp, Sel, Sim, SimChip, TOKENS } from '../../../kit'
 import { useMailState } from '../../../mail/client'
+import { EmailBody } from './EmailBody'
+import { dealCandidates } from '../../../shared/dealLink'
 import { UI } from '../../../ui/store'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
@@ -34,6 +36,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
   const sug = cl && !NO_SUGGEST.includes(cl.cat) ? localAi.suggestReply(t) : null
   const mailboxes = Q.myMailboxes(t.businessId)
   const [reply, setReply] = useState<Reply | null>(null)
+  const [linking, setLinking] = useState(false)
   const [aiSug, setAiSug] = useState<AiResult<localAi.Draft> | null>(null)
   const [sugBusy, setSugBusy] = useState(false)
   const [draftBusy, setDraftBusy] = useState(false)
@@ -168,7 +171,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
                     <div className="faint msg-to">to {m.to}{m.cc ? ' · cc ' + m.cc : ''}</div>
                   </div>
                 </div>
-                <div className="sm msg-b" dangerouslySetInnerHTML={{ __html: F.body(m.body) }} />
+                <EmailBody m={m} />
                 {m.status === 'draft' && can && <Btn size="sm" style={{ marginTop: 10 }} onClick={() => UI.open('compose', { threadId: t.id, subject: m.subject, body: m.body, draftId: m.id, contactId: t.contactId })}>Edit draft</Btn>}
               </div>
             )
@@ -272,13 +275,25 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
             <Card title="Deal">
               <DlLink id={d.id} />
               <div className="faint xs">{Q.stage(d)?.name} · {F.money(d.value, 1)}</div>
+              {can && (
+                <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+                  <Btn size="xs" onClick={() => setLinking(l => !l)}>{linking ? 'Cancel' : 'Change deal'}</Btn>
+                  <Btn size="xs" kind="ghost" onClick={() => { Act.linkThreadDeal(t.id, null); UI.toast('Deal unlinked from this conversation') }}>Unlink</Btn>
+                </div>
+              )}
             </Card>
-          ) : co && (
+          ) : (co || can) && (
             <Card title="Deal">
               <div className="faint sm">No deal linked</div>
-              {can && <Btn size="xs" style={{ marginTop: 6 }} onClick={() => UI.open('newDeal', { companyId: co.id, contactIds: ct ? [ct.id] : [], businessId: t.businessId })}>Create deal</Btn>}
+              {can && (
+                <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+                  <Btn size="xs" onClick={() => setLinking(l => !l)}>{linking ? 'Cancel' : 'Link existing deal'}</Btn>
+                  {co && <Btn size="xs" onClick={() => UI.open('newDeal', { companyId: co.id, contactIds: ct ? [ct.id] : [], businessId: t.businessId })}>Create deal</Btn>}
+                </div>
+              )}
             </Card>
           )}
+          {can && linking && <DealLinker t={t} onDone={() => setLinking(false)} />}
           {en && (
             <Card title="Sequence">
               <Link to="sequence" id={en.seqId}>{Q.seq(en.seqId)?.name}</Link>
@@ -289,5 +304,29 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Pick an existing deal to link this conversation to: the same contact's and company's first, then search the rest of the business. */
+function DealLinker({ t, onDone }: { t: Thread; onDone: () => void }) {
+  const [q, setQ] = useState('')
+  const choices = dealCandidates(t, S.deals.filter(d => Q.member(d.businessId)), { query: q, limit: 8, companyName: id => Q.company(id)?.name ?? '' })
+  const pick = (id: string, name: string): void => { Act.linkThreadDeal(t.id, id); UI.toast('Linked to ' + name); onDone() }
+  return (
+    <Card title="Link to a deal">
+      <SearchInp value={q} onChange={setQ} placeholder="Search deals" w={220} />
+      <div className="col" style={{ gap: 4, marginTop: 8 }}>
+        {choices.length === 0 && <div className="faint sm">{q ? 'No deals match.' : 'No other deals in ' + (Q.biz(t.businessId)?.name ?? 'this business') + '.'}</div>}
+        {choices.map(c => (
+          <button key={c.deal.id} type="button" className="ni" style={{ textAlign: 'left', display: 'block', padding: '6px 8px' }} onClick={() => pick(c.deal.id, c.deal.name)}>
+            <div className="b sm">{c.deal.name}</div>
+            <div className="faint xs">
+              {Q.company(c.deal.companyId)?.name ?? ''} · {Q.stage(c.deal)?.name} · {F.money(c.deal.value, 1)}
+              {c.why !== 'other' && <> · <span style={{ color: 'var(--acc-ink)' }}>{c.why === 'contact' ? 'this contact' : 'this company'}</span></>}
+            </div>
+          </button>
+        ))}
+      </div>
+    </Card>
   )
 }

@@ -227,6 +227,9 @@
 .sos .msg-dt{white-space:nowrap}
 .sos .msg-to{margin-top:2px;overflow-wrap:anywhere}
 .sos .msg-b{line-height:1.6;overflow-wrap:anywhere;word-break:break-word}
+/* Email shown as the sender wrote it: a white page in a frame, like Gmail, whatever the theme. */
+.sos .email-frame{display:block;width:100%;min-height:60px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.sos .email-img-note{gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
 .sos .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 .sos .cal-d{background:var(--surf);border:1px solid var(--line);border-radius:8px;min-height:140px;padding:6px;display:flex;flex-direction:column;gap:4px}
 .sos .cal-d.today{border-color:var(--acc)}
