@@ -1,6 +1,6 @@
 import { salesFetch } from './http'
 import type {
-  BusinessId, CheckEmailRequest, CheckEmailResponse, ClassifyRequest, ClassifyResponse, CompanyContactResponse, CopilotRequest, CopilotResponse, DraftRequest, DraftResponse,
+  BusinessId, CheckEmailRequest, CheckEmailResponse, ClassifyRequest, ClassifyResponse, CompanyContactResponse, CompanyProfileResponse, CopilotRequest, CopilotResponse, DraftRequest, DraftResponse,
   EnrichContactRequest, EnrichContactResponse, EnrichLogResponse, EnrichUsageResponse, FindPeopleRequest, FindPeopleResponse, IntelSubject, LeadListRequest, LeadListResponse,
   MeetingPrepRequest, MeetingPrepResponse, MeetingRecapRequest, MeetingRecapResponse, OpenerRequest, OpenerResponse, ReplySuggestRequest, ReplySuggestResponse,
   ResearchRequest, ResearchResponse, SignalsResponse, TechStackResponse,
@@ -37,6 +37,8 @@ export const aiTechStack = (req: IntelSubject, signal?: AbortSignal) =>
   salesFetch<TechStackResponse>('/ai/tech-stack', { method: 'POST', body: req, signal })
 export const aiCompanyContact = (req: IntelSubject, signal?: AbortSignal) =>
   salesFetch<CompanyContactResponse>('/ai/company-contact', { method: 'POST', body: req, signal })
+export const aiCompanyProfile = (req: IntelSubject, signal?: AbortSignal) =>
+  salesFetch<CompanyProfileResponse>('/ai/company-profile', { method: 'POST', body: req, signal })
 export const aiLeadList = (req: LeadListRequest, signal?: AbortSignal) =>
   salesFetch<LeadListResponse>('/ai/lead-list', { method: 'POST', body: req, signal })
 export const aiMeetingPrep = (req: MeetingPrepRequest, signal?: AbortSignal) =>

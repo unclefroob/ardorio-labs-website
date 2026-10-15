@@ -1,17 +1,21 @@
 import { useState } from 'react'
 import { Act } from '../../data/Act'
+import { aiNotConfigured } from '../../ai/client'
+import { cancelBulk, getBulk, startBulk, useResearchVersion } from '../../ai/profileResearch'
+import { fmtReset, getUsage } from '../../ai/enrichCache'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import { isVoided } from '../../data/voided'
-import type { BusinessId, Company, CompanyRel, Task } from '../../data/types'
-import { BizDot, BulkBar, Btn, Chip, DataTable, Empty, FilterBar, Menu, Owner, SearchInp, Seg, Sel, TONE, download, toCSV, type Col } from '../../kit'
+import type { Company, CompanyRel, Task } from '../../data/types'
+import { Banner, BizDot, BulkBar, Btn, Chip, DataTable, Empty, FilterBar, Owner, SearchInp, Seg, Sel, TONE, download, toCSV, type Col } from '../../kit'
 import { ArchivedChip, RestoreRowBtn } from '../../shared/archiveUi'
 import { INDUSTRIES, STATES } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import type { Route } from '../../ui/store'
 import { UI } from '../../ui/store'
 import { qStr } from './query'
+import { ResearchCell } from './ResearchCell'
 import { ColMenu, Views, useColumns } from './tables'
 
 type Row = Company & {
@@ -44,6 +48,7 @@ function buildRows(arch: boolean): Row[] {
 
 export function Companies({ route }: { route: Route }) {
   useStore()
+  useResearchVersion()
   const sc = Q.scope()
   const [q, setQ] = useState(qStr(route.q, 'search'))
   const [ind, setInd] = useState(qStr(route.q, 'industry'))
@@ -51,11 +56,13 @@ export function Companies({ route }: { route: Route }) {
   const [bz, setBz] = useState('')
   const [own, setOwn] = useState('')
   const [minLoc, setMinLoc] = useState(qStr(route.q, 'minLoc'))
+  const [imp, setImp] = useState(qStr(route.q, 'import'))
   const [arch, setArch] = useState(qStr(route.q, 'archived') === '1')
   const [sel, setSel] = useState<string[]>([])
   const [hid, tog] = useColumns('co', ['revenue'])
 
   const all = buildRows(arch)
+  const importTags = [...new Set(all.flatMap(c => c.tags.filter(t => t.startsWith('Import: '))))].sort()
   const needle = q.toLowerCase()
   const rows = all.filter(c =>
     (!q || (c.name + ' ' + c.domain + ' ' + c.industry + ' ' + c.hq).toLowerCase().includes(needle)) &&
@@ -63,14 +70,17 @@ export function Companies({ route }: { route: Route }) {
     (!st || c.state === st) &&
     (!bz || c.rels.some(r => r.businessId === bz)) &&
     (!own || c.myr.some(r => r.ownerId === own)) &&
+    (!imp || c.tags.includes(imp)) &&
     (!minLoc || (c.locations ?? 0) >= +minLoc),
   )
-  const filtered = !!(q || ind || st || bz || own || minLoc)
-  const clear = (): void => { setQ(''); setInd(''); setSt(''); setBz(''); setOwn(''); setMinLoc('') }
+  const filtered = !!(q || ind || st || bz || own || minLoc || imp)
+  const clear = (): void => { setQ(''); setInd(''); setSt(''); setBz(''); setOwn(''); setMinLoc(''); setImp('') }
   const ids = new Set(rows.map(r => r.id))
   const picked = sel.filter(id => ids.has(id))
   const can = Q.anyEdit()
   const bd = Q.defaultBiz()
+  const bulk = getBulk()
+  const capped = sc.map(getUsage).find(u => !!u && u.used >= u.limit)
 
   const defs: RowCol[] = [
     { k: 'name', l: 'Company', fixed: true, r: c => <div><span className="row" style={{ gap: 6 }}><b>{c.name}</b>{arch && <ArchivedChip r={c} />}</span><div className="faint xs">{c.domain}</div></div> },
@@ -86,6 +96,7 @@ export function Companies({ route }: { route: Route }) {
         </span>
       ),
     },
+    { k: 'research', l: 'Research', nosort: true, r: c => <ResearchCell c={c} /> },
     { k: 'owner', l: 'Owner', r: c => <Owner id={c.owner} />, sort: c => Q.user(c.owner)?.name },
     { k: 'deals', l: 'Active deals', right: true },
     { k: 'pipe', l: 'Pipeline', right: true, r: c => <span className="num">{c.pipe ? F.money(c.pipe, true) : '—'}</span> },
@@ -125,6 +136,7 @@ export function Companies({ route }: { route: Route }) {
             options={[...new Set(S.companyRels.filter(r => sc.includes(r.businessId)).map(r => r.ownerId))].map(u => [u, Q.user(u)?.name ?? 'Unknown user'] as const)}
           />
           <Sel className="sm" style={{ width: 130 }} aria-label="Size" value={minLoc} onChange={setMinLoc} placeholder="Any size" options={SIZES} />
+          {importTags.length > 0 && <Sel className="sm" style={{ width: 200 }} aria-label="Import" value={imp} onChange={setImp} placeholder="Any import" options={importTags.map(t => [t, t.replace(/^Import: /, '')] as const)} />}
           {filtered && <Btn size="sm" kind="ghost" onClick={clear}>Clear filters</Btn>}
           <span className="sp" />
           <Views
@@ -137,15 +149,18 @@ export function Companies({ route }: { route: Route }) {
         <BulkBar n={picked.length} clear={() => setSel([])}>
           <Btn size="sm" icon="flag" disabled={!can} onClick={() => UI.ask(t => { if (t.trim()) { Act.bulkCompanies(picked, 'tag', t.trim()); UI.toast('Tagged ' + picked.length + ' companies') } }, 'Tag to add')}>Tag</Btn>
           <Btn size="sm" icon="swap" disabled={!bd || !Q.canManage(bd)} onClick={() => UI.open('reassign', { kind: 'companies', ids: picked, businessId: bd })}>Assign owner</Btn>
-          <Menu
-            trigger={<Btn size="sm" icon="layers" disabled={!can}>Assign business</Btn>}
-            items={Q.myBiz().filter(Q.canEdit).map((b: BusinessId) => ({
-              label: Q.biz(b)?.name ?? b, dot: Q.biz(b)?.accent,
-              onClick: () => { Act.bulkCompanies(picked, 'biz', b); UI.toast('Relationships created for ' + (Q.biz(b)?.name ?? b) + ' (existing master records reused)') },
-            }))}
-          />
+          <Btn size="sm" icon="spark" disabled={!can || aiNotConfigured('xai')} title={aiNotConfigured('xai') ? 'Research is not set up. An admin adds the xAI key under Admin, Integrations.' : undefined} onClick={() => { void startBulk(picked) }}>Research {picked.length}</Btn>
+          <Btn size="sm" icon="layers" disabled={!can} onClick={() => UI.open('changeBusinesses', { companyIds: picked })}>Businesses…</Btn>
           <Btn size="sm" icon="download" onClick={exp}>Export selected</Btn>
         </BulkBar>
+        {bulk && (
+          <div role="status" className="row" style={{ gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--line)', background: 'var(--ai-bg, var(--surf2))' }}>
+            <b>Researching {bulk.total} {bulk.total === 1 ? 'company' : 'companies'}</b><span className="faint sm num">{bulk.done} of {bulk.total} done</span>
+            <div className="prog" style={{ flex: 1 }}><i style={{ width: `${(100 * bulk.done) / bulk.total}%` }} /></div>
+            <span className="faint xs">Uses {bulk.total} of this month's research lookups</span><Btn size="sm" onClick={cancelBulk}>Cancel rest</Btn>
+          </div>
+        )}
+        {capped && <div style={{ padding: '10px 14px' }}><Banner tone="warn"><b>Monthly research limit reached</b> ({capped.used} of {capped.limit}). It resets {fmtReset(capped.resetsOn)}.</Banner></div>}
         <DataTable
           cols={cols}
           rows={rows}

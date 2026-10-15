@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { startResearch } from '../../ai/profileResearch'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
@@ -75,6 +76,7 @@ export function Company({ route }: { route: Route }) {
     ['Email', 'mail', () => (cts.length ? UI.open('compose', { contactId: cts[0].id, businessId: b }) : UI.toast('Add a contact to email first', 'bad'))],
     ['Task', 'checksq', () => UI.open('newTask', { companyId: c.id, businessId: b })],
     ['Research', 'spark', () => setTab('intel')],
+    ['Research profile', 'spark', () => { void startResearch(c.id); UI.open('companyResearch', { companyId: c.id }) }],
     ['Enrich contact', 'zap', enrich],
     ['Find contacts', 'search', () => UI.open('findPeople', { companyId: c.id, businessId: b })],
     ['Add to list', 'list', () => (cts.length ? UI.open('addToList', { contactIds: cts.map(x => x.id) }) : UI.toast('No contacts to add', 'bad'))],

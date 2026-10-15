@@ -1,4 +1,4 @@
-import { archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importRows, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
+import { applyCompanyProfile, applyBusinessChange, undoBusinessChange, archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importLeads, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
 import { addVariation, claimRetainerPeriod, confirmCpi, decideVariation, endTermEarly, markDelivered, retainerClaimProblem, saveMilestones, saveRetainer, setContract, setTermAgreement, setTermAutoDraft, termBaseline, waiveInstalment } from './act/billing'
 import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
@@ -16,7 +16,7 @@ import {
   saveUser, saveView, setBiz, setDemo, setMailbox, setOrg, setSession, setTheme, setUserActive,
 } from './act/admin'
 
-export type { CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
+export type { BizChangeUndo, CompanyForm, ContactForm, ImportOptions, ImportResult, ImportRow, ListInput, NoteKind, SuppressionForm, TemplateInput } from './act/crm'
 export type { DealForm, LostForm, WonForm } from './act/deals'
 export type { RecordWonInput, RecordWonResult, RecordWonSaved } from './act/recordWon'
 export type { MeetingActResult } from './act/meetings'
@@ -47,7 +47,7 @@ export const Act = {
   addSuppression, removeSuppression,
   markTestAccount, unmarkTestAccount,
   recTask, recStatus, refreshRecs, introRequest, crossDismiss, saveResearch, confirmResearchIdentity, saveIntel, reviewClosure, addKnownTech, applyEnrichment, applyPhoneLookup, enrichLog, markVerified,
-  importRows, saveList, listAdd, listRemove, deleteList,
+  applyCompanyProfile, applyBusinessChange, undoBusinessChange, importLeads, saveList, listAdd, listRemove, deleteList,
   saveTemplate, deleteTemplate, saveGoal, deleteGoal,
   saveUser, setUserActive, saveTeam, deleteTeam, savePipeline, removeStage, setMailbox, setOrg, setBiz, setDemo,
   readNotif, readAll, sampleNotif, saveView, deleteView,

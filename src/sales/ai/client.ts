@@ -1,9 +1,9 @@
 import {
-  aiCheckEmail, aiClassify, aiCompanyContact, aiCopilot, aiDraft, aiEnrichContact, aiEnrichLog, aiEnrichUsage, aiFindPeople, aiLeadList, aiMeetingPrep,
+  aiCheckEmail, aiClassify, aiCompanyContact, aiCompanyProfile, aiCopilot, aiDraft, aiEnrichContact, aiEnrichLog, aiEnrichUsage, aiFindPeople, aiLeadList, aiMeetingPrep,
   aiMeetingRecap, aiOpener, aiReplySuggest, aiResearch, aiSignals, aiTechStack,
 } from '../api/ai'
 import type {
-  AiMeta, AiProvider, CompanyContactItem, CompanySignal, EmailCheckStatus, EnrichLogEntry, EnrichSuggestion, EnrichUsage, FoundPerson, IntelKind, IntelSubject,
+  AiMeta, AiProvider, CompanyContactItem, CompanyProfileItem, CompanySignal, EmailCheckStatus, EnrichLogEntry, EnrichSuggestion, EnrichUsage, FoundPerson, IntelKind, IntelSubject,
   LeadCandidate, MeetingPrep, MeetingPrepRequest, Opener, OpenerRequest, ResearchSource, TechItem,
 } from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
@@ -333,6 +333,17 @@ export async function runIntel(kind: IntelKind, subject: IntelSubject, opts: { s
       return webDone(r, arr(r.result?.tools), b)
     }
     const r = await aiCompanyContact(subject, opts.signal)
+    return webDone(r, arr(r.result?.items), b)
+  } catch (e) {
+    return failure(e, b)
+  }
+}
+
+/** Basic facts about a company (description, size, head office...), each with the page that states it. A search-backed call: one monthly lookup. */
+export async function runCompanyProfile(subject: IntelSubject, opts: { signal?: AbortSignal } = {}): Promise<WebOutcome<CompanyProfileItem>> {
+  const b = subject.businessId
+  try {
+    const r = await aiCompanyProfile(subject, opts.signal)
     return webDone(r, arr(r.result?.items), b)
   } catch (e) {
     return failure(e, b)
