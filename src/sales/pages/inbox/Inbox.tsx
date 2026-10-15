@@ -161,6 +161,7 @@ export function Inbox({ route }: { route: Route }) {
                 {x.classification && <Chip tone={CLS_TONE(x.classification.cat)}>{x.classification.cat}</Chip>}
                 {x.seqId && <Chip>Sequence</Chip>}
                 {x.needsReply && <Chip tone="warn">Needs reply</Chip>}
+                {x.relation === 'customer' && <Chip tone="ok">Customer</Chip>}
                 {sim && <SimChip>{sim === 'all' ? 'Simulated' : 'Includes simulated'}</SimChip>}
               </span>
             </RowBtn>

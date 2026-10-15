@@ -260,7 +260,17 @@ export function linkThreadDeal(id: string, dealId: string | null): void {
   const d = dealId ? idx.deals.get(dealId) : undefined
   if (dealId && (!d || d.businessId !== t.businessId)) return
   t.dealId = dealId
+  if (dealId) delete t.relation
   audit(dealId ? 'Email linked to deal' : 'Email unlinked from deal', `${t.subject}${d ? ' → ' + d.name : ''}`)
+  commit()
+}
+
+/** Mark a conversation as being about a customer's account (not a deal), or undo it. Linking to the account clears any deal. */
+export function linkThreadCustomer(id: string, on: boolean): void {
+  const t = idx.threads.get(id)
+  if (!t || (on && !t.companyId)) return
+  if (on) { t.relation = 'customer'; t.dealId = null } else delete t.relation
+  audit(on ? 'Email linked to customer account' : 'Email unlinked from customer account', t.subject)
   commit()
 }
 
