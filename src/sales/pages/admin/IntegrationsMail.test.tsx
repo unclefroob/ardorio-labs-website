@@ -17,10 +17,11 @@ const connectMailboxApi = vi.fn()
 const disconnectMailboxApi = vi.fn()
 const syncMailboxApi = vi.fn()
 const createMailboxApi = vi.fn()
+const setSendingApi = vi.fn()
 vi.mock('../../api/mailboxes', () => ({
   mailStatusApi: (...a: unknown[]) => mailStatusApi(...a), connectMailboxApi: (...a: unknown[]) => connectMailboxApi(...a),
   disconnectMailboxApi: (...a: unknown[]) => disconnectMailboxApi(...a), syncMailboxApi: (...a: unknown[]) => syncMailboxApi(...a),
-  createMailboxApi: (...a: unknown[]) => createMailboxApi(...a),
+  createMailboxApi: (...a: unknown[]) => createMailboxApi(...a), setSendingApi: (...a: unknown[]) => setSendingApi(...a),
 }))
 const leaveTo = vi.fn()
 vi.mock('../../mail/navigate', () => ({ leaveTo: (u: string) => leaveTo(u) }))
@@ -29,7 +30,7 @@ let host: HTMLDivElement
 let root: Root
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  for (const f of [mailStatusApi, connectMailboxApi, disconnectMailboxApi, syncMailboxApi, createMailboxApi, leaveTo]) f.mockReset()
+  for (const f of [mailStatusApi, connectMailboxApi, disconnectMailboxApi, syncMailboxApi, createMailboxApi, setSendingApi, leaveTo]) f.mockReset()
   window.history.replaceState(null, '', '/')
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -72,16 +73,18 @@ describe('Gmail connections on the Integrations page', () => {
   it('falls back to simulated, claiming nothing real, when the status cannot be read', async () => {
     await show(new Error('down'), [box('mb1')])
     expect(mailCard().textContent).toContain('Simulated mailbox')
-    expect(mailCard().textContent).not.toContain('Gmail, read only')
+    expect([...mailCard().querySelectorAll('.chip')].some(c => c.textContent === 'Gmail')).toBe(false)
   })
 
-  it('when live, drops the Simulated label, says it is read only, and shows no sending switch', async () => {
+  it('when live, drops the Simulated label and shows a sending switch that starts off', async () => {
     await show({ configured: true }, [box('mb1')])
-    expect(mailCard().textContent).toContain('Gmail, read only')
     expect(mailCard().textContent).not.toContain('Simulated')
+    expect([...mailCard().querySelectorAll('.chip')].some(c => c.textContent === 'Gmail')).toBe(true)
+    expect(mailCard().textContent).toContain('Sending is off until the mailbox owner switches it on')
     expect(mailCard().textContent).toContain('private to its owner')
-    expect(mailCard().textContent).toContain('Read only')
-    expect(mailCard().querySelector('[role="switch"], input[type="checkbox"]')).toBeNull()
+    const sw = mailCard().querySelector('[role="switch"]') as HTMLButtonElement
+    expect(sw).not.toBeNull()
+    expect(sw.getAttribute('aria-checked')).toBe('false')
   })
 
   it('Connect Gmail asks the server for the consent address and goes there, without marking the mailbox connected itself', async () => {
@@ -211,5 +214,55 @@ describe('adding a mailbox', () => {
     act(() => root.unmount()); root = createRoot(host)
     await show({ configured: true }, [], 'admin')
     expect(button(host, 'Add shared inbox')).toBeDefined()
+  })
+})
+
+describe('switching sending on', () => {
+  const sw = (): HTMLButtonElement => mailCard().querySelector('[role="switch"]') as HTMLButtonElement
+
+  it('turns it on through the server and leaves it to the record to show it', async () => {
+    setSendingApi.mockResolvedValue({ enabled: true })
+    const m = await show({ configured: true }, [box('mb1', { canSend: false })])
+    await click(sw())
+    await settle(3)
+    expect(setSendingApi).toHaveBeenCalledWith('mb1', true)
+    expect(leaveTo).not.toHaveBeenCalled()
+    expect(m.store.S.mailboxes[0].canSend).toBe(false)
+  })
+
+  it('when Google must be asked for send permission, it explains first and goes nowhere until confirmed', async () => {
+    setSendingApi.mockResolvedValue({ enabled: false, url: 'https://accounts.google.com/o/oauth2/auth?send=1' })
+    await show({ configured: true }, [box('mb1', { canSend: false })])
+    await click(sw())
+    await settle(3)
+    expect(setSendingApi).toHaveBeenCalledWith('mb1', true)
+    expect(leaveTo).not.toHaveBeenCalled()
+  })
+
+  it('turning it off goes to the server too', async () => {
+    setSendingApi.mockResolvedValue({ enabled: false })
+    await show({ configured: true }, [box('mb1', { canSend: true })])
+    expect(sw().getAttribute('aria-checked')).toBe('true')
+    await click(sw())
+    await settle(3)
+    expect(setSendingApi).toHaveBeenCalledWith('mb1', false)
+  })
+
+  it('is for the owner: an admin sees On or Off for someone else\'s mailbox, with no switch', async () => {
+    await show({ configured: true }, [box('theirs', { ownerId: 'u-other', canSend: true })], 'admin')
+    expect(mailCard().querySelector('[role="switch"]')).toBeNull()
+    expect(mailCard().textContent).toContain('On')
+  })
+
+  it('cannot be switched while the mailbox is disconnected', async () => {
+    await show({ configured: true }, [box('mb1', { status: 'disconnected' })])
+    expect(sw().disabled).toBe(true)
+  })
+
+  it('reads the sending result from the return address', async () => {
+    const { readMailReturn, mailReturnMessage } = await import('../../mail/client')
+    expect(readMailReturn('?mailbox=connected&id=mb1&sending=1')).toEqual({ ok: true, reason: undefined, sending: true })
+    expect(mailReturnMessage({ ok: true, sending: true })).toContain('Sending is on')
+    expect(mailReturnMessage({ ok: false, reason: 'missing-send-scope' })).toContain('sending stays off')
   })
 })

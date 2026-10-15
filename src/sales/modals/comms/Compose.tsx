@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { draft as aiDraft, suggestReply, type AiTag } from '../../ai/client'
+import { sendMailApi } from '../../api/mailboxes'
+import { SalesHttpError } from '../../api/http'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
+import { pollOnce } from '../../data/sync'
+import { useMailState } from '../../mail/client'
 import type { BusinessId, Thread } from '../../data/types'
 import { AiBadge, AiNotConfigured, Banner, Btn, Chip, Fld, Icon, Inp, Menu, Modal, RichText, Sel, TOKENS } from '../../kit'
 import { BizSel, useF } from '../../shared/forms'
@@ -47,6 +51,11 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
   const [err, setErr] = useState('')
   const [tag, setTag] = useState<AiTag | undefined>(p.ai)
   const mb = Q.mailbox(f.mailboxId)
+  const mailState = useMailState().s
+  const live = mailState === 'live'
+  // With real Gmail connected, Send really sends, but only from a mailbox whose owner switched sending on.
+  const realSend = live && !!mb && mb.canSend && mb.status === 'connected'
+  const sendOff = live && !!mb && !mb.canSend
   const ct = Q.contact(f.contactId)
   const sender = Q.senderOf(mb)
   const tok = Q.tokens(ct, sender, b)
@@ -58,6 +67,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
 
   const send = (asDraft: boolean): void => {
     setErr('')
+    if (!asDraft && live && mb && !mb.canSend) return setErr('Sending is off for ' + mb.address + '. Switch it on in Integrations, or save a draft.')
     if (!asDraft) {
       if (!f.to || !/@/.test(f.to)) return setErr('Add a valid recipient')
       if (!f.subject.trim()) return setErr('Add a subject')
@@ -68,13 +78,35 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
     }
     if (!mb) return setErr('Choose a sender mailbox before saving a draft')
     if (!UI.guard(b, 'Sending email')) return
+    if (!asDraft && realSend) { void sendReal(); return }
     const r = Act.sendEmail({
       businessId: b, mailboxId: f.mailboxId, to: f.to, cc: f.cc, subject: Q.render(f.subject, tok).text, body: Q.render(f.body, tok).text,
-      contactId: f.contactId || undefined, companyId: f.companyId || undefined, dealId: f.dealId || null, threadId: t?.id, draft: asDraft, draftId: p.draftId,
+      contactId: f.contactId || undefined, companyId: f.companyId || undefined, dealId: f.dealId || null, threadId: t?.id, draft: asDraft, draftId: p.draftId, real: live,
     })
     if (!r.ok) return setErr(r.reason === 'suppressed' ? `${r.detail}. Outreach to a suppressed address is blocked.` : 'Choose a sender mailbox before sending')
     UI.close()
     UI.toast(asDraft ? 'Draft saved' : 'Email sent (simulated) from ' + mb.address, undefined, { label: 'View thread', fn: () => UI.nav('inbox', { id: r.thread.id }) })
+  }
+
+  // The server checks everything again (who may send, suppression, guessed addresses, the daily limit, a repeat) and says nothing was sent when it refuses.
+  const sendReal = async (): Promise<void> => {
+    if (!mb) return
+    setBusy(true)
+    try {
+      // Only a conversation that is itself in Gmail, in this mailbox, can be replied into; anything else starts a new one.
+      const inGmail = !!t && !!t.gmailThreadId && t.mailboxId === mb.id
+      const r = await sendMailApi({
+        mailboxId: mb.id, to: f.to, cc: f.cc || undefined, subject: Q.render(f.subject, tok).text, body: Q.render(f.body, tok).text,
+        ...(inGmail ? { threadId: t.id } : { businessId: b }), contactId: f.contactId || undefined, dealId: f.dealId || null,
+      })
+      await pollOnce()
+      UI.close()
+      UI.toast(r.recorded ? 'Email sent from ' + mb.address : 'Email sent from ' + mb.address + '. It will show in the Inbox shortly.', undefined, r.recorded ? { label: 'View thread', fn: () => UI.nav('inbox', { id: r.threadId }) } : undefined)
+    } catch (e) {
+      setErr(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const draftIt = async (): Promise<void> => {
@@ -99,13 +131,15 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
       title={t ? 'Reply' : 'Compose email'}
       icon="mail"
       width={720}
-      sub={<span className="row" style={{ gap: 6 }}><Chip icon="spark" title="Mail is recorded in SalesOS but not delivered over SMTP yet.">Sending is simulated</Chip> No email leaves SalesOS.</span>}
+      sub={live
+        ? <span className="row" style={{ gap: 6 }}>{realSend ? <Chip tone="ok" icon="send">Sends through Gmail</Chip> : <Chip icon="lock">Sending is off</Chip>} {realSend && mb ? `From ${mb.address}.` : 'Switch sending on for a mailbox in Integrations.'}</span>
+        : <span className="row" style={{ gap: 6 }}><Chip icon="spark" title="Mail is recorded in SalesOS but not delivered over SMTP yet.">Sending is simulated</Chip> No email leaves SalesOS.</span>}
       footer={
         <>
           {err && <span className="sm" role="alert" style={{ color: 'var(--bad2)', flex: 1 }}>{err}</span>}
           <Btn onClick={UI.close}>Cancel</Btn>
           <Btn onClick={() => send(true)} disabled={!mb}>Save draft</Btn>
-          <Btn kind="pri" icon="send" onClick={() => send(false)} disabled={!mb}>Send (simulated)</Btn>
+          <Btn kind="pri" icon="send" onClick={() => send(false)} disabled={!mb || busy || sendOff || mailState === 'loading'}>{live ? 'Send' : 'Send (simulated)'}</Btn>
         </>
       }
     >
@@ -114,12 +148,15 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
           <Fld label="Business"><BizSel value={b} onChange={v => { setB(v as BusinessId); set('mailboxId', Q.myMailboxes(v)[0]?.id ?? '') }} /></Fld>
           <Fld label="From">
             {mbs.length ? (
-              <Sel value={f.mailboxId} onChange={v => set('mailboxId', v)} options={mbs.map(m => [m.id, m.address + (m.type === 'shared' ? ' (shared)' : ' (personal)') + (m.status !== 'connected' ? ' — disconnected' : '')] as const)} />
+              <Sel value={f.mailboxId} onChange={v => set('mailboxId', v)} options={mbs.map(m => [m.id, m.address + (m.type === 'shared' ? ' (shared)' : ' (personal)') + (m.status !== 'connected' ? ' — disconnected' : live && !m.canSend ? ' — sending off' : '')] as const)} />
             ) : (
               <Banner tone="warn" action={<Btn size="sm" onClick={() => { UI.close(); UI.nav('integrations') }}>Integrations</Btn>}>No authorised mailbox for {bizName}. Connect one to send.</Banner>
             )}
           </Fld>
         </div>
+        {sendOff && mb && mb.status === 'connected' && (
+          <Banner tone="warn" action={<Btn size="sm" onClick={() => { UI.close(); UI.nav('integrations') }}>Integrations</Btn>}>Sending is off for {mb.address}. You can save a draft, or switch sending on in Integrations.</Banner>
+        )}
         {mb && mb.status !== 'connected' && (
           <Banner tone="bad" action={<Btn size="sm" onClick={() => { UI.close(); UI.nav('integrations') }}>Reconnect</Btn>}>Mailbox {mb.address} is disconnected.</Banner>
         )}

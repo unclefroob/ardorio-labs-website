@@ -124,7 +124,7 @@ export function Inbox({ route }: { route: Route }) {
           </button>
         ))}
         {mbs.length === 0 && <div className="faint xs" style={{ padding: '6px 10px' }}>No mailboxes connected. Connect one in Integrations.</div>}
-        <div className="faint xs" style={{ padding: '12px 10px' }}>{live ? 'CRM-relevant conversations only: mail to and from people in your CRM, read from Gmail. Reply in Gmail; SalesOS does not send yet.' : 'CRM-relevant conversations only. No real email is sent or received yet: mail here is simulated and marked Simulated.'}</div>
+        <div className="faint xs" style={{ padding: '12px 10px' }}>{live ? 'CRM-relevant conversations only: mail to and from people in your CRM, read from Gmail. Sending is switched on per mailbox in Integrations.' : 'CRM-relevant conversations only. No real email is sent or received yet: mail here is simulated and marked Simulated.'}</div>
       </div>
       <div className="ib-m">
         <div style={{ padding: 10, borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surf)', zIndex: 2 }}>
