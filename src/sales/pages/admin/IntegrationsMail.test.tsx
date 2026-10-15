@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { button, click, settle } from '../../testing/dom'
+import { button, click, field, settle, type } from '../../testing/dom'
 import { salesWorld } from '../../testing/fixtures'
 import { loadSales } from '../../testing/load'
 import { setRole } from '../../testing/rosterioWorld'
@@ -16,9 +16,11 @@ const mailStatusApi = vi.fn()
 const connectMailboxApi = vi.fn()
 const disconnectMailboxApi = vi.fn()
 const syncMailboxApi = vi.fn()
+const createMailboxApi = vi.fn()
 vi.mock('../../api/mailboxes', () => ({
   mailStatusApi: (...a: unknown[]) => mailStatusApi(...a), connectMailboxApi: (...a: unknown[]) => connectMailboxApi(...a),
   disconnectMailboxApi: (...a: unknown[]) => disconnectMailboxApi(...a), syncMailboxApi: (...a: unknown[]) => syncMailboxApi(...a),
+  createMailboxApi: (...a: unknown[]) => createMailboxApi(...a),
 }))
 const leaveTo = vi.fn()
 vi.mock('../../mail/navigate', () => ({ leaveTo: (u: string) => leaveTo(u) }))
@@ -27,7 +29,7 @@ let host: HTMLDivElement
 let root: Root
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  for (const f of [mailStatusApi, connectMailboxApi, disconnectMailboxApi, syncMailboxApi, leaveTo]) f.mockReset()
+  for (const f of [mailStatusApi, connectMailboxApi, disconnectMailboxApi, syncMailboxApi, createMailboxApi, leaveTo]) f.mockReset()
   window.history.replaceState(null, '', '/')
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -156,5 +158,58 @@ describe('the consent return messages', () => {
       expect(msg).not.toContain(reason === 'something-new' ? 'something-new' : `${reason}.`)
     }
     expect(mailReturnMessage({ ok: false, reason: 'wrong-account' })).toContain('not this mailbox')
+  })
+})
+
+describe('adding a mailbox', () => {
+  it('offers to add one when there is none, instead of telling people to ask an administrator', async () => {
+    await show({ configured: true }, [])
+    expect(text()).not.toContain('provisioned for your account by an administrator')
+    expect(text()).toContain('press Connect Gmail')
+    expect(button(host, 'Add mailbox')).toBeDefined()
+  })
+
+  it('sends the address and business and never names an owner', async () => {
+    createMailboxApi.mockResolvedValue({ id: 'mb_x' })
+    await show({ configured: true }, [])
+    await click(button(host, 'Add mailbox'))
+    await type(field(host, 'Your Google address'), 'Rep@Example.com')
+    const form = [...host.querySelectorAll('button')].filter(b => b.textContent === 'Add mailbox')
+    await click(form[form.length - 1])
+    await settle(3)
+    expect(createMailboxApi).toHaveBeenCalledTimes(1)
+    const body = createMailboxApi.mock.calls[0][0]
+    expect(body).toEqual({ address: 'Rep@Example.com', type: 'personal', businessIds: ['ros'] })
+    expect('ownerId' in body).toBe(false)
+  })
+
+  it('shows the server\'s reason when it refuses, and keeps the form', async () => {
+    await show({ configured: true }, [])
+    const { SalesHttpError } = await import('../../api/http')
+    createMailboxApi.mockRejectedValue(new SalesHttpError(409, { error: 'rep@example.com is already added as a mailbox', code: 'CONFLICT' }))
+    await click(button(host, 'Add mailbox'))
+    await type(field(host, 'Your Google address'), 'rep@example.com')
+    const form = [...host.querySelectorAll('button')].filter(b => b.textContent === 'Add mailbox')
+    await click(form[form.length - 1])
+    await settle(3)
+    expect(text()).toContain('rep@example.com is already added as a mailbox')
+    expect(field(host, 'Your Google address')).not.toBeNull()
+  })
+
+  it('does not call the server for a blank address', async () => {
+    await show({ configured: true }, [])
+    await click(button(host, 'Add mailbox'))
+    const form = [...host.querySelectorAll('button')].filter(b => b.textContent === 'Add mailbox')
+    await click(form[form.length - 1])
+    expect(createMailboxApi).not.toHaveBeenCalled()
+    expect(text()).toContain('Enter the mailbox')
+  })
+
+  it('a shared inbox can be added by an admin only', async () => {
+    await show({ configured: true }, [], 'sales')
+    expect(button(host, 'Add shared inbox')).toBeUndefined()
+    act(() => root.unmount()); root = createRoot(host)
+    await show({ configured: true }, [], 'admin')
+    expect(button(host, 'Add shared inbox')).toBeDefined()
   })
 })
