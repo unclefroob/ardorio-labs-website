@@ -96,8 +96,8 @@
 .sos[data-theme=dark] .chip.ai{color:#C4B5FD}
 .sos .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .sos .av{border-radius:50%;display:inline-grid;place-items:center;font-weight:600;color:#fff;flex:none;letter-spacing:.02em}
-.sos .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
-.sos .tab{border:0;background:none;padding:8px 12px;color:var(--fg2);font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.sos .tabs{display:flex;gap:2px;box-shadow:inset 0 -1px 0 var(--line);margin-bottom:16px;overflow-x:auto;overflow-y:hidden}
+.sos .tab{border:0;background:none;padding:8px 12px;color:var(--fg2);font-weight:500;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;display:flex;gap:6px;align-items:center}
 .sos .tab:hover{color:var(--fg)}
 .sos .tab.on{color:var(--fg);border-bottom-color:var(--acc)}
 .sos .tab .cnt{font-size:12px;color:var(--fg3)}

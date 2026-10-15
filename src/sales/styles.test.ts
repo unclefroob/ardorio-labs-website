@@ -113,3 +113,12 @@ describe('SalesOS styles stay out of the main site', () => {
     expect(loose).toEqual([])
   })
 })
+
+describe('tab bars', () => {
+  it('scroll sideways only: a tab that overhangs the bar by a pixel must not add a vertical scrollbar', () => {
+    const rule = (css.match(/\.sos \.tabs\{[^}]*\}/) ?? [''])[0]
+    expect(rule).toContain('overflow-x:auto')
+    expect(rule).toContain('overflow-y:hidden')
+    expect(css).not.toMatch(/\.sos \.tab\{[^}]*margin-bottom:-1px/)
+  })
+})
