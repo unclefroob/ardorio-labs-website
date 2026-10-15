@@ -130,6 +130,8 @@ export interface SendEmailForm {
   threadId?: string
   draftId?: string
   draft?: boolean
+  /** Real mail is connected: a thread this draft starts is not a simulated one. */
+  real?: boolean
 }
 
 export type SendResult =
@@ -168,8 +170,9 @@ export function sendEmail(f: SendEmailForm): SendResult {
       id: uid('th'), businessId: f.businessId, mailboxId: mb.id, subject: f.subject, contactId: f.contactId, companyId: f.companyId || ct?.companyId,
       dealId: f.dealId || null, visibility: mb.type === 'personal' ? 'private' : 'shared', ownerId: S.session.userId, assigneeId: S.session.userId,
       unread: false, archived: false, classification: null, needsReply: false, sharedWith: [], updatedAt: now,
-      // Nothing leaves SalesOS from this path yet, so a thread it starts is simulated (see data/simulated.ts).
-      simulated: true,
+      // Nothing leaves SalesOS from this path, so a thread it starts is simulated (see data/simulated.ts), unless real mail is connected
+      // (then only a draft can start here, and a draft is not a simulated send).
+      ...(f.real ? {} : { simulated: true }),
     }
     S.threads.push(t)
     idx.threads.set(t.id, t)
