@@ -11,6 +11,8 @@ import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLin
 import { useMailState } from '../../../mail/client'
 import { EmailBody } from './EmailBody'
 import { dealCandidates } from '../../../shared/dealLink'
+import { customerOf } from '../../../shared/customerOf'
+import { rosterioLinkOf } from '../../../data/rosterio'
 import { UI } from '../../../ui/store'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
@@ -37,6 +39,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
   const mailboxes = Q.myMailboxes(t.businessId)
   const [reply, setReply] = useState<Reply | null>(null)
   const [linking, setLinking] = useState(false)
+  const standing = customerOf(co, t.businessId, { deals: S.deals, rel: co ? Q.rel(co.id, t.businessId) : undefined, rosterio: rosterioLinkOf(co) })
   const [aiSug, setAiSug] = useState<AiResult<localAi.Draft> | null>(null)
   const [sugBusy, setSugBusy] = useState(false)
   const [draftBusy, setDraftBusy] = useState(false)
@@ -274,7 +277,26 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
               )}
             </Card>
           )}
-          {d ? (
+          {co && (
+            <Card title={t.relation === 'customer' ? 'Customer account' : 'Company'}>
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <CoLink id={co.id} />
+                {standing.customer && <Chip tone="ok">Customer</Chip>}
+              </div>
+              {standing.why && <div className="faint xs" style={{ marginTop: 2 }}>{standing.why}</div>}
+              {t.relation === 'customer' && <div className="sm" style={{ marginTop: 6 }}>This conversation is about their account with {biz?.name ?? 'us'}, not a sale.</div>}
+              {can && t.relation === 'customer' && (
+                <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+                  <Btn size="xs" onClick={() => { Act.linkThreadCustomer(t.id, false); setLinking(true) }}>Link a deal instead</Btn>
+                  <Btn size="xs" kind="ghost" onClick={() => { Act.linkThreadCustomer(t.id, false); UI.toast('No longer marked as about their account') }}>Unlink</Btn>
+                </div>
+              )}
+              {can && t.relation !== 'customer' && standing.customer && (
+                <Btn size="xs" style={{ marginTop: 6 }} onClick={() => { Act.linkThreadCustomer(t.id, true); setLinking(false); UI.toast('Linked to their customer account') }}>About their account, not a deal</Btn>
+              )}
+            </Card>
+          )}
+          {t.relation === 'customer' ? null : d ? (
             <Card title="Deal">
               <DlLink id={d.id} />
               <div className="faint xs">{Q.stage(d)?.name} · {F.money(d.value, 1)}</div>
