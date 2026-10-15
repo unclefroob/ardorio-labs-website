@@ -438,3 +438,12 @@
 .sos .money-figs .kpi{box-shadow:none}
 .sos .money-figs .wide{grid-column:1 / -1}
 @media (max-width:560px){.sos .bul{grid-template-columns:72px minmax(0,1fr) auto}}
+/* Import wizard: businesses to pick, and the field-by-field column map */
+.sos .bizpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sos .bizpick label{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--line2);border-radius:10px;background:var(--surf);cursor:pointer}
+.sos .bizpick label.on{border-color:var(--acc);background:var(--acc-soft);box-shadow:0 0 0 3px var(--acc-soft)}
+.sos .bizpick label:focus-within{outline:2px solid var(--acc-ink);outline-offset:1px}
+.sos .bizpick input{accent-color:var(--acc);width:16px;height:16px;margin:0}
+.sos .mapgrid{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr) minmax(0,130px);gap:8px 10px;align-items:center;padding:12px 14px}
+.sos .mapgrid .smp{font-size:12px;color:var(--fg3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:760px){.sos .bizpick{grid-template-columns:minmax(0,1fr)}.sos .mapgrid{grid-template-columns:minmax(0,1fr)}}

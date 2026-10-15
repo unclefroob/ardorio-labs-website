@@ -340,6 +340,14 @@ export interface CompanyContactResponse extends AiMeta {
   result?: { items: CompanyContactItem[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
 }
 
+/** Facts about the company itself that fit a CRM company record. Each carries the page that states it; the server checked that page. */
+export type CompanyProfileField = 'description' | 'industry' | 'subindustry' | 'hq' | 'state' | 'country' | 'employees' | 'locations' | 'type'
+export interface CompanyProfileItem { field: CompanyProfileField; value: string | number; sourceUrl: string; sourceCheck?: SourceCheck }
+export interface CompanyProfileResponse extends AiMeta {
+  mode: 'llm' | 'stub'; usage: EnrichUsage
+  result?: { items: CompanyProfileItem[]; sources: ResearchSource[]; withheld: number; disclaimer: string }
+}
+
 export interface LeadListRequest { businessId: BusinessId; query: string; state?: string }   // query 10..300 chars
 /** companyId is set when the CRM already holds this company (matched by website domain or exact name); the UI must not offer to import it again. */
 export interface LeadCandidate { name: string; website?: string; state?: string; industry?: string; why: string; sourceUrl: string; companyId?: string }

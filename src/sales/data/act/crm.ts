@@ -4,6 +4,9 @@ import { uid } from '../ids'
 import { act, audit, ensureRels, notify } from '../internals'
 import { Q } from '../Q'
 import { cleanLinkPatch, urlOrEmpty } from '../../shared/url'
+import type { CompanyProfileField } from '../../api/contract'
+import type { BizChangePlan } from '../../shared/businessChange'
+import { targetOf, type Choices, type CompanyGroup, type ImportPlan, type ImportRow } from '../../shared/importPlan'
 import { commit } from '../commit'
 import { idx, reindex, removeRow, S } from '../store'
 import type {
@@ -139,6 +142,78 @@ export function bulkCompanies(ids: string[], op: 'tag' | 'owner' | 'biz', val: s
   }
   audit(`Bulk update (${op})`, `${ids.length} companies`)
   commit()
+}
+
+export interface BizChangeUndo { added: Array<{ coll: 'companyRels' | 'contactRels'; id: string }>; removed: Array<{ coll: 'companyRels'; rel: CompanyRel } | { coll: 'contactRels'; rel: ContactRel }> }
+
+/** Carry out a business change the planner approved. The caller shows what was blocked; nothing blocked is touched. */
+export function applyBusinessChange(plan: BizChangePlan, ownerId?: string): BizChangeUndo {
+  const owner = ownerId || S.session.userId
+  const undo: BizChangeUndo = { added: [], removed: [] }
+  for (const a of plan.addCo) {
+    const rel = newCompanyRel(a.companyId, a.businessId, owner, 'Business change')
+    delete rel.qualification
+    delete rel.notes
+    S.companyRels.push(rel)
+    undo.added.push({ coll: 'companyRels', id: rel.id })
+  }
+  reindex()
+  for (const a of plan.addCt) {
+    const ct = idx.contacts.get(a.contactId)
+    if (!ct) continue
+    const rel = newContactRel(ct, a.businessId, owner)
+    S.contactRels.push(rel)
+    undo.added.push({ coll: 'contactRels', id: rel.id })
+  }
+  for (const r of plan.removeCo) {
+    const rel = S.companyRels.find(x => x.id === r.relId)
+    if (!rel) continue
+    undo.removed.push({ coll: 'companyRels', rel: { ...rel } })
+    removeRow('companyRels', rel.id)
+  }
+  for (const r of plan.removeCt) {
+    const rel = S.contactRels.find(x => x.id === r.relId)
+    if (!rel) continue
+    undo.removed.push({ coll: 'contactRels', rel: { ...rel } })
+    removeRow('contactRels', rel.id)
+  }
+  reindex()
+  const n = new Set([...plan.addCo, ...plan.removeCo].map(x => x.companyId)).size
+  audit('Businesses changed', `${n} companies: +${plan.addCo.length} / -${plan.removeCo.length} company relationships, +${plan.addCt.length} / -${plan.removeCt.length} contact relationships`)
+  commit()
+  return undo
+}
+
+/** Put a change back: what it added is deleted, what it removed is created again (as new records of the same kind). */
+export function undoBusinessChange(u: BizChangeUndo): void {
+  for (const a of u.added) removeRow(a.coll, a.id)
+  for (const r of u.removed) {
+    if (r.coll === 'contactRels') S.contactRels.push({ ...r.rel, id: uid('xr') })
+    else S.companyRels.push({ ...r.rel, id: uid('cr') })
+  }
+  reindex()
+  audit('Businesses change undone', `${u.added.length} added and ${u.removed.length} removed relationships reversed`)
+  commit()
+}
+
+/** Apply the research suggestions a person ticked. Each field remembers the page it came from; the rest of the company is left alone. */
+export function applyCompanyProfile(id: string, picks: ReadonlyArray<{ field: CompanyProfileField; value: string | number; sourceUrl: string }>): number {
+  const c = idx.companies.get(id)
+  if (!c || !picks.length) return 0
+  const now = F.nowIso()
+  const from: Record<string, { url: string; at: string }> = { ...(typeof c.researchSources === 'object' && c.researchSources ? c.researchSources as Record<string, { url: string; at: string }> : {}) }
+  for (const p of picks) {
+    if (typeof p.value === 'number') c[p.field] = p.value as never
+    else c[p.field] = p.value as never
+    from[p.field] = { url: p.sourceUrl, at: now }
+  }
+  c.researchSources = from
+  c.researchStatus = 'Researched'
+  c.lastResearched = now
+  c.updatedAt = now
+  audit('Research applied', `Company: ${c.name} (${picks.map(p => p.field).join(', ')})`)
+  commit()
+  return picks.length
 }
 
 export function archiveCompany(id: string): void {
@@ -459,101 +534,136 @@ export function deleteTemplate(id: string): void {
 }
 
 // ── CSV import ──────────────────────────────────────────────────────────────────────────────
-export interface ImportRow {
-  company: string
-  firstName: string
-  lastName: string
-  title?: string
-  email?: string
-  phone?: string
-  linkedin?: string
-  location?: string
-  website?: string
-  industry?: string
-  _invalid?: boolean
-  _dup?: string
-  [k: string]: unknown
-}
+export type { ImportRow } from '../../shared/importPlan'
 export interface ImportOptions {
-  businessId: BusinessId
-  ownerId: string
+  /** One or more businesses the leads are for. Each gets its own relationship with every company and contact; the records are shared. */
+  businessIds: BusinessId[]
+  /** The owner of the relationships in each business; a business left out is owned by the person importing. */
+  owners: Partial<Record<BusinessId, string>>
   behaviour?: 'skip' | 'update' | 'link'
   listId?: string
   fileName: string
+  /** The batch's tag, put on every company and contact it creates or reuses, so one import can be found again. */
+  tag: string
+  /** A permission basis for every contact this import creates ('' for none). */
+  permission?: string
 }
 export interface ImportResult {
+  companiesCreated: number
+  companiesReused: number
   created: number
   updated: number
   linked: number
   skipped: number
   rejected: ImportRow[]
   ids: string[]
+  companyIds: string[]
 }
 
-export function importRows(rows: ImportRow[], o: ImportOptions): ImportResult {
-  const res: ImportResult = { created: 0, updated: 0, linked: 0, skipped: 0, rejected: [], ids: [] }
+const typeOf = (s: string | undefined): string =>
+  /public/i.test(s ?? '') ? 'Public company' : /gov/i.test(s ?? '') ? 'Government' : /non[- ]?profit|charity/i.test(s ?? '') ? 'Non-profit' : 'Private company'
+
+const firstOf = <K extends keyof ImportRow>(rows: readonly ImportRow[], k: K): ImportRow[K] | undefined => rows.find(r => r[k] !== undefined && r[k] !== '')?.[k]
+
+/** The company a group becomes: its details are the first the file gives for each field. */
+function createImportedCompany(g: CompanyGroup, tag: string, now: string): Company {
+  const site = urlOrEmpty(firstOf(g.rows, 'website'))
+  return {
+    id: uid('co'), name: g.name, tradingName: g.name, website: site, domain: site.replace(/^https?:\/\/(www\.)?/, '').split('/')[0],
+    industry: firstOf(g.rows, 'industry') ?? '', subindustry: firstOf(g.rows, 'subindustry') ?? '', hq: firstOf(g.rows, 'city') ?? '', state: firstOf(g.rows, 'state') ?? '',
+    country: firstOf(g.rows, 'country') ?? 'Australia', employees: firstOf(g.rows, 'employees') ?? null, locations: null, type: typeOf(firstOf(g.rows, 'companyType')),
+    description: firstOf(g.rows, 'description') ?? '', linkedin: urlOrEmpty(firstOf(g.rows, 'companyLinkedin')), tech: [], tags: ['Imported', tag], researchStatus: 'Not researched',
+    source: 'CSV import', createdAt: now, updatedAt: now, notes: [],
+    ...(firstOf(g.rows, 'address') ? { address: firstOf(g.rows, 'address') } : {}),
+  }
+}
+
+/** An existing company keeps what it has: the file only fills the blanks. */
+function fillImportedCompany(c: Company, g: CompanyGroup, tag: string): void {
+  const site = urlOrEmpty(firstOf(g.rows, 'website'))
+  if (!c.website && site) { c.website = site; c.domain = site.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] }
+  if (!c.industry) c.industry = firstOf(g.rows, 'industry') ?? ''
+  if (!c.subindustry) c.subindustry = firstOf(g.rows, 'subindustry') ?? ''
+  if (!c.hq) c.hq = firstOf(g.rows, 'city') ?? ''
+  if (!c.state) c.state = firstOf(g.rows, 'state') ?? ''
+  if (!c.country) c.country = firstOf(g.rows, 'country') ?? ''
+  if (c.employees == null) c.employees = firstOf(g.rows, 'employees') ?? null
+  if (!c.description) c.description = firstOf(g.rows, 'description') ?? ''
+  if (!c.linkedin) c.linkedin = urlOrEmpty(firstOf(g.rows, 'companyLinkedin'))
+  if (!c.address && firstOf(g.rows, 'address')) c.address = firstOf(g.rows, 'address')
+  if (!c.tags.includes(tag)) c.tags.push(tag)
+  c.updatedAt = F.nowIso()
+}
+
+export function importLeads(plan: ImportPlan, choices: Choices, o: ImportOptions): ImportResult {
+  const res: ImportResult = { companiesCreated: 0, companiesReused: 0, created: 0, updated: 0, linked: 0, skipped: 0, rejected: [...plan.invalid], ids: [], companyIds: [] }
   const now = F.nowIso()
-  for (const r of rows) {
-    if (r._invalid) {
-      res.rejected.push(r)
-      continue
-    }
-    let co = S.companies.find(c => c.name.toLowerCase() === r.company.toLowerCase() || (r.website && c.domain && r.website.includes(c.domain.replace('.example', ''))))
-    if (!co) {
-      co = {
-        id: uid('co'), name: r.company, tradingName: r.company, website: urlOrEmpty(r.website), domain: urlOrEmpty(r.website).replace(/^https?:\/\/(www\.)?/, ''),
-        industry: r.industry || '', subindustry: '', hq: (r.location || '').split(',')[0], state: '', country: 'Australia', employees: null,
-        locations: null, type: 'Private company', description: '', linkedin: '', tech: [], tags: ['Imported'], researchStatus: 'Not researched',
-        source: 'CSV import', createdAt: now, updatedAt: now, notes: [],
-      }
+  const ownerOf = (b: BusinessId): string => o.owners[b] || S.session.userId
+  for (const g of plan.groups) {
+    const target = targetOf(g, choices)
+    if (target === 'unresolved') { res.skipped += g.rows.length; continue }
+    let co = target.companyId ? idx.companies.get(target.companyId) : undefined
+    if (co) {
+      fillImportedCompany(co, g, o.tag)
+      res.companiesReused++
+    } else {
+      co = createImportedCompany(g, o.tag, now)
       S.companies.push(co)
       reindex()
+      res.companiesCreated++
     }
-    if (!Q.rel(co.id, o.businessId)) {
-      const rel = newCompanyRel(co.id, o.businessId, o.ownerId, 'CSV import')
+    res.companyIds.push(co.id)
+    for (const b of o.businessIds) {
+      if (Q.rel(co.id, b)) continue
+      const rel = newCompanyRel(co.id, b, ownerOf(b), 'CSV import')
       delete rel.qualification
       delete rel.notes
       S.companyRels.push(rel)
     }
-    const ex = r._dup ? idx.contacts.get(r._dup) : undefined
-    if (ex) {
-      if (o.behaviour === 'skip') {
-        res.skipped++
-      } else if (o.behaviour === 'update') {
-        for (const k of ['title', 'phone', 'linkedin'] as const) {
-          const v = k === 'linkedin' ? urlOrEmpty(r[k]) : r[k]
-          if (v && !(k === 'title' && ex.verification === 'Verified' && ex.title)) ex[k] = v
+    for (const r of g.rows) {
+      if (r._dupInFile) { res.skipped++; continue }
+      const ex = r._dup ? idx.contacts.get(r._dup) : undefined
+      if (ex) {
+        if (o.behaviour === 'skip') res.skipped++
+        else if (o.behaviour === 'link') res.linked++
+        else {
+          for (const k of ['title', 'phone', 'mobile', 'linkedin'] as const) {
+            const v = k === 'linkedin' ? urlOrEmpty(r[k]) : r[k]
+            if (v && !(k === 'title' && ex.verification === 'Verified' && ex.title) && !(k !== 'title' && ex[k])) ex[k] = v
+          }
+          if (r.email && !ex.email) ex.email = r.email
+          res.updated++
         }
-        if (r.email && !ex.email) ex.email = r.email
-        res.updated++
-      } else res.linked++
-      ensureRels(ex.id, o.businessId, o.ownerId)
-      res.ids.push(ex.id)
-      continue
+        for (const b of o.businessIds) ensureRels(ex.id, b, ownerOf(b))
+        res.ids.push(ex.id)
+        continue
+      }
+      const title = r.title || ''
+      const status = r.emailStatus ?? ''
+      const c: Contact = {
+        id: uid('ct'), firstName: r.firstName, lastName: r.lastName, name: `${r.firstName} ${r.lastName}`, title, department: '', companyId: co.id,
+        email: (r.email || '').toLowerCase(), email2: '', phone: r.phone || '', mobile: r.mobile || '', linkedin: urlOrEmpty(r.linkedin), location: r.location || '',
+        seniority: /Chief|CEO|Owner|Principal/.test(title) ? 'C-Level' : /Director/.test(title) ? 'Director' : /Head/.test(title) ? 'Head' : 'Manager',
+        buyingRole: 'Influencer', verification: status === 'invalid' ? 'Invalid' : 'Unverified', deliverability: status === 'valid' ? 'Valid (Wiza)' : 'Unknown',
+        permission: o.permission || null, permissionSource: o.permission ? 'Recorded at import' : '', permissionDate: o.permission ? now : null,
+        source: 'CSV import (Wiza export)', lastEnriched: null, createdAt: now, notes: [],
+      }
+      S.contacts.push(c)
+      reindex()
+      for (const b of o.businessIds) ensureRels(c.id, b, ownerOf(b))
+      res.created++
+      res.ids.push(c.id)
     }
-    const title = r.title || ''
-    const c: Contact = {
-      id: uid('ct'), firstName: r.firstName, lastName: r.lastName, name: `${r.firstName} ${r.lastName}`, title, department: '', companyId: co.id,
-      email: (r.email || '').toLowerCase(), email2: '', phone: r.phone || '', mobile: '', linkedin: urlOrEmpty(r.linkedin), location: r.location || '',
-      seniority: /Chief|CEO|Owner|Principal/.test(title) ? 'C-Level' : /Director/.test(title) ? 'Director' : /Head/.test(title) ? 'Head' : 'Manager',
-      buyingRole: 'Influencer', verification: 'Unverified', deliverability: 'Unknown', permission: null, source: 'CSV import (Wiza export)',
-      lastEnriched: null, createdAt: now, notes: [],
-    }
-    S.contacts.push(c)
-    reindex()
-    ensureRels(c.id, o.businessId, o.ownerId)
-    res.created++
-    res.ids.push(c.id)
   }
   if (o.listId) {
     const l = idx.lists.get(o.listId)
     if (l) for (const i of res.ids) if (!l.contactIds.includes(i)) l.contactIds.push(i)
   }
   S.importJobs.unshift({
-    id: uid('ij'), name: o.fileName, businessId: o.businessId, by: S.session.userId, ts: now, total: rows.length, created: res.created,
-    updated: res.updated + res.linked, skipped: res.skipped + res.rejected.length, status: 'Completed',
+    id: uid('ij'), name: o.fileName, businessId: o.businessIds[0], businessIds: o.businessIds, by: S.session.userId, ts: now,
+    total: plan.rows + plan.invalid.length, created: res.created, updated: res.updated + res.linked, skipped: res.skipped + res.rejected.length, status: 'Completed',
   })
-  audit('CSV import', `${o.fileName}: ${res.created} created, ${res.updated + res.linked} updated/linked`)
+  audit('CSV import', `${o.fileName}: ${res.companiesCreated} companies created, ${res.companiesReused} reused, ${res.created} contacts created, ${res.updated + res.linked} updated/linked`)
   commit()
   return res
 }

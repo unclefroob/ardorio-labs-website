@@ -2,6 +2,7 @@ import './fonts.css'
 import './sales.css'
 import { useEffect, type CSSProperties } from 'react'
 import { clear as clearEnrichCache } from './ai/enrichCache'
+import { clearProfileResearch } from './ai/profileResearch'
 import { clearPhoneStatus } from './phone/client'
 import { Q } from './data/Q'
 import { loadBootstrap } from './data/bootstrap'
@@ -32,7 +33,7 @@ export default function SalesApp() {
   }, [])
 
   // Leaving SalesOS (sign-out included) forgets every cached lookup. The userId-change reset inside enrichCache stays as well.
-  useEffect(() => () => { clearEnrichCache(); clearPhoneStatus() }, [])
+  useEffect(() => () => { clearEnrichCache(); clearProfileResearch(); clearPhoneStatus() }, [])
 
   useEffect(() => {
     if (!ready) return

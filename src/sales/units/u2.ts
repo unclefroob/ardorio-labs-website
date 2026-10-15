@@ -17,6 +17,8 @@ import { LinkedIn } from '../modals/comms/LinkedIn'
 import { AddToList } from '../modals/comms/AddToList'
 import { PickContacts } from '../modals/comms/PickContacts'
 import { Reassign } from '../modals/comms/Reassign'
+import { ChangeBusinesses } from '../modals/entities/ChangeBusinesses'
+import { CompanyResearch } from '../modals/entities/CompanyResearch'
 import { AddSuppression } from '../modals/comms/AddSuppression'
 import { SendEmailTask } from '../modals/comms/SendEmailTask'
 
@@ -25,7 +27,7 @@ export const u2: UnitModule = {
   modals: {
     logMeeting: LogMeeting, meetingBrief: MeetingBrief, cancelMeeting: CancelMeeting, rescheduleMeeting: RescheduleMeeting, voidActivity: VoidActivity, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findMobile: FindMobile, findPeople: FindPeople,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
-    reassign: Reassign, addSuppression: AddSuppression, sendEmailTask: SendEmailTask,
+    reassign: Reassign, changeBusinesses: ChangeBusinesses, companyResearch: CompanyResearch, addSuppression: AddSuppression, sendEmailTask: SendEmailTask,
   },
   drawers: {},
 }
