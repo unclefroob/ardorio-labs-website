@@ -11,6 +11,7 @@ import { PageHead } from '../../shared/PageHead'
 import { seqStats } from '../../shared/seqStats'
 import { UI, type Route } from '../../ui/store'
 import { Builder } from './parts/Builder'
+import { allSteps, flowIssues, type Pos } from '../../shared/seqFlow'
 import { clone, type Draft } from './parts/conds'
 import { SeqAnalytics } from './parts/SeqAnalytics'
 import { SeqEnrolments } from './parts/SeqEnrolments'
@@ -26,7 +27,7 @@ export function Sequence({ route }: { route: Route }) {
   const [tab, setTab] = useState(typeof q0 === 'string' && TABS.includes(q0) ? q0 : 'steps')
   const [dr, setDr] = useState<Draft | null>(() => (s ? clone(s) : null))
   const [base, setBase] = useState(() => (s ? JSON.stringify(s) : ''))
-  const [sel, setSel] = useState(0)
+  const [sel, setSel] = useState<Pos>({ i: 0 })
 
   const live = s ? JSON.stringify(s) : ''
   const dirty = !!s && !!dr && JSON.stringify(dr) !== base
@@ -60,7 +61,7 @@ export function Sequence({ route }: { route: Route }) {
   }
   const save = (): void => {
     if (!can) return
-    const versions = (s.versions ?? []).concat({ n: (s.versions ?? []).length + 1, ts: F.nowIso(), by: Q.me().id, steps: s.steps.length })
+    const versions = (s.versions ?? []).concat({ n: (s.versions ?? []).length + 1, ts: F.nowIso(), by: Q.me().id, steps: allSteps(s.steps).length })
     const input: Draft = { ...dr, versions }
     const saved: Draft = Act.saveSequence(input)
     const next: Draft = clone(saved)
@@ -69,9 +70,9 @@ export function Sequence({ route }: { route: Route }) {
     UI.toast('Sequence saved · version ' + (versions.length + 1))
   }
   const activate = (): void => {
-    const bad = s.steps.filter(x => x.type === 'email' && (!x.subject || !x.body))
-    if (bad.length) return UI.toast('Complete subject and body for all email steps first', 'bad')
-    if (!s.steps.length) return UI.toast('Add at least one step first', 'bad')
+    // The same rules the builder shows: anything that would block the start is named, first one first.
+    const blocking = flowIssues(s.steps).filter(x => x.blocks)
+    if (blocking.length) return UI.toast(blocking[0].text + (blocking.length > 1 ? ` (and ${blocking.length - 1} more)` : ''), 'bad')
     Act.setSeqStatus(s.id, 'active')
     UI.toast('Sequence active')
   }
@@ -106,7 +107,7 @@ export function Sequence({ route }: { route: Route }) {
           {failed.length} enrolment(s) failed — {failed[0].reason || 'no reason recorded'}.
         </Banner>
       )}
-      <Tabs value={tab} onChange={setTab} tabs={[['steps', 'Steps', dr.steps.length], ['enrolments', 'Enrolments', st.enrolled], ['analytics', 'Analytics'], ['settings', 'Settings']]} />
+      <Tabs value={tab} onChange={setTab} tabs={[['steps', 'Steps', allSteps(dr.steps).length], ['enrolments', 'Enrolments', st.enrolled], ['analytics', 'Analytics'], ['settings', 'Settings']]} />
       {tab === 'steps' && <Builder dr={dr} upd={upd} sel={sel} setSel={setSel} can={can} />}
       {tab === 'enrolments' && <SeqEnrolments s={s} st={st} />}
       {tab === 'analytics' && <SeqAnalytics s={s} st={st} />}
