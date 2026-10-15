@@ -4,6 +4,7 @@ import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
 import type { Enrolment } from '../../../data/types'
 import { Btn, BizDot, Chip, CtLink, DataTable, Empty, EnrolChip, Link, Menu, Owner, type Col, type MenuItem } from '../../../kit'
+import { useMailState } from '../../../mail/client'
 import { UI } from '../../../ui/store'
 
 export interface EnrolTableProps { rows: Enrolment[]; showSeq?: boolean; showContact?: boolean; onSim?: (e: Enrolment) => void }
@@ -18,7 +19,8 @@ function emailTask(e: Enrolment) {
   return t && t.kind === 'email' && t.status !== 'Completed' && t.status !== 'Cancelled' ? t : undefined
 }
 
-function menuFor(e: Enrolment, onSim?: (e: Enrolment) => void): MenuItem[] {
+// `sims` is off once real Gmail is connected: the simulate items write pretend replies, opens and clicks into real contacts' histories.
+function menuFor(e: Enrolment, sims: boolean, onSim?: (e: Enrolment) => void): MenuItem[] {
   const sim = (fn: () => void): (() => void) => () => { fn(); onSim?.(e) }
   return [
     PAUSABLE.includes(e.status) && { label: 'Pause', icon: 'pause', onClick: () => Act.setEnrol(e.id, 'paused', 'Paused manually') },
@@ -33,15 +35,16 @@ function menuFor(e: Enrolment, onSim?: (e: Enrolment) => void): MenuItem[] {
       }),
     },
     !FINISHED.includes(e.status) && { label: 'Remove from sequence', icon: 'x', onClick: () => Act.setEnrol(e.id, 'removed', 'Manually removed') },
-    '-',
-    { label: 'Simulate reply', icon: 'reply', onClick: sim(() => UI.open('simReply', { contactId: e.contactId, enrolmentId: e.id })) },
-    { label: 'Simulate email open', icon: 'eye', onClick: sim(() => { Act.simEvent('email_open', e.contactId); UI.toast('Open logged — informational only') }) },
-    { label: 'Simulate link click', icon: 'link', onClick: sim(() => { Act.simEvent('link_click', e.contactId); UI.toast('Link click logged') }) },
-    { label: 'Simulate meeting booked', icon: 'cal', onClick: sim(() => { Act.simEvent('meeting_booked', e.contactId); UI.toast('Meeting booked — enrolment completed') }) },
+    sims && '-',
+    sims && { label: 'Simulate reply', icon: 'reply', onClick: sim(() => UI.open('simReply', { contactId: e.contactId, enrolmentId: e.id })) },
+    sims && { label: 'Simulate email open', icon: 'eye', onClick: sim(() => { Act.simEvent('email_open', e.contactId); UI.toast('Open logged — informational only') }) },
+    sims && { label: 'Simulate link click', icon: 'link', onClick: sim(() => { Act.simEvent('link_click', e.contactId); UI.toast('Link click logged') }) },
+    sims && { label: 'Simulate meeting booked', icon: 'cal', onClick: sim(() => { Act.simEvent('meeting_booked', e.contactId); UI.toast('Meeting booked — enrolment completed') }) },
   ]
 }
 
 export const EnrolTable: FC<EnrolTableProps> = ({ rows, showSeq, showContact, onSim }) => {
+  const sims = useMailState().s === 'off'
   const cols: Array<Col<Enrolment> | false> = [
     !!showContact && {
       k: 'c', l: 'Contact',
@@ -80,7 +83,7 @@ export const EnrolTable: FC<EnrolTableProps> = ({ rows, showSeq, showContact, on
     { k: 'start', l: 'Started', r: e => F.date(e.startedAt) },
     {
       k: 'a', l: '', nosort: true,
-      r: e => Q.canEdit(e.businessId) && <Menu align="right" trigger={<Btn size="xs" kind="ghost" icon="more" aria-label="Enrolment actions" />} items={menuFor(e, onSim)} />,
+      r: e => Q.canEdit(e.businessId) && <Menu align="right" trigger={<Btn size="xs" kind="ghost" icon="more" aria-label="Enrolment actions" />} items={menuFor(e, sims, onSim)} />,
     },
   ]
   return (

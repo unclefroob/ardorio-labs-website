@@ -8,6 +8,7 @@ import { isSimMsg, simThread } from '../../../data/simulated'
 import { S, useStore } from '../../../data/store'
 import type { Thread } from '../../../data/types'
 import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Link, Menu, Owner, RichText, ScoreRing, Sel, Sim, SimChip, TOKENS } from '../../../kit'
+import { useMailState } from '../../../mail/client'
 import { UI } from '../../../ui/store'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
@@ -15,6 +16,7 @@ const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
 interface Reply { mailboxId: string; body: string }
 
 export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
+  const sims = useMailState().s === 'off'
   useStore()
   const me = Q.me()
   const ms = Q.msgs(t.id).filter(m => m.status !== 'discarded')
@@ -111,7 +113,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
     { label: t.needsReply ? 'Mark as handled' : 'Mark needs reply', icon: 'reply', disabled: !can, onClick: () => Act.markThread(t.id, { needsReply: !t.needsReply }) },
     { label: t.archived ? 'Unarchive' : 'Archive', icon: 'archive', disabled: !can, onClick: () => Act.markThread(t.id, { archived: !t.archived }) },
     t.visibility === 'private' && t.ownerId === me.id && { label: 'Share with team…', icon: 'users', onClick: share },
-    Q.anyAdmin() && { label: 'Simulate reply on this thread', icon: 'zap', onClick: () => UI.open('simReply', { contactId: t.contactId, threadId: t.id }) },
+    Q.anyAdmin() && sims && { label: 'Simulate reply on this thread', icon: 'zap', onClick: () => UI.open('simReply', { contactId: t.contactId, threadId: t.id }) },
   ]
 
   const suppressed = ct ? Q.suppressed(ct, t.businessId) : null
