@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import { TOKEN_KEYS } from '../data/tokens'
 
 /** Line styles that tell series apart without relying on colour. Index matches the series order. */
 export const LINE_DASH: readonly string[] = ['', '7 4', '2 4', '9 3 2 3']
@@ -55,7 +56,8 @@ export const AIC: Record<string, [string, string]> = {
   suppressed: ['stop', 'Suppression'],
 }
 
-export const TOKENS = ['first_name', 'last_name', 'company_name', 'job_title', 'sender_first_name', 'sender_name', 'business_name', 'meeting_link']
+/** The variable keys, in picker order (the list itself is data/tokens.ts). */
+export const TOKENS: readonly string[] = TOKEN_KEYS
 
 /** Runs `fn` after `ms`, with a busy flag. Used for the simulated integrations. */
 export function useSim(ms = 700): [boolean, (fn: () => void) => void] {

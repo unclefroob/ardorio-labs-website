@@ -13,6 +13,8 @@ import type {
 import type { BillingPlan, IntelKind, InvoiceDto } from '../api/contract'
 import { milestoneStatus, type MilestoneStatus } from '../shared/invoices'
 import { fyDays, quarterDays, wonAt } from '../shared/goalMetrics'
+import { renderTokens, tokenNames } from './tokens'
+import { emailBefore, walk } from '../shared/seqFlow'
 
 /** Stand-in used only if the signed-in member is missing from the user list (should not happen). */
 const GHOST: SalesUser = {
@@ -292,18 +294,11 @@ export const Q = {
       meeting_link: sender?.meetingLink,
     }
   },
-  render(txt: string | null | undefined, map: TokenMap): { text: string; missing: string[] } {
-    const missing: string[] = []
-    const out = String(txt || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => {
-      const v = map[k]
-      if (v == null || v === '') {
-        missing.push(k)
-        return m
-      }
-      return v
-    })
-    return { text: out, missing: [...new Set(missing)] }
+  /** Fill the variables (fallbacks used, unknown ones reported). The same rules as the server: data/tokens.ts. */
+  render(txt: string | null | undefined, map: TokenMap): { text: string; missing: string[]; unknown: string[] } {
+    return renderTokens(txt, map)
   },
+
   senderOf(mb: Mailbox | undefined): SalesUser | undefined {
     if (!mb) return Q.me()
     return mb.type === 'personal' ? Q.user(mb.ownerId) : Q.me()
@@ -344,10 +339,16 @@ export const Q = {
       if (e.businessId === b) warns.push(`Also active in “${s2?.name ?? 'another sequence'}”`)
       else warns.push(`Portfolio conflict: active ${Q.biz(e.businessId)?.name ?? e.businessId} outreach (owner ${Q.user(e.ownerId)?.name ?? 'unknown'})`)
     }
-    const first = seq.steps.find(s => s.type === 'email')
-    if (first) {
-      const r = Q.render(`${first.subject ?? ''} ${first.body ?? ''}`, Q.tokens(ct, Q.senderOf(mb), b))
-      if (r.missing.length) warns.push(`Missing data for {{${r.missing.join('}}, {{')}}} — step will be held`)
+    // Every email in the sequence, not just the first: a gap in step 4 holds them just as surely, only later.
+    const tok = Q.tokens(ct, Q.senderOf(mb), b)
+    const gaps = walk(seq.steps).filter(w => w.step.type === 'email').map(w => {
+      const subject = w.step.reply === true ? emailBefore(seq.steps, w.pos)?.subject ?? '' : w.step.subject ?? ''
+      const r = Q.render(`${subject} ${w.step.body ?? ''}`, tok)
+      return { n: w.pos.i + 1, missing: r.missing.filter(k => !r.unknown.includes(k)) }
+    }).filter(g => g.missing.length)
+    if (gaps.length) {
+      const keys = [...new Set(gaps.flatMap(g => g.missing))]
+      warns.push(`No ${tokenNames(keys).toLowerCase()} for this contact: ${gaps.length === 1 ? `step ${gaps[0].n}` : `steps ${gaps.map(g => g.n).join(', ')}`} will be held until it is filled in`)
     }
     const rel = Q.crel(ctid, b)
     if (rel?.lastActivity && F.days(rel.lastActivity, F.nowIso()) < 3) warns.push(`Contacted ${F.rel(rel.lastActivity)}`)

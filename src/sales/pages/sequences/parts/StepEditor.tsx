@@ -3,7 +3,9 @@ import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
 import { S } from '../../../data/store'
 import type { SeqStep } from '../../../data/types'
-import { Banner, Btn, Card, Chip, Ck, Fld, Icon, Inp, Menu, RichText, Seg, Sel, TA } from '../../../kit'
+import { Banner, Btn, Card, Chip, chipsInHtml, Ck, Fld, Icon, Inp, Menu, RichText, Seg, Sel, TA, TokenInput, TokenText, type ChipInfo } from '../../../kit'
+import { suggestToken, tokenNames, unknownTokens } from '../../../data/tokens'
+import { gapInfo, stepGaps, stepText } from '../../../shared/seqTokens'
 import { TOKENS } from '../../../kit/util'
 import { STEP } from '../../../shared/constants'
 import { CONDS, QUESTIONS, str, type Draft } from './conds'
@@ -21,15 +23,17 @@ interface Props {
   dr: Draft
 }
 
-function Preview({ x, dr }: { x: SeqStep; dr: Draft }) {
+function Preview({ x, dr, subject }: { x: SeqStep; dr: Draft; subject: string }) {
   const pool = S.contacts.filter(c => !c.archived && Q.crel(c.id, dr.businessId)).slice(0, 40)
   const [pc, setPc] = useState(pool[0]?.id ?? '')
   const ct = pool.find(c => c.id === pc) ?? pool[0]
   const tok = Q.tokens(ct, Q.senderOf(Q.mailbox(dr.mailboxId)), dr.businessId)
-  const sj = Q.render(x.subject || '', tok)
-  const bd = Q.render(F.plain(x.body || ''), tok)
-  const miss = [...new Set(sj.missing.concat(bd.missing))]
-  const html = F.body(bd.text).replace(/\{\{(\w+)\}\}/g, '<mark style="background:var(--warn-bg);color:var(--warn)">{{$1}}</mark>')
+  const sj = Q.render(subject, tok)
+  const bd = Q.render(x.body || '', tok)
+  const miss = [...new Set(sj.missing.concat(bd.missing))].filter(k => !sj.unknown.includes(k) && !bd.unknown.includes(k))
+  // What is left unfilled shows as an amber chip, in place, so it is clear which words are missing.
+  const missing: ChipInfo = () => ({ tone: 'warn', note: `${ct?.name ?? 'This contact'} has no value for this` })
+  const html = chipsInHtml(F.body(bd.text), missing)
   return (
     <div className="card card-b" style={{ background: 'var(--surf2)' }}>
       <div className="row xs" style={{ marginBottom: 6 }}>
@@ -38,13 +42,13 @@ function Preview({ x, dr }: { x: SeqStep; dr: Draft }) {
           <>
             <label htmlFor={'prev-' + x.id}>Live preview for</label>
             <Sel id={'prev-' + x.id} className="sm" style={{ width: 220 }} value={ct.id} onChange={setPc} options={pool.map(c => [c.id, c.name + ' · ' + (Q.company(c.companyId)?.name ?? 'No company')] as const)} />
-            {miss.length > 0 && <Chip tone="warn">Missing: {miss.join(', ')} — step will be held</Chip>}
+            {miss.length > 0 && <Chip tone="warn">No {tokenNames(miss).toLowerCase()}: this email would be held</Chip>}
           </>
         ) : (
           <span className="faint">Preview shows tokens unfilled until this business has contacts.</span>
         )}
       </div>
-      <div className="b sm">{sj.text || <span className="faint">No subject</span>}</div>
+      <div className="b sm">{sj.text ? <TokenText text={sj.text} info={missing} /> : <span className="faint">No subject</span>}</div>
       <div className="sm" style={{ marginTop: 6, maxHeight: 220, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   )
@@ -59,6 +63,22 @@ export function StepEditor({ x, pos, steps, set, mv, del, can, dr }: Props) {
   const first = emailBefore(steps, pos)
   const tpls = S.templates.filter(t => t.businessId === dr.businessId)
   const mb = Q.mailbox(dr.mailboxId)
+  // Chip colours: amber where enrolled contacts have no value, red (the default) where a variable does not exist.
+  const gaps = stepGaps(x, steps, pos, dr)
+  const info = gapInfo(gaps)
+  const typos = unknownTokens(stepText(x, steps, pos))
+  const typoNote = typos.length > 0 && (
+    <Banner tone="bad">
+      {typos.length === 1 ? 'This variable does not exist' : 'These variables do not exist'}: {typos.map(k => { const s2 = suggestToken(k); return `{{${k}}}${s2 ? ` (did you mean ${s2.label}?)` : ''}` }).join(', ')}.
+      {' '}The sequence cannot start until it is fixed.
+    </Banner>
+  )
+  const gapNote = gaps.byKey.size > 0 && (
+    <Banner tone="warn">
+      {[...gaps.byKey].map(([k, n]) => `${n} of ${gaps.total} enrolled have no ${tokenNames([k]).toLowerCase()}`).join('; ')}. Their email is held until it is filled in, or click the chip to give it a fallback.
+    </Banner>
+  )
+  const subject = x.reply === true ? 'Re: ' + (first?.subject || '') : x.subject || ''
 
   const delay = i === 0 && !pos.lane && x.type !== 'wait' ? (
     <div className="faint sm">First step runs at enrolment start (within the sending window).</div>
@@ -105,28 +125,33 @@ export function StepEditor({ x, pos, steps, set, mv, del, can, dr }: Props) {
             </Fld>
             {x.reply === true ? (
               <Fld label="Subject" hint="A reply keeps the first email's subject, so Gmail and Outlook show it in the same thread. Choose New email to write a different subject.">
-                <Inp value={'Re: ' + (first?.subject || '')} onChange={() => undefined} disabled />
+                <TokenInput label="Subject" value={subject} onChange={() => undefined} disabled info={info} />
               </Fld>
             ) : (
-              <Fld label="Subject" req><Inp value={x.subject} onChange={v => set({ subject: v })} disabled={!can} placeholder="Use {{company_name}} etc." /></Fld>
+              <Fld label="Subject" req hint="Type {{ to add a variable, such as their company name.">
+                <TokenInput label="Subject" value={x.subject || ''} onChange={v => set({ subject: v })} disabled={!can} placeholder="Subject" info={info} />
+              </Fld>
             )}
             <div className="fld">
               <span className="sm b" id={'body-' + x.id}>Body</span>
               {can ? (
-                <RichText value={x.body || ''} onChange={v => set({ body: v })} tokens={TOKENS} minH={180} label="Email body" />
+                <RichText value={x.body || ''} onChange={v => set({ body: v })} tokens={TOKENS} minH={180} label="Email body" info={info} />
               ) : (
-                <div className="rte" role="textbox" aria-readonly="true" aria-labelledby={'body-' + x.id} dangerouslySetInnerHTML={{ __html: F.body(x.body || '') }} />
+                <div className="rte" role="textbox" aria-readonly="true" aria-labelledby={'body-' + x.id} dangerouslySetInnerHTML={{ __html: chipsInHtml(F.body(x.body || ''), info) }} />
               )}
             </div>
+            {typoNote}
+            {gapNote}
             <div className="faint xs">
               Sending window {dr.window[0]}:00–{dr.window[1]}:00{dr.businessDays ? ' on business days' : ''} · from {mb?.address ?? 'no mailbox selected'}
             </div>
-            <Preview x={x} dr={dr} />
+            <Preview x={x} dr={dr} subject={subject} />
           </>
         )}
         {(x.type === 'call' || x.type === 'linkedin' || x.type === 'task') && (
           <>
-            <Fld label="Task title"><Inp value={x.title} onChange={v => set({ title: v })} disabled={!can} /></Fld>
+            <Fld label="Task title"><TokenInput label="Task title" value={x.title || ''} onChange={v => set({ title: v })} disabled={!can} info={info} /></Fld>
+            {typoNote}
             {x.type === 'linkedin' && (
               <>
                 <Fld label="Manual action"><Sel value={x.action} onChange={v => set({ action: v })} options={['View profile', 'Send connection request', 'Send message', 'Follow up']} disabled={!can} /></Fld>

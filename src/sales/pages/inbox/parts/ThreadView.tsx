@@ -18,6 +18,7 @@ import { dealCandidates } from '../../../shared/dealLink'
 import { customerOf } from '../../../shared/customerOf'
 import { rosterioLinkOf } from '../../../data/rosterio'
 import { UI } from '../../../ui/store'
+import { tokenNames } from '../../../data/tokens'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
 
@@ -172,7 +173,8 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
     if (!UI.guard(t.businessId, 'Sending email')) return
     const tok = Q.tokens(ct, Q.senderOf(m), t.businessId)
     const pr = Q.render(F.plain(reply.body), tok)
-    if (pr.missing.length) return void UI.toast('Unresolved personalisation: {{' + pr.missing.join('}}, {{') + '}}', 'bad')
+    if (pr.unknown.length) return void UI.toast(`{{${pr.unknown.join('}}, {{')}}} ${pr.unknown.length === 1 ? 'is not a variable' : 'are not variables'}. Remove ${pr.unknown.length === 1 ? 'it' : 'them'} or pick one from Insert.`, 'bad')
+    if (pr.missing.length) return void UI.toast(`${ct?.name ?? 'This contact'} has no ${tokenNames(pr.missing).toLowerCase()}. Fill in the contact, add a fallback such as {{${pr.missing[0]}|…}}, or edit the reply.`, 'bad')
     const body = Q.render(reply.body, tok).text
     if (live) {
       // Real Gmail: the reply really goes, the same way Compose sends it. The server checks everything again and says so when it refuses.

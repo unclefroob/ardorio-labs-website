@@ -8,6 +8,7 @@ import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import type { Task } from '../../data/types'
 import { Banner, Btn, Chip, Icon, Modal } from '../../kit'
+import { parseTokens, tokenNames } from '../../data/tokens'
 import { UI } from '../../ui/store'
 import { MissingModal, NoEditModal } from '../entities/guards'
 
@@ -62,7 +63,20 @@ function Draft({ t }: { t: Task }) {
 
   if (!d) return null
 
+  // Anything still written as {{…}} would reach the contact as braces. The engine never makes such a draft, but an edited one can.
+  const unfilled = [...new Set(parseTokens(`${d?.subject ?? ''}\n${d?.body ?? ''}`).map(x => x.key))]
   const sendNow = async (): Promise<void> => {
+    if (unfilled.length) {
+      return UI.confirm({
+        title: 'Send with unfilled variables?',
+        body: `The email still says {{${unfilled.join('}}, {{')}}} where ${tokenNames(unfilled).toLowerCase()} should be. ${ct?.name ?? 'The contact'} would see the braces.`,
+        confirm: 'Send anyway', danger: true,
+        onConfirm: () => { void reallySend() },
+      })
+    }
+    await reallySend()
+  }
+  const reallySend = async (): Promise<void> => {
     if (!UI.guard(t.businessId, 'Sending email')) return
     setErr('')
     setBusy(true)
@@ -156,6 +170,7 @@ function Draft({ t }: { t: Task }) {
           </Banner>
         ))}
         {err && <Banner tone="bad">{err}</Banner>}
+        {open && unfilled.length > 0 && <Banner tone="warn">{`This email still has {{${unfilled.join('}}, {{')}}} in it, not the contact's ${tokenNames(unfilled).toLowerCase()}. Fill it in before sending.`}</Banner>}
         {sup && (
           <Banner tone="bad">
             {ct?.name} is suppressed ({sup.reason.toLowerCase()}). Do not email them. You can skip this step or stop emailing the contact.

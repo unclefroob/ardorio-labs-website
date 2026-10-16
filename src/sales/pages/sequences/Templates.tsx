@@ -5,19 +5,18 @@ import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import type { BusinessId, Template } from '../../data/types'
 import { draft as aiDraft, type AiTag } from '../../ai/client'
-import { AiBadge, AiNotConfigured, BizDot, Btn, Card, Chip, Empty, FilterBar, Fld, Icon, Inp, RichText, SearchInp, Sel, Toggle } from '../../kit'
+import { AiBadge, AiNotConfigured, Banner, BizDot, Btn, Card, Chip, chipsInHtml, Empty, FilterBar, Fld, Icon, Inp, RichText, SearchInp, Sel, Toggle, TokenInput, TokenText, type ChipInfo } from '../../kit'
 import { TOKENS } from '../../kit/util'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
 import { RowBtn } from '../inbox/parts/RowBtn'
+import { suggestToken, tokenise, tokenNames, unknownTokens } from '../../data/tokens'
 
 const CATS = ['Cold introduction', 'Follow-up', 'Meeting request', 'Demo follow-up', 'Proposal follow-up', 'Case study', 'Re-engagement', 'Referral introduction', 'Thank-you email', 'Post-meeting recap']
 
 interface Form { name: string; category: string; subject: string; body: string; shared: boolean }
 
 const formOf = (t: Template): Form => ({ name: t.name, category: t.category, subject: t.subject, body: t.body, shared: t.shared })
-const swap = (s: string, from: string | undefined, to: string): string => (from ? s.split(from).join(to) : s)
-
 function newBiz(): BusinessId | undefined {
   const d = Q.defaultBiz()
   return d && Q.canEdit(d) ? d : Q.editScope()[0]
@@ -109,7 +108,10 @@ function TemplateEditor({ t, onGone, onPick }: { t: Template; onGone: () => void
   const tok = Q.tokens(ct, Q.me(), t.businessId)
   const rs = Q.render(f.subject, tok)
   const rb = Q.render(f.body, tok)
-  const missing = [...new Set(Q.render(f.subject + F.plain(f.body), tok).missing)]
+  const all = Q.render(f.subject + ' ' + F.plain(f.body), tok)
+  const missing = all.missing.filter(k => !all.unknown.includes(k))
+  const typos = unknownTokens(f.subject + ' ' + f.body)
+  const gapsFor: ChipInfo = k => (ct && missing.includes(k) ? { tone: 'warn', note: `${ct.name} has no value for this` } : undefined)
 
   const save = (): void => {
     Act.saveTemplate({ id: t.id, name: f.name.trim() || t.name, businessId: t.businessId, category: f.category, subject: f.subject, body: f.body, shared: f.shared })
@@ -137,8 +139,8 @@ function TemplateEditor({ t, onGone, onPick }: { t: Template; onGone: () => void
       const r = await aiDraft(ct, t.businessId, 'intro')
       const co = Q.company(ct.companyId)
       const coName = co ? String(co.tradingName || co.name) : undefined
-      const tokenise = (s: string): string => swap(swap(swap(s, ct.firstName, '{{first_name}}'), coName, '{{company_name}}'), Q.me().name, '{{sender_name}}')
-      setF(prev => ({ ...prev, subject: prev.subject || tokenise(r.value.subject), body: tokenise(r.value.body) }))
+      const pairs: Array<[string | undefined, string]> = [[ct.firstName, 'first_name'], [coName, 'company_name'], [Q.me().name, 'sender_name']]
+      setF(prev => ({ ...prev, subject: prev.subject || tokenise(r.value.subject, pairs), body: tokenise(r.value.body, pairs) }))
       setTag(r.ai)
     } catch {
       UI.toast('The AI draft could not be generated. Try again shortly.', 'bad')
@@ -170,15 +172,16 @@ function TemplateEditor({ t, onGone, onPick }: { t: Template; onGone: () => void
         </Fld>
       </div>
       <div className="col gap12" style={{ marginTop: 12 }}>
-        <Fld label="Subject"><Inp value={f.subject} onChange={v => set({ subject: v })} disabled={!can} /></Fld>
+        <Fld label="Subject"><TokenInput label="Subject" value={f.subject} onChange={v => set({ subject: v })} disabled={!can} info={gapsFor} /></Fld>
         <div className="fld">
           <span className="sm b" id={'tb-' + t.id}>Body</span>
           {can ? (
-            <RichText value={f.body} onChange={v => set({ body: v })} tokens={TOKENS} minH={220} label="Template body" onAI={() => { void aiDraftBody() }} aiBusy={busy} />
+            <RichText value={f.body} onChange={v => set({ body: v })} tokens={TOKENS} minH={220} label="Template body" onAI={() => { void aiDraftBody() }} aiBusy={busy} info={gapsFor} />
           ) : (
-            <div className="rte" role="textbox" aria-readonly="true" aria-labelledby={'tb-' + t.id} dangerouslySetInnerHTML={{ __html: F.body(f.body) }} />
+            <div className="rte" role="textbox" aria-readonly="true" aria-labelledby={'tb-' + t.id} dangerouslySetInnerHTML={{ __html: chipsInHtml(F.body(f.body)) }} />
           )}
         </div>
+        {typos.length > 0 && <Banner tone="bad">{`${typos.map(k => { const g = suggestToken(k); return `{{${k}}}${g ? ` (did you mean ${g.label}?)` : ''}` }).join(', ')} ${typos.length === 1 ? 'is not a variable' : 'are not variables'}. A sequence using this template cannot start until it is fixed.`}</Banner>}
         {can && (
           <div className="row wrap xs" style={{ gap: 8 }}>
             <AiBadge tag={tag} />
@@ -197,10 +200,10 @@ function TemplateEditor({ t, onGone, onPick }: { t: Template; onGone: () => void
             ) : (
               <span className="faint">Preview shows tokens unfilled until this business has contacts.</span>
             )}
-            {ct && missing.length > 0 && <Chip tone="warn">Unresolved: {missing.join(', ')}</Chip>}
+            {ct && missing.length > 0 && <Chip tone="warn">No {tokenNames(missing).toLowerCase()} for {ct.name}</Chip>}
           </div>
-          <div className="b sm">{rs.text || <span className="faint">No subject</span>}</div>
-          <div className="sm" style={{ marginTop: 6 }} dangerouslySetInnerHTML={{ __html: F.body(rb.text) }} />
+          <div className="b sm">{rs.text ? <TokenText text={rs.text} info={gapsFor} /> : <span className="faint">No subject</span>}</div>
+          <div className="sm" style={{ marginTop: 6 }} dangerouslySetInnerHTML={{ __html: chipsInHtml(F.body(rb.text), gapsFor) }} />
         </div>
         <div className="faint xs">Owner {Q.user(t.ownerId)?.name ?? 'Unknown'} · created {F.date(t.createdAt)} · modified {F.rel(t.updatedAt)}</div>
       </div>
