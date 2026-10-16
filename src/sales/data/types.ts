@@ -288,6 +288,8 @@ export interface Mailbox {
   /** Why the last read of this mailbox failed (written by the server's sync); absent or null when it worked. */
   syncError?: string | null
   canSend: boolean
+  /** Added under every email sent from this mailbox: HTML, made safe by the server (which alone writes it). '' or absent when none. */
+  signature?: string
 }
 
 export interface Template {
@@ -433,6 +435,8 @@ export interface Message {
   from: string
   to: string
   cc?: string
+  /** Blind copies of mail sent from SalesOS (only the sender's own record has them). */
+  bcc?: string
   subject: string
   body: string
   ts: Iso

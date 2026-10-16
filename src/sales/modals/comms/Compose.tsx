@@ -13,6 +13,7 @@ import { AiBadge, AiNotConfigured, Banner, Btn, Chip, Fld, Icon, Inp, Menu, Moda
 import { BizSel, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
 import { NoEditModal } from '../entities/guards'
+import { Attachments, SignatureLine, toSend, type PendingFile } from './MailExtras'
 import { Openers, withOpener } from './Openers'
 
 interface Props {
@@ -26,7 +27,7 @@ interface Props {
   draftId?: string
   ai?: AiTag
 }
-interface ComposeForm { mailboxId: string; contactId: string; to: string; cc: string; subject: string; body: string; dealId: string; companyId: string }
+interface ComposeForm { mailboxId: string; contactId: string; to: string; cc: string; bcc: string; subject: string; body: string; dealId: string; companyId: string }
 
 export function Compose(p: Props) {
   useStore()
@@ -44,11 +45,13 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
   const mbs = Q.myMailboxes(b)
   const [f, set] = useF<ComposeForm>(() => ({
     mailboxId: p.mailboxId || (t && mbs.find(m => m.id === t.mailboxId) ? t.mailboxId : (mbs.find(m => m.type === 'personal') ?? mbs[0])?.id) || '',
-    contactId: ct0?.id ?? '', to: ct0?.email ?? '', cc: '', subject: p.subject ?? (t ? 'Re: ' + t.subject.replace(/^Re: /, '') : ''), body: p.body ?? '',
+    contactId: ct0?.id ?? '', to: ct0?.email ?? '', cc: '', bcc: '', subject: p.subject ?? (t ? 'Re: ' + t.subject.replace(/^Re: /, '') : ''), body: p.body ?? '',
     dealId: p.dealId ?? t?.dealId ?? '', companyId: ct0?.companyId ?? t?.companyId ?? '',
   }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [files, setFiles] = useState<PendingFile[]>([])
+  const [sig, setSig] = useState(true)
   const [tag, setTag] = useState<AiTag | undefined>(p.ai)
   const mb = Q.mailbox(f.mailboxId)
   const mailState = useMailState().s
@@ -97,7 +100,8 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
       // Only a conversation that is itself in Gmail, in this mailbox, can be replied into; anything else starts a new one.
       const inGmail = !!t && !!t.gmailThreadId && t.mailboxId === mb.id
       const r = await sendMailApi({
-        mailboxId: mb.id, to: f.to, cc: f.cc || undefined, subject: Q.render(f.subject, tok).text, body: Q.render(f.body, tok).text,
+        mailboxId: mb.id, to: f.to, cc: f.cc || undefined, bcc: f.bcc || undefined, subject: Q.render(f.subject, tok).text, body: Q.render(f.body, tok).text,
+        attachments: files.length ? toSend(files) : undefined, signature: sig,
         ...(inGmail ? { threadId: t.id } : { businessId: b }), contactId: f.contactId || undefined, dealId: f.dealId || null,
       })
       await pollOnce()
@@ -176,8 +180,9 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
         </div>
         {sup && ct && <Banner tone="bad">{ct.name} has a {sup.scope} suppression ({sup.reason}). Sending is blocked.</Banner>}
         {ct && !ct.email && <Banner tone="warn" action={<Btn size="sm" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich</Btn>}>This contact has no email address.</Banner>}
-        <div className="grid g2">
+        <div className="grid g3">
           <Fld label="Cc"><Inp value={f.cc} onChange={v => set('cc', v)} /></Fld>
+          <Fld label="Bcc"><Inp value={f.bcc} onChange={v => set('bcc', v)} /></Fld>
           <Fld label="Related deal"><Sel value={f.dealId} onChange={v => set('dealId', v)} placeholder="—" options={S.deals.filter(d => d.companyId === f.companyId && d.businessId === b && d.archived !== true).map(d => [d.id, d.title] as const)} /></Fld>
         </div>
         <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
@@ -196,6 +201,13 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
         </div>
         <Openers key={b + '|' + f.companyId + '|' + f.contactId} b={b} companyId={f.companyId || undefined} contactId={f.contactId || undefined} onInsert={line => set('body', withOpener(f.body, line))} />
         <RichText value={f.body} onChange={v => set('body', v)} tokens={TOKENS} onAI={() => void draftIt()} aiBusy={busy} />
+        {/* Files and the signature go out with real Gmail only; a simulated send records the words. */}
+        {live && mb && (
+          <>
+            <Attachments files={files} onChange={setFiles} disabled={busy} />
+            <SignatureLine mailboxId={mb.id} on={sig} onChange={setSig} />
+          </>
+        )}
         {ct && (f.body.includes('{{') || f.subject.includes('{{')) && (
           <div className="card card-b" style={{ background: 'var(--surf2)' }}>
             <div className="row xs faint" style={{ marginBottom: 6 }}>
