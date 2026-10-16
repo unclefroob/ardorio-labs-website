@@ -21,9 +21,16 @@ export interface UiState {
   drawer: DrawerEntry | null
   palette: boolean
   side: boolean
+  /** The sidebar folded to an icon strip (desktop). Remembered in this browser. */
+  rail: boolean
 }
 
-const UIS: UiState = { route: { page: 'dashboard' }, modals: [], toasts: [], drawer: null, palette: false, side: false }
+const RAIL_KEY = 'sos.sidebar.rail'
+function readRail(): boolean {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
+}
+
+const UIS: UiState = { route: { page: 'dashboard' }, modals: [], toasts: [], drawer: null, palette: false, side: false, rail: readRail() }
 const subs = new Set<() => void>()
 let version = 0
 let rid = 0
@@ -122,6 +129,12 @@ export const UI = {
   },
   side(v: boolean): void {
     UIS.side = v
+    emit()
+  },
+  /** Fold the sidebar to icons (or open it out again), and remember that in this browser. */
+  rail(v: boolean): void {
+    UIS.rail = v
+    try { localStorage.setItem(RAIL_KEY, v ? '1' : '0') } catch { /* private window: it just isn't remembered */ }
     emit()
   },
   guard(b: string, what?: string): boolean {

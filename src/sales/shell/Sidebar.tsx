@@ -30,6 +30,8 @@ export function Sidebar() {
   const cnt = counts()
   const active = navParent(ui.route.page)
   const admin = Q.anyAdmin()
+  // Folded to icons: each item keeps its name for screen readers and as a hover label.
+  const rail = ui.rail
 
   const wsItems: MenuItem[] = [
     { label: 'Switch workspace', head: true },
@@ -46,13 +48,13 @@ export function Sidebar() {
       <Menu
         width={244}
         trigger={
-          <button type="button" className="ws" aria-label="Switch workspace">
+          <button type="button" className="ws" aria-label="Switch workspace" title={rail ? (bz ? bz.name : 'All Businesses') : undefined}>
             <span className="ws-mark" style={{ background: bz ? bz.accent : 'var(--fg)' }}>{bz ? bz.name[0] : 'A'}</span>
-            <span style={{ flex: 1, minWidth: 0 }}>
+            <span className="ws-l" style={{ flex: 1, minWidth: 0 }}>
               <span className="b" style={{ display: 'block' }}>{bz ? bz.name : 'All Businesses'}</span>
               <span className="faint xs">{bz ? 'Workspace' : 'Ardorio SalesOS · Portfolio'}</span>
             </span>
-            <Icon n="down" s={14} style={{ color: 'var(--fg3)' }} />
+            <Icon n="down" s={14} className="ws-l" style={{ color: 'var(--fg3)' }} />
           </button>
         }
         items={wsItems}
@@ -63,13 +65,16 @@ export function Sidebar() {
           if (!vis.length) return null
           return (
             <div key={g.group}>
-              <div className="ng">{g.group}</div>
+              <div className="ng"><span className="ni-l">{g.group}</span></div>
               {vis.map(i => {
                 const n = cnt[i.page]
                 return (
-                  <button key={i.page} type="button" className={'ni' + (active === i.page ? ' on' : '')} aria-current={active === i.page ? 'page' : undefined} onClick={() => UI.nav(i.page)}>
+                  <button
+                    key={i.page} type="button" className={'ni' + (active === i.page ? ' on' : '')} aria-current={active === i.page ? 'page' : undefined} onClick={() => UI.nav(i.page)}
+                    title={rail ? i.label + (n ? ` (${n})` : '') : undefined} aria-label={rail ? i.label + (n ? `, ${n}` : '') : undefined}
+                  >
                     <Icon n={i.icon} s={15} />
-                    {i.label}
+                    <span className="ni-l">{i.label}</span>
                     {n ? <span className={i.page === 'inbox' ? 'badge' : 'cnt'}>{n}</span> : null}
                   </button>
                 )
@@ -79,7 +84,11 @@ export function Sidebar() {
         })}
       </div>
       <div className="side-foot">
-        <div className="row" style={{ gap: 8 }}>
+        <button type="button" className="ni side-fold" onClick={() => UI.rail(!rail)} aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'} title={rail ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!rail}>
+          <Icon n={rail ? 'right' : 'left'} s={15} />
+          <span className="ni-l">Collapse</span>
+        </button>
+        <div className="row ni-l" style={{ gap: 8 }}>
           <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
             <defs>
               <linearGradient id="sos-lg" x1="0" y1="0" x2="1" y2="1">

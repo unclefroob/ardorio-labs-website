@@ -31,6 +31,21 @@
 .sos .ni .badge{margin-left:auto;background:var(--acc);color:#fff;border-radius:9px;font-size:12px;padding:0 6px;font-weight:600}
 .sos .side-foot{border-top:1px solid var(--line);padding:10px}
 .sos .mainwrap{display:flex;flex-direction:column;min-width:0;min-height:0}
+.sos .side-fold{margin-bottom:8px;color:var(--fg3)}
+/*
+ * The sidebar folded to an icon strip (desktop only; phones keep the slide-out menu). Names stay as hover labels and for screen
+ * readers; group headings become thin rules; the Inbox count sits on its icon.
+ */
+@media (min-width:901px){.sos .app.rail{grid-template-columns:60px minmax(0,1fr)}
+.sos .rail .ni-l,.sos .rail .ws-l,.sos .rail .ni .cnt{display:none}
+.sos .rail .side-scroll{padding:4px 8px 12px}
+.sos .rail .ni{justify-content:center;padding:8px 0;position:relative}
+.sos .rail .ni .badge{position:absolute;top:0;right:0;margin:0;font-size:12px;padding:0 4px;line-height:16px}
+.sos .rail .ng{padding:8px 6px 4px}
+.sos .rail .ng::before{content:'';display:block;border-top:1px solid var(--line)}
+.sos .rail .ws{margin:12px 8px 6px;width:calc(100% - 16px);padding:6px;justify-content:center}
+.sos .rail .side-foot{padding:10px 8px}
+.sos .rail .side-fold{margin-bottom:0}}
 .sos .top>*{flex-shrink:0}
 .sos .top>.search{flex-shrink:1}
 .sos .top{height:52px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surf);flex:none}
@@ -234,10 +249,10 @@
 /*
  * The inbox's columns answer to the room the inbox actually has (inbox-c: the window less the app sidebar), not the window: a 13" laptop,
  * a 3:2 screen at 150% and a 4K screen at 200% differ far more in that room than their window widths suggest.
- *   < 1360px: the folder column folds into a bar above the list, so the conversation keeps its width.
+ *   < 1440px: the folder column folds into a bar above the list, so the conversation keeps its width.
  *   >= 1400px / 1750px: the extra room goes to the columns, and previews get two lines.
  */
-@container sos-inbox (max-width:1359px){.sos .inbox{grid-template-columns:clamp(260px,32cqi,340px) minmax(0,1fr)}
+@container sos-inbox (max-width:1439px){.sos .inbox{grid-template-columns:clamp(260px,32cqi,340px) minmax(0,1fr)}
 .sos .ib-l{display:none}
 .sos .ib-compact{display:flex}}
 @container sos-inbox (min-width:1400px){.sos .inbox{grid-template-columns:230px 380px minmax(0,1fr)}
