@@ -102,18 +102,31 @@ function esc(s: unknown): string {
   return String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c)
 }
 
-const SAFE_TAGS = new Set(['br', 'p', 'div', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'span'])
+const SAFE_TAGS = new Set(['br', 'p', 'div', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'span', 'blockquote'])
+
+/** A link that is safe to follow: web, mail and phone addresses only (never javascript: or data:). */
+function safeHref(raw: string): string | null {
+  const s = raw.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim()
+  return /^(https?:\/\/|mailto:|tel:)/i.test(s) && ![...s].some(c => c.charCodeAt(0) < 32) ? s : null
+}
 
 /**
  * Message bodies are rendered as HTML. Inbound email is untrusted, so only a fixed set of
- * attribute-less formatting tags survives; everything else is escaped to visible text.
+ * attribute-less formatting tags survives, plus links to web, mail and phone addresses (which
+ * open in a new tab); everything else is escaped to visible text. The server sends the same set.
  */
 function body(s: string | null | undefined): string {
   const v = s || ''
   if (!/<\w/.test(v)) return esc(v).replace(/\n/g, '<br>')
-  return v.replace(/<(\/?)([A-Za-z][A-Za-z0-9]*)\b[^>]*>|[&<>"]/g, (m, slash: string | undefined, tag: string | undefined) => {
+  return v.replace(/<(\/?)([A-Za-z][A-Za-z0-9]*)\b((?:[^>"']|"[^"]*"|'[^']*')*)>|[&<>"]/g, (m, slash: string | undefined, tag: string | undefined, rest: string | undefined) => {
     if (tag !== undefined) {
       const t = tag.toLowerCase()
+      if (t === 'a') {
+        if (slash) return '</a>'
+        const h = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i.exec(rest ?? '')
+        const href = h ? safeHref(h[1] ?? h[2] ?? h[3] ?? '') : null
+        return href ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">` : '<a>'
+      }
       return SAFE_TAGS.has(t) ? `<${slash ?? ''}${t}>` : esc(m)
     }
     return m === '&' ? m : esc(m)

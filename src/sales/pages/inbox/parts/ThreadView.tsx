@@ -13,6 +13,7 @@ import { SalesHttpError } from '../../../api/http'
 import { pollOnce } from '../../../data/sync'
 import { mailDecided, recheckMailState, useMailState } from '../../../mail/client'
 import { EmailBody } from './EmailBody'
+import { Attachments, SignatureLine, toSend, type PendingFile } from '../../../modals/comms/MailExtras'
 import { dealCandidates } from '../../../shared/dealLink'
 import { customerOf } from '../../../shared/customerOf'
 import { rosterioLinkOf } from '../../../data/rosterio'
@@ -20,7 +21,7 @@ import { UI } from '../../../ui/store'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
 
-interface Reply { mailboxId: string; to: string; body: string }
+interface Reply { mailboxId: string; to: string; cc: string; bcc: string; showCc: boolean; body: string; files: PendingFile[]; sig: boolean }
 
 // Unsent replies, by conversation, for the session: switching to another conversation (or a poll that briefly drops this one) keeps them.
 const drafts = new Map<string, Reply>()
@@ -32,6 +33,24 @@ const addrOf = (s: string): string => (/<([^>]+)>/.exec(s)?.[1] ?? s).trim()
 function replyTo(ms: Message[], fallback: string): string {
   const last = [...ms].reverse().find(m => m.dir === 'in' && m.status !== 'draft')
   return last ? addrOf(last.from) : fallback
+}
+
+// Addresses as text ("a@x, B <b@y>") or, on some records, a list.
+const addrsOf = (s: unknown): string[] => (Array.isArray(s) ? s.join(',') : typeof s === 'string' ? s : '').split(/[,;]/).map(x => addrOf(x).toLowerCase()).filter(x => x.includes('@'))
+
+/** Reply all: everyone else on the last message (its sender, To and Cc), less our own mailboxes and whoever the reply goes to. */
+export function replyAllCc(ms: Message[], to: string, own: string[]): string {
+  const last = [...ms].reverse().find(m => m.status !== 'draft')
+  if (!last) return ''
+  const skip = new Set([...own.map(a => a.toLowerCase()), to.toLowerCase()])
+  return [...new Set([...addrsOf(last.from), ...addrsOf(last.to), ...addrsOf(last.cc)])].filter(a => !skip.has(a)).join(', ')
+}
+
+/** The body of a forward, as Gmail writes it: the original's headers, then its text. */
+export function forwardBody(m: Message, who: string): string {
+  const line = (k: string, v: string): string => `<div>${k}: ${F.body(v)}</div>`
+  const files = m.attachments?.length ? `<div><br></div><div>(${m.attachments.length} attachment${m.attachments.length === 1 ? '' : 's'} not included: forward from Gmail to send them on.)</div>` : ''
+  return `<div><br></div><div>---------- Forwarded message ---------</div>${line('From', who)}${line('Date', F.dt(m.ts))}${line('Subject', m.subject)}${line('To', m.to)}${m.cc ? line('Cc', m.cc) : ''}<div><br></div>${F.body(m.body)}${files}`
 }
 
 /** Put a message at the top of the conversation pane (desktop) or the page (narrow screens, where the pane is the page). */
@@ -89,9 +108,18 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
   const [aiErr, setAiErr] = useState('')
   const seq = useRef(0)
 
-  const startReply = (body?: string): void => {
+  const startReply = (body?: string, all = false): void => {
     const mailboxId = mailboxes.find(m => m.id === t.mailboxId)?.id ?? mailboxes[0]?.id ?? ''
-    setReply({ mailboxId, to: replyTo(ms, ct?.email ?? ''), body: body ?? '' })
+    const to = replyTo(ms, ct?.email ?? '')
+    const cc = all ? replyAllCc(ms, to, S.mailboxes.map(m => m.address)) : ''
+    setReply({ mailboxId, to, cc, bcc: '', showCc: !!cc, body: body ?? '', files: [], sig: true })
+  }
+  const othersOnLast = replyAllCc(ms, replyTo(ms, ct?.email ?? ''), S.mailboxes.map(m => m.address))
+  const forward = (): void => {
+    const m = newest
+    if (!m) return
+    const who = m.dir === 'in' ? (ct?.name ? `${ct.name} <${addrOf(m.from)}>` : m.from) : m.from
+    UI.open('compose', { businessId: t.businessId, mailboxId: t.mailboxId, subject: 'Fwd: ' + t.subject.replace(/^(Fwd|Fw): /i, ''), body: forwardBody(m, who), dealId: t.dealId ?? undefined })
   }
 
   const writeWithAi = async (): Promise<void> => {
@@ -153,7 +181,8 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
       setSending(true)
       try {
         const r = await sendMailApi({
-          mailboxId: m.id, to: reply.to, subject, body, ...(inGmail ? { threadId: t.id } : { businessId: t.businessId }), contactId: t.contactId, dealId: t.dealId ?? null,
+          mailboxId: m.id, to: reply.to, cc: reply.cc || undefined, bcc: reply.bcc || undefined, subject, body, ...(inGmail ? { threadId: t.id } : { businessId: t.businessId }), contactId: t.contactId, dealId: t.dealId ?? null,
+          attachments: reply.files.length ? toSend(reply.files) : undefined, signature: reply.sig, quote: inGmail,
         })
         setReply(null)
         drafts.delete(t.id)
@@ -340,8 +369,27 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
               <div className="row" style={{ marginBottom: 8, gap: 8 }}>
                 <span className="faint xs" style={{ width: 22 }}>To</span>
                 <Inp className="sm" style={{ flex: 1 }} aria-label="Reply to" value={reply.to} onChange={v => setReply(r => (r ? { ...r, to: v } : r))} />
+                {!reply.showCc && <Btn size="xs" kind="ghost" onClick={() => setReply(r => (r ? { ...r, showCc: true } : r))}>Cc/Bcc</Btn>}
               </div>
+              {reply.showCc && (
+                <>
+                  <div className="row" style={{ marginBottom: 8, gap: 8 }}>
+                    <span className="faint xs" style={{ width: 22 }}>Cc</span>
+                    <Inp className="sm" style={{ flex: 1 }} aria-label="Cc" value={reply.cc} onChange={v => setReply(r => (r ? { ...r, cc: v } : r))} />
+                  </div>
+                  <div className="row" style={{ marginBottom: 8, gap: 8 }}>
+                    <span className="faint xs" style={{ width: 22 }}>Bcc</span>
+                    <Inp className="sm" style={{ flex: 1 }} aria-label="Bcc" value={reply.bcc} onChange={v => setReply(r => (r ? { ...r, bcc: v } : r))} />
+                  </div>
+                </>
+              )}
               <RichText value={reply.body} onChange={v => setReply(r => (r ? { ...r, body: v } : r))} tokens={TOKENS} minH={120} label="Reply" />
+              {live && (
+                <div className="col" style={{ gap: 6, marginTop: 8 }}>
+                  <Attachments files={reply.files} onChange={files => setReply(r => (r ? { ...r, files } : r))} disabled={sending} />
+                  <SignatureLine mailboxId={reply.mailboxId} on={reply.sig} onChange={sig => setReply(r => (r ? { ...r, sig } : r))} />
+                </div>
+              )}
               {aiErr && <div className="sm" style={{ color: 'var(--bad)', marginTop: 6 }} role="alert">{aiErr}</div>}
               <div className="row wrap" style={{ marginTop: 8 }}>
                 <ReplyMode state={mailState} canSend={!!Q.mailbox(reply.mailboxId)?.canSend} address={Q.mailbox(reply.mailboxId)?.address} />
@@ -354,9 +402,11 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
               </div>
             </div>
           ) : (
-            <div className="row">
+            <div className="row wrap">
               <Btn icon="reply" onClick={() => startReply()}>Reply</Btn>
-              <Btn icon="send" onClick={() => UI.open('compose', { threadId: t.id, contactId: t.contactId })}>Open in composer</Btn>
+              {othersOnLast && <Btn icon="users" onClick={() => startReply(undefined, true)}>Reply all</Btn>}
+              <Btn icon="arrow" onClick={forward} disabled={!newest}>Forward</Btn>
+              <Btn icon="send" kind="ghost" onClick={() => UI.open('compose', { threadId: t.id, contactId: t.contactId })}>Open in composer</Btn>
             </div>
           ))}
         </div>
