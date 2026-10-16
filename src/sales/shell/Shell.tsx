@@ -8,6 +8,11 @@ import { RouteSync } from './RouteSync'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
+const typing = (t: EventTarget | null): boolean => {
+  const el = t as HTMLElement | null
+  return !!el && (el.isContentEditable || el.getAttribute?.('contenteditable') === 'true' || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
+}
+
 export function Shell() {
   const ui = useUi()
 
@@ -16,6 +21,10 @@ export function Shell() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         UI.palette(!UI.get().palette)
+      } else if (e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e.target) && !UI.get().modals.length && !UI.get().palette) {
+        // "[" folds or opens the sidebar, as in Linear and Notion; never while typing.
+        e.preventDefault()
+        UI.rail(!UI.get().rail)
       } else if (e.key === 'Escape' && UI.get().side && !UI.get().modals.length && !UI.get().palette) {
         UI.side(false)
       }

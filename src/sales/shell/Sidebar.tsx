@@ -1,3 +1,4 @@
+import { useState, type FocusEvent, type MouseEvent } from 'react'
 import { useStore } from '../data/store'
 import { S } from '../data/store'
 import { Act } from '../data/Act'
@@ -20,6 +21,12 @@ function counts(): Record<string, number> {
   }
 }
 
+/** What each count means, so it is read out as "Inbox, 3 unread", not "Inbox 3". */
+const COUNT_WORD: Record<string, string> = { inbox: 'unread', myday: 'due today', recs: 'new', notifications: 'unread' }
+
+const ADMIN_KEY = 'sos.sidebar.admin'
+const readOpen = (): boolean => { try { return localStorage.getItem(ADMIN_KEY) === '1' } catch { return false } }
+
 export function Sidebar() {
   const live = useMailState().s === 'live'
   useStore()
@@ -30,8 +37,30 @@ export function Sidebar() {
   const cnt = counts()
   const active = navParent(ui.route.page)
   const admin = Q.anyAdmin()
-  // Folded to icons: each item keeps its name for screen readers and as a hover label.
+  // Folded to icons: each item keeps its name for screen readers, and shows it beside the icon on hover and on keyboard focus.
   const rail = ui.rail
+  const [tip, setTip] = useState<{ text: string; top: number } | null>(null)
+  const showTip = (text: string) => (e: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>): void => {
+    if (!rail) return
+    // On focus only when it came from the keyboard: a click focuses too, and the label would linger over an opened menu.
+    if (e.type === 'focus' && !e.currentTarget.matches(':focus-visible')) return
+    const r = e.currentTarget.getBoundingClientRect()
+    setTip({ text, top: r.top + r.height / 2 })
+  }
+  const tipProps = (text: string) => ({ onMouseEnter: showTip(text), onFocus: showTip(text), onMouseLeave: () => setTip(null), onBlur: () => setTip(null), onMouseDown: () => setTip(null) })
+  // Administration is used rarely: closed unless you open it (remembered) or are on one of its pages.
+  const [adminOpen, setAdminOpen] = useState(readOpen)
+  const toggleAdmin = (): void => {
+    setAdminOpen(o => {
+      try { localStorage.setItem(ADMIN_KEY, o ? '0' : '1') } catch { /* not remembered */ }
+      return !o
+    })
+  }
+  const named = (label: string, page: string, n: number | undefined): string => (n ? `${label}, ${n} ${COUNT_WORD[page] ?? ''}`.trim() : label)
+  const mbs = S.mailboxes.filter(m => m.status === 'connected' && m.businessIds.some(b => Q.member(b)))
+  const status = live
+    ? `Gmail connected${mbs.length ? ` (${mbs.length} mailbox${mbs.length === 1 ? '' : 'es'}${mbs.some(m => m.canSend) ? ', sending on' : ', read only'})` : ''}. Calendar is simulated.`
+    : 'Email and calendar are simulated: nothing is sent or received.'
 
   const wsItems: MenuItem[] = [
     { label: 'Switch workspace', head: true },
@@ -48,12 +77,9 @@ export function Sidebar() {
       <Menu
         width={244}
         trigger={
-          <button type="button" className="ws" aria-label="Switch workspace" title={rail ? (bz ? bz.name : 'All Businesses') : undefined}>
+          <button type="button" className="ws" aria-label={`Workspace: ${bz ? bz.name : 'All Businesses'}. Switch workspace`} {...tipProps(bz ? bz.name : 'All Businesses')}>
             <span className="ws-mark" style={{ background: bz ? bz.accent : 'var(--fg)' }}>{bz ? bz.name[0] : 'A'}</span>
-            <span className="ws-l" style={{ flex: 1, minWidth: 0 }}>
-              <span className="b" style={{ display: 'block' }}>{bz ? bz.name : 'All Businesses'}</span>
-              <span className="faint xs">{bz ? 'Workspace' : 'Ardorio SalesOS · Portfolio'}</span>
-            </span>
+            <span className="ws-l b trunc" style={{ flex: 1, minWidth: 0 }}>{bz ? bz.name : 'All Businesses'}</span>
             <Icon n="down" s={14} className="ws-l" style={{ color: 'var(--fg3)' }} />
           </button>
         }
@@ -63,48 +89,67 @@ export function Sidebar() {
         {NAV.map(g => {
           const vis = g.items.filter(i => navItemVisible(i, { anyAdmin: admin, member: Q.member, canAdmin: Q.canAdmin }))
           if (!vis.length) return null
+          const item = (i: (typeof vis)[number]) => {
+            const n = cnt[i.page]
+            const name = named(i.label, i.page, n)
+            return (
+              <button
+                key={i.page} type="button" className={'ni' + (active === i.page ? ' on' : '')} aria-current={active === i.page ? 'page' : undefined} onClick={() => UI.nav(i.page)}
+                aria-label={name} {...tipProps(name)}
+              >
+                <Icon n={i.icon} s={15} />
+                <span className="ni-l" aria-hidden="true">{i.label}</span>
+                {n ? <span className={i.page === 'inbox' ? 'badge' : 'cnt'} aria-hidden="true">{n}</span> : null}
+              </button>
+            )
+          }
+          if (g.group === 'Administration') {
+            const here = vis.some(i => i.page === active)
+            // Folded sidebar: one icon that opens the group as a menu.
+            if (rail) {
+              return (
+                <div key={g.group} className="side-admin">
+                  <div className="ng" />
+                  <Menu
+                    trigger={<button type="button" className={'ni' + (here ? ' on' : '')} aria-label="Administration" {...tipProps('Administration')}><Icon n="settings" s={15} /></button>}
+                    items={vis.map<MenuItem>(i => ({ label: i.label, icon: i.icon, checked: i.page === active, onClick: () => UI.nav(i.page) }))}
+                  />
+                </div>
+              )
+            }
+            const open = adminOpen || here
+            return (
+              <div key={g.group}>
+                <button type="button" className="ng ng-btn" aria-expanded={open} onClick={toggleAdmin} disabled={here} title={here ? 'Open while you are on one of its pages' : undefined}>
+                  <span className="ni-l">{g.group}</span>
+                  <Icon n={open ? 'down' : 'right'} s={12} />
+                </button>
+                {open && vis.map(item)}
+              </div>
+            )
+          }
           return (
             <div key={g.group}>
               <div className="ng"><span className="ni-l">{g.group}</span></div>
-              {vis.map(i => {
-                const n = cnt[i.page]
-                return (
-                  <button
-                    key={i.page} type="button" className={'ni' + (active === i.page ? ' on' : '')} aria-current={active === i.page ? 'page' : undefined} onClick={() => UI.nav(i.page)}
-                    title={rail ? i.label + (n ? ` (${n})` : '') : undefined} aria-label={rail ? i.label + (n ? `, ${n}` : '') : undefined}
-                  >
-                    <Icon n={i.icon} s={15} />
-                    <span className="ni-l">{i.label}</span>
-                    {n ? <span className={i.page === 'inbox' ? 'badge' : 'cnt'}>{n}</span> : null}
-                  </button>
-                )
-              })}
+              {vis.map(item)}
             </div>
           )
         })}
       </div>
       <div className="side-foot">
-        <button type="button" className="ni side-fold" onClick={() => UI.rail(!rail)} aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'} title={rail ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!rail}>
-          <Icon n={rail ? 'right' : 'left'} s={15} />
-          <span className="ni-l">Collapse</span>
-        </button>
-        <div className="row ni-l" style={{ gap: 8 }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <defs>
-              <linearGradient id="sos-lg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#8B2FFC" />
-                <stop offset="1" stopColor="#3B82F6" />
-              </linearGradient>
-            </defs>
-            <rect width="24" height="24" rx="6" fill="url(#sos-lg)" />
-            <path d="M7 17 12 6l5 11" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <div>
-            <div className="b sm">Ardorio SalesOS</div>
-            <div className="faint xs">{live ? 'Gmail connected (read only). Calendar is simulated.' : 'Simulated email and calendar integrations'}</div>
-          </div>
+        <div className="row side-foot-row">
+          <button type="button" className="ni side-fold" onClick={() => UI.rail(!rail)} aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'} aria-keyshortcuts="[" aria-expanded={!rail} {...tipProps(rail ? 'Expand sidebar  [' : 'Collapse sidebar  [')}>
+            <Icon n={rail ? 'right' : 'left'} s={15} />
+            <span className="ni-l">Collapse</span>
+            <kbd className="ni-l side-kbd">[</kbd>
+          </button>
+          {/* The integrations' state in one dot (its words for hover and screen readers), instead of a paragraph that crowds out the menu. */}
+          <span className="side-status" role="img" aria-label={status} title={status} {...tipProps(status)}>
+            <span className="dot" style={{ background: live ? 'var(--ok)' : 'var(--warn)' }} />
+          </span>
         </div>
       </div>
+      {tip && rail && <div className="side-tip" aria-hidden="true" style={{ top: tip.top }}>{tip.text}</div>}
     </nav>
   )
 }
