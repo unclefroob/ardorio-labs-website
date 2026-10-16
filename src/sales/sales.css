@@ -19,7 +19,7 @@
 .sos .app{display:grid;grid-template-columns:232px minmax(0,1fr);height:100vh}
 .sos .side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 .sos .side-scroll{overflow-y:auto;flex:1;padding:4px 10px 12px}
-.sos .ws{margin:12px 10px 6px;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surf);cursor:pointer;width:calc(100% - 20px);text-align:left}
+.sos .ws{margin:10px 10px 4px;display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surf);cursor:pointer;width:calc(100% - 20px);text-align:left}
 .sos .ws:hover{border-color:var(--line2)}
 .sos .ws-mark{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none}
 .sos .ng{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3);padding:14px 10px 4px}
@@ -29,9 +29,19 @@
 .sos .ni .cnt{margin-left:auto;font-size:12px;color:var(--fg3);font-variant-numeric:tabular-nums}
 .sos .ni.on .cnt{color:var(--acc-ink)}
 .sos .ni .badge{margin-left:auto;background:var(--acc);color:#fff;border-radius:9px;font-size:12px;padding:0 6px;font-weight:600}
-.sos .side-foot{border-top:1px solid var(--line);padding:10px}
+.sos .side-foot{border-top:1px solid var(--line);padding:6px 10px}
+.sos .side-foot-row{gap:4px}
+.sos .side-foot-row .side-fold{flex:1;margin:0}
+.sos .side-kbd{margin-left:auto;font:inherit;font-size:12px;color:var(--fg3);border:1px solid var(--line2);border-radius:4px;padding:0 5px;line-height:16px}
+.sos .side-status{display:grid;place-items:center;width:28px;height:28px;flex:none;cursor:default}
+.sos .ng-btn{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;cursor:pointer;text-align:left;font:inherit;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3)}
+.sos .ng-btn:hover:not(:disabled){color:var(--fg2)}
+.sos .ng-btn:disabled{cursor:default}
+.sos .ng-btn:focus-visible{outline:2px solid var(--acc-ink);outline-offset:1px;border-radius:5px}
+/* A folded item's name, beside it, on hover and on keyboard focus (fixed, as the menu scrolls and would clip it). */
+.sos .side-tip{position:fixed;left:66px;transform:translateY(-50%);z-index:60;background:var(--fg);color:var(--bg);font-size:12.5px;font-weight:500;padding:4px 8px;border-radius:6px;white-space:pre;pointer-events:none;box-shadow:var(--sh)}
 .sos .mainwrap{display:flex;flex-direction:column;min-width:0;min-height:0}
-.sos .side-fold{margin-bottom:8px;color:var(--fg3)}
+.sos .side-fold{color:var(--fg3)}
 /*
  * The sidebar folded to an icon strip (desktop only; phones keep the slide-out menu). Names stay as hover labels and for screen
  * readers; group headings become thin rules; the Inbox count sits on its icon.
@@ -39,13 +49,16 @@
 @media (min-width:901px){.sos .app.rail{grid-template-columns:60px minmax(0,1fr)}
 .sos .rail .ni-l,.sos .rail .ws-l,.sos .rail .ni .cnt{display:none}
 .sos .rail .side-scroll{padding:4px 8px 12px}
-.sos .rail .ni{justify-content:center;padding:8px 0;position:relative}
+.sos .rail .ni{justify-content:center;padding:7px 0;position:relative}
 .sos .rail .ni .badge{position:absolute;top:0;right:0;margin:0;font-size:12px;padding:0 4px;line-height:16px}
-.sos .rail .ng{padding:8px 6px 4px}
+.sos .rail .ng{padding:5px 6px 3px}
 .sos .rail .ng::before{content:'';display:block;border-top:1px solid var(--line)}
 .sos .rail .ws{margin:12px 8px 6px;width:calc(100% - 16px);padding:6px;justify-content:center}
-.sos .rail .side-foot{padding:10px 8px}
-.sos .rail .side-fold{margin-bottom:0}}
+.sos .rail .side-foot{padding:6px 8px}
+.sos .rail .side-foot-row{flex-direction:column}
+.sos .rail .side-kbd{display:none}
+.sos .rail .side-fold{width:100%}
+.sos .rail .side-admin>span{display:flex!important;width:100%}}
 .sos .top>*{flex-shrink:0}
 .sos .top>.search{flex-shrink:1}
 .sos .top{height:52px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surf);flex:none}
@@ -323,6 +336,9 @@
 .sos .g4,.sos .g5{grid-template-columns:repeat(2,minmax(0,1fr))}
 .sos .split{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){.sos .app{grid-template-columns:minmax(0,1fr)}
+/* The icon strip is a desktop thing: the phone menu has no Collapse. */
+.sos .side-fold,.sos .side-kbd{display:none}
+.sos .side-foot-row{justify-content:flex-end}
 .sos .side{position:fixed;inset:0 auto 0 0;width:260px;z-index:55;transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility 0s .2s}
 .sos .side.open{transform:none;visibility:visible;box-shadow:var(--sh2);transition:transform .2s,visibility 0s}
 .sos .hamb{display:inline-flex}
@@ -437,7 +453,7 @@
 .sos .inp.sm{height:40px}
 .sos .seg button{height:40px;padding:0 14px}
 .sos .seg.xs button{height:40px;padding:0 11px;font-size:12px}
-.sos .ni{padding:11px 10px}
+.sos .ni{padding:11px 10px;min-height:44px}
 .sos .tab{padding:12px 14px}
 .sos .mi{padding:11px 10px}
 .sos .th{padding:12px 14px}
