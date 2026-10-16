@@ -19,6 +19,7 @@ import { customerOf } from '../../../shared/customerOf'
 import { rosterioLinkOf } from '../../../data/rosterio'
 import { UI } from '../../../ui/store'
 import { tokenNames } from '../../../data/tokens'
+import { KEYS, plainKey } from '../../../ui/keys'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
 
@@ -222,6 +223,34 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
     Act.markThread(t.id, { needsReply: false })
     UI.toast('Marked as not needing a reply. A new message from them asks again.', undefined, { label: 'Undo', fn: () => Act.markThread(t.id, { needsReply: true }) })
   }
+  const needed = (): void => {
+    Act.markThread(t.id, { needsReply: true })
+    UI.toast('Marked as needing a reply.', undefined, { label: 'Undo', fn: () => Act.markThread(t.id, { needsReply: false }) })
+  }
+  const toggleNeeds = (): void => { if (t.needsReply) notNeeded(); else needed() }
+  // The button, with its key on it: at the top of the conversation, and again beside Reply, where a long one is finished reading.
+  const needsBtn = (size: string) => (
+    <Btn
+      size={size} kind={t.needsReply ? undefined : 'ghost'} icon={t.needsReply ? 'check' : 'reply'} onClick={toggleNeeds}
+      aria-keyshortcuts={KEYS.needsReply.toUpperCase()} title={`${t.needsReply ? "Doesn't need a reply" : 'Needs a reply'} (${KEYS.needsReply.toUpperCase()})`}
+    >
+      {t.needsReply ? "Doesn't need a reply" : 'Needs a reply'}
+      <kbd className="key" aria-hidden="true">{KEYS.needsReply.toUpperCase()}</kbd>
+    </Btn>
+  )
+  // D: the same as the button, for working through a list of conversations without the mouse.
+  const toggleRef = useRef(toggleNeeds)
+  useLayoutEffect(() => { toggleRef.current = toggleNeeds })
+  useEffect(() => {
+    if (!can) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key.toLowerCase() !== KEYS.needsReply || e.shiftKey || !plainKey(e)) return
+      e.preventDefault()
+      toggleRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [can])
   const archive = (): void => {
     if (t.archived) return void Act.markThread(t.id, { archived: false })
     Act.markThread(t.id, { archived: true })
@@ -241,7 +270,7 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
 
   const menu = [
     { label: t.unread ? 'Mark read' : 'Mark unread', icon: 'mail', disabled: !can, onClick: () => Act.markThread(t.id, { unread: !t.unread }) },
-    { label: t.needsReply ? "Doesn't need a reply" : 'Needs a reply', icon: 'reply', disabled: !can, onClick: () => (t.needsReply ? notNeeded() : Act.markThread(t.id, { needsReply: true })) },
+    { label: t.needsReply ? "Doesn't need a reply" : 'Needs a reply', icon: 'reply', disabled: !can, right: <kbd className="key" aria-hidden="true">{KEYS.needsReply.toUpperCase()}</kbd>, onClick: toggleNeeds },
     { label: t.archived ? 'Unarchive' : 'Archive', icon: 'archive', disabled: !can, onClick: archive },
     t.visibility === 'private' && t.ownerId === me.id && { label: 'Share with team…', icon: 'users', onClick: share },
     Q.anyAdmin() && sims && { label: 'Simulate reply on this thread', icon: 'zap', onClick: () => UI.open('simReply', { contactId: t.contactId, threadId: t.id }) },
@@ -256,9 +285,7 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
       <div className="row wrap" style={{ marginBottom: 12 }}>
         <Btn kind="ghost" size="sm" icon="left" className="hamb" aria-label="Back to conversations" onClick={onClose} />
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, flex: 1, minWidth: 200 }}>{t.subject}</h2>
-        {t.needsReply && can && (
-          <Btn size="sm" icon="check" onClick={notNeeded}>Doesn't need a reply</Btn>
-        )}
+        {can && needsBtn('sm')}
         <Menu align="right" trigger={<Btn size="sm" icon="more" aria-label="Conversation actions" />} items={menu} />
       </div>
       <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}>
@@ -435,6 +462,7 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
               <Btn icon="reply" onClick={() => startReply()}>Reply</Btn>
               {othersOnLast && <Btn icon="users" onClick={() => startReply(undefined, true)}>Reply all</Btn>}
               <Btn icon="arrow" onClick={forward} disabled={!newest}>Forward</Btn>
+              {t.needsReply && needsBtn('')}
               <Btn icon="send" kind="ghost" onClick={() => UI.open('compose', { threadId: t.id, contactId: t.contactId })}>Open in composer</Btn>
             </div>
           ))}

@@ -97,7 +97,7 @@ describe('the Unread folder keeps what you open', () => {
     m.store.S.threads.forEach(t => { t.needsReply = t.id === 'th3' })
     await click(folder('Needs reply'))
     await click(rowOf('Charlie subject'))
-    await click(button(host.querySelector('.ib-r')!, "Doesn't need a reply"))
+    await click(button(host.querySelector('.ib-r')!, /^Doesn't need a reply/))
     expect(listed()).toEqual(['Charlie subject'])
     const t = m.ui.UI.get().toasts.at(-1)!
     expect(t.action?.label).toBe('Undo')
