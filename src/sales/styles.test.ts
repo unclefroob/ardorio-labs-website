@@ -86,7 +86,7 @@ describe('SalesOS styles stay out of the main site', () => {
     expect(rest).toBe('')
   })
 
-  it('every selector in sales.css is under .sos, and animation names carry the sos- prefix', () => {
+  it('every selector in sales.css is under .sos, and animation and container names carry the sos- prefix', () => {
     const flat = css.replace(/\/\*.*?\*\//gs, '')
     const loose: string[] = []
     const walkRules = (txt: string): void => {
@@ -104,6 +104,7 @@ describe('SalesOS styles stay out of the main site', () => {
         }
         const body = txt.slice(j + 1, k - 1)
         if (/^@(media|supports)/.test(sel)) walkRules(body)
+        else if (/^@container/.test(sel)) { if (!/^@container sos-/.test(sel)) loose.push(sel); walkRules(body) }
         else if (/^@keyframes/.test(sel)) { if (!/^@keyframes sos-/.test(sel)) loose.push(sel) }
         else for (const part of sel.split(',')) if (!part.trim().startsWith('.sos')) loose.push(part.trim())
         i = k
