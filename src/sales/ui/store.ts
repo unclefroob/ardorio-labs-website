@@ -70,6 +70,10 @@ export const UI = {
     const el = document.querySelector('.sos .main')
     if (el) el.scrollTop = 0
   },
+  /** Change the address without a new history entry or a scroll reset: a selection within the page, like the open conversation. */
+  replace(page: string, p: RouteParams = {}): void {
+    go(routeToPath(page, p), true)
+  },
   back(): void {
     if (depth > 1 && navigateFn) navigateFn(-1)
     else UI.nav('dashboard')

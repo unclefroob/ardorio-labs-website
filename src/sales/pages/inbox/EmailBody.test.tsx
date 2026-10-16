@@ -97,7 +97,7 @@ describe('an email shown as the sender wrote it', () => {
     expect(text()).toContain('PLAIN TEXT VERSION')
   })
 
-  it('shows the text straight away, then the HTML when it arrives', async () => {
+  it('holds the space while the original loads (no flash of plain text), then shows the HTML, kept hidden until it has been measured', async () => {
     mailStatusApi.mockResolvedValue({ configured: true })
     let release: (v: { html: string }) => void = () => undefined
     messageHtmlApi.mockReturnValue(new Promise(r => { release = r }))
@@ -108,10 +108,43 @@ describe('an email shown as the sender wrote it', () => {
     const Probe = () => { useMailState(); return null }
     await act(async () => { root.render(<><Probe /><EmailBody m={msg()} /></>) })
     await settle(3)
-    expect(text()).toContain('PLAIN TEXT VERSION')
+    const wait = host.querySelector<HTMLElement>('.email-wait')
+    expect(wait).not.toBeNull()
+    expect(wait!.getAttribute('aria-busy')).toBe('true')
+    expect(parseInt(wait!.style.height, 10)).toBeGreaterThanOrEqual(60)
+    expect(text()).not.toContain('PLAIN TEXT VERSION')
     await act(async () => { release({ html: '<p>arrived</p>' }) })
     await settle(2)
+    expect(host.querySelector('.email-wait')).toBeNull()
     expect(frame()!.srcdoc).toContain('arrived')
+    // Not shown until onLoad has measured it, so it never appears at a wrong height and then jumps.
+    expect(frame()!.style.visibility).toBe('hidden')
+    expect(parseInt(frame()!.style.height, 10)).toBeGreaterThanOrEqual(60)
+  })
+
+  it('when the original cannot be fetched, shows the text and offers Retry, which asks again', async () => {
+    await show({ configured: true }, msg({ id: 'ms9' }), new Error('502'))
+    expect(text()).toContain('Could not load the original formatting')
+    messageHtmlApi.mockResolvedValue({ html: '<p>second try</p>' })
+    await click(button(host, 'Retry'))
+    await settle(3)
+    expect(messageHtmlApi).toHaveBeenCalledTimes(2)
+    expect(frame()!.srcdoc).toContain('second try')
+  })
+
+  it('while the mail connection cannot be checked, shows the stored text rather than waiting forever', async () => {
+    await show({ configured: true }, msg(), '<p>x</p>')
+    act(() => root.unmount()); root = createRoot(host)
+    const { clearMailState } = await import('../../mail/client')
+    mailStatusApi.mockRejectedValue(new Error('offline'))
+    clearMailState()
+    const { EmailBody } = await import('./parts/EmailBody')
+    const { useMailState } = await import('../../mail/client')
+    const Probe = () => { useMailState(); return null }
+    await act(async () => { root.render(<><Probe /><EmailBody m={msg({ id: 'ms3' })} /></>) })
+    await settle(5)
+    expect(text()).toContain('PLAIN TEXT VERSION')
+    expect(host.querySelector('.email-wait')).toBeNull()
   })
 
   it('never asks the server for mail that did not come from Gmail, a draft, or when Gmail is not live', async () => {

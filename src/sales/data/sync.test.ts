@@ -501,6 +501,30 @@ describe('polling and applyChange', () => {
     m.stop()
   })
 
+  it('a poll asked for while one is running is not dropped: it waits, then one more pass fetches what changed since', async () => {
+    const m = await polled()
+    let first: (v: ReturnType<typeof changes>) => void = () => undefined
+    m.poll.mockImplementationOnce(() => new Promise(r => { first = r }))
+    m.poll.mockResolvedValueOnce(changes([change('companies', 'co9', 1, { name: 'Sent just now', tags: [], notes: [] })], { cursor: 'c9' }))
+    const a = m.sync.pollOnce()
+    const b = m.sync.pollOnce() // e.g. Compose, right after the server sent the mail
+    first(changes([], { cursor: 'c1' }))
+    await a
+    await b
+    expect(m.poll.mock.calls.map(c => c[0])).toEqual(['c0', 'c1'])
+    expect(m.store.S.companies.some(c => c.id === 'co9')).toBe(true)
+    m.stop()
+  })
+
+  it('a poll with no changes does not re-render anything', async () => {
+    const m = await polled()
+    const v = m.store.getVersion()
+    m.poll.mockResolvedValueOnce(changes([]))
+    await m.sync.pollOnce()
+    expect(m.store.getVersion()).toBe(v)
+    m.stop()
+  })
+
   it('does not poll while a save is in flight', async () => {
     const m = await polled()
     let release: () => void = () => undefined

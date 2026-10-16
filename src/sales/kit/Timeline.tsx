@@ -1,6 +1,7 @@
 import type { Activity } from '../data/types'
 import { F } from '../data/F'
 import { Q } from '../data/Q'
+import { S } from '../data/store'
 import { isSimAct } from '../data/simulated'
 import { canVoidActivity, voidedLine } from '../data/voidRules'
 import { isVoided } from '../data/voided'
@@ -15,6 +16,15 @@ function iconStyle(type: string): { color?: string; background?: string } | unde
   if (type === 'email_in') return { color: 'var(--acc-ink)', background: 'var(--acc-soft)' }
   if (type === 'bounce' || type === 'suppressed') return { color: 'var(--bad2)' }
   return undefined
+}
+
+/** An email activity opens its message, in place in its conversation, when you can read it. */
+function OpenEmail({ a }: { a: Activity }) {
+  const id = typeof a.messageId === 'string' ? a.messageId : ''
+  const m = id ? S.messages.find(x => x.id === id) : undefined
+  const t = m ? Q.thread(m.threadId) : undefined
+  if (!m || !t || !Q.threadBody(t)) return null
+  return <Btn size="xs" kind="ghost" icon="mail" onClick={() => UI.nav('inbox', { id: t.id, q: { msg: m.id } })}>Open email</Btn>
 }
 
 export function Timeline({ items, showCompany }: { items: readonly Activity[]; showCompany?: boolean }) {
@@ -36,6 +46,7 @@ export function Timeline({ items, showCompany }: { items: readonly Activity[]; s
                 {!vis && <Chip icon="lock">Content restricted</Chip>}
                 {a.outcome && vis && <Chip>{a.outcome}</Chip>}
                 {isSimAct(a) && <SimChip />}
+                {vis && !gone && <OpenEmail a={a} />}
                 {gone && <Chip icon="x" title="Does not count in goals, reports or totals">Logged in error</Chip>}
                 {!gone && canVoidActivity(a) && (
                   <Btn size="xs" kind="ghost" style={{ marginLeft: 'auto' }} aria-label={`Mark ${vis ? `“${a.subject ?? ''}”` : 'this activity'} as logged in error`} onClick={() => UI.open('voidActivity', { id: a.id })}>

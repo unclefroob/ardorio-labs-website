@@ -30,6 +30,9 @@ export function Integrations() {
   const me = Q.me()
   const adm = Q.anyAdmin()
   const [busy, setBusy] = useState<string | null>(null)
+  // The sending switch shows where it is going while the server confirms, instead of snapping back until the next refresh.
+  const [sendTo, setSendTo] = useState<Record<string, boolean>>({})
+  const sendOn = (m: Mailbox): boolean => sendTo[m.id] ?? m.canSend
   const mail = useMailState()
   const live = mail.s === 'live'
   const [adding, setAdding] = useState<'personal' | 'shared' | null>(null)
@@ -55,6 +58,7 @@ export function Integrations() {
   // Sending needs one more Google permission the first time, so turning it on may take the person to Google and back.
   const setSend = async (m: Mailbox, on: boolean): Promise<void> => {
     setBusy(m.id)
+    setSendTo(x => ({ ...x, [m.id]: on }))
     try {
       const r = await setSendingApi(m.id, on)
       if (r.url) {
@@ -67,7 +71,10 @@ export function Integrations() {
         await pollOnce()
         UI.toast(r.enabled ? `Sending is on for ${m.address}` : `Sending is off for ${m.address}`)
       }
-    } catch (e) { fail(e) } finally { setBusy(null) }
+    } catch (e) { fail(e) } finally {
+      setBusy(null)
+      setSendTo(x => { const n = { ...x }; delete n[m.id]; return n })
+    }
   }
   const syncNow = async (id: string): Promise<void> => {
     setBusy(id)
@@ -92,21 +99,23 @@ export function Integrations() {
     { k: 'address', l: 'Account', r: m => <div><b>{m.address}</b><div className="faint xs">{Q.user(m.ownerId)?.name}</div></div> },
     { k: 's', l: 'Status', sort: m => m.status, r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status === 'connected' ? 'Connected' : 'Disconnected, reauthorisation required'}</Chip> },
     { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3, flexWrap: 'wrap' }}>{m.businessIds.map(b => <BizChip key={b} b={b} />)}{m.ownerId === me.id && <Btn size="xs" kind="ghost" onClick={() => setEditing(m.id)} aria-label={'Change businesses for ' + m.address}>Edit</Btn>}</span> },
-    { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
-    { k: 'send', l: 'Sending', nosort: true, r: m => live ? (m.ownerId === me.id ? <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
+    { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => <SyncCell m={m} /> },
+    { k: 'send', l: 'Sending', nosort: true, r: m => live ? (m.ownerId === me.id ? <Toggle on={sendOn(m)} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
     {
       k: 'a', l: '', nosort: true,
       r: m => {
         const mine = m.ownerId === me.id
         if (live) {
           // Only the owner connects a personal mailbox (the server refuses anyone else); an admin may only disconnect it.
-          if (busy === m.id) return <span className="row sm"><Spinner />Working…</span>
+          // The buttons stay where they are while something runs (disabled, with a spinner beside them), so the row does not change size.
+          const wait = busy === m.id
           return (
             <span className="row" style={{ gap: 2 }}>
-              {m.status === 'connected' && mine && <Btn size="xs" kind="ghost" onClick={() => void syncNow(m.id)}>Sync now</Btn>}
+              {m.status === 'connected' && mine && <Btn size="xs" kind="ghost" disabled={wait} onClick={() => void syncNow(m.id)}>Sync now</Btn>}
               {m.status === 'connected'
-                ? (mine || adm) && <Btn size="xs" kind="ghost" onClick={() => void dropGoogle(m.id)}>Disconnect</Btn>
-                : mine && <Btn size="xs" kind="pri" onClick={() => void goGoogle(m.id)}>Connect Gmail</Btn>}
+                ? (mine || adm) && <Btn size="xs" kind="ghost" disabled={wait} onClick={() => void dropGoogle(m.id)}>Disconnect</Btn>
+                : mine && <Btn size="xs" kind="pri" disabled={wait} onClick={() => void goGoogle(m.id)}>{m.syncError || m.lastSync ? 'Reconnect Gmail' : 'Connect Gmail'}</Btn>}
+              <span style={{ width: 16, display: 'inline-flex' }}>{wait && <Spinner />}</span>
             </span>
           )
         }
@@ -123,8 +132,8 @@ export function Integrations() {
     { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3 }}>{m.businessIds[0] ? <BizChip b={m.businessIds[0]} /> : '—'}{m.businessIds.some(b => Q.canAdmin(b)) && <Btn size="xs" kind="ghost" onClick={() => setEditing(m.id)} aria-label={'Change business for ' + m.address}>Edit</Btn>}</span> },
     { k: 's', l: 'Status', r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status}</Chip> },
     { k: 'au', l: 'Authorised users', nosort: true, r: m => (m.authorised.length ? <span className="row" style={{ gap: 2 }}>{m.authorised.map(u => <Av key={u} u={Q.user(u)} s={20} />)}</span> : <span className="faint xs">Nobody yet</span>) },
-    { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => (m.lastSync ? F.rel(m.lastSync) : 'Never') },
-    ...(live ? [{ k: 'send', l: 'Sending', nosort: true, r: (m: Mailbox) => (Q.canAdmin(m.businessIds[0] ?? '') ? <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) } as Col<Mailbox>] : []),
+    { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => <SyncCell m={m} /> },
+    ...(live ? [{ k: 'send', l: 'Sending', nosort: true, r: (m: Mailbox) => (Q.canAdmin(m.businessIds[0] ?? '') ? <Toggle on={sendOn(m)} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) } as Col<Mailbox>] : []),
     {
       k: 'a', l: '', nosort: true,
       r: m => {
@@ -141,16 +150,15 @@ export function Integrations() {
                 onClick: () => Act.setMailbox(m.id, { authorised: m.authorised.includes(u.id) ? m.authorised.filter(x => x !== u.id) : m.authorised.concat(u.id) }),
               }))}
             />
-            {busy === m.id
-              ? <Spinner />
-              : live
-                ? (
-                  <>
-                    {m.status === 'connected' && <Btn size="xs" kind="ghost" onClick={() => void syncNow(m.id)}>Sync now</Btn>}
-                    <Btn size="xs" kind={m.status === 'connected' ? 'ghost' : 'pri'} onClick={() => void (m.status === 'connected' ? dropGoogle(m.id) : goGoogle(m.id))}>{m.status === 'connected' ? 'Disconnect' : 'Connect Gmail'}</Btn>
-                  </>
-                )
-                : <Btn size="xs" kind="ghost" onClick={() => connect(m.id, { status: m.status === 'connected' ? 'disconnected' : 'connected' })}>{m.status === 'connected' ? 'Disconnect' : 'Reconnect'}</Btn>}
+            {live
+              ? (
+                <>
+                  {m.status === 'connected' && <Btn size="xs" kind="ghost" disabled={busy === m.id} onClick={() => void syncNow(m.id)}>Sync now</Btn>}
+                  <Btn size="xs" kind={m.status === 'connected' ? 'ghost' : 'pri'} disabled={busy === m.id} onClick={() => void (m.status === 'connected' ? dropGoogle(m.id) : goGoogle(m.id))}>{m.status === 'connected' ? 'Disconnect' : 'Connect Gmail'}</Btn>
+                </>
+              )
+              : <Btn size="xs" kind="ghost" disabled={busy === m.id} onClick={() => connect(m.id, { status: m.status === 'connected' ? 'disconnected' : 'connected' })}>{m.status === 'connected' ? 'Disconnect' : 'Reconnect'}</Btn>}
+            <span style={{ width: 16, display: 'inline-flex' }}>{busy === m.id && <Spinner />}</span>
           </span>
         )
       },
@@ -298,5 +306,15 @@ export function PhoneCard() {
         </div>
       )}
     </Card>
+  )
+}
+
+/** When it last read mail, and why it could not if the last try failed. */
+function SyncCell({ m }: { m: Mailbox }) {
+  return (
+    <span className="col" style={{ gap: 2 }}>
+      <span>{m.lastSync ? F.rel(m.lastSync) : 'Never'}</span>
+      {m.syncError && <span className="xs" style={{ color: 'var(--bad2)' }}>{m.syncError}</span>}
+    </span>
   )
 }

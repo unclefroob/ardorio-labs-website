@@ -4,12 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rec, salesWorld } from '../../testing/fixtures'
 import { settle } from '../../testing/dom'
 import { loadSales } from '../../testing/load'
+import { routedInbox } from '../../testing/routed'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: vi.fn(), getBootstrap: vi.fn() }))
 vi.mock('../../api/members', () => ({ getMembers: vi.fn() }))
 vi.mock('../../api/me', () => ({ getMe: vi.fn() }))
 vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
+// Gmail is not connected here: the server says so (an unanswered status check would hold message bodies back while it waits).
+vi.mock('../../api/mailboxes', () => ({ mailStatusApi: vi.fn().mockResolvedValue({ configured: false }), messageHtmlApi: vi.fn() }))
 
 let host: HTMLDivElement
 let root: Root
@@ -49,8 +52,8 @@ async function render(sel?: string) {
       msg('ms5', 'th4', { dir: 'in', status: 'received', from: 'sam@example.com', to: 'me@example.com', gmailId: '18f3a', body: 'See https://calendar.google.com/calendar/event?action=VIEW&eid=NXVxYWszc2hrcWx1cjJzbWVkMHA1NjdpZzQgcnlhbkBhcmRvcmlvLmNv' }),
     ],
   }))
-  const { Inbox } = await import('./Inbox')
-  await act(async () => { root.render(<Inbox route={{ page: 'inbox', id: sel }} />) })
+  const { Page } = await routedInbox(m, { id: sel })
+  await act(async () => { root.render(<Page />) })
   await settle(2)
 }
 const row = (subject: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.ib-m button')].find(b => b.textContent?.includes(subject)) as HTMLElement
