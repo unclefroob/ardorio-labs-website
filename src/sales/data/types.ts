@@ -285,6 +285,8 @@ export interface Mailbox {
   authorised: string[]
   status: string
   lastSync?: Iso
+  /** Why the last read of this mailbox failed (written by the server's sync); absent or null when it worked. */
+  syncError?: string | null
   canSend: boolean
 }
 
@@ -447,6 +449,8 @@ export interface Message {
   gmailId?: string
   /** The message's own Message-ID header, used to thread replies. */
   rfcId?: string
+  /** Files attached in Gmail: names and sizes only (the content stays in Gmail). */
+  attachments?: Array<{ name: string; mime: string; size: number }>
   [k: string]: unknown
 }
 

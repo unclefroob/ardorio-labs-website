@@ -24,7 +24,8 @@ export function PageView() {
   const parsed = pathToRoute(pathname, search)
   const Page = parsed.known ? PAGES[parsed.page] : undefined
   const synced = ui.route.page === parsed.page && ui.route.id === parsed.id
-  const key = parsed.page + '/' + (parsed.id ?? '') + '/' + S.session.ws
+  // The Inbox keeps the open conversation in its address but stays mounted when it changes, so its folder, search and scroll survive.
+  const key = parsed.page + '/' + (parsed.page === 'inbox' ? '' : parsed.id ?? '') + '/' + S.session.ws
   const focused = useRef<string | null>(null)
 
   useEffect(() => {

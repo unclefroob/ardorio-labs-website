@@ -3,13 +3,17 @@ import { mailStatusApi } from '../api/mailboxes'
 import { S } from '../data/store'
 
 /**
- * Is real Gmail set up on the server? Kept for the session, per signed-in person. While it is not (or the question fails), the
- * Integrations page keeps its simulated mailboxes and says so, and no page claims mail is real.
+ * Is real Gmail set up on the server? Kept for the session, per signed-in person. While it is not, the Integrations page keeps its
+ * simulated mailboxes and says so, and no page claims mail is real. When the question itself fails the answer is 'error', never 'off':
+ * a network blip must not turn a live inbox into a simulated one (simulated sends would then be written for real conversations), so
+ * nothing sends while it is 'error', and it is asked again with a growing delay until it is answered.
  */
-export type MailState = { s: 'loading' } | { s: 'live' } | { s: 'off'; reason?: string }
+export type MailState = { s: 'loading' } | { s: 'live' } | { s: 'off'; reason?: string } | { s: 'error' }
 
 let cached: { user: string; state: MailState } | undefined
 let inflight: Promise<void> | null = null
+let retry: ReturnType<typeof setTimeout> | null = null
+let failures = 0
 let version = 0
 const subs = new Set<() => void>()
 const emit = (): void => { version++; subs.forEach(f => f()) }
@@ -20,9 +24,13 @@ async function load(user: string): Promise<void> {
   inflight = (async () => {
     try {
       const r = await mailStatusApi()
+      failures = 0
       cached = { user, state: r.configured ? { s: 'live' } : { s: 'off', reason: r.reason } }
     } catch {
-      cached = { user, state: { s: 'off' } }
+      failures++
+      cached = { user, state: { s: 'error' } }
+      if (retry) clearTimeout(retry)
+      retry = setTimeout(() => { retry = null; if (cached?.user === user && cached.state.s === 'error') void load(user) }, Math.min(60000, 2000 * 2 ** (failures - 1)))
     } finally {
       inflight = null
       emit()
@@ -40,7 +48,20 @@ export function useMailState(): MailState {
   return state
 }
 
-export function clearMailState(): void { cached = undefined; inflight = null; emit() }
+/** Ask again now (a Retry button). */
+export function recheckMailState(): void { void load(S.session.userId) }
+
+/** A send may go ahead only once the server has said which kind of mail this is. */
+export const mailDecided = (s: MailState['s']): boolean => s === 'live' || s === 'off'
+
+export function clearMailState(): void {
+  cached = undefined
+  inflight = null
+  failures = 0
+  if (retry) clearTimeout(retry)
+  retry = null
+  emit()
+}
 
 /** Where Google sends the browser back to, read once: ?mailbox=connected|error&reason=… */
 export interface MailReturn { ok: boolean; reason?: string; sending?: boolean }

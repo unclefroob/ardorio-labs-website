@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { simThread } from '../../data/simulated'
 import { useMailState } from '../../mail/client'
 import { S, useStore } from '../../data/store'
-import type { Thread } from '../../data/types'
+import type { Message, Thread } from '../../data/types'
 import { BizDot, Btn, Chip, CLS_TONE, Empty, Icon, SearchInp, Sel, SimChip } from '../../kit'
 import { UI, type Route } from '../../ui/store'
+import { MailHealth, mayRun, NotInCrm, SyncLine, useUnmatched } from './parts/MailHealth'
 import { RowBtn } from './parts/RowBtn'
 import { ThreadView } from './parts/ThreadView'
 
@@ -29,19 +30,55 @@ const POSITIVE = ['Interested', 'Meeting Requested', 'More Information Requested
 
 const navBtn = { width: '100%' } as const
 
+/** Re-render once a minute so “5m ago” moves on its own, rather than whenever some unrelated change lands. */
+function useMinute(): void {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => tick(n => n + 1), 60000)
+    return () => clearInterval(id)
+  }, [])
+}
+
 export function Inbox({ route }: { route: Route }) {
-  useStore()
+  const version = useStore()
+  useMinute()
   const me = Q.me()
   const mail = useMailState().s
   const live = mail === 'live'
   const [fold, setFold] = useState<Fold>(isFold(route.q?.folder) ? route.q.folder : 'all')
   const [mb, setMb] = useState('')
   const [q, setQ] = useState('')
-  const [sel, setSel] = useState<string | null>(route.id ?? null)
+  // The open conversation lives in the address (/sales/inbox/<id>), so links from a company, deal or toast open it, and Back works.
+  const sel = route.id ?? null
+  const target = typeof route.q?.msg === 'string' ? route.q.msg : undefined
+  // Conversations opened in this folder stay listed until you change folder, even once they no longer match it (opening an unread one
+  // reads it; “Doesn't need a reply” clears it), so nothing vanishes from under the pointer.
+  const [keep, setKeep] = useState<ReadonlySet<string>>(() => new Set(sel ? [sel] : []))
+  const select = (id: string | null, msg?: string): void => {
+    UI.replace('inbox', { ...(id ? { id } : {}), q: { ...(fold !== 'all' ? { folder: fold } : {}), ...(msg ? { msg } : {}) } })
+  }
+  const [others, setOthers] = useState(false)
+  const changeFold = (f: Fold): void => {
+    setFold(f)
+    setOthers(false)
+    setKeep(new Set(sel ? [sel] : []))
+    UI.replace('inbox', { ...(sel ? { id: sel } : {}), q: f !== 'all' ? { folder: f } : {} })
+  }
 
   const all = Q.threads().filter(Q.threadBody)
-  const msgsOf = (t: Thread) => S.messages.filter(m => m.threadId === t.id)
+  // One pass over the messages per change, not one per conversation per render.
+  const byThread = useMemo(() => {
+    const m = new Map<string, Message[]>()
+    for (const x of S.messages) {
+      const l = m.get(x.threadId)
+      if (l) l.push(x)
+      else m.set(x.threadId, [x])
+    }
+    return m
+  }, [version]) // eslint-disable-line react-hooks/exhaustive-deps -- the store mutates in place; its version is the change signal
+  const msgsOf = (t: Thread): Message[] => byThread.get(t.id) ?? []
   const match = (t: Thread): boolean => {
+    if (t.id === sel || keep.has(t.id)) return true
     if (fold !== 'archived' && t.archived) return false
     const ms = msgsOf(t)
     switch (fold) {
@@ -70,20 +107,37 @@ export function Inbox({ route }: { route: Route }) {
   const t = sel ? Q.thread(sel) : undefined
   const restricted = !!t && !Q.threadBody(t)
   const mbs = S.mailboxes.filter(m => m.businessIds.some(Q.inScope) && (m.type === 'shared' ? Q.member(m.businessIds[0]) : m.ownerId === me.id))
-  const foldLabel = FOLD.find(f => f[0] === fold)?.[1] ?? ''
+  const foldLabel = others ? 'Not in SalesOS yet' : FOLD.find(f => f[0] === fold)?.[1] ?? ''
+  const unmatched = useUnmatched(live ? mbs : [])
+  const runsAny = live && mbs.some(m => m.status === 'connected' && mayRun(m))
   const filtered = !!(needle || mb)
   const canCompose = Q.anyEdit()
   const clear = (): void => { setQ(''); setMb('') }
 
-  // On a narrow screen the open conversation replaces the list, so start it at the top of the screen.
+  // On a narrow screen the open conversation replaces the list, so start it at the top of the screen. (A conversation you can read
+  // scrolls itself to the message you came for; this covers the private-conversation notice.)
   const top = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (sel && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches) top.current?.scrollIntoView?.({ block: 'start' })
+    if (sel && restricted && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 900px)').matches) top.current?.scrollIntoView?.({ block: 'start' })
+  }, [sel, restricted])
+
+  // Reading an unread conversation marks it read whichever way it was opened (a click here or a link from elsewhere).
+  useEffect(() => {
+    const x = sel ? Q.thread(sel) : undefined
+    if (x && x.unread && Q.threadBody(x) && Q.canEdit(x.businessId)) Act.markThread(x.id, { unread: false })
   }, [sel])
 
   const open = (x: Thread): void => {
-    setSel(x.id)
-    if (x.unread && Q.canEdit(x.businessId)) Act.markThread(x.id, { unread: false })
+    setKeep(k => (k.has(x.id) ? k : new Set([...k, x.id])))
+    select(x.id)
+  }
+
+  /** After archiving the open conversation: drop it from the list and open the next one down. */
+  const archived = (id: string): void => {
+    const i = rows.findIndex(r => r.id === id)
+    const next = rows[i + 1] ?? rows[i - 1]
+    setKeep(k => { const n = new Set(k); n.delete(id); return n })
+    select(next && next.id !== id ? next.id : null)
   }
 
   const empty = (() => {
@@ -99,7 +153,7 @@ export function Inbox({ route }: { route: Route }) {
     if (filtered) {
       return <Empty icon="search" title="No conversations match" body="Try a different search or mailbox." action={<Btn onClick={clear}>Clear filters</Btn>} />
     }
-    return <Empty icon="inbox" title="Nothing in this folder" body={`No conversations under “${foldLabel}” for your accessible mailboxes.`} action={fold !== 'all' ? <Btn onClick={() => setFold('all')}>Show all conversations</Btn> : undefined} />
+    return <Empty icon="inbox" title="Nothing in this folder" body={`No conversations under “${foldLabel}” for your accessible mailboxes.`} action={fold !== 'all' ? <Btn onClick={() => changeFold('all')}>Show all conversations</Btn> : undefined} />
   })()
 
   return (
@@ -110,7 +164,7 @@ export function Inbox({ route }: { route: Route }) {
         {FOLD.map(([k, l, ic]) => {
           const n = counts[k]
           return (
-            <button key={k} type="button" className={'ni' + (fold === k ? ' on' : '')} style={navBtn} aria-current={fold === k ? 'true' : undefined} onClick={() => setFold(k)}>
+            <button key={k} type="button" className={'ni' + (fold === k ? ' on' : '')} style={navBtn} aria-current={fold === k ? 'true' : undefined} onClick={() => changeFold(k)}>
               <Icon n={ic} s={14} />{l}{n ? <span className="cnt">{n}</span> : null}
             </button>
           )
@@ -124,23 +178,30 @@ export function Inbox({ route }: { route: Route }) {
           </button>
         ))}
         {mbs.length === 0 && <div className="faint xs" style={{ padding: '6px 10px' }}>No mailboxes connected. Connect one in Integrations.</div>}
+        {runsAny && (
+          <button type="button" className={'ni' + (others ? ' on' : '')} style={navBtn} aria-current={others ? 'true' : undefined} onClick={() => { setOthers(true); unmatched.reload() }}>
+            <Icon n="users" s={14} />Not in SalesOS yet{unmatched.rows.length ? <span className="cnt">{unmatched.rows.length}</span> : null}
+          </button>
+        )}
         <div className="faint xs" style={{ padding: '12px 10px' }}>{live ? 'CRM-relevant conversations only: mail to and from people in your CRM, read from Gmail. Sending is switched on per mailbox in Integrations.' : 'CRM-relevant conversations only. No real email is sent or received yet: mail here is simulated and marked Simulated.'}</div>
       </div>
       <div className="ib-m">
         <div style={{ padding: 10, borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surf)', zIndex: 2 }}>
           <div className="hamb" style={{ marginBottom: 8 }}>
-            <Sel style={{ width: '100%' }} aria-label="Folder" value={fold} onChange={v => { if (isFold(v)) setFold(v) }} options={FOLD.map(f => [f[0], f[1]] as [string, string])} />
+            <Sel style={{ width: '100%' }} aria-label="Folder" value={fold} onChange={v => { if (isFold(v)) changeFold(v) }} options={FOLD.map(f => [f[0], f[1]] as [string, string])} />
           </div>
+          {live && <MailHealth mbs={mbs} />}
           <div className="row" style={{ marginBottom: 8 }}>
             <b>{foldLabel}</b>
-            <span className="faint xs">{rows.length}</span>
+            <span className="faint xs">{others ? unmatched.rows.length : rows.length}</span>
             <span className="sp" />
             {filtered && <Btn size="xs" kind="ghost" onClick={clear}>Clear</Btn>}
             {Q.anyAdmin() && mail === 'off' && <Btn size="xs" icon="reply" onClick={() => UI.open('simReply', {})}>Simulate reply</Btn>}
           </div>
-          <SearchInp value={q} onChange={setQ} w={400} placeholder="Search conversations" />
+          {!others && <SearchInp value={q} onChange={setQ} w={400} placeholder="Search conversations" />}
+          {live && <SyncLine mbs={mbs} />}
         </div>
-        {rows.length ? rows.map(x => {
+        {others ? <NotInCrm u={unmatched} /> : rows.length ? rows.map(x => {
           const ms = msgsOf(x)
           const last = ms.filter(m => m.status !== 'discarded').sort((a, b) => F.ms(a.ts) - F.ms(b.ts)).pop()
           const sim = simThread(x, ms)
@@ -172,10 +233,10 @@ export function Inbox({ route }: { route: Route }) {
         {t ? (
           restricted ? (
             <div style={{ padding: 30 }}>
-              <Btn kind="ghost" size="sm" icon="left" className="hamb" style={{ marginBottom: 10 }} onClick={() => setSel(null)}>Back to conversations</Btn>
+              <Btn kind="ghost" size="sm" icon="left" className="hamb" style={{ marginBottom: 10 }} onClick={() => select(null)}>Back to conversations</Btn>
               <Empty icon="lock" title="Private conversation" body={`This email belongs to ${Q.user(t.ownerId)?.name ?? 'another user'}’s personal mailbox and has not been shared with you. Only limited metadata is visible.`} />
             </div>
-          ) : <ThreadView key={t.id} t={t} onClose={() => setSel(null)} />
+          ) : <ThreadView key={t.id} t={t} target={target} onClose={() => select(null)} onArchived={archived} />
         ) : (
           <div style={{ padding: 30 }}>
             <Empty icon="mail" title="Select a conversation" body="Open a thread to read it, reply, and review AI classification." />

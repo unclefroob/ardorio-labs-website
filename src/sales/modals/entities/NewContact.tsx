@@ -31,7 +31,15 @@ interface ContactDraft {
 
 type Errors = Partial<Record<'firstName' | 'lastName' | 'companyId' | 'email' | 'linkedin', string>>
 
-export interface NewContactProps { companyId?: string; businessId?: BusinessId }
+export interface NewContactProps {
+  companyId?: string
+  businessId?: BusinessId
+  /** Prefill from someone who emailed in (the Inbox's “not in SalesOS yet” list). */
+  email?: string
+  name?: string
+  /** Called with the new contact instead of opening its page. */
+  onCreated?: (c: Contact) => void
+}
 
 function findDuplicate(f: ContactDraft): Contact | undefined {
   const email = f.email.trim().toLowerCase()
@@ -46,15 +54,16 @@ function findDuplicate(f: ContactDraft): Contact | undefined {
   ))
 }
 
-export function NewContact({ companyId, businessId }: NewContactProps) {
+export function NewContact({ companyId, businessId, email, name, onCreated }: NewContactProps) {
   const b0 = businessId && Q.canEdit(businessId) ? businessId : Q.defaultBiz()
   if (!b0) return <NoEditModal title="New contact" what="add contacts" />
-  return <NewContactForm b0={b0} companyId={companyId} />
+  return <NewContactForm b0={b0} companyId={companyId} email={email} name={name} onCreated={onCreated} />
 }
 
-function NewContactForm({ b0, companyId }: { b0: BusinessId; companyId?: string }) {
+function NewContactForm({ b0, companyId, email, name, onCreated }: { b0: BusinessId; companyId?: string; email?: string; name?: string; onCreated?: (c: Contact) => void }) {
+  const [first = '', ...rest] = (name ?? '').trim().split(/\s+/)
   const [f, set] = useF<ContactDraft>({
-    firstName: '', lastName: '', title: '', companyId: companyId ?? '', email: '', phone: '', mobile: '', linkedin: '',
+    firstName: first, lastName: rest.join(' '), title: '', companyId: companyId ?? '', email: email ?? '', phone: '', mobile: '', linkedin: '',
     seniority: 'Manager', buyingRole: 'Influencer', businessId: b0, ownerId: Q.me().id, permission: 'Legitimate business interest', location: '',
   })
   const [err, setErr] = useState<Errors>({})
@@ -65,6 +74,7 @@ function NewContactForm({ b0, companyId }: { b0: BusinessId; companyId?: string 
     const li = normaliseUrl(f.linkedin)
     const c = Act.createContact({ ...f, linkedin: li.ok ? li.value : '' })
     UI.close()
+    if (onCreated) return onCreated(c)
     UI.toast('Contact created')
     UI.nav('contact', { id: c.id })
   }

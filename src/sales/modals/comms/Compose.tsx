@@ -7,7 +7,7 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { S, useStore } from '../../data/store'
 import { pollOnce } from '../../data/sync'
-import { useMailState } from '../../mail/client'
+import { mailDecided, recheckMailState, useMailState } from '../../mail/client'
 import type { BusinessId, Thread } from '../../data/types'
 import { AiBadge, AiNotConfigured, Banner, Btn, Chip, Fld, Icon, Inp, Menu, Modal, RichText, Sel, TOKENS } from '../../kit'
 import { BizSel, useF } from '../../shared/forms'
@@ -67,6 +67,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
 
   const send = (asDraft: boolean): void => {
     setErr('')
+    if (!asDraft && !mailDecided(mailState)) return setErr('Could not check whether Gmail is connected, so nothing was sent. Try again in a moment.')
     if (!asDraft && live && mb && !mb.canSend) return setErr('Sending is off for ' + mb.address + '. Switch it on in Integrations, or save a draft.')
     if (!asDraft) {
       if (!f.to || !/@/.test(f.to)) return setErr('Add a valid recipient')
@@ -101,7 +102,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
       })
       await pollOnce()
       UI.close()
-      UI.toast(r.recorded ? 'Email sent from ' + mb.address : 'Email sent from ' + mb.address + '. It will show in the Inbox shortly.', undefined, r.recorded ? { label: 'View thread', fn: () => UI.nav('inbox', { id: r.threadId }) } : undefined)
+      UI.toast(r.recorded ? 'Email sent from ' + mb.address : 'Email sent from ' + mb.address + '. It will show in the Inbox shortly.', undefined, r.recorded ? { label: 'View thread', fn: () => UI.nav('inbox', { id: r.threadId, q: { msg: r.messageId } }) } : undefined)
     } catch (e) {
       setErr(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.')
     } finally {
@@ -131,7 +132,9 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
       title={t ? 'Reply' : 'Compose email'}
       icon="mail"
       width={720}
-      sub={live
+      sub={mailState === 'error'
+        ? <span className="row" style={{ gap: 6 }}><Chip tone="warn" icon="alert">Could not check Gmail</Chip> Sending waits until SalesOS can reach the server. <Btn size="xs" kind="ghost" onClick={recheckMailState}>Retry</Btn></span>
+        : live
         ? <span className="row" style={{ gap: 6 }}>{realSend ? <Chip tone="ok" icon="send">Sends through Gmail</Chip> : <Chip icon="lock">Sending is off</Chip>} {realSend && mb ? `From ${mb.address}.` : 'Switch sending on for a mailbox in Integrations.'}</span>
         : <span className="row" style={{ gap: 6 }}><Chip icon="spark" title="Mail is recorded in SalesOS but not delivered over SMTP yet.">Sending is simulated</Chip> No email leaves SalesOS.</span>}
       footer={
@@ -139,7 +142,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
           {err && <span className="sm" role="alert" style={{ color: 'var(--bad2)', flex: 1 }}>{err}</span>}
           <Btn onClick={UI.close}>Cancel</Btn>
           <Btn onClick={() => send(true)} disabled={!mb}>Save draft</Btn>
-          <Btn kind="pri" icon="send" onClick={() => send(false)} disabled={!mb || busy || sendOff || mailState === 'loading'}>{live ? 'Send' : 'Send (simulated)'}</Btn>
+          <Btn kind="pri" icon="send" onClick={() => send(false)} disabled={!mb || busy || sendOff || !mailDecided(mailState)}>{live ? 'Send' : 'Send (simulated)'}</Btn>
         </>
       }
     >

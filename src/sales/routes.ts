@@ -27,7 +27,7 @@ export const PAGE_KEYS = Object.keys(SEGMENT)
 export function routeToPath(page: string, p: RouteParams = {}): string {
   const seg = SEGMENT[page] ?? ''
   let path = seg ? `${BASE}/${seg}` : BASE
-  if (p.id && DETAIL[page]) path += `/${encodeURIComponent(p.id)}`
+  if (p.id && (DETAIL[page] || page === 'inbox')) path += `/${encodeURIComponent(p.id)}`
   if (p.q && Object.keys(p.q).length) path += `?q=${encodeURIComponent(JSON.stringify(p.q))}`
   return path
 }
@@ -51,6 +51,8 @@ export function pathToRoute(pathname: string, search: string): ParsedRoute {
   const q = parseQuery(search)
   if (seg === '') return { page: 'dashboard', q, known: true }
   const id = rawId ? decodeURIComponent(rawId) : undefined
+  // The Inbox carries the open conversation in the path (/sales/inbox/<thread id>) so links from elsewhere open it.
+  if (seg === 'inbox') return { page: 'inbox', ...(id ? { id } : {}), q, known: true }
   if (seg === 'rosterio-customers') return { page: 'customers', q: { ...q, product: 'ros' }, known: true }
   const detail = LIST_PAGE[seg]
   if (detail && id) return { page: detail, id, q, known: true }

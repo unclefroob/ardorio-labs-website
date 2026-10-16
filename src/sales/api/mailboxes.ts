@@ -30,3 +30,10 @@ export const sendTaskApi = (taskId: string) => salesFetch<{ threadId: string; me
 /** Change which businesses a mailbox serves. Owner for a personal mailbox; an admin of both businesses for a shared inbox. */
 export const setMailboxBusinessesApi = (id: string, businessIds: string[]) =>
   salesFetch<{ businessIds: string[] }>(`/mailboxes/${encodeURIComponent(id)}/businesses`, { method: 'POST', body: { businessIds } })
+
+/** Someone who wrote to a mailbox but is not a contact yet, so their mail was not filed. */
+export interface UnmatchedSender { address: string; name: string; subject: string; at: string; count: number }
+export const unmatchedApi = (id: string) => salesFetch<{ senders: UnmatchedSender[] }>(`/mailboxes/${encodeURIComponent(id)}/unmatched`)
+export const dismissUnmatchedApi = (id: string, address: string) => salesFetch<{ ok: true }>(`/mailboxes/${encodeURIComponent(id)}/unmatched/dismiss`, { method: 'POST', body: { address } })
+/** File the last 90 days of mail with an address that has just become a contact. */
+export const backfillApi = (id: string, address: string) => salesFetch<{ stored: number; unmatched: number }>(`/mailboxes/${encodeURIComponent(id)}/backfill`, { method: 'POST', body: { address } })

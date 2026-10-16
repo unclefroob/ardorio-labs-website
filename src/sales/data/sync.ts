@@ -216,6 +216,10 @@ export async function flush(): Promise<boolean> {
     return false
   } finally {
     running = false
+    if (pollAfterFlush && !expired) {
+      pollAfterFlush = false
+      void pollOnce()
+    }
   }
 }
 
@@ -291,8 +295,46 @@ function applyChange(ch: ChangeEntry): void {
   mm.set(ch.id, { rev: ch.rev, snap, snapStr, base: m?.base ?? (pending ? (m?.rev ?? ch.rev) : null), demo: ch.demo })
 }
 
-export async function pollOnce(): Promise<void> {
-  if (polling || running || expired || cursor === null || document.hidden) return
+let inflightPoll: Promise<void> | null = null
+let pollAgain = false
+
+let pollAfterFlush = false
+
+/**
+ * Fetch and apply the server's changes. A call made while a poll is already running does not get lost: it waits for that poll and then
+ * one more pass runs, so a caller that just changed something on the server (sent mail, a toggle) sees it when this resolves.
+ * While local edits are being saved it does not poll (the save's echo would race it) but polls as soon as the save ends.
+ */
+export function pollOnce(): Promise<void> {
+  if (expired || cursor === null || document.hidden) return Promise.resolve()
+  if (running) {
+    pollAfterFlush = true
+    return Promise.resolve()
+  }
+  if (inflightPoll) {
+    pollAgain = true
+    return inflightPoll
+  }
+  inflightPoll = (async () => {
+    try {
+      do {
+        pollAgain = false
+        if (running) {
+          pollAfterFlush = true
+          return
+        }
+        await pollPass()
+      } while (pollAgain && !expired)
+    } finally {
+      inflightPoll = null
+      pollAgain = false
+    }
+  })()
+  return inflightPoll
+}
+
+async function pollPass(): Promise<void> {
+  if (polling || running || expired || cursor === null) return
   polling = true
   try {
     let more = true
@@ -302,7 +344,8 @@ export async function pollOnce(): Promise<void> {
       cursor = res.cursor
       setServerNow(res.serverNow)
       for (const ch of res.changes) applyChange(ch)
-      publish()
+      // Nothing changed: no re-render, so lists and open conversations stay exactly as they are between polls.
+      if (res.changes.length) publish()
       if (res.membersVersion !== getMembersVersion()) await refreshMembers()
       more = res.more
     }
