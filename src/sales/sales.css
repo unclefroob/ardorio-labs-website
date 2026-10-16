@@ -47,18 +47,18 @@
  * readers; group headings become thin rules; the Inbox count sits on its icon.
  */
 @media (min-width:901px){.sos .app.rail{grid-template-columns:60px minmax(0,1fr)}
-.sos .rail .ni-l,.sos .rail .ws-l,.sos .rail .ni .cnt{display:none}
-.sos .rail .side-scroll{padding:4px 8px 12px}
-.sos .rail .ni{justify-content:center;padding:7px 0;position:relative}
-.sos .rail .ni .badge{position:absolute;top:0;right:0;margin:0;font-size:12px;padding:0 4px;line-height:16px}
-.sos .rail .ng{padding:5px 6px 3px}
-.sos .rail .ng::before{content:'';display:block;border-top:1px solid var(--line)}
-.sos .rail .ws{margin:12px 8px 6px;width:calc(100% - 16px);padding:6px;justify-content:center}
-.sos .rail .side-foot{padding:6px 8px}
-.sos .rail .side-foot-row{flex-direction:column}
-.sos .rail .side-kbd{display:none}
-.sos .rail .side-fold{width:100%}
-.sos .rail .side-admin>span{display:flex!important;width:100%}}
+.sos .rail .side .ni-l,.sos .rail .side .ws-l,.sos .rail .side .ni .cnt{display:none}
+.sos .rail .side .side-scroll{padding:4px 8px 12px}
+.sos .rail .side .ni{justify-content:center;padding:7px 0;position:relative}
+.sos .rail .side .ni .badge{position:absolute;top:0;right:0;margin:0;font-size:12px;padding:0 4px;line-height:16px}
+.sos .rail .side .ng{padding:5px 6px 3px}
+.sos .rail .side .ng::before{content:'';display:block;border-top:1px solid var(--line)}
+.sos .rail .side .ws{margin:12px 8px 6px;width:calc(100% - 16px);padding:6px;justify-content:center}
+.sos .rail .side .side-foot{padding:6px 8px}
+.sos .rail .side .side-foot-row{flex-direction:column}
+.sos .rail .side .side-kbd{display:none}
+.sos .rail .side .side-fold{width:100%}
+.sos .rail .side .side-admin>span{display:flex!important;width:100%}}
 .sos .top>*{flex-shrink:0}
 .sos .top>.search{flex-shrink:1}
 .sos .top{height:52px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--surf);flex:none}

@@ -115,6 +115,14 @@ describe('SalesOS styles stay out of the main site', () => {
   })
 })
 
+describe('the folded sidebar', () => {
+  it('styles only the sidebar: its rules never reach other lists that share the item class (the Inbox folders)', () => {
+    const rules = [...css.matchAll(/([^{}]*\.rail\b[^{}]*)\{/g)].flatMap(m => m[1].split(',')).map(x => x.trim()).filter(x => x.includes('.rail'))
+    expect(rules.length).toBeGreaterThan(5)
+    expect(rules.filter(r => !/^\.sos \.(app\.)?rail( \.side\b|$)/.test(r))).toEqual([])
+  })
+})
+
 describe('tab bars', () => {
   it('scroll sideways only: a tab that overhangs the bar by a pixel must not add a vertical scrollbar', () => {
     const rule = (css.match(/\.sos \.tabs\{[^}]*\}/) ?? [''])[0]
