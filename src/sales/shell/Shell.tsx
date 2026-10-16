@@ -30,7 +30,7 @@ export function Shell() {
   }, [])
 
   return (
-    <div className="app">
+    <div className={'app' + (ui.rail ? ' rail' : '')}>
       <RouteSync />
       <Sidebar />
       {ui.side && <button type="button" className="drawer-bg" style={{ zIndex: 54, border: 0 }} onClick={() => UI.side(false)} tabIndex={-1} aria-label="Close menu" />}
