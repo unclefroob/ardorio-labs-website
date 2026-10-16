@@ -218,6 +218,18 @@
 .sos .th:hover{background:var(--hover)}
 .sos .th.on{background:var(--acc-soft)}
 .sos .th.unread .subj{font-weight:700}
+.sos .th-snip{width:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;line-clamp:1;overflow-wrap:anywhere}
+/* The open conversation: messages, with the deal/contact rail beside them. */
+.sos .tv{padding:16px 20px;max-width:1040px}
+.sos .tv-g{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start}
+/* Wide screens: give the extra room to the folders, the list (two-line previews) and the conversation, rather than empty space. */
+@media (min-width:1500px){.sos .inbox{grid-template-columns:230px 380px minmax(0,1fr)}
+.sos .tv{padding:20px 28px;max-width:1280px}
+.sos .tv-g{grid-template-columns:minmax(0,1fr) 300px;gap:18px}
+.sos .th-snip{-webkit-line-clamp:2;line-clamp:2}}
+@media (min-width:1900px){.sos .inbox{grid-template-columns:250px 440px minmax(0,1fr)}
+.sos .tv{padding:24px 36px;max-width:1480px}
+.sos .tv-g{grid-template-columns:minmax(0,1fr) 340px;gap:22px}}
 .sos .msg{background:var(--surf);border:1px solid var(--line);border-radius:9px;padding:12px 14px;min-width:0}
 /* Real email: long recipient lists and links (calendar invites, tracking URLs) must wrap inside the card, never push the page sideways. */
 .sos .msg-h{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
@@ -226,7 +238,8 @@
 .sos .msg-top .sp{flex:1 1 0;min-width:0}
 .sos .msg-dt{white-space:nowrap}
 .sos .msg-to{margin-top:2px;overflow-wrap:anywhere}
-.sos .msg-b{line-height:1.6;overflow-wrap:anywhere;word-break:break-word}
+/* max-width: plain-text mail keeps a readable line length however wide the pane gets (HTML mail lays itself out in its frame). */
+.sos .msg-b{line-height:1.6;overflow-wrap:anywhere;word-break:break-word;max-width:90ch}
 /* Email shown as the sender wrote it: a white page in a frame, like Gmail, whatever the theme. */
 .sos .email-frame{display:block;width:100%;box-sizing:border-box;min-height:60px;border:1px solid var(--line);border-radius:6px;background:#fff}
 .sos .email-img-note{gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
