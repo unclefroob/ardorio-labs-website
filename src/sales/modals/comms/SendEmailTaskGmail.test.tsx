@@ -5,7 +5,9 @@ import { emailTask, rec, salesWorld } from '../../testing/fixtures'
 import { button, click, settle } from '../../testing/dom'
 import { loadSales, type Sales } from '../../testing/load'
 
-vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: vi.fn(async () => ({ changes: [], cursor: 'c', more: false, serverNow: '', membersVersion: '', clockOffsetMinutes: 0 })), getBootstrap: vi.fn() }))
+const noChanges = async () => ({ changes: [], cursor: 'c', more: false, serverNow: '', membersVersion: '', clockOffsetMinutes: 0 })
+const getChanges = vi.fn(noChanges)
+vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: () => getChanges(), getBootstrap: vi.fn() }))
 vi.mock('../../api/members', () => ({ getMembers: vi.fn() }))
 vi.mock('../../api/me', () => ({ getMe: vi.fn() }))
 vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
@@ -71,6 +73,19 @@ describe('sending a sequence email from SalesOS', () => {
     await click(button(host, 'Send now'))
     expect(sendTaskApi).not.toHaveBeenCalled()
     expect(m.ui.UI.get().modals.at(-1)?.name).toBe('confirm')
+  })
+
+  it('Send now spins while it sends and is done as soon as Gmail has it, not after the sync', async () => {
+    let sent!: (v: unknown) => void
+    sendTaskApi.mockReturnValue(new Promise(r => { sent = r }))
+    await open({ live: true })
+    getChanges.mockReturnValue(new Promise(() => undefined) as never)
+    await click(button(host, 'Send now'))
+    expect(button(host, 'Sending…')?.getAttribute('aria-busy')).toBe('true')
+    await act(async () => { sent({ threadId: 'th', messageId: 'ms', gmailId: 'g', recorded: true }) })
+    await settle(2)
+    expect(m.ui.UI.get().toasts.map(t => t.msg).join(' ')).toContain('The sequence moves on to the next step')
+    getChanges.mockImplementation(noChanges)
   })
 
   it('shows why when the server refuses, and nothing is marked sent', async () => {

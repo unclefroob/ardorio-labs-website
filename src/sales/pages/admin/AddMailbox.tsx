@@ -4,7 +4,7 @@ import { SalesHttpError } from '../../api/http'
 import { pollOnce } from '../../data/sync'
 import { Q } from '../../data/Q'
 import { S } from '../../data/store'
-import { Banner, Btn, Fld, Inp, Sel, Spinner } from '../../kit'
+import { Banner, Btn, Fld, Inp, Sel } from '../../kit'
 import { UI } from '../../ui/store'
 
 const nameOf = (b: string): string => S.businesses.find(x => x.id === b)?.name ?? b
@@ -61,7 +61,7 @@ export function AddMailbox({ kind, onDone }: { kind: 'personal' | 'shared'; onDo
               </span>
             </Fld>
           )}
-        <Btn kind="pri" onClick={() => void save()} disabled={busy}>{busy ? <Spinner /> : 'Add mailbox'}</Btn>
+        <Btn kind="pri" onClick={() => void save()} loading={busy}>{busy ? 'Adding…' : 'Add mailbox'}</Btn>
         <Btn kind="ghost" onClick={onDone} disabled={busy}>Cancel</Btn>
       </div>
       {err && <Banner tone="bad">{err}</Banner>}

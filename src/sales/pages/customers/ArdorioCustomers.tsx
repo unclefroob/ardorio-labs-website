@@ -73,7 +73,7 @@ export function ArdorioCustomers() {
       </Card>
     )
   }
-  if (!list.data) return <Skel rows={5} />
+  if (!list.data) return <Skel rows={8} table label="Loading customers" />
 
   const all = ardorioByDeal(S.deals, S.companies, S.billingPlans, list.data, F.today())
   const rows = sortArdorio(all.companies, sort[0], sort[1])

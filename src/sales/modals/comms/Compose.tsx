@@ -49,7 +49,9 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
     contactId: ct0?.id ?? '', to: ct0?.email ?? '', cc: '', bcc: '', subject: p.subject ?? (t ? 'Re: ' + t.subject.replace(/^Re: /, '') : ''), body: p.body ?? '',
     dealId: p.dealId ?? t?.dealId ?? '', companyId: ct0?.companyId ?? t?.companyId ?? '',
   }))
+  // Drafting with AI and sending are separate waits, each shown on its own button.
   const [busy, setBusy] = useState(false)
+  const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [files, setFiles] = useState<PendingFile[]>([])
   const [sig, setSig] = useState(true)
@@ -99,7 +101,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
   // The server checks everything again (who may send, suppression, guessed addresses, the daily limit, a repeat) and says nothing was sent when it refuses.
   const sendReal = async (): Promise<void> => {
     if (!mb) return
-    setBusy(true)
+    setSending(true)
     try {
       // Only a conversation that is itself in Gmail, in this mailbox, can be replied into; anything else starts a new one.
       const inGmail = !!t && !!t.gmailThreadId && t.mailboxId === mb.id
@@ -108,13 +110,14 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
         attachments: files.length ? toSend(files) : undefined, signature: sig,
         ...(inGmail ? { threadId: t.id } : { businessId: b }), contactId: f.contactId || undefined, dealId: f.dealId || null,
       })
-      await pollOnce()
+      // Gmail has it: close now, and let the sync bring it into the Inbox in the background.
       UI.close()
+      void pollOnce()
       UI.toast(r.recorded ? 'Email sent from ' + mb.address : 'Email sent from ' + mb.address + '. It will show in the Inbox shortly.', undefined, r.recorded ? { label: 'View thread', fn: () => UI.nav('inbox', { id: r.threadId, q: { msg: r.messageId } }) } : undefined)
     } catch (e) {
       setErr(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.')
     } finally {
-      setBusy(false)
+      setSending(false)
     }
   }
 
@@ -149,8 +152,8 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
         <>
           {err && <span className="sm" role="alert" style={{ color: 'var(--bad2)', flex: 1 }}>{err}</span>}
           <Btn onClick={UI.close}>Cancel</Btn>
-          <Btn onClick={() => send(true)} disabled={!mb}>Save draft</Btn>
-          <Btn kind="pri" icon="send" onClick={() => send(false)} disabled={!mb || busy || sendOff || !mailDecided(mailState)}>{live ? 'Send' : 'Send (simulated)'}</Btn>
+          <Btn onClick={() => send(true)} disabled={!mb || sending}>Save draft</Btn>
+          <Btn kind="pri" icon="send" onClick={() => send(false)} loading={sending} disabled={!mb || busy || sendOff || !mailDecided(mailState)}>{sending ? 'Sending…' : live ? 'Send' : 'Send (simulated)'}</Btn>
         </>
       }
     >
@@ -208,7 +211,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
         {/* Files and the signature go out with real Gmail only; a simulated send records the words. */}
         {live && mb && (
           <>
-            <Attachments files={files} onChange={setFiles} disabled={busy} />
+            <Attachments files={files} onChange={setFiles} disabled={busy || sending} />
             <SignatureLine mailboxId={mb.id} on={sig} onChange={setSig} />
           </>
         )}

@@ -342,7 +342,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
       )}
 
       {(acc.s === 'idle' || (acc.s === 'loading' && !data)) && (
-        <Card><div className="row sm muted" role="status" style={{ marginBottom: 12 }}><Spinner />Reading accounts from Rosterio…</div><Skel rows={5} /></Card>
+        <Card><div className="row sm muted" role="status" style={{ marginBottom: 12 }}><Spinner />Reading accounts from Rosterio…</div><Skel rows={8} table label="Loading Rosterio accounts" /></Card>
       )}
 
       {data && rows.length === 0 && acc.s !== 'error' && (

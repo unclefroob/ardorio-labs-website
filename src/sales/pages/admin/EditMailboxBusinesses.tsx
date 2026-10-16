@@ -47,7 +47,7 @@ export function EditMailboxBusinesses({ m, onDone }: { m: Mailbox; onDone: () =>
         ))}
         <span className="sp" />
         <Btn size="sm" onClick={onDone} disabled={busy}>Cancel</Btn>
-        <Btn size="sm" kind="pri" onClick={() => void save()} disabled={busy}>Save</Btn>
+        <Btn size="sm" kind="pri" onClick={() => void save()} loading={busy}>{busy ? 'Saving…' : 'Save'}</Btn>
       </div>
       {err && <Banner tone="bad">{err}</Banner>}
     </div>

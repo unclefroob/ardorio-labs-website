@@ -161,7 +161,7 @@ export function Invoices() {
           </div>
 
           {list.loading && !list.data ? (
-            <Card><Skel rows={5} /></Card>
+            <Card><Skel rows={8} table label="Loading invoices" /></Card>
           ) : all.length === 0 ? (
             <Card pad={false}>
               <Empty

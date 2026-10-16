@@ -3,7 +3,7 @@ import type { RosterioPushEntry, RosterioPushOutcome } from '../../api/contract'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { retryFailedPushes, useRosterioStatus } from '../../data/rosterio'
-import { Banner, Btn, Card, Chip, Spinner } from '../../kit'
+import { Banner, Btn, Card, Chip, Skel, Spinner } from '../../kit'
 import { UI } from '../../ui/store'
 
 const OUTCOME: Record<RosterioPushOutcome, { label: string; tone: string }> = {
@@ -41,7 +41,7 @@ export function RosterioLinkCard() {
   const configured = st.s === 'ok' && st.status.configured
   return (
     <Card title="Rosterio CRM link" icon="zap">
-      {(st.s === 'idle' || st.s === 'loading') && <div className="faint sm" role="status">Loading…</div>}
+      {(st.s === 'idle' || st.s === 'loading') && <Skel rows={3} label="Loading the Rosterio link" />}
       {st.s === 'error' && (
         <div className="row sm" role="alert">
           <span className="faint">Status unavailable. {st.message}</span>

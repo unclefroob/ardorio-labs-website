@@ -566,4 +566,14 @@
 .sos .msg-fold-who{flex:none;max-width:200px}
 .sos .msg-fold-snip{flex:1;min-width:0}
 .sos .msg.msg-target{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
-.sos .email-wait{border-radius:6px;background:var(--surf2)}
+.sos .email-wait{border-radius:6px;background:var(--surf2);padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden;box-sizing:border-box}
+/* A message's frame fades in once measured and eases between heights, so a loaded email settles rather than jumps. */
+.sos .email-frame{opacity:0;transition:opacity .16s ease,height .18s ease}
+.sos .email-frame.ready{opacity:1}
+.sos .email-img-note{margin:6px 0 0}
+/* Loading placeholders: a table's worth of rows, and a busy button keeps its size. */
+.sos .skel-table{display:flex;flex-direction:column}
+.sos .skel-tr{display:flex;gap:16px;align-items:center;height:40px;padding:0 12px;border-bottom:1px solid var(--line)}
+.sos .skel-tr .skel{flex:none}
+.sos .btn.busy{cursor:progress}
+.sos .msg-pending{border-style:dashed}
