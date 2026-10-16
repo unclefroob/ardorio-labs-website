@@ -63,7 +63,8 @@ async function render(opts: { anthropic?: boolean; xai?: boolean; body?: string;
   await settle(3)
 }
 const text = (): string => document.body.textContent ?? ''
-const editor = (): HTMLElement => document.querySelector('[contenteditable]') as HTMLElement
+// The body editor (the subject is an editable one-line field above it).
+const editor = (): HTMLElement => document.querySelector('[contenteditable][aria-multiline="true"]') as HTMLElement
 const hrefs = (): string[] => [...document.querySelectorAll('a')].map(a => a.getAttribute('href') ?? '')
 
 describe('compose: opening lines', () => {

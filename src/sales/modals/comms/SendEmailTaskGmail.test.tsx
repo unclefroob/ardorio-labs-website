@@ -29,10 +29,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function open(o: { live: boolean; canSend?: boolean; ownerId?: string }) {
+async function open(o: { live: boolean; canSend?: boolean; ownerId?: string; draft?: Record<string, string> }) {
   mailStatusApi.mockResolvedValue({ configured: o.live })
   m = await loadSales()
-  m.bootstrap.hydrate(salesWorld({ tasks: [rec('tk_en1_0', emailTask())] }))
+  m.bootstrap.hydrate(salesWorld({ tasks: [rec('tk_en1_0', emailTask(o.draft ? { draft: { from: 'me@example.com', to: 'sam@example.com', cc: '', subject: 'S', body: 'B', ...o.draft } } : {}))] }))
   const mb = m.store.S.mailboxes[0]
   mb.canSend = o.canSend ?? true
   if (o.ownerId) mb.ownerId = o.ownerId
@@ -62,6 +62,15 @@ describe('sending a sequence email from SalesOS', () => {
     expect(sendTaskApi).toHaveBeenCalledWith('tk_en1_0')
     expect(m.store.S.messages.length).toBe(before)
     expect(m.store.S.tasks.find(t => t.id === 'tk_en1_0')?.status).toBe('Not Started') // the server completes it; the change arrives by sync
+  })
+
+  it('a draft that still says {{…}} warns, and Send now asks before the contact would see the braces', async () => {
+    sendTaskApi.mockResolvedValue({ threadId: 'th', messageId: 'ms', gmailId: 'g', recorded: true })
+    await open({ live: true, draft: { subject: 'Hi {{first_name}}', body: 'At {{company_name|your team}}' } })
+    expect(text()).toContain("This email still has {{first_name}}, {{company_name}} in it")
+    await click(button(host, 'Send now'))
+    expect(sendTaskApi).not.toHaveBeenCalled()
+    expect(m.ui.UI.get().modals.at(-1)?.name).toBe('confirm')
   })
 
   it('shows why when the server refuses, and nothing is marked sent', async () => {

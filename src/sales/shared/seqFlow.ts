@@ -1,4 +1,5 @@
 import type { SeqStep } from '../data/types'
+import { suggestToken, unknownTokens } from '../data/tokens'
 
 /**
  * A sequence's flow: a list of steps, where a Check may hold a Yes path and a No path of its own (one level deep). A position names a step:
@@ -115,6 +116,11 @@ export function flowIssues(steps: readonly SeqStep[], o: { tracking?: { opens?: 
       if (step.reply === true && !emailBefore(steps, pos)) out.push({ pos, text: `${label(pos)} is a follow-up, but no email comes before it`, blocks: true })
       if (step.reply !== true && !String(step.subject ?? '').trim()) out.push({ pos, text: `${label(pos)} has no subject`, blocks: true })
       if (!String(step.body ?? '').replace(/<[^>]*>/g, '').trim()) out.push({ pos, text: `${label(pos)} has no message`, blocks: true })
+    }
+    const typos = unknownTokens([step.subject, step.body, step.title, step.script, step.desc].filter(v => typeof v === 'string').join('\n'))
+    if (typos.length) {
+      const hint = typos.map(k => { const s = suggestToken(k); return `{{${k}}}${s ? ` (did you mean ${s.label}?)` : ''}` }).join(', ')
+      out.push({ pos, text: `${label(pos)} uses ${typos.length === 1 ? 'a variable that does not exist' : 'variables that do not exist'}: ${hint}`, blocks: true })
     }
     if (step.type === 'branch') {
       if (pos.lane) out.push({ pos, text: `${label(pos)} is a Check inside a path, which is not allowed`, blocks: true })

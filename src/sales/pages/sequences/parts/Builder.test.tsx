@@ -64,7 +64,8 @@ describe('the flow builder', () => {
       expect(host.querySelector('.flow-lanes')).not.toBeNull()
       expect(text()).toContain('then join back')
       expect(text()).toContain('then the sequence ends')
-      expect(text()).toContain('Re: Rostering for {{company_name}}') // the follow-up on the No path shows the subject it will carry
+      expect(text()).toContain('Re: Rostering for Company name') // the follow-up on the No path shows the subject it will carry, its variable as a chip
+      expect([...host.querySelectorAll('.flow-mini .tok')].map(c => c.textContent)).toContain('Company name')
     })
   })
 
@@ -113,9 +114,11 @@ describe('the flow builder', () => {
   it('a follow-up email keeps the first email\'s subject, locked', async () => {
     await show()
     await click([...host.querySelectorAll<HTMLButtonElement>('.flow-mini')].find(b => b.textContent?.includes('Re:')))
-    const subj = [...host.querySelectorAll<HTMLInputElement>('input')].find(i => i.value.startsWith('Re: '))
-    expect(subj?.value).toBe('Re: Rostering for {{company_name}}')
-    expect(subj?.disabled).toBe(true)
+    const subj = host.querySelector<HTMLElement>('[aria-label="Subject"]')
+    expect(subj?.textContent).toBe('Re: Rostering for Company name')
+    expect(subj?.querySelector('.tok')?.textContent).toBe('Company name')
+    expect(subj?.getAttribute('aria-disabled')).toBe('true')
+    expect(subj?.getAttribute('contenteditable')).toBe('false')
   })
 
   it('deleting a Check that has steps on its paths asks first', async () => {

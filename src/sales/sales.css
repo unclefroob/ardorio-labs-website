@@ -135,6 +135,21 @@
 .sos select.inp{padding-right:24px;appearance:none;background:var(--surf) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236F6978' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center}
 .sos .ta{border:1px solid var(--line2);border-radius:7px;padding:8px 10px;background:var(--surf);width:100%;resize:vertical;min-height:80px;line-height:1.5}
 .sos .rte{border:1px solid var(--line2);border-top:0;border-radius:0 0 7px 7px;padding:10px 12px;min-height:160px;background:var(--surf);line-height:1.55;overflow:auto}
+/* Variables as chips: purple for the contact's data, grey for the sender's, amber when some contacts have no value, red when not a variable. */
+.sos .tok{display:inline-block;padding:0 6px;margin:0 1px;border-radius:5px;font-size:.92em;line-height:1.45;white-space:nowrap;vertical-align:baseline;cursor:default;user-select:all;background:var(--acc-soft);color:var(--acc-ink);border:1px solid var(--acc-line)}
+.sos .tok-sender{background:var(--surf2);color:var(--fg2);border-color:var(--line2)}
+.sos .tok-warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.sos .tok-bad{background:var(--bad-bg);color:var(--bad-ink);border-color:var(--bad2);text-decoration:line-through wavy var(--bad2);text-decoration-thickness:1px}
+.sos .tokinp-w{display:flex;align-items:center;gap:4px;min-width:0}
+.sos .tokinp{height:auto;min-height:32px;padding:5px 10px;line-height:20px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;flex:1;cursor:text}
+.sos .tokinp:focus{outline:2px solid var(--acc-line);outline-offset:-1px}
+.sos .tokinp.dis{background:var(--surf2);color:var(--fg2);cursor:default}
+.sos .tokinp:empty::before{content:attr(data-ph);color:var(--fg3)}
+.sos .tokpick{position:fixed;z-index:80;background:var(--surf);border:1px solid var(--line2);border-radius:9px;box-shadow:var(--sh2);padding:4px;min-width:240px;display:flex;flex-direction:column}
+.sos .tokedit{padding:10px 12px;width:280px}
+.sos .rte .tok,.sos .tokinp .tok{cursor:pointer}
+.sos .tokpick-i{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 8px;border:0;background:none;border-radius:6px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.sos .tokpick-i.on,.sos .tokpick-i:hover{background:var(--hover)}
 .sos .rte-tb{display:flex;gap:2px;padding:4px;border:1px solid var(--line2);border-radius:7px 7px 0 0;background:var(--surf2);flex-wrap:wrap;align-items:center}
 .sos .ck{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
 .sos .ck input{accent-color:var(--acc);width:15px;height:15px;margin:0}

@@ -1,6 +1,8 @@
 import { Fragment } from 'react'
 import { uid } from '../../../data/ids'
-import { Btn, Card, Chip, Empty, Icon, Menu, type MenuItem } from '../../../kit'
+import { Btn, Card, Chip, Empty, Icon, Menu, TokenText, type MenuItem } from '../../../kit'
+import { unknownTokens } from '../../../data/tokens'
+import { gapInfo, stepGaps, stepText } from '../../../shared/seqTokens'
 import { STEP } from '../../../shared/constants'
 import type { SeqStep } from '../../../data/types'
 import { dayPlan, emailBefore, getStep, hasPaths, insertStep, key, moveStep, pathOf, removeStep, samePos, updateStep, type Lane, type Pos } from '../../../shared/seqFlow'
@@ -71,6 +73,9 @@ export function Builder({ dr, upd, sel, setSel, can }: { dr: Draft; upd: (p: Par
     const [ic] = STEP[x.type] ?? ['mail']
     const on = samePos(cur, at)
     const bad = x.type === 'email' && (!String(x.body ?? '').trim() || (x.reply !== true && !x.subject))
+    const typo = unknownTokens(stepText(x, steps, at)).length > 0
+    const gaps = x.type === 'email' || x.type === 'call' || x.type === 'linkedin' ? stepGaps(x, steps, at, dr) : null
+    const short = gaps ? Math.max(0, ...gaps.byKey.values()) : 0
     return (
       <button type="button" className={(small ? 'flow-mini' : 'flow-card') + (on ? ' on' : '') + (x.type === 'branch' ? ' chk' : '')} aria-pressed={on} onClick={() => setSel(at)}>
         <span className="row xs faint" style={{ display: 'flex' }}>
@@ -80,8 +85,10 @@ export function Builder({ dr, upd, sel, setSel, can }: { dr: Draft; upd: (p: Par
           {x.type === 'email' && <Chip>{x.reply === true ? 'Follow-up' : 'You send'}</Chip>}
           {x.type === 'branch' && !small && <Chip tone="info">Check</Chip>}
           {bad && <Chip tone="bad">Incomplete</Chip>}
+          {typo && <Chip tone="bad" title="A variable here does not exist. Open the step to fix it.">Unknown variable</Chip>}
+          {short > 0 && gaps && <Chip tone="warn" icon="alert" title={`${short} of ${gaps.total} enrolled contacts are missing data this step needs. Their email is held until it is filled in, or the variable has a fallback.`}>{short} missing data</Chip>}
         </span>
-        <span className="b sm trunc" style={{ display: 'block', marginTop: 2 }}>{stepTitle(x, steps, at)}</span>
+        <span className="b sm trunc" style={{ display: 'block', marginTop: 2 }}><TokenText text={stepTitle(x, steps, at)} info={gaps ? gapInfo(gaps) : undefined} /></span>
         {!small && <span className="faint xs" style={{ display: 'block' }}>{STEP[x.type]?.[1] ?? x.type}{x.wait ? ' · waits until done' : ''}</span>}
       </button>
     )

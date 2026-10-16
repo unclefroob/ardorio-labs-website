@@ -9,7 +9,8 @@ import { S, useStore } from '../../data/store'
 import { pollOnce } from '../../data/sync'
 import { mailDecided, recheckMailState, useMailState } from '../../mail/client'
 import type { BusinessId, Thread } from '../../data/types'
-import { AiBadge, AiNotConfigured, Banner, Btn, Chip, Fld, Icon, Inp, Menu, Modal, RichText, Sel, TOKENS } from '../../kit'
+import { AiBadge, AiNotConfigured, Banner, Btn, Chip, chipsInHtml, Fld, Icon, Inp, Menu, Modal, RichText, Sel, TokenInput, TokenText, TOKENS, type ChipInfo } from '../../kit'
+import { tokenNames } from '../../data/tokens'
 import { BizSel, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
 import { NoEditModal } from '../entities/guards'
@@ -63,6 +64,8 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
   const sender = Q.senderOf(mb)
   const tok = Q.tokens(ct, sender, b)
   const pr = Q.render(f.subject + ' ' + F.plain(f.body), tok)
+  // Chips this contact has no value for show amber (unknown variables are red regardless).
+  const gapsFor: ChipInfo = k => (ct && pr.missing.includes(k) && !pr.unknown.includes(k) ? { tone: 'warn', note: `${ct.name} has no value for this` } : undefined)
   const sup = ct ? Q.suppressed(ct, b) : null
   const tpls = S.templates.filter(x => x.businessId === b)
   const contacts = Q.contacts().filter(c => Q.contactBiz(c).includes(b)).sort((a, c) => a.name.localeCompare(c.name))
@@ -78,7 +81,8 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
       if (!mb) return setErr('No authorised sender mailbox for ' + bizName)
       if (mb.status !== 'connected') return setErr('The mailbox ' + mb.address + ' is disconnected. Reconnect it in Integrations, or choose another sender.')
       if (sup && ct) return setErr(ct.name + ' is suppressed (' + sup.reason.toLowerCase() + '). Outreach is blocked.')
-      if (pr.missing.length) return setErr('Unresolved personalisation: {{' + pr.missing.join('}}, {{') + '}}. Edit the email or complete the contact record.')
+      if (pr.unknown.length) return setErr(`{{${pr.unknown.join('}}, {{')}}} ${pr.unknown.length === 1 ? 'is not a variable' : 'are not variables'}. Remove ${pr.unknown.length === 1 ? 'it' : 'them'} or pick one from Insert.`)
+      if (pr.missing.length) return setErr(`${ct?.name ?? 'This contact'} has no ${tokenNames(pr.missing).toLowerCase()}. Fill in the contact, add a fallback such as {{${pr.missing[0]}|…}}, or edit the email.`)
     }
     if (!mb) return setErr('Choose a sender mailbox before saving a draft')
     if (!UI.guard(b, 'Sending email')) return
@@ -186,7 +190,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
           <Fld label="Related deal"><Sel value={f.dealId} onChange={v => set('dealId', v)} placeholder="—" options={S.deals.filter(d => d.companyId === f.companyId && d.businessId === b && d.archived !== true).map(d => [d.id, d.title] as const)} /></Fld>
         </div>
         <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
-          <Fld label="Subject" style={{ flex: 1 }}><Inp value={f.subject} onChange={v => set('subject', v)} /></Fld>
+          <Fld label="Subject" style={{ flex: 1 }}><TokenInput label="Subject" value={f.subject} onChange={v => set('subject', v)} info={gapsFor} /></Fld>
           <Fld label="Template">
             <Menu
               align="right"
@@ -200,7 +204,7 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
           <AiBadge tag={tag} />
         </div>
         <Openers key={b + '|' + f.companyId + '|' + f.contactId} b={b} companyId={f.companyId || undefined} contactId={f.contactId || undefined} onInsert={line => set('body', withOpener(f.body, line))} />
-        <RichText value={f.body} onChange={v => set('body', v)} tokens={TOKENS} onAI={() => void draftIt()} aiBusy={busy} />
+        <RichText value={f.body} onChange={v => set('body', v)} tokens={TOKENS} onAI={() => void draftIt()} aiBusy={busy} info={gapsFor} />
         {/* Files and the signature go out with real Gmail only; a simulated send records the words. */}
         {live && mb && (
           <>
@@ -214,8 +218,8 @@ function ComposeForm({ p, t, start }: { p: Props; t: Thread | undefined; start: 
               <Icon n="eye" s={12} />Preview for {ct.name}
               {pr.missing.length > 0 && <Chip tone="warn">Missing: {pr.missing.join(', ')}</Chip>}
             </div>
-            <div className="b sm">{Q.render(f.subject, tok).text}</div>
-            <div className="sm" style={{ marginTop: 6 }} dangerouslySetInnerHTML={{ __html: F.body(Q.render(f.body, tok).text) }} />
+            <div className="b sm"><TokenText text={Q.render(f.subject, tok).text} info={gapsFor} /></div>
+            <div className="sm" style={{ marginTop: 6 }} dangerouslySetInnerHTML={{ __html: chipsInHtml(F.body(Q.render(f.body, tok).text), gapsFor) }} />
           </div>
         )}
       </div>
