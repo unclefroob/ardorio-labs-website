@@ -2,23 +2,43 @@ import { useEffect, useRef } from 'react'
 import { F } from '../data/F'
 import { UI } from '../ui/store'
 import { Btn } from './basic'
-import { Menu } from './overlay'
+import { chipify, copyChips, insertChip, paintChips, serializeHtml, type ChipInfo } from './tokenChips'
+import { TokenMenu } from './TokenField'
+import { useCaret, useChipEditor, useTokenPicker } from './tokenHooks'
 
-export function RichText({ value, onChange, tokens, minH, onAI, aiBusy, label = 'Message body' }: { value: string; onChange: (html: string) => void; tokens?: readonly string[]; minH?: number | string; onAI?: () => void; aiBusy?: boolean; label?: string }) {
+/**
+ * The email editor. With `tokens`, its variables show as chips (typed "{{", the Insert menu, or pasted {{key}} text all become chips);
+ * what it hands back is still HTML with plain {{key}} text in it. `info` colours chips some contacts have no value for.
+ */
+export function RichText({ value, onChange, tokens, minH, onAI, aiBusy, label = 'Message body', info }: { value: string; onChange: (html: string) => void; tokens?: readonly string[]; minH?: number | string; onAI?: () => void; aiBusy?: boolean; label?: string; info?: ChipInfo }) {
   const ref = useRef<HTMLDivElement>(null)
   const last = useRef<string | null>(null)
+  const chips = !!tokens
+  const caret = useCaret(ref)
   useEffect(() => {
     if (ref.current && value !== last.current) {
       ref.current.innerHTML = F.body(value)
+      if (chips) chipify(ref.current, info)
       last.current = value
     }
-  }, [value])
+  }, [value]) // eslint-disable-line react-hooks/exhaustive-deps -- chips follow `info` below without rebuilding the text
+  useEffect(() => { if (ref.current && chips) paintChips(ref.current, info) }, [info, chips])
 
   const emit = (): void => {
     const el = ref.current
     if (!el) return
-    last.current = el.innerHTML
-    onChange(el.innerHTML)
+    const html = chips ? serializeHtml(el) : el.innerHTML
+    last.current = html
+    onChange(html)
+  }
+  const picker = useTokenPicker(ref, (key, back) => { if (ref.current) { insertChip(ref.current, key, info, back); emit() } })
+  const chipEd = useChipEditor(ref, emit, () => { if (ref.current) paintChips(ref.current, info) }, chips)
+  const addToken = (key: string): void => {
+    if (!ref.current) return
+    ref.current.focus()
+    caret.restore()
+    insertChip(ref.current, key, info)
+    emit()
   }
   const ex = (cmd: string, arg?: string): void => {
     ref.current?.focus()
@@ -55,7 +75,7 @@ export function RichText({ value, onChange, tokens, minH, onAI, aiBusy, label = 
         {tokens && (
           <>
             <span style={{ width: 1, height: 16, background: 'var(--line2)', margin: '0 4px' }} />
-            <Menu trigger={<Btn kind="ghost" size="xs" iconRight="down">Insert token</Btn>} items={tokens.map(t => ({ label: `{{${t}}}`, onClick: () => ex('insertText', `{{${t}}}`) }))} />
+            <TokenMenu onPick={addToken} />
           </>
         )}
         {onAI && (
@@ -67,7 +87,16 @@ export function RichText({ value, onChange, tokens, minH, onAI, aiBusy, label = 
           </>
         )}
       </div>
-      <div ref={ref} className="rte" contentEditable suppressContentEditableWarning style={minH ? { minHeight: minH } : undefined} onInput={emit} role="textbox" aria-multiline="true" aria-label={label} />
+      <div
+        ref={ref} className="rte" contentEditable suppressContentEditableWarning style={minH ? { minHeight: minH } : undefined} role="textbox" aria-multiline="true" aria-label={label}
+        onInput={() => { if (chips && ref.current) chipify(ref.current, info); emit(); if (chips) picker.check() }}
+        onKeyDown={e => { if (chips) picker.onKeyDown(e) }}
+        onKeyUp={caret.save} onMouseUp={caret.save} onBlur={caret.save} onClick={chipEd.onClick}
+        onCopy={e => { if (chips && ref.current) copyChips(e, ref.current, false) }}
+        onCut={e => { if (chips && ref.current) copyChips(e, ref.current, true, emit) }}
+      />
+      {picker.view}
+      {chipEd.view}
     </div>
   )
 }
