@@ -87,7 +87,7 @@ describe('the Unread folder keeps what you open', () => {
     await click(rowOf('Bravo subject'))
     expect(listed()).toEqual(['Alpha subject', 'Bravo subject'])
     // a fresh look at the folder shows what is still unread
-    await click(folder('All CRM conversations'))
+    await click(folder('Inbox'))
     await click(folder('Unread'))
     expect(listed()).toEqual(['Bravo subject'])
   })
@@ -103,6 +103,23 @@ describe('the Unread folder keeps what you open', () => {
     expect(t.action?.label).toBe('Undo')
     act(() => t.action!.fn())
     expect(m.store.S.threads.find(x => x.id === 'th3')!.needsReply).toBe(true)
+  })
+})
+
+describe('the Inbox holds conversations they have written in', () => {
+  it('mail you sent that nobody has answered is under Sent, not the Inbox; once they reply it is in both', async () => {
+    await render()
+    m.store.S.threads.push({ ...m.store.S.threads[2], id: 'th_out', subject: 'Only sent so far', updatedAt: '2026-10-09T12:00' })
+    m.store.S.messages.push({ ...m.store.S.messages[2], id: 'ms_out', threadId: 'th_out', dir: 'out', status: 'sent', from: 'me@example.com', to: 'jo@acme.test', body: 'hello from me' })
+    m.store.publish()
+    await settle(2)
+    expect(listed()).not.toContain('Only sent so far')
+    await click(folder('Sent'))
+    expect(listed()).toContain('Only sent so far')
+    m.store.S.messages.push({ ...m.store.S.messages[2], id: 'ms_back', threadId: 'th_out', dir: 'in', status: 'received', body: 'thanks, yes' })
+    m.store.publish()
+    await click(folder('Inbox'))
+    expect(listed()).toContain('Only sent so far')
   })
 })
 
