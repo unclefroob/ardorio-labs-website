@@ -6,7 +6,7 @@ import { S } from '../../data/store'
 import { isProviderEnabled } from '../../data/session'
 import type { BusinessId, EnrichUsage } from '../../api/contract'
 import type { Mailbox } from '../../data/types'
-import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, SimChip, Spinner, Toggle, type Col } from '../../kit'
+import { Av, Banner, BizChip, Btn, Card, Chip, DataTable, Empty, Icon, Menu, SimChip, Skel, Spinner, Toggle, type Col } from '../../kit'
 import { enrichUsage } from '../../ai/client'
 import { fmtResets, phoneLeft, usePhoneStatus } from '../../phone/client'
 import { connectMailboxApi, disconnectMailboxApi, setSendingApi, syncMailboxApi } from '../../api/mailboxes'
@@ -300,7 +300,7 @@ export function PhoneCard() {
   const label = st?.label ?? (st?.provider ? VENDOR[st.provider] : undefined)
   return (
     <Card title="Phone lookup" icon="phone">
-      {status.s === 'loading' && <div className="row sm" aria-busy="true"><Spinner />Checking…</div>}
+      {status.s === 'loading' && <Skel rows={3} label="Checking phone lookup" />}
       {status.s === 'error' && <div className="faint sm">Status unavailable right now.</div>}
       {st && (
         <div className="col" style={{ gap: 6 }}>

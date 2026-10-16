@@ -82,8 +82,9 @@ function Draft({ t }: { t: Task }) {
     setBusy(true)
     try {
       await sendTaskApi(t.id)
-      await pollOnce()
+      // Gmail has it: close now; the sync completes the task and moves the sequence on in the background.
       UI.close()
+      void pollOnce()
       UI.toast('Sent from ' + (mb?.address ?? d.from) + '. The sequence moves on to the next step.')
     } catch (e) {
       setErr(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.')
@@ -149,7 +150,7 @@ function Draft({ t }: { t: Task }) {
             {canGmail ? (
               <>
                 <Btn icon="check" onClick={markSent} disabled={!sendable || busy}>I sent it myself</Btn>
-                <Btn kind="pri" icon="send" onClick={() => void sendNow()} disabled={!sendable || busy}>{busy ? 'Sending…' : 'Send now'}</Btn>
+                <Btn kind="pri" icon="send" onClick={() => void sendNow()} loading={busy} disabled={!sendable}>{busy ? 'Sending…' : 'Send now'}</Btn>
               </>
             ) : <Btn kind="pri" icon="check" onClick={markSent} disabled={!sendable}>Mark as sent</Btn>}
           </>

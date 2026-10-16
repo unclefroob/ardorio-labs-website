@@ -93,6 +93,35 @@ describe('Reply in a conversation, with real Gmail', () => {
     expect(host.querySelector('[contenteditable="true"]')).toBeNull()
   })
 
+  it('shows the reply in the conversation straight away, "Sending…" then "Sent", instead of a gap until the sync', async () => {
+    let done!: (v: unknown) => void
+    sendMailApi.mockReturnValue(new Promise(r => { done = r }))
+    await open()
+    await click(button(host, 'Reply'))
+    await type(editor(), 'On its way')
+    await click(button(host, 'Send'))
+    const card = (): HTMLElement | null => host.querySelector('.msg-pending')
+    expect(card()?.textContent).toContain('Sending…')
+    expect(card()?.textContent).toContain('On its way')
+    expect(editor()).toBeNull()
+    expect(button(host, 'Reply')).toBeUndefined() // no second reply while this one is going
+    await act(async () => { done({ threadId: 'th1', messageId: 'ms_gm_x', gmailId: 'gx', recorded: true }) })
+    await settle(2)
+    expect(card()?.textContent ?? 'replaced by the synced message').not.toContain('Sending…')
+  })
+
+  it('a send that fails puts the reply back, as written, and says why', async () => {
+    sendMailApi.mockImplementation(async () => { const { SalesHttpError } = await import('../../api/http'); throw new SalesHttpError(502, null, 'Gmail did not accept the message. Nothing was sent.') })
+    await open()
+    await click(button(host, 'Reply'))
+    await type(editor(), 'Try this')
+    await click(button(host, 'Send'))
+    await settle(3)
+    expect(host.querySelector('.msg-pending')).toBeNull()
+    expect(editor()?.textContent).toContain('Try this')
+    expect(m.ui.UI.get().toasts.map(t => t.msg)).toContain('Gmail did not accept the message. Nothing was sent.')
+  })
+
   it('a refused send keeps the reply open and says why', async () => {
     // (made at call time, from the same module copy the component uses: loadSales gives each test fresh modules)
     sendMailApi.mockImplementation(async () => { const { SalesHttpError } = await import('../../api/http'); throw new SalesHttpError(409, null, 'This address is suppressed. Nothing was sent.') })

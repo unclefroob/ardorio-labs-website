@@ -17,6 +17,8 @@ export function BillingDetails({ companyId, client, onSaved }: { companyId: stri
   const [current, setCurrent] = useState<BillingClient | null>(client ?? null)
   const [f, set] = useF<BillingForm>(() => fromClient(client, company?.name ?? ''))
   const [others, setOthers] = useState<BillingClient[]>([])
+  // Whether the existing billing clients are still being looked up: their picker holds its place meanwhile.
+  const [looking, setLooking] = useState(!client)
   const [errors, setErrors] = useState<Partial<Record<keyof BillingForm, string>>>({})
   const [busy, setBusy] = useState(false)
   const [fail, setFail] = useState('')
@@ -24,7 +26,7 @@ export function BillingDetails({ companyId, client, onSaved }: { companyId: stri
   useEffect(() => {
     if (client) return
     let live = true
-    listBillingClients().then(r => { if (live) setOthers(r.clients.filter(c => !c.linkedCompanyId)) }, () => undefined)
+    listBillingClients().then(r => { if (live) setOthers(r.clients.filter(c => !c.linkedCompanyId)) }, () => undefined).finally(() => { if (live) setLooking(false) })
     return () => { live = false }
   }, [client])
 
@@ -66,10 +68,13 @@ export function BillingDetails({ companyId, client, onSaved }: { companyId: stri
       title="Billing details"
       sub={company?.name}
       width={560}
-      footer={<><Btn onClick={UI.close} disabled={busy}>Cancel</Btn><Btn kind="pri" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save billing details'}</Btn></>}
+      footer={<><Btn onClick={UI.close} disabled={busy}>Cancel</Btn><Btn kind="pri" onClick={() => void save()} loading={busy}>{busy ? 'Saving…' : 'Save billing details'}</Btn></>}
     >
       <div className="col" style={{ gap: 14 }}>
         {fail && <Banner tone="bad">{fail}</Banner>}
+        {!client && looking && others.length === 0 && (
+          <Fld label="Use an existing billing client"><Sel value="" onChange={() => undefined} placeholder="Checking existing billing clients…" options={[]} disabled aria-busy="true" /></Fld>
+        )}
         {!client && others.length > 0 && (
           <Fld label="Use an existing billing client" hint="Billing clients carry over from the old invoicing. Pick one to link it to this company, or fill in new details below.">
             <Sel value={current?.slug ?? ''} onChange={pickExisting} placeholder="Create a new one" options={others.map(c => [c.slug, c.clientName] as const)} />

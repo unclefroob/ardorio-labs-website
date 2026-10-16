@@ -7,7 +7,7 @@ import { Q } from '../../../data/Q'
 import { isSimMsg, simThread } from '../../../data/simulated'
 import { S, useStore } from '../../../data/store'
 import type { Message, Thread } from '../../../data/types'
-import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Inp, Link, Menu, Owner, RichText, ScoreRing, SearchInp, Sel, Sim, SimChip, TOKENS } from '../../../kit'
+import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Inp, Link, Menu, Owner, RichText, ScoreRing, SearchInp, Sel, Sim, SimChip, Spinner, TOKENS } from '../../../kit'
 import { sendMailApi } from '../../../api/mailboxes'
 import { SalesHttpError } from '../../../api/http'
 import { pollOnce } from '../../../data/sync'
@@ -87,6 +87,11 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
     else drafts.delete(t.id)
   }, [reply, t.id])
   const [sending, setSending] = useState(false)
+  // A reply on its way: shown in the conversation at once (where the editor was), "Sending…" then "Sent", until the synced message
+  // takes its place. If Gmail refuses it, the editor comes back with the reply in it.
+  const [pending, setPending] = useState<{ body: string; to: string; id?: string; at: string } | null>(null)
+  const landed = !!pending?.id && Q.msgs(t.id).some(x => x.id === pending.id)
+  useEffect(() => { if (landed) setPending(null) }, [landed])
 
   // Older messages fold to one line, as in Gmail; the one you came for (a link's message, else the newest) is open and in view.
   const newest = ms[ms.length - 1]
@@ -180,21 +185,27 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
       // Real Gmail: the reply really goes, the same way Compose sends it. The server checks everything again and says so when it refuses.
       if (!m.canSend) return void UI.toast('Sending is off for ' + m.address + '. Switch it on in Integrations.', 'bad')
       const inGmail = !!t.gmailThreadId && t.mailboxId === m.id
+      const draft = reply
       setSending(true)
+      setPending({ body, to: reply.to, at: F.nowIso() })
+      setReply(null)
       try {
         const r = await sendMailApi({
-          mailboxId: m.id, to: reply.to, cc: reply.cc || undefined, bcc: reply.bcc || undefined, subject, body, ...(inGmail ? { threadId: t.id } : { businessId: t.businessId }), contactId: t.contactId, dealId: t.dealId ?? null,
-          attachments: reply.files.length ? toSend(reply.files) : undefined, signature: reply.sig, quote: inGmail,
+          mailboxId: m.id, to: draft.to, cc: draft.cc || undefined, bcc: draft.bcc || undefined, subject, body, ...(inGmail ? { threadId: t.id } : { businessId: t.businessId }), contactId: t.contactId, dealId: t.dealId ?? null,
+          attachments: draft.files.length ? toSend(draft.files) : undefined, signature: draft.sig, quote: inGmail,
         })
-        setReply(null)
         drafts.delete(t.id)
-        await pollOnce()
         UI.toast(
           r.recorded ? 'Reply sent from ' + m.address : 'Reply sent from ' + m.address + '. It will show here shortly.',
           undefined,
           r.recorded && r.threadId !== t.id ? { label: 'View thread', fn: () => UI.nav('inbox', { id: r.threadId }) } : undefined,
         )
+        // It is sent: say so in place, and let the sync bring the real message in (which then replaces this).
+        if (r.recorded && r.threadId === t.id) setPending(p => (p ? { ...p, id: r.messageId } : p))
+        void pollOnce().finally(() => setPending(p => (p && (!p.id || r.threadId !== t.id) ? null : p)))
       } catch (e) {
+        setPending(null)
+        setReply(draft)
         UI.toast(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.', 'bad')
       } finally {
         setSending(false)
@@ -358,6 +369,22 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
               )}
             </div>
           )}
+          {pending && (
+            <div className="msg msg-pending" aria-live="polite" aria-busy={!pending.id}>
+              <div className="msg-h xs">
+                <Av name={me.name} s={22} />
+                <div className="msg-w">
+                  <div className="msg-top">
+                    <span className="b sm">{mb?.address ?? me.name}</span>
+                    <span className="sp" />
+                    {sending ? <span className="chip"><Spinner s={11} />Sending…</span> : <Chip tone="ok" icon="check">Sent</Chip>}
+                  </div>
+                  <div className="faint msg-to">to {pending.to}</div>
+                </div>
+              </div>
+              <div className="sm msg-b" dangerouslySetInnerHTML={{ __html: F.body(pending.body) }} />
+            </div>
+          )}
           {can && (reply ? (
             <div className="msg">
               <div className="row" style={{ marginBottom: 8 }}>
@@ -398,13 +425,13 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
                 <span className="sp" />
                 <Btn size="sm" disabled={!ct || !reply.mailboxId || sending} onClick={saveDraft}>Save draft</Btn>
                 <Btn
-                  size="sm" kind="pri" icon="send" onClick={() => void send()}
-                  disabled={!reply.mailboxId || sending || !mailDecided(mailState) || (live && !Q.mailbox(reply.mailboxId)?.canSend)}
+                  size="sm" kind="pri" icon="send" onClick={() => void send()} loading={sending}
+                  disabled={!reply.mailboxId || !mailDecided(mailState) || (live && !Q.mailbox(reply.mailboxId)?.canSend)}
                 >{sending ? 'Sending…' : 'Send'}</Btn>
               </div>
             </div>
           ) : (
-            <div className="row wrap">
+            !pending && <div className="row wrap">
               <Btn icon="reply" onClick={() => startReply()}>Reply</Btn>
               {othersOnLast && <Btn icon="users" onClick={() => startReply(undefined, true)}>Reply all</Btn>}
               <Btn icon="arrow" onClick={forward} disabled={!newest}>Forward</Btn>

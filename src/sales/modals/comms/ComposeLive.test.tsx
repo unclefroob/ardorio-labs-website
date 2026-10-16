@@ -9,7 +9,8 @@ import { rosterioWorld, setRole } from '../../testing/rosterioWorld'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 const postBatch = vi.fn()
-vi.mock('../../api/records', () => ({ postBatch: (r: BatchRequest) => postBatch(r), getChanges: vi.fn(async () => changes([])), getBootstrap: vi.fn() }))
+const getChanges = vi.fn(async () => changes([]))
+vi.mock('../../api/records', () => ({ postBatch: (r: BatchRequest) => postBatch(r), getChanges: () => getChanges(), getBootstrap: vi.fn() }))
 vi.mock('../../api/members', () => ({ getMembers: vi.fn() }))
 vi.mock('../../api/me', () => ({ getMe: vi.fn() }))
 vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
@@ -70,6 +71,21 @@ describe('Send in Compose', () => {
     expect(sendMailApi.mock.calls[0][0]).toMatchObject({ mailboxId: 'mb_live', to: 'jo@acme.test', subject: 'Hello', businessId: 'ros', contactId: 'ct1' })
     expect(sendMailApi.mock.calls[0][0].threadId).toBeUndefined()
     expect(m.store.S.messages.length).toBe(before)
+  })
+
+  it('shows it is sending, and is done as soon as Gmail has it, without waiting for the sync', async () => {
+    let sent!: (v: unknown) => void
+    sendMailApi.mockReturnValue(new Promise(r => { sent = r }))
+    await open({ status: { configured: true } })
+    getChanges.mockReturnValue(new Promise(() => undefined)) // a sync that never answers
+    await click(button(document.body, 'Send'))
+    const b = [...document.querySelectorAll('button')].find(x => x.textContent?.includes('Sending…'))
+    expect(b?.getAttribute('aria-busy')).toBe('true')
+    expect(text()).not.toContain('Drafting…') // the AI draft button is not mistaken for busy
+    await act(async () => { sent({ threadId: 'th_gm_x', messageId: 'ms_gm_x', gmailId: 'g', recorded: true }) })
+    await settle(2)
+    expect(m.ui.UI.get().toasts.map(t => t.msg)).toContain('Email sent from me@example.com')
+    getChanges.mockImplementation(async () => changes([]))
   })
 
   it('with sending off for the mailbox, Send is disabled, it says why, and nothing is sent', async () => {

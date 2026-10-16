@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RosterioAccount } from '../../api/contract'
 import { F } from '../../data/F'
@@ -17,7 +18,7 @@ const open = (dealId: string): void => UI.open('provisionRosterio', { dealId })
 const TONE = { paid: 'ok', trial: 'warn', trialEnded: 'bad', inactive: 'bad' } as const
 const PAUSE_NOTE = 'New Rosterio deals on this company are not sent as leads, because it already has a live account.'
 
-function unlink(companyId: string, accountName: string): void {
+function unlink(companyId: string, accountName: string, busy: (on: boolean) => void): void {
   const name = Q.company(companyId)?.name ?? 'This company'
   UI.confirm({
     title: 'Unlink the Rosterio account?',
@@ -25,7 +26,8 @@ function unlink(companyId: string, accountName: string): void {
     confirm: 'Unlink',
     danger: true,
     onConfirm: () => {
-      void unlinkAccount(companyId).then(r => UI.toast(r.ok ? 'Unlinked' : r.message, r.ok ? 'ok' : 'bad'))
+      busy(true)
+      void unlinkAccount(companyId).then(r => UI.toast(r.ok ? 'Unlinked' : r.message, r.ok ? 'ok' : 'bad')).finally(() => busy(false))
     },
   })
 }
@@ -33,6 +35,7 @@ function unlink(companyId: string, accountName: string): void {
 function Live({ account, companyId, fetchedAt, reload, busy }: { account: RosterioAccount; companyId: string; fetchedAt: string; reload: () => void; busy: boolean }) {
   const st = standing(account)
   const edit = Q.canEdit('ros')
+  const [unlinking, setUnlinking] = useState(false)
   const row = (label: string, v: ReactNode) => (
     <div className="row"><span className="faint sm" style={{ width: 92, flex: 'none' }}>{label}</span><span style={{ minWidth: 0 }}>{v}</span></div>
   )
@@ -60,7 +63,7 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
         <span className="faint sm" title={F.dt(fetchedAt)}>Read from Rosterio {F.rel(fetchedAt)}</span>
         <span className="sp" />
         <Btn size="xs" kind="ghost" icon="refresh" aria-label="Refresh" disabled={busy} onClick={reload} />
-        {edit && <Btn size="xs" kind="ghost" onClick={() => unlink(companyId, account.name)}>Unlink</Btn>}
+        {edit && <Btn size="xs" kind="ghost" loading={unlinking} onClick={() => unlink(companyId, account.name, setUnlinking)}>{unlinking ? 'Unlinking…' : 'Unlink'}</Btn>}
       </div>
     </div>
   )

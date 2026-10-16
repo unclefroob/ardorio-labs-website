@@ -11,12 +11,18 @@ type BtnProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   iconRight?: string
   children?: ReactNode
   ref?: Ref<HTMLButtonElement>
+  /** Working on it: a spinner where the icon is (or before the label), the button disabled and marked busy. */
+  loading?: boolean
 }
 
-export function Btn({ kind, size, icon, children, className, iconRight, type = 'button', ...r }: BtnProps) {
+export function Btn({ kind, size, icon, children, className, iconRight, type = 'button', loading, disabled, ...r }: BtnProps) {
+  const s = size === 'xs' ? 12 : size === 'sm' ? 13 : 15
   return (
-    <button type={type} className={['btn', kind, size, !children && icon ? 'icon' : '', className].filter(Boolean).join(' ')} {...r}>
-      {icon && <Icon n={icon} s={size === 'xs' ? 12 : size === 'sm' ? 13 : 15} />}
+    <button
+      type={type} className={['btn', kind, size, !children && icon ? 'icon' : '', loading ? 'busy' : '', className].filter(Boolean).join(' ')}
+      disabled={disabled || loading} aria-busy={loading || undefined} {...r}
+    >
+      {loading ? <Spinner s={s} /> : icon && <Icon n={icon} s={s} />}
       {children}
       {iconRight && <Icon n={iconRight} s={13} />}
     </button>
@@ -223,11 +229,24 @@ export function Spinner({ s = 14 }: { s?: number }) {
   return <Icon n="refresh" s={s} className="spin" />
 }
 
-export function Skel({ rows = 3 }: { rows?: number }) {
+/**
+ * A placeholder while something loads. `rows` thin bars (text), or with `table` that many table-height rows, or `card` a card's worth:
+ * shaped like what is coming, so the page does not jump when it arrives.
+ */
+export function Skel({ rows = 3, table, label = 'Loading' }: { rows?: number; table?: boolean; label?: string }) {
+  if (table) {
+    return (
+      <div className="skel-table" aria-busy="true" aria-label={label} role="status">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="skel-tr"><div className="skel" style={{ width: '28%' }} /><div className="skel" style={{ width: '18%' }} /><div className="skel" style={{ width: '14%' }} /><div className="skel" style={{ width: '10%' }} /></div>
+        ))}
+      </div>
+    )
+  }
   return (
-    <div className="col" style={{ gap: 10 }} aria-busy="true">
+    <div className="col" style={{ gap: 10 }} aria-busy="true" aria-label={label} role="status">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="skel" style={{ width: 90 - i * 15 + '%' }} />
+        <div key={i} className="skel" style={{ width: Math.max(35, 92 - ((i * 17) % 50)) + '%' }} />
       ))}
     </div>
   )

@@ -5,7 +5,7 @@ import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
 import { flushAll, pollOnce } from '../../../data/sync'
 import type { Mailbox } from '../../../data/types'
-import { Banner, Btn, Empty, Spinner } from '../../../kit'
+import { Banner, Btn, Empty, Skel } from '../../../kit'
 import { leaveTo } from '../../../mail/navigate'
 import { UI } from '../../../ui/store'
 
@@ -35,7 +35,7 @@ export function MailHealth({ mbs }: { mbs: Mailbox[] }) {
               <b>{m.address}</b> {m.status !== 'connected' ? 'is disconnected, so new mail is not arriving.' : m.syncError}
             </span>
             {mayRun(m) && m.status !== 'connected' && (
-              <span><Btn size="xs" kind="pri" disabled={busy === m.id} onClick={() => void reconnect(m)}>{busy === m.id ? 'Opening Google…' : 'Reconnect Gmail'}</Btn></span>
+              <span><Btn size="xs" kind="pri" loading={busy === m.id} onClick={() => void reconnect(m)}>{busy === m.id ? 'Opening Google…' : 'Reconnect Gmail'}</Btn></span>
             )}
           </span>
         </Banner>
@@ -66,7 +66,7 @@ export function SyncLine({ mbs }: { mbs: Mailbox[] }) {
   return (
     <div className="row xs faint" style={{ marginTop: 6, gap: 6, minHeight: 22 }}>
       <span>{last ? 'Synced ' + F.rel(last) : 'Not synced yet'}</span>
-      {mine.length > 0 && <Btn size="xs" kind="ghost" icon="refresh" disabled={busy} onClick={() => void refresh()}>{busy ? 'Checking…' : 'Check now'}</Btn>}
+      {mine.length > 0 && <Btn size="xs" kind="ghost" icon="refresh" loading={busy} onClick={() => void refresh()}>{busy ? 'Checking…' : 'Check now'}</Btn>}
     </div>
   )
 }
@@ -130,7 +130,8 @@ export function NotInCrm({ u }: { u: ReturnType<typeof useUnmatched> }) {
       },
     })
   }
-  if (u.loading && !u.rows.length) return <div style={{ padding: 20 }}><Spinner /></div>
+  // Shaped like the list that is coming, so it does not jump from a lone spinner to a page of rows.
+  if (u.loading && !u.rows.length) return <div style={{ padding: '8px 14px' }}><Skel rows={4} table label="Loading people who wrote in" /></div>
   if (!u.rows.length) return <Empty icon="users" title="Everyone who wrote in is in SalesOS" body="Mail from people who are not contacts is not filed here. When someone new writes to a mailbox you run, they are listed here to add." />
   return (
     <div>
@@ -144,7 +145,7 @@ export function NotInCrm({ u }: { u: ReturnType<typeof useUnmatched> }) {
           {r.name && <span className="faint xs trunc">{r.address}</span>}
           <span className="sm trunc">{r.subject}{r.count > 1 ? <span className="faint xs"> · {r.count} messages</span> : null}</span>
           <span className="row" style={{ gap: 4, marginTop: 4 }}>
-            <Btn size="xs" icon="plus" disabled={busy === key(r)} onClick={() => add(r)}>{busy === key(r) ? 'Filing…' : 'Add contact'}</Btn>
+            <Btn size="xs" icon="plus" loading={busy === key(r)} onClick={() => add(r)}>{busy === key(r) ? 'Filing…' : 'Add contact'}</Btn>
             <Btn size="xs" kind="ghost" disabled={busy === key(r)} onClick={() => void dismiss(r)}>Dismiss</Btn>
           </span>
         </div>
