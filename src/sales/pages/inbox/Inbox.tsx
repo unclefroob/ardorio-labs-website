@@ -158,6 +158,8 @@ export function Inbox({ route }: { route: Route }) {
   })()
 
   return (
+    // inbox-c measures the space the inbox really has (the window less the app's sidebar), and the columns answer to that, not the window.
+    <div className="inbox-c">
     <div className={'inbox' + (t ? ' has-sel' : '')} ref={top}>
       <h1 className="sr-only">Inbox</h1>
       <div className="ib-l">
@@ -188,8 +190,17 @@ export function Inbox({ route }: { route: Route }) {
       </div>
       <div className="ib-m">
         <div style={{ padding: 10, borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--surf)', zIndex: 2 }}>
-          <div className="hamb" style={{ marginBottom: 8 }}>
-            <Sel style={{ width: '100%' }} aria-label="Folder" value={fold} onChange={v => { if (isFold(v)) changeFold(v) }} options={FOLD.map(f => [f[0], f[1]] as [string, string])} />
+          {/* When there is no room for the folder column, its controls sit here instead: Compose, the folder and the mailbox. */}
+          <div className="ib-compact">
+            <Btn kind="pri" size="sm" icon="edit" disabled={!canCompose} onClick={() => UI.open('compose')}>Compose</Btn>
+            <Sel style={{ flex: '1 1 140px', minWidth: 0 }} aria-label="Folder" value={others ? '' : fold} onChange={v => { if (isFold(v)) changeFold(v) }} options={FOLD.map(f => [f[0], f[1] + (counts[f[0]] ? ` (${counts[f[0]]})` : '')] as [string, string])} placeholder={others ? 'Not in SalesOS yet' : undefined} />
+            {(mbs.length > 1 || runsAny) && (
+              <Sel
+                style={{ flex: '1 1 160px', minWidth: 0 }} aria-label="Mailbox" value={others ? '__others' : mb}
+                onChange={v => { if (v === '__others') { setOthers(true); unmatched.reload() } else { setOthers(false); setMb(v) } }}
+                options={[['', 'All mailboxes'] as [string, string], ...mbs.map(m => [m.id, m.address] as [string, string]), ...(runsAny ? [['__others', 'Not in SalesOS yet'] as [string, string]] : [])]}
+              />
+            )}
           </div>
           {live && <MailHealth mbs={mbs} />}
           <div className="row" style={{ marginBottom: 8 }}>
@@ -244,6 +255,7 @@ export function Inbox({ route }: { route: Route }) {
           </div>
         )}
       </div>
+    </div>
     </div>
   )
 }
