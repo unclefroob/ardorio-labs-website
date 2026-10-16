@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rec, salesWorld } from '../../testing/fixtures'
-import { settle } from '../../testing/dom'
+import { click, settle } from '../../testing/dom'
 import { loadSales } from '../../testing/load'
 import { routedInbox } from '../../testing/routed'
 
@@ -67,6 +67,8 @@ describe('Simulated mail in the Inbox', () => {
     expect(sim?.querySelector('svg')).not.toBeNull()
     expect(sim?.getAttribute('title')).toContain('No real email')
     expect(chip(row('Mixed'), 'Includes simulated')).toBeDefined()
+    // only sent so far, so it is under Sent rather than the Inbox
+    await click([...host.querySelectorAll<HTMLElement>('.ib-l button')].find(b => b.textContent?.startsWith('Sent')))
     expect(row('Sent by hand').textContent).not.toContain('imulated')
     expect(host.querySelector('.ib-l')?.textContent).toContain('No real email is sent or received yet')
   })

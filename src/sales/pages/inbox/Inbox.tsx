@@ -13,7 +13,7 @@ import { RowBtn } from './parts/RowBtn'
 import { ThreadView } from './parts/ThreadView'
 
 const FOLD = [
-  ['all', 'All CRM conversations', 'inbox'],
+  ['all', 'Inbox', 'inbox'],
   ['unread', 'Unread', 'mail'],
   ['needs', 'Needs reply', 'reply'],
   ['positive', 'Positive responses', 'star'],
@@ -91,7 +91,8 @@ export function Inbox({ route }: { route: Route }) {
       case 'private': return t.visibility === 'private'
       case 'drafts': return ms.some(m => m.status === 'draft')
       case 'archived': return t.archived
-      default: return ms.some(m => m.status !== 'discarded')
+      // As in Gmail: a conversation is in the Inbox once they have written. Mail you sent that nobody has answered yet is under Sent.
+      default: return ms.some(m => m.dir === 'in' && m.status !== 'discarded')
     }
   }
   const needle = q.trim().toLowerCase()
