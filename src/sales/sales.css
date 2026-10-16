@@ -39,7 +39,9 @@
 .sos .search kbd{margin-left:auto;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--surf)}
 .sos .clock{white-space:nowrap;display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;background:var(--surf2);border:1px dashed var(--line2);color:var(--fg2);font-size:12px;cursor:pointer}
 .sos .main{flex:1;overflow:auto;min-height:0}
-.sos .page{padding:22px 26px 60px;max-width:1600px;margin-inline:auto;width:100%}
+/* Pages grow with the screen up to 1920px (a 4K screen at 150% has ~2300px beside the sidebar), then centre. */
+.sos .page{padding:22px 26px 60px;max-width:1920px;margin-inline:auto;width:100%}
+@media (min-width:1800px){.sos .page{padding-inline:36px}}
 .sos .ph{display:flex;align-items:flex-end;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .sos .ph h1{font-family:var(--serif);font-weight:500;font-size:26px;letter-spacing:-.01em;margin:0;line-height:1.15}
 .sos .ph>div:first-child{flex:1 1 340px}
@@ -209,11 +211,13 @@
 .sos .bub{max-width:760px;padding:10px 14px;border-radius:12px;line-height:1.55}
 .sos .bub.me{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px}
 .sos .bub.ai2{background:var(--surf);border:1px solid var(--line);border-bottom-left-radius:4px}
+.sos .inbox-c{container:sos-inbox/inline-size}
 .sos .inbox{display:grid;grid-template-columns:210px 340px minmax(0,1fr);height:calc(100vh - 52px)}
 .sos .inbox>div{min-height:0;overflow:auto}
 .sos .ib-l{border-right:1px solid var(--line);background:var(--side);padding:12px 8px}
 .sos .ib-m{border-right:1px solid var(--line);background:var(--surf)}
-.sos .ib-r{background:var(--bg)}
+.sos .ib-r{background:var(--bg);container:sos-thread/inline-size}
+.sos .ib-compact{display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .sos .th{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column;gap:3px}
 .sos .th:hover{background:var(--hover)}
 .sos .th.on{background:var(--acc-soft)}
@@ -227,13 +231,29 @@
 .sos .sig-preview{padding:8px 10px;border-left:2px solid var(--line2);color:var(--fg2);overflow-wrap:anywhere}
 .sos .sig-preview img{max-width:100%;height:auto}
 .sos .chip-x{border:0;background:none;color:inherit;cursor:pointer;padding:0 0 0 4px;font:inherit;line-height:1}
-/* Wide screens: give the extra room to the folders, the list (two-line previews) and the conversation, rather than empty space. */
-@media (min-width:1500px){.sos .inbox{grid-template-columns:230px 380px minmax(0,1fr)}
-.sos .tv{padding:20px 28px;max-width:1280px}
-.sos .tv-g{grid-template-columns:minmax(0,1fr) 300px;gap:18px}
+/*
+ * The inbox's columns answer to the room the inbox actually has (inbox-c: the window less the app sidebar), not the window: a 13" laptop,
+ * a 3:2 screen at 150% and a 4K screen at 200% differ far more in that room than their window widths suggest.
+ *   < 1360px: the folder column folds into a bar above the list, so the conversation keeps its width.
+ *   >= 1400px / 1750px: the extra room goes to the columns, and previews get two lines.
+ */
+@container sos-inbox (max-width:1359px){.sos .inbox{grid-template-columns:clamp(260px,32cqi,340px) minmax(0,1fr)}
+.sos .ib-l{display:none}
+.sos .ib-compact{display:flex}}
+@container sos-inbox (min-width:1400px){.sos .inbox{grid-template-columns:230px 380px minmax(0,1fr)}
 .sos .th-snip{-webkit-line-clamp:2;line-clamp:2}}
-@media (min-width:1900px){.sos .inbox{grid-template-columns:250px 440px minmax(0,1fr)}
-.sos .tv{padding:24px 36px;max-width:1480px}
+@container sos-inbox (min-width:1750px){.sos .inbox{grid-template-columns:250px 440px minmax(0,1fr)}}
+/*
+ * The conversation answers to its own width the same way. Narrower than 780px, the contact / company / deal panel moves above the
+ * messages as a row of cards instead of squeezing them; wider, it sits beside them (narrow at first) and grows with the room.
+ */
+@container sos-thread (min-width:780px) and (max-width:1099px){.sos .tv-g{grid-template-columns:minmax(0,1fr) 240px;gap:12px}}
+@container sos-thread (max-width:779px){.sos .tv-g{grid-template-columns:minmax(0,1fr)}
+.sos .tv-g>.col:last-child{order:-1;position:static;max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;align-items:start}
+.sos .tv{padding:14px 16px}}
+@container sos-thread (min-width:1100px){.sos .tv{padding:20px 28px;max-width:1280px}
+.sos .tv-g{grid-template-columns:minmax(0,1fr) 300px;gap:18px}}
+@container sos-thread (min-width:1500px){.sos .tv{padding:24px 36px;max-width:1480px}
 .sos .tv-g{grid-template-columns:minmax(0,1fr) 340px;gap:22px}}
 .sos .msg{background:var(--surf);border:1px solid var(--line);border-radius:9px;padding:12px 14px;min-width:0}
 /* Real email: long recipient lists and links (calendar invites, tracking URLs) must wrap inside the card, never push the page sideways. */
@@ -271,8 +291,7 @@
 .sos .pal-i.on,.sos .pal-i:hover{background:var(--acc-soft)}
 @media (max-width:1180px){.sos .g6{grid-template-columns:repeat(3,minmax(0,1fr))}
 .sos .g4,.sos .g5{grid-template-columns:repeat(2,minmax(0,1fr))}
-.sos .split{grid-template-columns:minmax(0,1fr)}
-.sos .inbox{grid-template-columns:180px 290px minmax(0,1fr)}}
+.sos .split{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:900px){.sos .app{grid-template-columns:minmax(0,1fr)}
 .sos .side{position:fixed;inset:0 auto 0 0;width:260px;z-index:55;transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility 0s .2s}
 .sos .side.open{transform:none;visibility:visible;box-shadow:var(--sh2);transition:transform .2s,visibility 0s}
