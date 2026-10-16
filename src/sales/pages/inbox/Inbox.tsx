@@ -216,7 +216,7 @@ export function Inbox({ route }: { route: Route }) {
                 <span className="faint xs">{F.rel(x.updatedAt)}</span>
               </span>
               <span className="sm subj trunc" style={{ width: '100%' }}>{x.subject}</span>
-              <span className="faint xs trunc" style={{ width: '100%' }}>{last ? prefix + F.plain(last.body).slice(0, 90) : ''}</span>
+              <span className="faint xs th-snip">{last ? prefix + F.plain(last.body).slice(0, 240) : ''}</span>
               <span className="row" style={{ gap: 4, marginTop: 2 }}>
                 <BizDot b={x.businessId} s={6} />
                 {x.visibility === 'private' && <Icon n="lock" s={10} style={{ color: 'var(--fg3)' }} />}

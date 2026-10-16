@@ -210,7 +210,7 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
   const followUp = meta ? (meta.days === 0 ? 'Today' : F.date(F.addDays(F.nowIso(), meta.days))) : ''
 
   return (
-    <div ref={root} style={{ padding: '16px 20px', maxWidth: 980 }}>
+    <div ref={root} className="tv">
       <div className="row wrap" style={{ marginBottom: 12 }}>
         <Btn kind="ghost" size="sm" icon="left" className="hamb" aria-label="Back to conversations" onClick={onClose} />
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, flex: 1, minWidth: 200 }}>{t.subject}</h2>
@@ -236,7 +236,7 @@ export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; targ
         ) : <Owner id={t.assigneeId} />}
       </div>
       {sim && <div className="faint xs" style={{ margin: '-6px 0 12px' }}>No real email is sent or received yet. Simulated messages are recorded in SalesOS only and do not count in goals or reports.</div>}
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 260px', gap: 14, alignItems: 'start' }}>
+      <div className="tv-g">
         <div className="col" style={{ gap: 10 }}>
           {ms.length === 0 && <div className="msg faint sm">No messages in this conversation yet.</div>}
           {ms.map(m => {
