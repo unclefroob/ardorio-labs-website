@@ -48,7 +48,9 @@ export function RichText({ value, onChange, tokens, minH, onAI, aiBusy, label = 
       <div className="rte-tb" role="toolbar" aria-label="Formatting">
         <Btn kind="ghost" size="xs" icon="bold" onClick={() => ex('bold')} title="Bold" aria-label="Bold" />
         <Btn kind="ghost" size="xs" icon="italic" onClick={() => ex('italic')} title="Italic" aria-label="Italic" />
+        <Btn kind="ghost" size="xs" icon="underline" onClick={() => ex('underline')} title="Underline" aria-label="Underline" />
         <Btn kind="ghost" size="xs" icon="ul" onClick={() => ex('insertUnorderedList')} title="Bulleted list" aria-label="Bulleted list" />
+        <Btn kind="ghost" size="xs" icon="ol" onClick={() => ex('insertOrderedList')} title="Numbered list" aria-label="Numbered list" />
         <Btn kind="ghost" size="xs" icon="link" onClick={link} title="Link" aria-label="Link" />
         {tokens && (
           <>

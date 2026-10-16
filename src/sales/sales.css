@@ -222,6 +222,11 @@
 /* The open conversation: messages, with the deal/contact rail beside them. */
 .sos .tv{padding:16px 20px;max-width:1040px}
 .sos .tv-g{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start}
+/* The contact / company / deal rail stays in view while a long conversation scrolls (it scrolls itself if taller than the pane). */
+.sos .tv-g>.col:last-child{position:sticky;top:12px;max-height:calc(100vh - 52px - 24px);overflow-y:auto}
+.sos .sig-preview{padding:8px 10px;border-left:2px solid var(--line2);color:var(--fg2);overflow-wrap:anywhere}
+.sos .sig-preview img{max-width:100%;height:auto}
+.sos .chip-x{border:0;background:none;color:inherit;cursor:pointer;padding:0 0 0 4px;font:inherit;line-height:1}
 /* Wide screens: give the extra room to the folders, the list (two-line previews) and the conversation, rather than empty space. */
 @media (min-width:1500px){.sos .inbox{grid-template-columns:230px 380px minmax(0,1fr)}
 .sos .tv{padding:20px 28px;max-width:1280px}

@@ -20,6 +20,8 @@ import { EnrichActivity } from './EnrichActivity'
 import { RosterioLinkCard } from './RosterioLinkCard'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
+import { EditSignature } from './EditSignature'
+import { mayRun } from '../inbox/parts/MailHealth'
 
 const BOUNDARIES = ['Email provider', 'Email sync', 'Email sending', 'Lead enrichment', 'Company research', 'AI assistant', 'Sequence scheduler', 'Notifications', 'Authentication', 'Audit logging']
 const LIVE_NOTE = 'SalesOS reads mail to and from people who are in your CRM and files it in the Inbox. Sending is off until the mailbox owner switches it on; every send is checked against the suppression list first. A personal mailbox is private to its owner: nobody else, including admins, can read it in SalesOS.'
@@ -37,6 +39,9 @@ export function Integrations() {
   const live = mail.s === 'live'
   const [adding, setAdding] = useState<'personal' | 'shared' | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
+  const [sigFor, setSigFor] = useState<string | null>(null)
+  // The signature, for whoever runs the mailbox (the server's rule): the owner of a personal one, the admins of a shared one.
+  const sigCol: Col<Mailbox> = { k: 'sig', l: 'Signature', nosort: true, r: m => (mayRun(m) ? <Btn size="xs" kind="ghost" icon="edit" onClick={() => setSigFor(f => (f === m.id ? null : m.id))} aria-label={'Signature for ' + m.address}>{m.signature ? 'Edit' : 'Add'}</Btn> : <span className="faint xs">{m.signature ? 'Set' : 'None'}</span>) }
   const canAddPersonal = Q.myBiz().some(b => Q.canEdit(b))
   // Google sends the browser back here with the result of consent in the address; say it once and clear it.
   useEffect(() => {
@@ -100,6 +105,7 @@ export function Integrations() {
     { k: 's', l: 'Status', sort: m => m.status, r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status === 'connected' ? 'Connected' : 'Disconnected, reauthorisation required'}</Chip> },
     { k: 'b', l: 'Business', nosort: true, r: m => <span className="row" style={{ gap: 3, flexWrap: 'wrap' }}>{m.businessIds.map(b => <BizChip key={b} b={b} />)}{m.ownerId === me.id && <Btn size="xs" kind="ghost" onClick={() => setEditing(m.id)} aria-label={'Change businesses for ' + m.address}>Edit</Btn>}</span> },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => <SyncCell m={m} /> },
+    ...(live ? [sigCol] : []),
     { k: 'send', l: 'Sending', nosort: true, r: m => live ? (m.ownerId === me.id ? <Toggle on={sendOn(m)} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) : <Toggle on={m.canSend} label={`Allow sending from ${m.address}`} onChange={v => Act.setMailbox(m.id, { canSend: v })} disabled={m.ownerId !== me.id && !adm} /> },
     {
       k: 'a', l: '', nosort: true,
@@ -133,6 +139,7 @@ export function Integrations() {
     { k: 's', l: 'Status', r: m => <Chip tone={m.status === 'connected' ? 'ok' : 'bad'}>{m.status}</Chip> },
     { k: 'au', l: 'Authorised users', nosort: true, r: m => (m.authorised.length ? <span className="row" style={{ gap: 2 }}>{m.authorised.map(u => <Av key={u} u={Q.user(u)} s={20} />)}</span> : <span className="faint xs">Nobody yet</span>) },
     { k: 'sync', l: 'Last sync', sort: m => m.lastSync ?? '', r: m => <SyncCell m={m} /> },
+    ...(live ? [sigCol] : []),
     ...(live ? [{ k: 'send', l: 'Sending', nosort: true, r: (m: Mailbox) => (Q.canAdmin(m.businessIds[0] ?? '') ? <Toggle on={sendOn(m)} label={`Allow sending from ${m.address}`} onChange={v => void setSend(m, v)} disabled={busy === m.id || m.status !== 'connected'} /> : <span className="faint xs">{m.canSend ? 'On' : 'Off'}</span>) } as Col<Mailbox>] : []),
     {
       k: 'a', l: '', nosort: true,
@@ -172,6 +179,7 @@ export function Integrations() {
         <Card title="Google Workspace / Gmail: personal accounts" icon="mail" right={<span className="row" style={{ gap: 8 }}>{canAddPersonal && adding !== 'personal' && <Btn size="xs" icon="plus" onClick={() => setAdding('personal')}>Add mailbox</Btn>}{live ? <Chip tone="ok">Gmail</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
           {adding === 'personal' && <AddMailbox kind="personal" onDone={() => setAdding(null)} />}
           {personal.filter(m => m.id === editing).map(m => <EditMailboxBusinesses key={m.id} m={m} onDone={() => setEditing(null)} />)}
+          {live && personal.filter(m => m.id === sigFor).map(m => <EditSignature key={m.id} m={m} onDone={() => setSigFor(null)} />)}
           <DataTable
             rows={personal}
             cols={personalCols}
@@ -182,6 +190,7 @@ export function Integrations() {
         <Card title="Shared business inboxes" icon="users" right={<span className="row" style={{ gap: 8 }}>{adm && adding !== 'shared' && <Btn size="xs" icon="plus" onClick={() => setAdding('shared')}>Add shared inbox</Btn>}{live ? <Chip tone="ok">Gmail</Chip> : <SimChip>Simulated mailbox</SimChip>}</span>} pad={false}>
           {adding === 'shared' && <AddMailbox kind="shared" onDone={() => setAdding(null)} />}
           {shared.filter(m => m.id === editing).map(m => <EditMailboxBusinesses key={m.id} m={m} onDone={() => setEditing(null)} />)}
+          {live && shared.filter(m => m.id === sigFor).map(m => <EditSignature key={m.id} m={m} onDone={() => setSigFor(null)} />)}
           <DataTable
             rows={shared}
             cols={sharedCols}
