@@ -78,7 +78,15 @@ export function EmailBody({ m }: { m: Message }) {
 
   // Still finding out whether this is real Gmail, or fetching the original: hold the space it will need.
   const waiting = fromGmail && (mail === 'loading' || (eligible && got === undefined))
-  if (waiting) return <div className="email-wait" style={{ height: h ?? estimate(m) }} aria-busy="true" aria-label="Loading message" />
+  if (waiting) {
+    // Lines where the text will be, at the height it will take (exactly, when it was opened before), so nothing moves when it arrives.
+    const hh = h ?? estimate(m)
+    return (
+      <div className="email-wait" style={{ height: hh }} aria-busy="true" aria-label="Loading message" role="status">
+        {Array.from({ length: Math.max(1, Math.min(12, Math.floor((hh - 16) / 22))) }).map((_, i) => <div key={i} className="skel" style={{ width: [88, 95, 72, 90, 60, 84][i % 6] + '%' }} />)}
+      </div>
+    )
+  }
 
   // No HTML to show: the stored text. Mail from Gmail arrives hard-wrapped at about 78 characters, so its lines are joined back into paragraphs.
   if (!doc) {
@@ -96,17 +104,18 @@ export function EmailBody({ m }: { m: Message }) {
   }
   return (
     <div className="email-body">
+      <iframe
+        ref={frame} title="Email content" className={'email-frame' + (h === null ? '' : ' ready')} sandbox={SANDBOX} srcDoc={doc.srcdoc} referrerPolicy="no-referrer" onLoad={onLoad}
+        // + 2: the frame's own border, top and bottom. Its height eases to the measured one (sales.css) rather than snapping.
+        style={{ height: (h ?? estimate(m)) + 2 }}
+      />
+      {/* Under the message, not above it: it is only known once the message has loaded, and above it would push the message down. */}
       {doc.blockedImages > 0 && !images && (
         <div className="row xs email-img-note">
           <span className="faint">Images are hidden so the sender cannot see that you opened this.</span>
           <Btn size="xs" kind="ghost" onClick={() => setImages(true)}>Show images</Btn>
         </div>
       )}
-      <iframe
-        ref={frame} title="Email content" className="email-frame" sandbox={SANDBOX} srcDoc={doc.srcdoc} referrerPolicy="no-referrer" onLoad={onLoad}
-        // + 2: the frame's own border, top and bottom.
-        style={{ height: (h ?? estimate(m)) + 2, visibility: h === null ? 'hidden' : undefined }}
-      />
     </div>
   )
 }

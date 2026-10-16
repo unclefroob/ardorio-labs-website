@@ -81,7 +81,7 @@ describe('EnrichActivity', () => {
     let fail!: (e: Error) => void
     aiEnrichLog.mockReturnValueOnce(new Promise((_, rej) => { fail = rej }))
     await mount(async () => { const { EnrichActivity } = await import('./EnrichActivity'); return <EnrichActivity b="ros" /> })
-    expect(host.textContent).toContain('Loading')
+    expect(host.querySelector('[role="status"][aria-busy="true"]')?.getAttribute('aria-label')).toBe('Loading enrichment activity')
     await act(async () => { fail(new Error('boom')) })
     expect(host.textContent).toContain('Activity unavailable')
     expect(host.textContent).not.toContain('No enrichment calls yet')

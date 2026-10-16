@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { BusinessId, EnrichLogEntry, EnrichLogOutcome } from '../../api/contract'
 import { fetchEnrichLog } from '../../ai/client'
 import { F } from '../../data/F'
-import { BizChip, Btn, Chip } from '../../kit'
+import { BizChip, Btn, Chip, Skel } from '../../kit'
 
 const OUTCOME: Record<EnrichLogOutcome, { label: string; tone: string }> = {
   ok: { label: 'OK', tone: 'ok' },
@@ -42,7 +42,7 @@ export function EnrichActivity({ b, showBiz }: { b: BusinessId; showBiz?: boolea
   return (
     <div className="col" style={{ gap: 2 }}>
       {showBiz && <div className="row sm"><BizChip b={b} /></div>}
-      {st.s === 'loading' && <div className="faint sm" role="status" style={{ padding: '4px 0' }}>Loading…</div>}
+      {st.s === 'loading' && <Skel rows={5} table label="Loading enrichment activity" />}
       {st.s === 'error' && (
         <div className="row sm" role="alert" style={{ padding: '4px 0' }}>
           <span className="faint">Activity unavailable. {st.message}</span>

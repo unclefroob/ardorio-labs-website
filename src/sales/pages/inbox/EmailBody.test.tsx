@@ -112,13 +112,15 @@ describe('an email shown as the sender wrote it', () => {
     expect(wait).not.toBeNull()
     expect(wait!.getAttribute('aria-busy')).toBe('true')
     expect(parseInt(wait!.style.height, 10)).toBeGreaterThanOrEqual(60)
+    expect(wait!.querySelectorAll('.skel').length).toBeGreaterThan(0) // lines where the text will be, not a blank box
     expect(text()).not.toContain('PLAIN TEXT VERSION')
     await act(async () => { release({ html: '<p>arrived</p>' }) })
     await settle(2)
     expect(host.querySelector('.email-wait')).toBeNull()
     expect(frame()!.srcdoc).toContain('arrived')
-    // Not shown until onLoad has measured it, so it never appears at a wrong height and then jumps.
-    expect(frame()!.style.visibility).toBe('hidden')
+    // Not shown until onLoad has measured it (it fades in then), so it never appears at a wrong height and then jumps.
+    expect(frame()!.classList.contains('ready')).toBe(false)
+
     expect(parseInt(frame()!.style.height, 10)).toBeGreaterThanOrEqual(60)
   })
 
