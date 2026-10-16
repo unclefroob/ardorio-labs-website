@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rec, salesWorld } from '../../testing/fixtures'
 import { click, settle } from '../../testing/dom'
 import { loadSales } from '../../testing/load'
+import { routedInbox } from '../../testing/routed'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: vi.fn(), getBootstrap: vi.fn() }))
@@ -33,8 +34,8 @@ async function render(sel?: string) {
     businesses: [ROS],
     messages: [rec('ms1', { threadId: 'th1', dir: 'in', status: 'received', from: 'jo@acme.test', to: ['me@example.com'], subject: 'Hello', body: 'Hi there', ts: '2026-10-09T09:00', mailboxId: 'mb1' })],
   }))
-  const { Inbox } = await import('./Inbox')
-  await act(async () => { root.render(<Inbox route={{ page: 'inbox', id: sel }} />) })
+  const { Page } = await routedInbox(m, { id: sel })
+  await act(async () => { root.render(<Page />) })
   await settle(2)
 }
 const inbox = (): HTMLElement => host.querySelector('.inbox') as HTMLElement
@@ -75,8 +76,8 @@ describe('Inbox panes (narrow layout is driven by has-sel)', () => {
         assigneeId: 'u-other', unread: false, archived: false, classification: null, needsReply: false, sharedWith: [], updatedAt: '2026-10-09T09:00',
       })],
     }))
-    const { Inbox } = await import('./Inbox')
-    await act(async () => { root.render(<Inbox route={{ page: 'inbox', id: 'th9' }} />) })
+    const { Page } = await routedInbox(m, { id: 'th9' })
+    await act(async () => { root.render(<Page />) })
     await settle(2)
     expect(reader().textContent).toContain('Private conversation')
     const back = [...reader().querySelectorAll('button')].find(b => b.textContent === 'Back to conversations')

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { draft as aiDraft, suggestReply as aiSuggest, type AiResult } from '../../../ai/client'
 import * as localAi from '../../../ai/local'
 import { Act } from '../../../data/Act'
@@ -6,9 +6,12 @@ import { F } from '../../../data/F'
 import { Q } from '../../../data/Q'
 import { isSimMsg, simThread } from '../../../data/simulated'
 import { S, useStore } from '../../../data/store'
-import type { Thread } from '../../../data/types'
-import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Link, Menu, Owner, RichText, ScoreRing, SearchInp, Sel, Sim, SimChip, TOKENS } from '../../../kit'
-import { useMailState } from '../../../mail/client'
+import type { Message, Thread } from '../../../data/types'
+import { AiBadge, AiNotConfigured, Av, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, CtLink, DlLink, EnrolChip, Inp, Link, Menu, Owner, RichText, ScoreRing, SearchInp, Sel, Sim, SimChip, TOKENS } from '../../../kit'
+import { sendMailApi } from '../../../api/mailboxes'
+import { SalesHttpError } from '../../../api/http'
+import { pollOnce } from '../../../data/sync'
+import { mailDecided, recheckMailState, useMailState } from '../../../mail/client'
 import { EmailBody } from './EmailBody'
 import { dealCandidates } from '../../../shared/dealLink'
 import { customerOf } from '../../../shared/customerOf'
@@ -17,10 +20,31 @@ import { UI } from '../../../ui/store'
 
 const NO_SUGGEST = ['Unsubscribe', 'Out of Office', 'Delivery Failure']
 
-interface Reply { mailboxId: string; body: string }
+interface Reply { mailboxId: string; to: string; body: string }
 
-export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
-  const sims = useMailState().s === 'off'
+// Unsent replies, by conversation, for the session: switching to another conversation (or a poll that briefly drops this one) keeps them.
+const drafts = new Map<string, Reply>()
+export const clearReplyDrafts = (): void => drafts.clear()
+
+const addrOf = (s: string): string => (/<([^>]+)>/.exec(s)?.[1] ?? s).trim()
+
+/** Reply to whoever wrote last, as Gmail does; the linked contact when nobody has written in yet. */
+function replyTo(ms: Message[], fallback: string): string {
+  const last = [...ms].reverse().find(m => m.dir === 'in' && m.status !== 'draft')
+  return last ? addrOf(last.from) : fallback
+}
+
+/** Put a message at the top of the conversation pane (desktop) or the page (narrow screens, where the pane is the page). */
+function bringIntoView(el: HTMLElement): void {
+  const box = el.closest<HTMLElement>('.ib-r')
+  if (box && getComputedStyle(box).overflowY === 'auto') box.scrollTop = Math.max(0, el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12)
+  else el.scrollIntoView?.({ block: 'start' })
+}
+
+export function ThreadView({ t, target, onClose, onArchived }: { t: Thread; target?: string; onClose: () => void; onArchived?: (id: string) => void }) {
+  const mailState = useMailState().s
+  const sims = mailState === 'off'
+  const live = mailState === 'live'
   useStore()
   const me = Q.me()
   const ms = Q.msgs(t.id).filter(m => m.status !== 'discarded')
@@ -37,7 +61,25 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
   const rec = S.recs.find(r => r.threadId === t.id)
   const sug = cl && !NO_SUGGEST.includes(cl.cat) ? localAi.suggestReply(t) : null
   const mailboxes = Q.myMailboxes(t.businessId)
-  const [reply, setReply] = useState<Reply | null>(null)
+  const [reply, setReply] = useState<Reply | null>(() => drafts.get(t.id) ?? null)
+  useEffect(() => {
+    if (reply) drafts.set(t.id, reply)
+    else drafts.delete(t.id)
+  }, [reply, t.id])
+  const [sending, setSending] = useState(false)
+
+  // Older messages fold to one line, as in Gmail; the one you came for (a link's message, else the newest) is open and in view.
+  const newest = ms[ms.length - 1]
+  const goal = (target && ms.find(m => m.id === target)) || newest
+  const [exp, setExp] = useState<Record<string, boolean>>({})
+  const isOpen = (m: Message): boolean => exp[m.id] ?? (m.id === goal?.id || m.id === newest?.id || m.status === 'draft' || ms.length <= 2)
+  const root = useRef<HTMLDivElement>(null)
+  const goalEl = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    // The first message is the top of the conversation: show the subject with it.
+    const el = goal && goal.id !== ms[0]?.id ? goalEl.current : root.current
+    if (el) bringIntoView(el)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once, when the conversation opens; new mail must not move the page
   const [linking, setLinking] = useState(false)
   const standing = customerOf(co, t.businessId, { deals: S.deals, rel: co ? Q.rel(co.id, t.businessId) : undefined, rosterio: rosterioLinkOf(co) })
   const [aiSug, setAiSug] = useState<AiResult<localAi.Draft> | null>(null)
@@ -49,7 +91,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
 
   const startReply = (body?: string): void => {
     const mailboxId = mailboxes.find(m => m.id === t.mailboxId)?.id ?? mailboxes[0]?.id ?? ''
-    setReply({ mailboxId, body: body ?? '' })
+    setReply({ mailboxId, to: replyTo(ms, ct?.email ?? ''), body: body ?? '' })
   }
 
   const writeWithAi = async (): Promise<void> => {
@@ -85,23 +127,64 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
 
   const saveDraft = (): void => {
     if (!reply || !ct) return
-    const r = Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: ct.email ?? '', subject, body: reply.body, threadId: t.id, contactId: t.contactId, draft: true })
+    const r = Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: reply.to, subject, body: reply.body, threadId: t.id, contactId: t.contactId, draft: true })
     if (!r.ok) return void UI.toast('Draft could not be saved', 'bad')
     setReply(null)
     UI.toast('Draft saved')
   }
 
-  const send = (): void => {
-    if (!reply) return
+  const send = async (): Promise<void> => {
+    if (!reply || sending) return
     const m = Q.mailbox(reply.mailboxId)
     if (!m || m.status !== 'connected') return void UI.toast('Mailbox disconnected — reconnect in Integrations', 'bad')
     if (ct && Q.suppressed(ct, t.businessId)) return void UI.toast('Contact is suppressed — sending blocked', 'bad')
     if (!F.plain(reply.body).trim()) return void UI.toast('Write a reply first', 'bad')
-    if (!ct) return void UI.toast('This conversation has no linked contact to reply to', 'bad')
-    const r = Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: ct.email ?? '', subject, body: reply.body, threadId: t.id, contactId: t.contactId, dealId: t.dealId })
+    if (!/@/.test(reply.to)) return void UI.toast('Add who the reply goes to', 'bad')
+    if (!mailDecided(mailState)) return void UI.toast('Could not check whether Gmail is connected, so nothing was sent. Try again in a moment.', 'bad')
+    if (!UI.guard(t.businessId, 'Sending email')) return
+    const tok = Q.tokens(ct, Q.senderOf(m), t.businessId)
+    const pr = Q.render(F.plain(reply.body), tok)
+    if (pr.missing.length) return void UI.toast('Unresolved personalisation: {{' + pr.missing.join('}}, {{') + '}}', 'bad')
+    const body = Q.render(reply.body, tok).text
+    if (live) {
+      // Real Gmail: the reply really goes, the same way Compose sends it. The server checks everything again and says so when it refuses.
+      if (!m.canSend) return void UI.toast('Sending is off for ' + m.address + '. Switch it on in Integrations.', 'bad')
+      const inGmail = !!t.gmailThreadId && t.mailboxId === m.id
+      setSending(true)
+      try {
+        const r = await sendMailApi({
+          mailboxId: m.id, to: reply.to, subject, body, ...(inGmail ? { threadId: t.id } : { businessId: t.businessId }), contactId: t.contactId, dealId: t.dealId ?? null,
+        })
+        setReply(null)
+        drafts.delete(t.id)
+        await pollOnce()
+        UI.toast(
+          r.recorded ? 'Reply sent from ' + m.address : 'Reply sent from ' + m.address + '. It will show here shortly.',
+          undefined,
+          r.recorded && r.threadId !== t.id ? { label: 'View thread', fn: () => UI.nav('inbox', { id: r.threadId }) } : undefined,
+        )
+      } catch (e) {
+        UI.toast(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Nothing was sent. Try again.', 'bad')
+      } finally {
+        setSending(false)
+      }
+      return
+    }
+    const r = Act.sendEmail({ businessId: t.businessId, mailboxId: reply.mailboxId, to: reply.to, subject, body, threadId: t.id, contactId: t.contactId, dealId: t.dealId })
     if (!r.ok) return void UI.toast(r.reason === 'suppressed' ? 'Contact is suppressed — sending blocked' : 'Reply could not be sent', 'bad')
     setReply(null)
     UI.toast('Reply sent (simulated)')
+  }
+
+  const notNeeded = (): void => {
+    Act.markThread(t.id, { needsReply: false })
+    UI.toast('Marked as not needing a reply. A new message from them asks again.', undefined, { label: 'Undo', fn: () => Act.markThread(t.id, { needsReply: true }) })
+  }
+  const archive = (): void => {
+    if (t.archived) return void Act.markThread(t.id, { archived: false })
+    Act.markThread(t.id, { archived: true })
+    onArchived?.(t.id)
+    UI.toast('Conversation archived', undefined, { label: 'Undo', fn: () => { Act.markThread(t.id, { archived: false }); UI.replace('inbox', { id: t.id }) } })
   }
 
   const share = (): void => UI.confirm({
@@ -116,8 +199,8 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
 
   const menu = [
     { label: t.unread ? 'Mark read' : 'Mark unread', icon: 'mail', disabled: !can, onClick: () => Act.markThread(t.id, { unread: !t.unread }) },
-    { label: t.needsReply ? "Doesn't need a reply" : 'Needs a reply', icon: 'reply', disabled: !can, onClick: () => Act.markThread(t.id, { needsReply: !t.needsReply }) },
-    { label: t.archived ? 'Unarchive' : 'Archive', icon: 'archive', disabled: !can, onClick: () => Act.markThread(t.id, { archived: !t.archived }) },
+    { label: t.needsReply ? "Doesn't need a reply" : 'Needs a reply', icon: 'reply', disabled: !can, onClick: () => (t.needsReply ? notNeeded() : Act.markThread(t.id, { needsReply: true })) },
+    { label: t.archived ? 'Unarchive' : 'Archive', icon: 'archive', disabled: !can, onClick: archive },
     t.visibility === 'private' && t.ownerId === me.id && { label: 'Share with team…', icon: 'users', onClick: share },
     Q.anyAdmin() && sims && { label: 'Simulate reply on this thread', icon: 'zap', onClick: () => UI.open('simReply', { contactId: t.contactId, threadId: t.id }) },
   ]
@@ -127,12 +210,12 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
   const followUp = meta ? (meta.days === 0 ? 'Today' : F.date(F.addDays(F.nowIso(), meta.days))) : ''
 
   return (
-    <div style={{ padding: '16px 20px', maxWidth: 980 }}>
+    <div ref={root} style={{ padding: '16px 20px', maxWidth: 980 }}>
       <div className="row wrap" style={{ marginBottom: 12 }}>
         <Btn kind="ghost" size="sm" icon="left" className="hamb" aria-label="Back to conversations" onClick={onClose} />
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, flex: 1, minWidth: 200 }}>{t.subject}</h2>
         {t.needsReply && can && (
-          <Btn size="sm" icon="check" onClick={() => { Act.markThread(t.id, { needsReply: false }); UI.toast('Marked as not needing a reply. A new message from them asks again.') }}>Doesn't need a reply</Btn>
+          <Btn size="sm" icon="check" onClick={notNeeded}>Doesn't need a reply</Btn>
         )}
         <Menu align="right" trigger={<Btn size="sm" icon="more" aria-label="Conversation actions" />} items={menu} />
       </div>
@@ -159,9 +242,23 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
           {ms.map(m => {
             const border = m.status === 'bounced' ? { borderColor: 'var(--bad2)' } : m.dir === 'in' ? { borderLeft: '3px solid var(--acc)' } : undefined
             const who = m.dir === 'in' ? (ct?.name ?? m.from) : (Q.senderOf(Q.mailbox(m.mailboxId ?? t.mailboxId))?.name ?? m.from)
+            const ref = m.id === goal?.id ? goalEl : undefined
+            if (!isOpen(m)) {
+              return (
+                <div key={m.id} ref={ref}>
+                  <button type="button" className="msg msg-fold" style={border} aria-expanded={false} onClick={() => setExp(x => ({ ...x, [m.id]: true }))}>
+                    <Av name={who} s={22} />
+                    <span className="b sm trunc msg-fold-who">{m.dir === 'in' ? (ct?.name ?? m.from) : m.from}</span>
+                    <span className="faint sm trunc msg-fold-snip">{F.plain(m.body).replace(/\s+/g, ' ').slice(0, 160)}</span>
+                    {isSimMsg(m) && <SimChip>Simulated</SimChip>}
+                    <span className="faint xs msg-dt">{F.dt(m.ts)}</span>
+                  </button>
+                </div>
+              )
+            }
             return (
-              <div key={m.id} className="msg" style={border}>
-                <div className="msg-h xs">
+              <div key={m.id} ref={ref} className={'msg' + (target && m.id === target ? ' msg-target' : '')} style={border}>
+                <div className="msg-h xs" onClick={ms.length > 2 && m.id !== newest?.id ? () => setExp(x => ({ ...x, [m.id]: false })) : undefined} style={ms.length > 2 && m.id !== newest?.id ? { cursor: 'pointer' } : undefined}>
                   <Av name={who} s={22} />
                   <div className="msg-w">
                     {/* The name and date sit on one line that wraps as a whole, so a long recipient list never squeezes them. */}
@@ -178,6 +275,7 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
                   </div>
                 </div>
                 <EmailBody m={m} />
+                <MessageExtras m={m} address={Q.mailbox(m.mailboxId ?? t.mailboxId)?.address} />
                 {m.status === 'draft' && can && <Btn size="sm" style={{ marginTop: 10 }} onClick={() => UI.open('compose', { threadId: t.id, subject: m.subject, body: m.body, draftId: m.id, contactId: t.contactId })}>Edit draft</Btn>}
               </div>
             )
@@ -239,14 +337,20 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
                 <Btn size="xs" kind="ghost" icon="spark" disabled={draftBusy} onClick={() => void aiDraftReply()}>{draftBusy ? 'Drafting…' : 'AI draft'}</Btn>
                 <Btn size="xs" kind="ghost" icon="x" aria-label="Discard reply" onClick={() => setReply(null)} />
               </div>
+              <div className="row" style={{ marginBottom: 8, gap: 8 }}>
+                <span className="faint xs" style={{ width: 22 }}>To</span>
+                <Inp className="sm" style={{ flex: 1 }} aria-label="Reply to" value={reply.to} onChange={v => setReply(r => (r ? { ...r, to: v } : r))} />
+              </div>
               <RichText value={reply.body} onChange={v => setReply(r => (r ? { ...r, body: v } : r))} tokens={TOKENS} minH={120} label="Reply" />
               {aiErr && <div className="sm" style={{ color: 'var(--bad)', marginTop: 6 }} role="alert">{aiErr}</div>}
-              <div className="row" style={{ marginTop: 8 }}>
-                <SimChip>Sending is simulated</SimChip>
-                <span className="faint xs">No real email is sent yet.</span>
+              <div className="row wrap" style={{ marginTop: 8 }}>
+                <ReplyMode state={mailState} canSend={!!Q.mailbox(reply.mailboxId)?.canSend} address={Q.mailbox(reply.mailboxId)?.address} />
                 <span className="sp" />
-                <Btn size="sm" disabled={!ct || !reply.mailboxId} onClick={saveDraft}>Save draft</Btn>
-                <Btn size="sm" kind="pri" icon="send" disabled={!reply.mailboxId} onClick={send}>Send</Btn>
+                <Btn size="sm" disabled={!ct || !reply.mailboxId || sending} onClick={saveDraft}>Save draft</Btn>
+                <Btn
+                  size="sm" kind="pri" icon="send" onClick={() => void send()}
+                  disabled={!reply.mailboxId || sending || !mailDecided(mailState) || (live && !Q.mailbox(reply.mailboxId)?.canSend)}
+                >{sending ? 'Sending…' : 'Send'}</Btn>
               </div>
             </div>
           ) : (
@@ -330,6 +434,34 @@ export function ThreadView({ t, onClose }: { t: Thread; onClose: () => void }) {
       </div>
     </div>
   )
+}
+
+const size = (n: number): string => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
+
+/** What came with a Gmail message (its attachments, by name) and a way to open it in Gmail, where they can be downloaded. */
+function MessageExtras({ m, address }: { m: Message; address?: string }) {
+  if (!m.gmailId) return null
+  const files = m.attachments ?? []
+  const href = `https://mail.google.com/mail/${address ? `?authuser=${encodeURIComponent(address)}` : ''}#all/${encodeURIComponent(m.gmailId)}`
+  return (
+    <div className="row wrap xs" style={{ gap: 6, marginTop: 8 }}>
+      {files.map((f, i) => <Chip key={i} icon="file" title={f.mime}>{f.name} · {size(f.size)}</Chip>)}
+      <span className="sp" />
+      <a className="faint" href={href} target="_blank" rel="noopener noreferrer">{files.length ? 'Open in Gmail to download' : 'Open in Gmail'}</a>
+    </div>
+  )
+}
+
+/** Says how this reply will go: through Gmail, not at all until sending is switched on, or simulated. */
+function ReplyMode({ state, canSend, address }: { state: string; canSend: boolean; address?: string }) {
+  if (state === 'live') {
+    return canSend
+      ? <><Chip tone="ok" icon="send">Sends through Gmail</Chip><span className="faint xs">From {address}.</span></>
+      : <><Chip icon="lock">Sending is off</Chip><span className="faint xs">Switch it on for {address ?? 'this mailbox'} in Integrations.</span></>
+  }
+  if (state === 'error') return <><Chip tone="warn" icon="alert">Could not check Gmail</Chip><Btn size="xs" kind="ghost" onClick={recheckMailState}>Retry</Btn></>
+  if (state === 'loading') return <span className="faint xs">Checking the mail connection…</span>
+  return <><SimChip>Sending is simulated</SimChip><span className="faint xs">No real email is sent yet.</span></>
 }
 
 /** Pick an existing deal to link this conversation to: the same contact's and company's first, then search the rest of the business. */

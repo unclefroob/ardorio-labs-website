@@ -12,7 +12,7 @@ vi.mock('../../api/members', () => ({ getMembers: vi.fn() }))
 vi.mock('../../api/me', () => ({ getMe: vi.fn() }))
 vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
 const mailStatusApi = vi.fn()
-vi.mock('../../api/mailboxes', () => ({ mailStatusApi: (...a: unknown[]) => mailStatusApi(...a), connectMailboxApi: vi.fn(), disconnectMailboxApi: vi.fn(), syncMailboxApi: vi.fn(), createMailboxApi: vi.fn() }))
+vi.mock('../../api/mailboxes', () => ({ mailStatusApi: (...a: unknown[]) => mailStatusApi(...a), connectMailboxApi: vi.fn(), disconnectMailboxApi: vi.fn(), syncMailboxApi: vi.fn(), createMailboxApi: vi.fn(), unmatchedApi: vi.fn().mockResolvedValue({ senders: [] }), dismissUnmatchedApi: vi.fn(), backfillApi: vi.fn(), messageHtmlApi: vi.fn().mockResolvedValue({ html: null }) }))
 
 let host: HTMLDivElement
 let root: Root
