@@ -85,6 +85,74 @@ describe('company card with the live Rosterio account', () => {
     expect(api.calls.some(c => c.path.startsWith('/sales/rosterio/invoices'))).toBe(false)
   })
 
+  describe('billing in Stripe (Rosterio admins)', () => {
+    const BILLING = 'GET /sales/rosterio/billing?companyId=co1'
+    const view = (o: Record<string, unknown> = {}) => ({
+      accountId: 'acc1', accountName: 'Acme Pty Ltd', timezone: 'Australia/Sydney', today: '2026-10-17', billingEmail: 'finance@acme.test',
+      terms: { billingModel: 'flat', amountCents: 40000, interval: 'monthly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: null, status: 'active' },
+      amounts: { quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, gstPercent: 10, interval: 'monthly' },
+      billing: null, canStart: true, cannotStartReason: null, ...o,
+    })
+    const card = (state: string, o: Record<string, unknown> = {}) => view({
+      canStart: false, cannotStartReason: 'Billing is already set up for this account.',
+      billing: { state, collection: 'charge_automatically', firstBillingDate: '2026-11-01', daysUntilDue: null, billingEmail: 'finance@acme.test', startedAt: '2026-10-17T00:00:00.000Z',
+        stoppedAt: null, cardUrl: 'https://api.rosterio.test/api/billing/card/abc', cardSavedAt: null, lastError: null, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, ...o },
+    })
+    // A reply's body is read once, so each test gets its own.
+    const base = () => ({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])), 'GET /sales/rosterio/invoices?companyId=co1': json(200, { configured: true, syncedAt: null, syncError: null, invoices: [] }) })
+
+    it('a managed account not billed yet offers Start billing, which opens the window', async () => {
+      await show({ ...base(), [BILLING]: json(200, view()) }, { company: linked, role: 'admin' })
+      expect(text()).toContain('Not billed in Stripe yet')
+      await click(button(host, /Start billing/))
+      await settle(4)
+      expect(text()).toContain('Start billing in Stripe')
+    })
+
+    it('a self-serve account pays at checkout: nothing to start', async () => {
+      await show({ ...base(), [BILLING]: json(200, view({ terms: null, amounts: null, canStart: false, cannotStartReason: 'This account has no managed contract terms.' })) }, { company: linked, role: 'admin' })
+      expect(text()).toContain('Self-serve: pays at checkout')
+      expect(button(host, /Start billing/)).toBeUndefined()
+    })
+
+    it('waiting for a card: the link to send, Send again, and Stop only after confirming', async () => {
+      let stopped = false
+      const api = await show({
+        ...base(),
+        [BILLING]: () => json(200, stopped ? { ...card('stopped', { stoppedAt: '2026-10-17T01:00:00.000Z', cardUrl: null }), canStart: true, cannotStartReason: null } : card('awaiting_card')),
+        'POST /sales/rosterio/billing/card-link': json(200, { billing: card('awaiting_card'), cardEmailSent: true }),
+        'POST /sales/rosterio/billing/stop': () => { stopped = true; return json(200, { billing: card('stopped') }) },
+      }, { company: linked, role: 'admin' })
+      expect(text()).toContain('Waiting for a card')
+      expect(text()).toContain('A$440.00 a month incl. GST · card on file')
+      expect((host.querySelector('input[aria-label="Card link"]') as HTMLInputElement).value).toBe('https://api.rosterio.test/api/billing/card/abc')
+      await click(button(host, /Send again/))
+      await settle(3)
+      expect(api.count('POST /sales/rosterio/billing/card-link')).toBe(1)
+
+      await click(button(host, /^Stop$/))
+      await settle(2)
+      expect(api.count('POST /sales/rosterio/billing/stop')).toBe(0) // asks first
+      await click(button(top(), /Stop billing/))
+      await settle(6)
+      expect(api.count('POST /sales/rosterio/billing/stop')).toBe(1)
+      expect(text()).toContain('Stopped')
+      expect(button(host, /Start billing/)).toBeDefined() // and can be started again
+    })
+
+    it('a scheduled start and a running subscription say when', async () => {
+      await show({ ...base(), [BILLING]: json(200, card('scheduled', { collection: 'send_invoice', cardUrl: null })) }, { company: linked, role: 'admin' })
+      expect(text()).toContain('Starts 1 Nov 2026')
+      expect(text()).toContain('emailed invoice')
+    })
+
+    it('Rosterio sales do not see billing, and nothing is asked', async () => {
+      const api = await show({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])) }, { company: linked, role: 'sales' })
+      expect(text()).not.toContain('Billing')
+      expect(api.calls.some(c => c.path.startsWith('/sales/rosterio/billing'))).toBe(false)
+    })
+  })
+
   it('offers a follow-up task while the account is on trial', async () => {
     const end = new Date(Date.now() + 4 * 86_400_000).toISOString()
     await show({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', isTrial: true, trialEndDate: end })])) }, { company: linked })
