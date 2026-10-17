@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { Q } from '../../data/Q'
 import type { Company } from '../../data/types'
-import { Btn, Fld, Inp, Sel, TA } from '../../kit/basic'
+import { Btn, Fld, Inp, Sel } from '../../kit/basic'
 import { Modal } from '../../kit/overlay'
+import { MarkdownArea } from '../../kit/MarkdownText'
 import { INDUSTRIES, STATES, domOf } from '../../shared/constants'
 import { useF } from '../../shared/forms'
 import { normaliseUrl } from '../../shared/url'
@@ -64,7 +65,7 @@ function EditCompanyForm({ c }: { c: Company }) {
         <Fld label="Locations"><Inp value={f.locations} onChange={v => set('locations', v)} inputMode="numeric" /></Fld>
         <Fld label="Company type"><Inp value={f.type} onChange={v => set('type', v)} /></Fld>
         <Fld label="Annual revenue estimate"><Inp value={f.revenue} onChange={v => set('revenue', v)} /></Fld>
-        <Fld label="Description" style={{ gridColumn: '1/-1' }}><TA value={f.description} onChange={v => set('description', v)} rows={3} /></Fld>
+        <Fld label="Description" style={{ gridColumn: '1/-1' }}><MarkdownArea label="Description" value={f.description} onChange={v => set('description', v)} rows={4} /></Fld>
       </div>
     </Modal>
   )

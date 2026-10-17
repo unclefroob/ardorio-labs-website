@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Act } from '../../data/Act'
 import type { Deal } from '../../data/types'
-import { Btn, Card, TA } from '../../kit'
+import { Btn, Card, FormattedSwitch, MarkdownArea, MarkdownText, useFormatted } from '../../kit'
 import { UI } from '../../ui/store'
 
 // The deal's scope summary: long, multi-paragraph text (what is sold, how it is priced, the terms), so it edits in place in a
@@ -9,6 +9,7 @@ import { UI } from '../../ui/store'
 export function ScopeCard({ d, can }: { d: Deal; can: boolean }) {
   const [draft, setDraft] = useState<string | null>(null)
   const editing = draft !== null
+  const [formatted, setFormatted] = useFormatted()
 
   const save = (): void => {
     if (draft === null) return
@@ -22,28 +23,28 @@ export function ScopeCard({ d, can }: { d: Deal; can: boolean }) {
   return (
     <Card
       title="Description / scope"
-      right={can && editing && (
+      right={can && editing ? (
         <>
           <Btn size="sm" onClick={() => setDraft(null)}>Cancel</Btn>
           <Btn size="sm" kind="pri" onClick={save}>Save</Btn>
         </>
-      )}
+      ) : d.description ? <FormattedSwitch on={formatted} onChange={setFormatted} /> : null}
     >
       {editing ? (
-        <TA
-          aria-label="Scope summary"
+        <MarkdownArea
+          label="Scope summary"
           value={draft}
           onChange={setDraft}
           rows={14}
           autoFocus
-          style={{ minHeight: 260, fontFamily: 'inherit' }}
+          minHeight={260}
           onKeyDown={e => {
             if (e.key === 'Escape') { e.stopPropagation(); setDraft(null) }
             else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save() }
           }}
         />
       ) : d.description ? (
-        <div className="sm" style={{ whiteSpace: 'pre-wrap' }}>{d.description}</div>
+        <MarkdownText text={d.description} formatted={formatted} />
       ) : (
         <div className="faint sm">No scope summary yet.</div>
       )}

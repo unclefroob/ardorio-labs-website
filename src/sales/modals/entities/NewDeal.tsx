@@ -3,8 +3,9 @@ import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import type { BusinessId } from '../../data/types'
-import { Btn, Fld, Inp, Sel, TA } from '../../kit/basic'
+import { Btn, Fld, Inp, Sel } from '../../kit/basic'
 import { Modal } from '../../kit/overlay'
+import { MarkdownArea } from '../../kit/MarkdownText'
 import { BizSel, CoSel, DealFieldInput, MultiCt, OwnerSel, RosCalc, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
 import { PricingFields } from '../../pages/deals/PricingFields'
@@ -115,7 +116,7 @@ function NewDealForm({ b0, companyId, contactIds, title }: { b0: BusinessId; com
         {keyFields.map(fd => (
           <Fld key={fd.key} label={fd.label}><DealFieldInput fd={fd} value={f.fields[fd.key]} onChange={v => setField(fd.key, v)} companyId={f.companyId} /></Fld>
         ))}
-        <Fld label="Description / scope summary" style={{ gridColumn: '1/-1' }}><TA value={f.description} onChange={v => set('description', v)} rows={6} /></Fld>
+        <Fld label="Description / scope summary" style={{ gridColumn: '1/-1' }}><MarkdownArea label="Description / scope summary" value={f.description} onChange={v => set('description', v)} rows={6} /></Fld>
       </div>
     </Modal>
   )
