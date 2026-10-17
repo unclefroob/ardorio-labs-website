@@ -9,7 +9,8 @@ import { UI } from '../../ui/store'
 export function DealCard({ d }: { d: Deal }) {
   const co = Q.company(d.companyId)
   const rk = Q.risk(d)
-  const nt = Q.nextTask(d)
+  const ns = Q.nextStep(d)
+  const nt = ns?.kind === 'task' ? ns.task : undefined
   const flagged = !!rk && !(rk.reasons.length === 1 && !nt)
   const name = d.title || d.name
   const pl = Q.pipeline(d.businessId)
@@ -51,6 +52,10 @@ export function DealCard({ d }: { d: Deal }) {
       {nt ? (
         <div className="xs trunc" style={{ marginTop: 4, color: Q.overdue(nt) ? 'var(--bad2)' : 'var(--fg2)' }}>
           <Icon n="checksq" s={11} /> {nt.title}
+        </div>
+      ) : ns?.kind === 'meeting' ? (
+        <div className="xs trunc" style={{ marginTop: 4, color: 'var(--fg2)' }}>
+          <Icon n="cal" s={11} /> {ns.meeting.title} · {F.dt(ns.meeting.start)}
         </div>
       ) : (
         d.status === 'open' && <div className="xs" style={{ marginTop: 4, color: 'var(--warn)' }}>No next step</div>

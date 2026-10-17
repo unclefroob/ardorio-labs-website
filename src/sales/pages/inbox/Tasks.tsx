@@ -71,7 +71,7 @@ export function Tasks({ route }: { route: Route }) {
   const intel: Intel[] = []
   const odh = my.filter(t => Q.overdue(t) && t.priority === 'High')
   if (odh.length) intel.push(['bad', `${odh.length} high-priority task${odh.length > 1 ? 's are' : ' is'} overdue`, () => { setView('overdue'); setPri('High') }])
-  const nn = Q.deals().filter(d => d.status === 'open' && d.ownerId === me.id && !S.tasks.some(t => t.dealId === d.id && !Q.done(t)))
+  const nn = Q.deals().filter(d => d.status === 'open' && d.ownerId === me.id && !Q.nextStep(d))
   if (nn.length) intel.push(['warn', `${nn.length} of your open deals ${nn.length > 1 ? 'have' : 'has'} no next action`, () => UI.nav('recs', { q: { type: 'No next step' } })])
   const pr = S.threads.filter(t => Q.inScope(t.businessId) && t.assigneeId === me.id && t.needsReply && ['Interested', 'Meeting Requested'].includes(t.classification?.cat ?? ''))
   if (pr.length) intel.push(['ok', `${pr.length} positive repl${pr.length > 1 ? 'ies await' : 'y awaits'} follow-up`, () => UI.nav('inbox', { q: { folder: 'positive' } })])
