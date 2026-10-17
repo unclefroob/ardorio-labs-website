@@ -90,13 +90,13 @@ describe('company card with the live Rosterio account', () => {
     const view = (o: Record<string, unknown> = {}) => ({
       accountId: 'acc1', accountName: 'Acme Pty Ltd', timezone: 'Australia/Sydney', today: '2026-10-17', billingEmail: 'finance@acme.test',
       terms: { billingModel: 'flat', amountCents: 40000, interval: 'monthly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: null, status: 'active' },
-      amounts: { quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, gstPercent: 10, interval: 'monthly' },
+      amounts: { quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, gstPercent: 10, interval: 'monthly' }, options: [],
       billing: null, canStart: true, cannotStartReason: null, ...o,
     })
     const card = (state: string, o: Record<string, unknown> = {}) => view({
       canStart: false, cannotStartReason: 'Billing is already set up for this account.',
       billing: { state, collection: 'charge_automatically', firstBillingDate: '2026-11-01', daysUntilDue: null, billingEmail: 'finance@acme.test', startedAt: '2026-10-17T00:00:00.000Z',
-        stoppedAt: null, cardUrl: 'https://api.rosterio.test/api/billing/card/abc', cardSavedAt: null, lastError: null, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, ...o },
+        stoppedAt: null, cardUrl: 'https://api.rosterio.test/api/billing/card/abc', cardSavedAt: null, lastError: null, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, termsChangedFrom: null, ...o },
     })
     // A reply's body is read once, so each test gets its own.
     const base = () => ({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])), 'GET /sales/rosterio/invoices?companyId=co1': json(200, { configured: true, syncedAt: null, syncError: null, invoices: [] }) })

@@ -36,7 +36,7 @@ describe('Billing column on Customers › Rosterio', () => {
 
 describe('Billing chip on the company card', () => {
   const view = (o: Partial<RosterioBilling> = {}): RosterioBilling => ({
-    accountId: 'a1', accountName: 'Acme', timezone: 'Australia/Sydney', today: '2026-10-17', billingEmail: null, terms: null, amounts: null, billing: null, canStart: false, cannotStartReason: null, ...o,
+    accountId: 'a1', accountName: 'Acme', timezone: 'Australia/Sydney', today: '2026-10-17', billingEmail: null, terms: null, amounts: null, options: [], billing: null, canStart: false, cannotStartReason: null, ...o,
   })
   it('without terms the account is self-serve; with terms and no billing it is not billed yet', () => {
     expect(billingPill(view()).label).toBe('Self-serve: pays at checkout')

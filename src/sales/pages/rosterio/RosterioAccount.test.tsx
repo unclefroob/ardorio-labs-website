@@ -277,13 +277,33 @@ describe('Rosterio account page: billing tab', () => {
     expect((api.calls.find(c => `${c.method} ${c.path}` === START)?.body as { billingEmail: string }).billingEmail).toBe('ap@acme.test')
   })
 
-  it('terms billed yearly: says billing is yearly and points at Rosterio admin to change that', async () => {
+  it('terms billed yearly can be started monthly: A$400 + GST a month, saying the terms move to it', async () => {
     const yearly = billingView(null, {}, {
       terms: { billingModel: 'flat', amountCents: 480000, interval: 'yearly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: null, status: 'active' },
       amounts: { quantity: 1, unitAmountCents: 480000, subtotalCents: 480000, gstCents: 48000, totalCents: 528000, gstPercent: 10, interval: 'yearly' },
+      options: [
+        { interval: 'monthly', quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, changesTerms: true },
+        { interval: 'yearly', quantity: 1, unitAmountCents: 480000, subtotalCents: 480000, gstCents: 48000, totalCents: 528000, changesTerms: false },
+      ],
     })
-    await show({ ...base(), [BILLING]: json(200, yearly) }, { q: { tab: 'billing' } })
-    expect(text()).toContain('Billed yearly per the terms. To bill monthly, correct the terms in Rosterio admin first')
+    const { api } = await show({ ...base(), [BILLING]: () => json(200, yearly), [START]: json(200, { billing: billingView('scheduled') }) }, { q: { tab: 'billing' } })
+    // As the terms say, first.
+    expect(text()).toContain('an invoice for A$5,280.00 (A$4,800.00 + A$480.00 GST) a year')
+    await click([...host.querySelectorAll<HTMLButtonElement>('.seg button')].find(b => b.textContent === 'Monthly · A$440.00'))
+    expect(text()).toContain('an invoice for A$440.00 (A$400.00 + A$40.00 GST) a month')
+    expect(text()).toContain('Billing monthly changes the terms to A$400.00 a month (from A$4,800.00 a year), the same over a year.')
+    expect(text()).toContain('The terms move to monthly billing when it starts.')
+    await click(button(host, /^Start billing$/))
+    await settle(4)
+    expect(api.calls.find(c => `${c.method} ${c.path}` === START)?.body).toMatchObject({ accountId: ACC_ID, interval: 'monthly' })
+  })
+
+  it('an older reply with no options bills the terms as they are, sending no interval', async () => {
+    const { api } = await show({ ...base(), [START]: json(200, { billing: billingView('scheduled') }) }, { q: { tab: 'billing' } })
+    expect(text()).not.toContain('How often')
+    await click(button(host, /^Start billing$/))
+    await settle(4)
+    expect(api.calls.find(c => `${c.method} ${c.path}` === START)?.body).not.toHaveProperty('interval')
   })
 
   it('cannot start: says why and offers no Start billing', async () => {
