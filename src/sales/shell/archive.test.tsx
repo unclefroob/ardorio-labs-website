@@ -207,12 +207,15 @@ describe('Contacts and Companies lists: Archived filter', () => {
 })
 
 describe('Deals: admins only, excluded from the board, findable under Archived', () => {
-  it('a manager gets no Archive action on the deal page', async () => {
+  it('a manager gets no Archive action on the deal page (the menu offers them Move deal only)', async () => {
     const t = await setup()
     role('manager')
     const { Deal } = await import('../pages/deals/Deal')
     await show(<Deal route={{ page: 'deal', id: 'dl1' }} />, t.Hosts)
-    expect(more()).toBeNull()
+    await click(more())
+    const items = [...document.querySelectorAll('[role="menu"] button')].map(b => b.textContent?.trim())
+    expect(items).not.toContain('Archive deal')
+    expect(items).toContain('Move deal…')
   })
 
   it('an admin archives after a confirm that starts on Keep, and restores from the Archived list after a confirm', async () => {

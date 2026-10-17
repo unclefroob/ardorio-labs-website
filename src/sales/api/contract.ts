@@ -476,6 +476,21 @@ export interface RosterioProvisionResponse {
   adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
 }
 
+// ---- Rosterio payments (Stripe) ----
+// GET /sales/rosterio/invoices?companyId=|accountId= -> RosterioInvoicesResponse: Rosterio's subscription invoices as Stripe has them,
+// newest first (at most 1000). Rosterio admins and super users only (else ROLE_REQUIRED { needed: 'admin', businessId: 'ros' }), like
+// Rosterio's revenue figures. failed = open, attempted, still owing; overdue = open past its due date or with no retry left.
+// POST /sales/rosterio/invoices/sync (same role) runs the sync now -> { invoices, syncedAt, error }. Read-only: nothing is written to Stripe.
+export type RosterioInvoiceStatus = 'draft' | 'open' | 'paid' | 'void' | 'uncollectible'
+export interface RosterioInvoice {
+  id: string; number: string | null; accountId: string; companyId: string | null; customerName: string
+  status: RosterioInvoiceStatus; failed: boolean; overdue: boolean
+  amountDueCents: number; amountPaidCents: number; amountRemainingCents: number; currency: string
+  createdAt: string; dueAt: string | null; paidAt: string | null; periodStart: string | null; periodEnd: string | null
+  attemptCount: number; nextAttemptAt: string | null; lastError: string | null; hostedUrl: string | null; pdfUrl: string | null
+}
+export interface RosterioInvoicesResponse { invoices: RosterioInvoice[]; configured: boolean; syncedAt: string | null; syncError: string | null }
+
 // ---- Rosterio test accounts ----
 // settings/rosterioTest = { accounts: RosterioTestAccount[] }: Rosterio accounts kept for testing (an App Store review
 // login, say). They stay in Rosterio unchanged; SalesOS shows them on their own tab and leaves them out of every customer

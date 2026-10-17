@@ -37,13 +37,16 @@ export function PageView() {
   if (!synced) return null
   if (!Page) return <NotFound />
   if (ADMIN_PAGES.includes(parsed.page) && !Q.anyAdmin()) return <Denied />
-  const adminOf = ADMIN_OF_PAGES[parsed.page]
-  if (adminOf && !Q.canAdmin(adminOf)) return <Denied title={`Invoices are for ${Q.biz(adminOf)?.name ?? 'Ardorio'} admins`} body={`You can see customers and deals, but invoices and billing details are limited to admins of the ${Q.biz(adminOf)?.name ?? 'Ardorio'} business. Ask an admin if you need access.`} />
+  const adminOfAny = ADMIN_OF_PAGES[parsed.page]
+  const adminOf = adminOfAny === undefined ? [] : typeof adminOfAny === 'string' ? [adminOfAny] : adminOfAny
+  const names = adminOf.map(b => Q.biz(b)?.name ?? b).join(' or ')
+  const mine = adminOf.filter(b => Q.canAdmin(b))
+  if (adminOf.length && !mine.length) return <Denied title={`Invoices are for ${names} admins`} body={`You can see customers and deals, but invoices and billing details are limited to admins of ${names}. Ask an admin if you need access.`} />
   // One business's pages (Ardorio's invoices) belong to that business's workspace: in another workspace, say so and offer to switch,
   // rather than showing its records under the other business's name.
-  if (adminOf && !Q.inScope(adminOf)) {
-    const name = Q.biz(adminOf)?.name ?? adminOf
-    return <OtherWorkspace title={`Invoices are ${name}'s`} body={`You are in the ${Q.biz(S.session.ws)?.name ?? 'current'} workspace. Invoices are issued by ${name}, so they are shown in its workspace (or All businesses).`} to={adminOf} />
+  if (adminOf.length && !mine.some(b => Q.inScope(b))) {
+    const to = mine[0]
+    return <OtherWorkspace title={`No invoices for ${Q.biz(S.session.ws)?.name ?? 'this workspace'} here`} body={`Invoices here are ${mine.map(b => Q.biz(b)?.name ?? b).join(' and ')}'s. They show in ${mine.length > 1 ? 'those workspaces' : 'its workspace'} (or All businesses).`} to={to} />
   }
   const needs = BUSINESS_PAGES[parsed.page]
   if (needs && !Q.member(needs)) return <Denied body={`This page is for members of ${Q.biz(needs)?.name ?? 'this business'}. Ask an administrator if you need access.`} />

@@ -132,11 +132,14 @@ export function Deal({ route }: { route: Route }) {
         {can && d.status !== 'open' && (
           <Btn icon="refresh" onClick={() => askReopen(d.id)}>Reopen</Btn>
         )}
-        {Q.canAdmin(d.businessId) && (
+        {(can || Q.canAdmin(d.businessId)) && (
           <Menu
             align="right"
             trigger={<Btn icon="more" aria-label="More actions" />}
-            items={[{ label: 'Archive deal', icon: 'archive', onClick: () => askArchive('deal', d.id) }]}
+            items={[
+              can && { label: 'Move deal…', icon: 'swap', disabled: d.status === 'won', title: d.status === 'won' ? 'A won deal is a customer: it is not moved' : 'To another company or business', onClick: () => UI.open('moveDeal', { id: d.id }) },
+              Q.canAdmin(d.businessId) && { label: 'Archive deal', icon: 'archive', onClick: () => askArchive('deal', d.id) },
+            ]}
           />
         )}
       </PageHead>

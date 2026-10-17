@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { InvoiceDto } from '../../api/contract'
 import { invoiceError, invoiceSummary, invoicesCsv, listInvoices, saveBlob } from '../../api/invoices'
 import { F } from '../../data/F'
 import { dealName, useLoad } from '../../data/invoicing'
 import { useStore } from '../../data/store'
+import { Q } from '../../data/Q'
+import { RosterioInvoices } from './RosterioInvoices'
 import { Banner, Btn, Card, Chip, DataTable, DlLink, Empty, Icon, Menu, SearchInp, Sel, Skel, Tabs, type Col } from '../../kit'
 import { filterInvoices, dueCell, fmtDay, issuedText, needsRefund, TABS, tabCounts, tileFacts, voidReasonLabel, type InvoiceTab } from '../../shared/invoices'
 import { invoiceRef } from '../../shared/externalInvoices'
@@ -19,7 +21,21 @@ const SHOW_TEST_KEY = 'sos.invoices.showTest'
 const readShowTest = (): boolean => { try { return sessionStorage.getItem(SHOW_TEST_KEY) === '1' } catch { return false } }
 const writeShowTest = (v: boolean): void => { try { if (v) sessionStorage.setItem(SHOW_TEST_KEY, '1'); else sessionStorage.removeItem(SHOW_TEST_KEY) } catch { /* not remembered */ } }
 
+/**
+ * Invoices for the businesses in the workspace you are an admin of: Ardorio's (issued from SalesOS), Rosterio's (its subscriptions,
+ * from Stripe), or both on tabs in All businesses.
+ */
 export function Invoices() {
+  useStore()
+  const ard = Q.canAdmin('ard') && Q.inScope('ard')
+  const ros = Q.canAdmin('ros') && Q.inScope('ros')
+  const [tab, setTab] = useState<'ard' | 'ros'>(ard ? 'ard' : 'ros')
+  const tabs = ard && ros ? <Tabs tabs={[['ard', Q.biz('ard')?.name ?? 'Ardorio'], ['ros', `${Q.biz('ros')?.name ?? 'Rosterio'} (Stripe)`]]} value={tab} onChange={k => setTab(k === 'ros' ? 'ros' : 'ard')} /> : null
+  if (ros && (!ard || tab === 'ros')) return <RosterioInvoices tabs={tabs} />
+  return <ArdorioInvoices tabs={tabs} />
+}
+
+function ArdorioInvoices({ tabs }: { tabs: ReactNode }) {
   useStore()
   const [showTest, setShowTest] = useState(readShowTest)
   useEffect(() => writeShowTest(showTest), [showTest])
@@ -122,6 +138,7 @@ export function Invoices() {
         <Btn icon="plus" onClick={recordExternal}>Record external invoice or payment</Btn>
         <Btn kind="pri" icon="plus" onClick={() => UI.nav('invoice', { id: 'new' })}>New invoice</Btn>
       </PageHead>
+      {tabs}
 
       {err && <Card><Empty icon="alert" title="Couldn't load invoices" body={err.message} action={<Btn onClick={() => { list.reload(); sum.reload() }}>Try again</Btn>} /></Card>}
 

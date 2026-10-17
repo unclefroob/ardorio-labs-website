@@ -67,6 +67,24 @@ describe('company card with the live Rosterio account', () => {
     expect(button(host, 'Unlink')).toBeDefined()
   })
 
+  it('a Rosterio admin sees where the customer stands with Stripe: latest invoice, anything owing', async () => {
+    const owing = { id: 'in_2', number: 'RS-2', accountId: 'acc1', companyId: 'co1', customerName: 'Acme', status: 'open', failed: true, overdue: false, amountDueCents: 9900, amountPaidCents: 0, amountRemainingCents: 9900, currency: 'aud', createdAt: '2026-10-01T00:00:00Z', dueAt: null, paidAt: null, periodStart: null, periodEnd: null, attemptCount: 1, nextAttemptAt: null, lastError: null, hostedUrl: null, pdfUrl: null }
+    const api = await show({
+      [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])),
+      'GET /sales/rosterio/invoices?companyId=co1': json(200, { configured: true, syncedAt: null, syncError: null, invoices: [owing] }),
+    }, { company: linked, role: 'admin' })
+    expect(api.count('GET /sales/rosterio/invoices?companyId=co1')).toBe(1)
+    expect(text()).toContain('Payments')
+    expect(text()).toContain('Payment failed')
+    expect(text()).toContain('A$99.00 owing')
+  })
+
+  it('anyone short of a Rosterio admin does not see payments, and nothing is asked of Stripe', async () => {
+    const api = await show({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])) }, { company: linked, role: 'sales' })
+    expect(text()).not.toContain('Payments')
+    expect(api.calls.some(c => c.path.startsWith('/sales/rosterio/invoices'))).toBe(false)
+  })
+
   it('offers a follow-up task while the account is on trial', async () => {
     const end = new Date(Date.now() + 4 * 86_400_000).toISOString()
     await show({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', isTrial: true, trialEndDate: end })])) }, { company: linked })
