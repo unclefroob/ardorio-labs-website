@@ -576,4 +576,7 @@
 .sos .skel-tr{display:flex;gap:16px;align-items:center;height:40px;padding:0 12px;border-bottom:1px solid var(--line)}
 .sos .skel-tr .skel{flex:none}
 .sos .btn.busy{cursor:progress}
+/* A shortcut key, shown on the button or menu item it presses. */
+.sos kbd.key{font:inherit;font-size:12px;line-height:15px;min-width:18px;text-align:center;padding:0 4px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;color:var(--fg3);background:var(--surf);margin-left:2px}
+.sos .btn.pri kbd.key{background:transparent;color:inherit;border-color:currentColor;opacity:.75}
 .sos .msg-pending{border-style:dashed}
