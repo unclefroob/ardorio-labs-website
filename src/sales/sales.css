@@ -576,6 +576,20 @@
 .sos .skel-tr{display:flex;gap:16px;align-items:center;height:40px;padding:0 12px;border-bottom:1px solid var(--line)}
 .sos .skel-tr .skel{flex:none}
 .sos .btn.busy{cursor:progress}
+/* Markdown text (a deal's scope, a company's description): headings and lists sized for a card, not a page. */
+.sos .md>:first-child{margin-top:0}.sos .md>:last-child{margin-bottom:0}
+.sos .md p,.sos .md ul,.sos .md ol,.sos .md blockquote,.sos .md pre,.sos .md table{margin:0 0 10px}
+.sos .md h1,.sos .md h2,.sos .md h3,.sos .md h4{margin:14px 0 6px;line-height:1.3;font-weight:600}
+.sos .md h1{font-size:17px}.sos .md h2{font-size:15.5px}.sos .md h3,.sos .md h4{font-size:14px}
+.sos .md ul,.sos .md ol{padding-left:20px}.sos .md li{margin:2px 0}
+.sos .md blockquote{border-left:3px solid var(--line2);padding-left:10px;color:var(--fg2)}
+.sos .md code{font-family:var(--mono);font-size:.92em;background:var(--surf2);padding:1px 4px;border-radius:4px}
+.sos .md pre{background:var(--surf2);padding:8px 10px;border-radius:6px;overflow-x:auto}.sos .md pre code{background:none;padding:0}
+.sos .md table{border-collapse:collapse}.sos .md th,.sos .md td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+.sos .md a{color:var(--acc-ink)}
+.sos .md-tab{border:0;background:none;font:inherit;color:var(--fg3);padding:3px 8px;border-radius:6px;cursor:pointer}
+.sos .md-tab.on{background:var(--surf2);color:var(--fg);font-weight:600}
+.sos .md-preview{border:1px solid var(--line2);border-radius:7px;padding:10px 12px;background:var(--surf);min-height:120px}
 /* A shortcut key, shown on the button or menu item it presses. */
 .sos kbd.key{font:inherit;font-size:12px;line-height:15px;min-width:18px;text-align:center;padding:0 4px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;color:var(--fg3);background:var(--surf);margin-left:2px}
 .sos .btn.pri kbd.key{background:transparent;color:inherit;border-color:currentColor;opacity:.75}
