@@ -5,7 +5,7 @@ import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
 import { standingActs } from '../../data/voided'
 import type { Contact } from '../../data/types'
-import { Av, BizDot, Btn, Card, Chip, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, Icon, Link, Menu, Owner, Tabs, Timeline, type Col } from '../../kit'
+import { Av, BizDot, Btn, Card, Chip, type Col, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, FormattedSwitch, Icon, Link, MarkdownText, Menu, Owner, Tabs, Timeline, useFormatted } from '../../kit'
 import { askArchive } from '../../shared/archiveActions'
 import { ArchivedBanner } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
@@ -28,6 +28,7 @@ export function Company({ route }: { route: Route }) {
   useStore()
   const c = Q.company(route.id)
   const [tab, setTab] = useState(qStr(route.q, 'tab') || 'overview')
+  const [formatted, setFormatted] = useFormatted()
 
   if (!c) {
     const revoked = isRevoked('companies', route.id)
@@ -150,8 +151,8 @@ export function Company({ route }: { route: Route }) {
       {tab === 'overview' && (
         <div className="split">
           <div className="col" style={{ gap: 14 }}>
-            <Card title="About">
-              <div className="muted" style={{ marginBottom: 12 }}>{c.description || 'No description yet.'}</div>
+            <Card title="About" right={c.description ? <FormattedSwitch on={formatted} onChange={setFormatted} /> : null}>
+              <div className="muted" style={{ marginBottom: 12 }}>{c.description ? <MarkdownText text={c.description} formatted={formatted} /> : 'No description yet.'}</div>
               <dl className="dl">
                 <dt>Employees (est.)</dt><dd>{F.num(c.employees)}</dd>
                 <dt>Locations</dt><dd>{c.locations || '—'}</dd>
