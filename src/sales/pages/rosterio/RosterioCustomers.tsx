@@ -1,4 +1,7 @@
 import { useMemo, useState, type MouseEvent } from 'react'
+import { rosterioInvoices } from '../../api/rosterio'
+import { useLoad } from '../../data/invoicing'
+import { isNotBilled, isSelfServe, listBillingPill } from '../../data/rosterioBilling'
 import type { RosterioAccount, RosterioAccountsResponse, RosterioTestAccount } from '../../api/contract'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
@@ -6,7 +9,7 @@ import { Q } from '../../data/Q'
 import { createCompanyFor, dismissAccount, planLabel, rosterioLinkOf, standing, useDismissed, useRosterioAccounts, useRosterioLinks, type AccountStanding } from '../../data/rosterio'
 import { canMarkTest, DEFAULT_TEST_REASON, MARK_TEST_DENIED, TEST_REASON_MAX, testAccounts, testReasonProblem } from '../../data/rosterioTest'
 import { S, useStore } from '../../data/store'
-import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Icon, Inp, Menu, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
+import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Icon, Inp, Link, Menu, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
 import { routeToPath } from '../../routes'
 import { accountTab, isPriced, mrrOf, trialDaysLeft, type RosterioTab } from '../../shared/customers'
 import { matchAccounts, REASON_TEXT, type AccountMatch } from '../../shared/rosterioMatch'
@@ -36,6 +39,7 @@ interface Row extends RosterioAccount {
 type Pending = { kind: 'mark'; row: Row; reason: string } | { kind: 'unmark'; row: Row }
 
 type PlanFilter = 'all' | 'starter' | 'pro' | 'enterprise'
+type BillFilter = 'all' | 'unbilled' | 'failed' | 'self'
 
 const TONE: Record<AccountStanding['kind'], string> = { paid: 'ok', trial: 'warn', trialEnded: 'bad', inactive: 'bad' }
 
@@ -59,12 +63,17 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   const acc = useRosterioAccounts('always')
   const dismissed = useDismissed()
   const [plan, setPlan] = useState<PlanFilter>('all')
+  const [bill, setBill] = useState<BillFilter>('all')
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [errs, setErrs] = useState<Record<string, string>>({})
   const [pending, setPending] = useState<Pending | null>(null)
   const canEdit = Q.canEdit('ros')
   const canMark = canMarkTest()
+  // Billing is a Rosterio admin's view (as the prices are). Their invoices are read once, to mark accounts whose payment failed.
+  const isAdmin = Q.canAdmin('ros')
+  const invs = useLoad(sig => (isAdmin ? rosterioInvoices({}, sig) : Promise.resolve(null)), `ros-invoices-failed:${isAdmin}`)
+  const failedIds = useMemo(() => new Set((invs.data?.invoices ?? []).filter(i => i.failed).map(i => i.accountId)), [invs.data])
   const marked = testAccounts()
   const markedKey = marked.map(t => `${t.accountId}\u0000${t.reason}\u0000${t.markedAt}`).join('\u0001')
 
@@ -105,7 +114,13 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
 
   const needle = q.trim().toLowerCase()
   const search = (r: Row): boolean => !needle || r.name.toLowerCase().includes(needle) || (r.billingEmail ?? '').toLowerCase().includes(needle)
-  const shownPaid = paid.filter(r => (plan === 'all' || r.plan === plan) && search(r))
+  const billOf: Record<Exclude<BillFilter, 'all'>, (r: Row) => boolean> = {
+    unbilled: r => isNotBilled(r), failed: r => failedIds.has(r.id), self: r => isSelfServe(r),
+  }
+  const billN = (k: Exclude<BillFilter, 'all'>): number => paid.filter(billOf[k]).length
+  // Until the invoices are read (or if they cannot be) the Payment failed count is not known, so it is not shown as 0.
+  const failedLabel = invs.error ? 'Payment failed' : invs.data ? `Payment failed (${billN('failed')})` : 'Payment failed (…)'
+  const shownPaid = paid.filter(r => (plan === 'all' || r.plan === plan) && (bill === 'all' || billOf[bill](r)) && search(r))
 
   const create = async (a: RosterioAccount): Promise<void> => {
     setBusy(b => ({ ...b, [a.id]: true }))
@@ -197,7 +212,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   // The account, with its billing email underneath for the admins the server sends it to.
   const account = (r: Row) => (
     <div style={{ minWidth: 0 }}>
-      <b>{r.name}</b>
+      {isAdmin && !r.missing ? <Link to="rosterioAccount" id={r.id} q={{ from: 'customers' }}><b>{r.name}</b></Link> : <b>{r.name}</b>}
       {showEmail && r.billingEmail && <div className="faint sm trunc" title={r.billingEmail}>{r.billingEmail}</div>}
     </div>
   )
@@ -220,6 +235,14 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
       )
     },
   }
+  const billingCol: Col<Row> = {
+    k: 'billing', l: 'Billing', nosort: true, hide: !isAdmin,
+    r: r => { const p = listBillingPill(r, failedIds); return p ? <Chip tone={p.tone}>{p.label}</Chip> : <span className="faint">—</span> },
+  }
+  const openCol: Col<Row> = {
+    k: 'open', l: '', nosort: true, hide: !isAdmin,
+    r: r => (r.missing ? null : <Btn size="sm" kind="ghost" aria-label={`Open ${r.name}`} onClick={() => UI.nav('rosterioAccount', { id: r.id, q: { from: 'customers' } })}>Open →</Btn>),
+  }
   const since: Col<Row> = {
     k: 'createdAt', l: 'Customer since', sort: r => r.createdAt ?? '',
     r: r => (r.createdAt ? <div>{F.date(r.createdAt)}<div className="faint sm">{tenure(r.createdAt)}</div></div> : '—'),
@@ -227,11 +250,11 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
 
   const tabCols: Record<RosterioTab, Col<Row>[]> = {
     paid: [
-      { k: 'name', l: 'Account', wrap: true, w: 300, r: account },
+      { k: 'name', l: 'Account', wrap: true, w: 220, r: account },
       { k: 'plan', l: 'Plan', sort: r => String(r.plan ?? ''), r: planCell },
-      usersCol, revenueCol, since,
+      usersCol, revenueCol, billingCol, since,
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
-      moreCol,
+      openCol, moreCol,
     ],
     trials: [
       { k: 'name', l: 'Account', r: account },
@@ -248,7 +271,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
           businessId: 'ros', companyId: r.match.kind === 'linked' ? r.match.company.id : undefined, title: `Follow up the Rosterio trial for ${r.name}`, date: r.trialEndDate?.slice(0, 10),
         })}>Create follow-up task</Btn>
       ) },
-      moreCol,
+      openCol, moreCol,
     ],
     ended: [
       { k: 'name', l: 'Account', r: account },
@@ -257,7 +280,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
       { k: 'ended', l: 'Ended', sort: r => r.trialEndDate ?? '', r: r => (r.st.kind === 'trialEnded' && r.trialEndDate ? F.date(r.trialEndDate) : '—') },
       usersCol,
       { k: 'crm', l: 'CRM company', nosort: true, r: crmShort },
-      moreCol,
+      openCol, moreCol,
     ],
     needs: [
       { k: 'name', l: 'Account', wrap: true, w: 280, r: r => <div>{account(r)}{r.createdAt && <div className="faint sm">Joined {F.date(r.createdAt)}</div>}</div> },
@@ -393,9 +416,19 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
               <Banner tone="info">{needs.length === 1 ? '1 account has' : `${needs.length} accounts of any status have`} no CRM company. Review the suggestions. Nothing links or creates a company until you click.</Banner>
             </div>
           )}
+          {tab === 'paid' && isAdmin && invs.error && (
+            <div style={{ marginBottom: 12 }}>
+              <Banner tone="warn" action={<Btn size="xs" onClick={invs.reload}>Try again</Btn>}>Could not read Stripe invoices; payment failures are not shown.</Banner>
+            </div>
+          )}
           {tab === 'paid' && (
             <div className="row wrap" style={{ marginBottom: 12, gap: 10 }}>
               <Seg value={plan} onChange={k => setPlan(k as PlanFilter)} opts={[['all', 'All plans'], ['starter', 'Starter'], ['pro', 'Pro'], ['enterprise', 'Enterprise']]} />
+              {isAdmin && (
+                <Seg label="Billing" value={bill} onChange={k => setBill(k as BillFilter)} opts={[
+                  ['all', 'All'], ['unbilled', `Not billed in Stripe (${billN('unbilled')})`], ['failed', failedLabel], ['self', `Self-serve (${billN('self')})`],
+                ]} />
+              )}
               <Fld><Inp value={q} onChange={setQ} placeholder={showEmail ? 'Search account or billing email' : 'Search account'} aria-label="Search accounts" style={{ width: 240 }} /></Fld>
               <span className="sp" />
               <span className="faint sm">Showing {shownPaid.length} of {paid.length}</span>
@@ -410,7 +443,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
               rows={tabRows[tab]}
               page={50}
               empty={tab === 'paid' && paid.length > 0
-                ? <Empty icon="search" title="No accounts match these filters" body="Try a different plan, or clear the search." action={<Btn size="sm" onClick={() => { setPlan('all'); setQ('') }}>Clear filters</Btn>} />
+                ? <Empty icon="search" title="No accounts match these filters" body="Try a different plan or billing filter, or clear the search." action={<Btn size="sm" onClick={() => { setPlan('all'); setBill('all'); setQ('') }}>Clear filters</Btn>} />
                 : <Empty icon="search" title={EMPTY[tab].title} body={EMPTY[tab].body} />}
             />
           </Card>

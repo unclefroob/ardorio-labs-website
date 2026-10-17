@@ -1,6 +1,6 @@
 import { salesFetch } from './http'
 import type {
-  RosterioAccountsResponse, RosterioLinkRequest, RosterioLinkResponse, RosterioProvisionRequest, RosterioProvisionResponse, RosterioRetryResponse,
+  RosterioAccountDetail, RosterioAccountsResponse, RosterioLinkRequest, RosterioLinkResponse, RosterioProvisionRequest, RosterioProvisionResponse, RosterioRetryResponse,
   RosterioBilling, RosterioInvoicesResponse, RosterioStatusResponse, RosterioUnlinkRequest, StartRosterioBillingRequest, StartRosterioBillingResponse,
 } from './contract'
 
@@ -13,17 +13,24 @@ export const rosterioAccounts = (signal?: AbortSignal) => salesFetch<RosterioAcc
 export const rosterioLink = (req: RosterioLinkRequest) => salesFetch<RosterioLinkResponse>('/rosterio/link', { method: 'POST', body: req })
 export const rosterioUnlink = (req: RosterioUnlinkRequest) => salesFetch<unknown>('/rosterio/unlink', { method: 'POST', body: req })
 
-/** Rosterio's invoices from Stripe (who has paid), for the whole business or one company. Rosterio admins only. */
-export const rosterioInvoices = (q: { companyId?: string } = {}, signal?: AbortSignal) =>
-  salesFetch<RosterioInvoicesResponse>('/rosterio/invoices' + (q.companyId ? `?companyId=${encodeURIComponent(q.companyId)}` : ''), { signal })
+/** One Rosterio account as Rosterio has it, read live, for the account page. Rosterio admins only. */
+export const rosterioAccount = (accountId: string, signal?: AbortSignal) =>
+  salesFetch<RosterioAccountDetail>(`/rosterio/accounts/${encodeURIComponent(accountId)}`, { signal })
+
+/** Rosterio's invoices from Stripe (who has paid), for the whole business, one company or one account. Rosterio admins only. */
+export const rosterioInvoices = (q: { companyId?: string; accountId?: string } = {}, signal?: AbortSignal) =>
+  salesFetch<RosterioInvoicesResponse>('/rosterio/invoices' + (q.accountId ? `?accountId=${encodeURIComponent(q.accountId)}` : q.companyId ? `?companyId=${encodeURIComponent(q.companyId)}` : ''), { signal })
 export const rosterioInvoicesSync = () => salesFetch<{ invoices: number; syncedAt: string | null; error: string | null }>('/rosterio/invoices/sync', { method: 'POST', body: {} })
 
+/** A Rosterio account named by its company in SalesOS or by its own id: exactly one of the two. */
+export type BillingRef = { companyId: string } | { accountId: string }
+
 /** A managed Rosterio account's Stripe billing (Rosterio runs it; this asks). Rosterio admins only. */
-export const rosterioBilling = (companyId: string, signal?: AbortSignal) =>
-  salesFetch<RosterioBilling>(`/rosterio/billing?companyId=${encodeURIComponent(companyId)}`, { signal })
+export const rosterioBilling = (ref: BillingRef, signal?: AbortSignal) =>
+  salesFetch<RosterioBilling>(`/rosterio/billing?${'accountId' in ref ? `accountId=${encodeURIComponent(ref.accountId)}` : `companyId=${encodeURIComponent(ref.companyId)}`}`, { signal })
 export const rosterioBillingStart = (req: StartRosterioBillingRequest) =>
   salesFetch<StartRosterioBillingResponse>('/rosterio/billing/start', { method: 'POST', body: req })
-export const rosterioBillingStop = (companyId: string) =>
-  salesFetch<{ billing: RosterioBilling }>('/rosterio/billing/stop', { method: 'POST', body: { companyId } })
-export const rosterioCardLink = (companyId: string) =>
-  salesFetch<{ billing: RosterioBilling; cardEmailSent: boolean }>('/rosterio/billing/card-link', { method: 'POST', body: { companyId } })
+export const rosterioBillingStop = (ref: BillingRef) =>
+  salesFetch<{ billing: RosterioBilling }>('/rosterio/billing/stop', { method: 'POST', body: ref })
+export const rosterioCardLink = (ref: BillingRef) =>
+  salesFetch<{ billing: RosterioBilling; cardEmailSent: boolean }>('/rosterio/billing/card-link', { method: 'POST', body: ref })

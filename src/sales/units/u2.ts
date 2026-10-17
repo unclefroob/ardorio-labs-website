@@ -2,6 +2,7 @@ import type { UnitModule } from './types'
 import { Deals } from '../pages/deals/Deals'
 import { Deal } from '../pages/deals/Deal'
 import { Customers } from '../pages/customers/Customers'
+import { RosterioAccount } from '../pages/rosterio/RosterioAccount'
 import { LogMeeting } from '../modals/comms/LogMeeting'
 import { MeetingBrief } from '../modals/comms/MeetingBrief'
 import { CancelMeeting, RescheduleMeeting } from '../modals/comms/MeetingChange'
@@ -23,7 +24,7 @@ import { AddSuppression } from '../modals/comms/AddSuppression'
 import { SendEmailTask } from '../modals/comms/SendEmailTask'
 
 export const u2: UnitModule = {
-  pages: { deals: Deals, deal: Deal, customers: Customers, rosterioCustomers: Customers },
+  pages: { deals: Deals, deal: Deal, customers: Customers, rosterioCustomers: Customers, rosterioAccount: RosterioAccount },
   modals: {
     logMeeting: LogMeeting, meetingBrief: MeetingBrief, cancelMeeting: CancelMeeting, rescheduleMeeting: RescheduleMeeting, voidActivity: VoidActivity, checkSignals: CheckSignals, compose: Compose, enrol: Enrol, enrich: Enrich, findMobile: FindMobile, findPeople: FindPeople,
     simReply: SimReply, linkedin: LinkedIn, addToList: AddToList, pickContacts: PickContacts,
