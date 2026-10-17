@@ -136,6 +136,9 @@
 .sos .seg button+button{border-left:1px solid var(--line)}
 .sos .seg button.on{background:var(--acc-soft);color:var(--acc-ink)}
 .sos .seg.xs button{height:24px;padding:0 7px}
+/* A choice whose labels must stay on one line (a date, an amount): padded, and it scrolls sideways rather than wrapping inside its fixed height. */
+.sos .seg.nowrap{max-width:100%;overflow-x:auto}
+.sos .seg.nowrap button{white-space:nowrap;flex:none;padding:0 14px}
 .sos .kc-per{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
 .sos .fld{display:flex;flex-direction:column;gap:5px;min-width:0}
 .sos .fld>label{font-size:12px;font-weight:600;color:var(--fg2)}
