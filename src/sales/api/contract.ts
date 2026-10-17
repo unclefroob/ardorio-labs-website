@@ -491,6 +491,39 @@ export interface RosterioInvoice {
 }
 export interface RosterioInvoicesResponse { invoices: RosterioInvoice[]; configured: boolean; syncedAt: string | null; syncError: string | null }
 
+// ---- Rosterio billing (a managed account's Stripe subscription) ----
+// Billing of a Rosterio account on negotiated (managed) terms, run by Rosterio (its managedBillingService); SalesOS only
+// asks. Rosterio admins and super users only (else ROLE_REQUIRED { needed: 'admin', businessId: 'ros' }); the company must
+// be linked to a Rosterio account (else NOT_FOUND).
+// GET  /sales/rosterio/billing?companyId= -> RosterioBilling: the terms, the bill (amount + 10% GST), and billing so far.
+// POST /sales/rosterio/billing/start StartRosterioBillingRequest -> StartRosterioBillingResponse. collection 'send_invoice'
+//   emails an invoice each period, due in daysUntilDue (1..60, default 14); 'charge_automatically' charges a card on
+//   file, emailing the customer an "add your card" link first when they have none (billing.state 'awaiting_card' until
+//   they do; nothing is billed meanwhile). firstBillingDate is YYYY-MM-DD on the account's clock, today..+1 year; today
+//   bills now, a later day starts a Stripe schedule then. Refused (CONFLICT) when billing is already set up, the terms
+//   are inactive or ended, or the account is a trial; Rosterio's field errors come back as VALIDATION details.errors.
+// POST /sales/rosterio/billing/stop { companyId } -> { billing }: a running subscription ends at the close of the period
+//   already billed; a schedule not yet started, or a wait for a card, stops at once.
+// POST /sales/rosterio/billing/card-link { companyId } -> { billing, cardEmailSent }: sends the card link again.
+export type RosterioBillingState = 'starting' | 'awaiting_card' | 'scheduled' | 'active' | 'stopping' | 'stopped'
+export type RosterioCollection = 'send_invoice' | 'charge_automatically'
+export interface RosterioBilling {
+  accountId: string; accountName: string; timezone: string; today: string; billingEmail: string | null
+  terms: null | {
+    billingModel: 'per_user' | 'flat'; amountCents: number; interval: 'monthly' | 'yearly'
+    effectiveFrom: string; effectiveUntil: string | null; contractReference: string | null; status: string
+  }
+  amounts: null | { quantity: number; unitAmountCents: number; subtotalCents: number; gstCents: number; totalCents: number; gstPercent: number; interval: 'monthly' | 'yearly' }
+  billing: null | {
+    state: RosterioBillingState; collection: RosterioCollection; firstBillingDate: string; daysUntilDue: number | null
+    billingEmail: string; startedAt: string; stoppedAt: string | null; cardUrl: string | null; cardSavedAt: string | null
+    lastError: string | null; subscriptionStatus: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean
+  }
+  canStart: boolean; cannotStartReason: string | null
+}
+export interface StartRosterioBillingRequest { companyId: string; collection: RosterioCollection; firstBillingDate: string; daysUntilDue?: number; billingEmail?: string }
+export interface StartRosterioBillingResponse { billing: RosterioBilling; cardEmailSent?: boolean }
+
 // ---- Rosterio test accounts ----
 // settings/rosterioTest = { accounts: RosterioTestAccount[] }: Rosterio accounts kept for testing (an App Store review
 // login, say). They stay in Rosterio unchanged; SalesOS shows them on their own tab and leaves them out of every customer
