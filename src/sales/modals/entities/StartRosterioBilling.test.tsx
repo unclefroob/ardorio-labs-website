@@ -26,13 +26,13 @@ vi.mock('../../api/rosterio', async orig => ({
 const view = (o: Partial<RosterioBilling> = {}): RosterioBilling => ({
   accountId: '65f0c0ffee0000000000abcd', accountName: 'Spuntino', timezone: 'Australia/Sydney', today: '2026-10-17', billingEmail: 'accounts@spuntino.test',
   terms: { billingModel: 'flat', amountCents: 40000, interval: 'monthly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: 'SPU-MSA', status: 'active' },
-  amounts: { quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, gstPercent: 10, interval: 'monthly' },
+  amounts: { quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, gstPercent: 10, interval: 'monthly' }, options: [],
   billing: null, canStart: true, cannotStartReason: null, ...o,
 })
 const billed = (state: NonNullable<RosterioBilling['billing']>['state'], o: Partial<NonNullable<RosterioBilling['billing']>> = {}): RosterioBilling => view({
   canStart: false, cannotStartReason: 'Billing is already set up for this account.',
   billing: { state, collection: 'send_invoice', firstBillingDate: '2026-11-01', daysUntilDue: 14, billingEmail: 'accounts@spuntino.test', startedAt: '2026-10-17T00:00:00.000Z',
-    stoppedAt: null, cardUrl: null, cardSavedAt: null, lastError: null, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, ...o },
+    stoppedAt: null, cardUrl: null, cardSavedAt: null, lastError: null, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, termsChangedFrom: null, ...o },
 })
 
 let host: HTMLDivElement

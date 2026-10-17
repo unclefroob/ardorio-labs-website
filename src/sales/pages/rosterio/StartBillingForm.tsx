@@ -3,7 +3,6 @@ import type { RosterioBilling, RosterioCollection } from '../../api/contract'
 import { SalesHttpError } from '../../api/http'
 import { rosterioBillingStart } from '../../api/rosterio'
 import { billingChanged, dayText, firstOfNextMonth, perOf, rosMoneyOf } from '../../data/rosterioBilling'
-import { rosterioAdminUrl } from '../../data/rosterioAccount'
 import { Banner, Btn, Card, Fld, Inp, Seg } from '../../kit/basic'
 import { UI } from '../../ui/store'
 
@@ -39,6 +38,7 @@ export function StartBillingForm({ accountId, companyId, v, onChanged, headRef }
   accountId: string; companyId?: string; v: RosterioBilling; onChanged: () => void; headRef: Ref<HTMLElement>
 }) {
   const [collection, setCollection] = useState<RosterioCollection>('send_invoice')
+  const [every, setEvery] = useState<'monthly' | 'yearly'>(v.terms?.interval ?? 'monthly')
   const [when, setWhen] = useState<When>('next')
   const [picked, setPicked] = useState('')
   const [days, setDays] = useState('14')
@@ -49,8 +49,11 @@ export function StartBillingForm({ accountId, companyId, v, onChanged, headRef }
 
   const first = when === 'today' ? v.today : when === 'next' ? firstOfNextMonth(v.today) : picked
   const to = (email ?? v.billingEmail ?? '').trim()
-  const a = v.amounts
   const t = v.terms
+  // The bill as chosen: monthly or yearly (Rosterio gives both). An older reply without options bills the terms as they are.
+  const opt = v.options.find(o => o.interval === every)
+  const a = opt && v.amounts ? { ...v.amounts, ...opt } : v.amounts
+  const changesTerms = opt?.changesTerms === true
   const sendsInvoice = collection === 'send_invoice'
   const daysN = Number(days)
   const daysOk = days.trim() !== '' && Number.isInteger(daysN) && daysN >= 1 && daysN <= 60
@@ -68,6 +71,7 @@ export function StartBillingForm({ accountId, companyId, v, onChanged, headRef }
     try {
       const r = await rosterioBillingStart({
         accountId, collection, firstBillingDate: first, ...(sendsInvoice ? { daysUntilDue: daysN } : {}), ...(to ? { billingEmail: to } : {}),
+        ...(opt ? { interval: every } : {}),
       })
       billingChanged({ accountId }, ...(companyId ? [{ companyId }] : []))
       onChanged()
@@ -100,17 +104,25 @@ export function StartBillingForm({ accountId, companyId, v, onChanged, headRef }
             <div className="card card-b sm col" style={{ gap: 4, background: 'var(--surf2)' }}>
               <b>What it bills{t.contractReference ? ` · ${t.contractReference}` : ''}</b>
               <span>
-                {t.billingModel === 'flat' ? `${rosMoneyOf(t.amountCents)} ${perOf(t.interval)}, flat` : `${rosMoneyOf(t.amountCents)} per user ${perOf(t.interval)} × ${a.quantity}`}
-                {` + ${a.gstPercent}% GST = `}<b className="num">{rosMoneyOf(a.totalCents)}</b> {perOf(a.interval)}
+                Terms: {t.billingModel === 'flat' ? `${rosMoneyOf(t.amountCents)} ${perOf(t.interval)}, flat` : `${rosMoneyOf(t.amountCents)} per user ${perOf(t.interval)}`}, ex GST
               </span>
-              <span className="faint">{t.effectiveUntil ? `Ends ${dayText(t.effectiveUntil.slice(0, 10))}; billing stops then.` : 'No end date: billed until stopped.'} The price comes from the terms. To change it, correct the terms in Rosterio admin.</span>
-              {a.interval === 'yearly' && (
-                <span>
-                  Billed yearly per the terms. To bill monthly, correct the terms in Rosterio admin first.{' '}
-                  <a href={rosterioAdminUrl(accountId)} target="_blank" rel="noopener noreferrer">Open Rosterio admin</a>
-                </span>
-              )}
+              <span className="faint">{t.effectiveUntil ? `Ends ${dayText(t.effectiveUntil.slice(0, 10))}; billing stops then.` : 'No end date: billed until stopped.'}</span>
             </div>
+          )}
+          {v.options.length === 2 && (
+            <Group
+              label="How often"
+              hint={changesTerms && t && opt
+                ? `Billing ${every} changes the terms to ${rosMoneyOf(opt.unitAmountCents)} ${perOf(every)}${t.billingModel === 'flat' ? '' : ' per user'} (from ${rosMoneyOf(t.amountCents)} ${perOf(t.interval)}), the same over a year.`
+                : 'As the terms say.'}
+            >
+              <Seg
+                label="How often"
+                value={every}
+                onChange={k => setEvery(k === 'yearly' ? 'yearly' : 'monthly')}
+                opts={v.options.map(o => [o.interval, `${o.interval === 'monthly' ? 'Monthly' : 'Yearly'} · ${rosMoneyOf(o.totalCents)}`] as const)}
+              />
+            </Group>
           )}
           <Group label="How they pay" err={fieldErr.collection}>
             <Seg label="How they pay" value={collection} onChange={k => setCollection(k as RosterioCollection)} opts={[['send_invoice', 'Emailed invoice', 'mail'], ['charge_automatically', 'Card on file', 'dollar']]} />
@@ -135,7 +147,7 @@ export function StartBillingForm({ accountId, companyId, v, onChanged, headRef }
       </Card>
       <Card title="What Stripe will do" icon="info">
         <div className="col" style={{ gap: 12 }}>
-          {summary ? <div role="status">{summary}</div> : <div className="faint">Choose the first bill to see what Stripe will do.</div>}
+          {summary ? <div role="status">{summary}{changesTerms ? ` The terms move to ${every} billing when it starts.` : ''}</div> : <div className="faint">Choose the first bill to see what Stripe will do.</div>}
           <div className="faint sm">Nothing is created until you press Start billing. You can stop it again later.</div>
           {err && <Banner tone="bad">{err}</Banner>}
           <div>

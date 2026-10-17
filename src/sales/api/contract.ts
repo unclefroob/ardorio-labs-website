@@ -502,6 +502,8 @@ export interface RosterioInvoicesResponse { invoices: RosterioInvoice[]; configu
 //   emails an invoice each period, due in daysUntilDue (1..60, default 14); 'charge_automatically' charges a card on
 //   file, emailing the customer an "add your card" link first when they have none (billing.state 'awaiting_card' until
 //   they do; nothing is billed meanwhile). firstBillingDate is YYYY-MM-DD on the account's clock, today..+1 year; today
+//   interval 'monthly' | 'yearly' (omitted = the terms' own): the other one moves the terms to it first, same yearly
+//   total (options says what each costs); anything else -> 400 VALIDATION.
 //   bills now, a later day starts a Stripe schedule then. Refused (CONFLICT) when billing is already set up, the terms
 //   are inactive or ended, or the account is a trial; Rosterio's field errors come back as VALIDATION details.errors.
 // POST /sales/rosterio/billing/stop { companyId } -> { billing }: a running subscription ends at the close of the period
@@ -520,11 +522,15 @@ export interface RosterioBilling {
     state: RosterioBillingState; collection: RosterioCollection; firstBillingDate: string; daysUntilDue: number | null
     billingEmail: string; startedAt: string; stoppedAt: string | null; cardUrl: string | null; cardSavedAt: string | null
     lastError: string | null; subscriptionStatus: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean
+    /** Billing was started on the other interval, which changed the terms from these. */
+    termsChangedFrom: null | { interval: 'monthly' | 'yearly'; amountCents: number }
   }
+  /** The bill monthly and yearly. changesTerms: starting on it moves the terms to that interval (same yearly total). */
+  options: Array<{ interval: 'monthly' | 'yearly'; quantity: number; unitAmountCents: number; subtotalCents: number; gstCents: number; totalCents: number; changesTerms: boolean }>
   canStart: boolean; cannotStartReason: string | null
 }
 /** Exactly one of companyId and accountId. */
-export interface StartRosterioBillingRequest { companyId?: string; accountId?: string; collection: RosterioCollection; firstBillingDate: string; daysUntilDue?: number; billingEmail?: string }
+export interface StartRosterioBillingRequest { companyId?: string; accountId?: string; collection: RosterioCollection; firstBillingDate: string; daysUntilDue?: number; billingEmail?: string; interval?: 'monthly' | 'yearly' }
 export interface StartRosterioBillingResponse { billing: RosterioBilling; cardEmailSent?: boolean }
 
 // ---- Rosterio account detail ----
