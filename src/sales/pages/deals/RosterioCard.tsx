@@ -9,16 +9,13 @@ import {
   useRosterioLinks, useRosterioStatus,
 } from '../../data/rosterio'
 import { testAccountOf } from '../../data/rosterioTest'
-import { Banner, Btn, Card, Chip } from '../../kit'
+import { Banner, Btn, Card, Chip, Link } from '../../kit'
 import { accountForCompany, REASON_TEXT } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
 import { rosterioInvoices } from '../../api/rosterio'
 import { useLoad } from '../../data/invoicing'
 import { payState, rosMoney } from '../invoices/RosterioInvoices'
-import { rosterioBillingStop, rosterioCardLink } from '../../api/rosterio'
-import { SalesHttpError } from '../../api/http'
-import { billingChanged, dayText, perOf, rosMoneyOf, useRosterioBilling } from '../../data/rosterioBilling'
-import { CardLink } from '../../modals/entities/StartRosterioBilling'
+import { billingPill, useRosterioBilling } from '../../data/rosterioBilling'
 
 const open = (dealId: string): void => UI.open('provisionRosterio', { dealId })
 
@@ -67,6 +64,9 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
             businessId: 'ros', companyId, title: `Follow up the Rosterio trial for ${account.name}`, date: account.trialEndDate?.slice(0, 10),
           })}>Create a follow-up task</Btn>
         </div>
+      )}
+      {Q.canAdmin('ros') && (
+        <div className="sm"><Link to="rosterioAccount" id={account.id} q={{ from: 'company', companyId }}>Open Rosterio account →</Link></div>
       )}
       <div className="row" style={{ marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
         <span className="faint sm" title={F.dt(fetchedAt)}>Read from Rosterio {F.rel(fetchedAt)}</span>
@@ -195,76 +195,12 @@ function Payments({ companyId }: { companyId: string }) {
 }
 
 /**
- * A managed account's Stripe billing (Rosterio runs it): whether it is billed, how, and from when, with Start and Stop.
- * Self-serve accounts pay at checkout, so there is nothing to start for them here.
+ * Where a managed account's Stripe billing stands, read-only. Starting, stopping and the card link are on the account page
+ * (Open Rosterio account), where there is room for them. Self-serve accounts pay at checkout.
  */
 function Billing({ companyId }: { companyId: string }) {
-  const b = useRosterioBilling(companyId)
-  const [busy, setBusy] = useState<'stop' | 'link' | null>(null)
+  const b = useRosterioBilling({ companyId })
   if (!b.data) return b.error ? <span className="faint sm">Could not read billing</span> : <span className="faint sm">Checking…</span>
-  const v = b.data
-  const bl = v.billing
-  const a = v.amounts
-  const amount = a ? `${rosMoneyOf(a.totalCents)} ${perOf(a.interval)} incl. GST` : ''
-  const how = bl?.collection === 'charge_automatically' ? 'card on file' : 'emailed invoice'
-
-  const stop = (): void => {
-    UI.confirm({
-      title: 'Stop billing in Stripe?',
-      body: bl?.state === 'active'
-        ? `${v.accountName} will not be billed again. The subscription ends at the close of the period already billed${bl.currentPeriodEnd ? ` (${F.date(bl.currentPeriodEnd)})` : ''}; nothing is refunded.`
-        : `${v.accountName} will not be billed. Nothing has been charged yet.`,
-      points: ['The Rosterio account stays as it is.', 'You can start billing again later.'],
-      confirm: 'Stop billing',
-      danger: true,
-      onConfirm: () => {
-        setBusy('stop')
-        rosterioBillingStop(companyId)
-          .then(() => { billingChanged(companyId); UI.toast('Billing stopped') }, e => UI.toast(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Try again.', 'bad'))
-          .finally(() => setBusy(null))
-      },
-    })
-  }
-  const resend = (): void => {
-    setBusy('link')
-    rosterioCardLink(companyId)
-      .then(r => UI.toast(r.cardEmailSent ? `Card link sent to ${r.billing.billing?.billingEmail ?? 'the customer'}` : 'The email could not be sent. Copy the link and send it yourself.', r.cardEmailSent ? 'ok' : 'warn'),
-        e => UI.toast(e instanceof SalesHttpError ? e.message : 'Could not reach the server. Try again.', 'bad'))
-      .finally(() => setBusy(null))
-  }
-  const stopBtn = <Btn size="xs" kind="ghost" loading={busy === 'stop'} onClick={stop}>{busy === 'stop' ? 'Stopping…' : 'Stop'}</Btn>
-
-  if (!bl || bl.state === 'stopped') {
-    if (!v.canStart) return <span className="faint sm">{v.terms ? v.cannotStartReason : 'Self-serve: pays at checkout'}</span>
-    return (
-      <span className="row wrap" style={{ gap: 6 }}>
-        <span className="faint sm">{bl ? `Stopped${bl.stoppedAt ? ` ${F.date(bl.stoppedAt)}` : ''}` : 'Not billed in Stripe yet'}</span>
-        <Btn size="xs" kind="pri" icon="dollar" onClick={() => UI.open('startRosterioBilling', { companyId })}>Start billing…</Btn>
-      </span>
-    )
-  }
-  return (
-    <span className="col" style={{ gap: 6 }}>
-      <span className="row wrap" style={{ gap: 6 }}>
-        {bl.state === 'starting' && <Chip>Setting up…</Chip>}
-        {bl.state === 'awaiting_card' && <Chip tone="warn">Waiting for a card</Chip>}
-        {bl.state === 'scheduled' && <Chip tone="info">Starts {dayText(bl.firstBillingDate)}</Chip>}
-        {bl.state === 'active' && <Chip tone="ok">Billing</Chip>}
-        {bl.state === 'stopping' && <Chip tone="warn">Ends {bl.currentPeriodEnd ? F.date(bl.currentPeriodEnd) : 'this period'}</Chip>}
-        <span className="sm">{amount} · {how}</span>
-        {bl.state === 'active' && bl.currentPeriodEnd && <span className="faint sm">Next bill {F.date(bl.currentPeriodEnd)}</span>}
-        {['awaiting_card', 'scheduled', 'active'].includes(bl.state) && stopBtn}
-      </span>
-      {bl.state === 'awaiting_card' && (
-        <span className="col" style={{ gap: 6 }}>
-          <span className="faint sm">
-            {bl.billingEmail} was emailed a link to add a card. Billing starts once they do.{' '}
-            <Btn size="xs" kind="ghost" loading={busy === 'link'} onClick={resend}>{busy === 'link' ? 'Sending…' : 'Send again'}</Btn>
-          </span>
-          {bl.cardUrl && <CardLink url={bl.cardUrl} />}
-        </span>
-      )}
-      {bl.lastError && <span className="sm" style={{ color: 'var(--bad2)' }}>Last attempt failed: {bl.lastError}</span>}
-    </span>
-  )
+  const p = billingPill(b.data)
+  return <Chip tone={p.tone}>{p.label}</Chip>
 }

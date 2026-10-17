@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react'
 import { Icon } from '../kit/Icon'
 import { UI } from '../ui/store'
 
-export function PageHead({ title, sub, children, crumb }: { title: ReactNode; sub?: ReactNode; children?: ReactNode; crumb?: ReactNode[] }) {
+export function PageHead({ title, sub, children, crumb, eyebrow }: { title: ReactNode; sub?: ReactNode; children?: ReactNode; crumb?: ReactNode[]; eyebrow?: ReactNode }) {
   return (
     <div className="ph">
       <div style={{ minWidth: 0 }}>
@@ -12,6 +12,7 @@ export function PageHead({ title, sub, children, crumb }: { title: ReactNode; su
             {crumb.map((c, i) => <Fragment key={i}><span>/</span>{c}</Fragment>)}
           </div>
         )}
+        {eyebrow && <div className="faint sm">{eyebrow}</div>}
         <h1 tabIndex={-1}>{title}</h1>
         {sub && <div className="sub">{sub}</div>}
       </div>
