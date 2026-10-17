@@ -477,7 +477,7 @@ export const Q = {
     else if (idle >= 10) r.push(`Quiet for ${idle} days`)
     if (d.close < clock.slice(0, 10)) r.push('Expected close date has passed')
     const open = S.tasks.filter(t => t.dealId === d.id && !Q.done(t))
-    if (!open.length) r.push('No next step scheduled')
+    if (!Q.nextStep(d)) r.push('No next step scheduled')
     const late = open.some(t => Q.overdue(t))
     if (late) r.push('Follow-up overdue')
     const si = Q.pipeline(d.businessId).stages.findIndex(s => s.id === d.stageId)
@@ -485,6 +485,15 @@ export const Q = {
     return r.length ? { level: idle >= 14 || r.length >= 3 || (late && idle >= 7) ? 'high' : 'med', reasons: r } : null
   },
   nextTask: (d: Deal): Task | undefined => S.tasks.filter(t => t.dealId === d.id && !Q.done(t)).sort((a, b) => a.due.localeCompare(b.due))[0],
+  /** The deal's meetings still to come (a past one awaiting its outcome is not a next step: it asks for the outcome instead). */
+  upcomingMeetings: (d: Deal): Meeting[] => S.meetings.filter(m => m.dealId === d.id && m.status === 'upcoming' && F.ms(m.start) >= Date.now()).sort((a, b) => F.ms(a.start) - F.ms(b.start)),
+  /** A deal's next step: whichever comes first of an open task and an upcoming meeting. None means the deal can stall. */
+  nextStep: (d: Deal): { kind: 'task'; task: Task; at: string } | { kind: 'meeting'; meeting: Meeting; at: string } | undefined => {
+    const t = Q.nextTask(d)
+    const m = Q.upcomingMeetings(d)[0]
+    if (m && (!t || F.ms(m.start) <= F.ms(t.due))) return { kind: 'meeting', meeting: m, at: m.start }
+    return t ? { kind: 'task', task: t, at: t.due } : undefined
+  },
 
   missingFor(d: Deal, stage: Stage, patch?: Partial<Deal>): MissingField[] {
     const v: Deal = { ...d, ...patch, fields: { ...d.fields, ...patch?.fields } }

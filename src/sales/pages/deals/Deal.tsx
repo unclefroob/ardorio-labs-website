@@ -105,7 +105,8 @@ export function Deal({ route }: { route: Route }) {
   const ths = Q.threads().filter(t => t.dealId === d.id || (t.companyId === d.companyId && t.businessId === d.businessId && !t.dealId))
   const meets = S.meetings.filter(m => m.dealId === d.id)
   const clock = F.nowIso()
-  const nt = Q.nextTask(d)
+  const ns = Q.nextStep(d)
+  const nt = ns?.kind === 'task' ? ns.task : undefined
   const fields: Fields = ef ?? d.fields
   const setFld = (k: string, v: unknown): void => setEf({ ...fields, [k]: v })
   const newTask = (): void => UI.open('newTask', { businessId: d.businessId, companyId: d.companyId, dealId: d.id, contactId: d.primaryContact || '' })
@@ -260,6 +261,11 @@ export function Deal({ route }: { route: Route }) {
                 <div>
                   <LinkBtn className="b sm" onClick={() => UI.drawer('task', { id: nt.id })}>{nt.title}</LinkBtn>
                   <div className="sm"><Due t={nt} /> · <Owner id={nt.assigneeId} s={16} /></div>
+                </div>
+              ) : ns?.kind === 'meeting' ? (
+                <div>
+                  <LinkBtn className="b sm" onClick={() => UI.open('meetingBrief', { id: ns.meeting.id })}>{ns.meeting.title}</LinkBtn>
+                  <div className="sm"><Chip tone="info" icon="cal">Meeting</Chip> {F.dt(ns.meeting.start)} · <Owner id={ns.meeting.ownerId} s={16} /></div>
                 </div>
               ) : (
                 <Banner tone="warn" action={can && <Btn size="sm" onClick={newTask}>Add</Btn>}>No next step scheduled.</Banner>

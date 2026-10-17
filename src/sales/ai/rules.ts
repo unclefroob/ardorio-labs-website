@@ -97,10 +97,10 @@ export function refreshRecs(scope: readonly BusinessId[]): void {
         taskType: 'Follow-up', taskDays: 0, dealId: d.id, companyId: d.companyId, contactId: dm?.id,
       })
     }
-    if (!S.tasks.some(t => t.dealId === d.id && !Q.done(t))) {
+    if (!Q.nextStep(d)) {
       add({
         key: `next:${d.id}`, businessId: d.businessId, type: 'No next step', title: `Set a next step for ${d.title}`,
-        explain: 'No open task is scheduled for this deal, so it can easily stall.', evidence: `0 open tasks · stage ${stageName}`,
+        explain: 'No open task or upcoming meeting is scheduled for this deal, so it can easily stall.', evidence: `0 open tasks · no upcoming meeting · stage ${stageName}`,
         confidence: 'High', action: 'task', taskTitle: `Schedule next step — ${d.title}`, taskDays: 1, dealId: d.id, companyId: d.companyId, contactId: dm?.id,
       })
     }
