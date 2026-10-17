@@ -12,6 +12,9 @@ import { testAccountOf } from '../../data/rosterioTest'
 import { Banner, Btn, Card, Chip } from '../../kit'
 import { accountForCompany, REASON_TEXT } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
+import { rosterioInvoices } from '../../api/rosterio'
+import { useLoad } from '../../data/invoicing'
+import { payState, rosMoney } from '../invoices/RosterioInvoices'
 
 const open = (dealId: string): void => UI.open('provisionRosterio', { dealId })
 
@@ -52,6 +55,7 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
       {row('Active users', <span className="num">{account.memberCount}</span>)}
       {account.createdAt && row('Customer since', F.date(account.createdAt))}
       {account.billingEmail && row('Billing email', <span className="mono sm">{account.billingEmail}</span>)}
+      {Q.canAdmin('ros') && row('Payments', <Payments companyId={companyId} />)}
       {st.kind === 'trial' && edit && (
         <div>
           <Btn size="sm" kind="pri" onClick={() => UI.open('newTask', {
@@ -165,3 +169,22 @@ export function RosterioWinPrompt({ dealId }: { dealId: string }) {
   )
 }
 
+
+/** Where this customer stands with Stripe: the latest invoice, anything owing, a failed card. Rosterio admins only (as its revenue is). */
+function Payments({ companyId }: { companyId: string }) {
+  const r = useLoad(sig => rosterioInvoices({ companyId }, sig), `ros-inv:${companyId}`)
+  if (!r.data) return r.error ? <span className="faint sm">Could not read payments</span> : <span className="faint sm">Checking Stripe…</span>
+  const inv = r.data.invoices
+  if (!inv.length) return <span className="faint sm">{r.data.configured ? 'No Stripe invoices yet' : 'Stripe is not connected'}</span>
+  const latest = inv[0]
+  const owing = inv.filter(i => i.status === 'open').reduce((t, i) => t + i.amountRemainingCents, 0)
+  const st = payState(latest)
+  return (
+    <span className="row wrap" style={{ gap: 6 }}>
+      <Chip tone={st.tone}>{st.label}</Chip>
+      <span className="sm">{rosMoney(latest.amountDueCents, latest.currency)}{latest.paidAt ? ` on ${F.date(latest.paidAt)}` : ''}</span>
+      {owing > 0 && <span className="sm" style={{ color: 'var(--bad2)' }}>{rosMoney(owing)} owing</span>}
+      <a className="sm" href="/sales/invoices" onClick={e => { e.preventDefault(); UI.nav('invoices') }}>All invoices</a>
+    </span>
+  )
+}
