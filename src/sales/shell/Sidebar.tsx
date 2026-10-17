@@ -87,7 +87,7 @@ export function Sidebar() {
       />
       <div className="side-scroll">
         {NAV.map(g => {
-          const vis = g.items.filter(i => navItemVisible(i, { anyAdmin: admin, member: Q.member, canAdmin: Q.canAdmin }))
+          const vis = g.items.filter(i => navItemVisible(i, { anyAdmin: admin, member: Q.member, canAdmin: Q.canAdmin, inScope: Q.inScope }))
           if (!vis.length) return null
           const item = (i: (typeof vis)[number]) => {
             const n = cnt[i.page]

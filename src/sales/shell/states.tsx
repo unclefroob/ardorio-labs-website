@@ -3,6 +3,9 @@ import { Link as RouterLink } from 'react-router-dom'
 import { Banner, Btn, Empty, Skel } from '../kit'
 import { loadBootstrap } from '../data/bootstrap'
 import { UI } from '../ui/store'
+import { Act } from '../data/Act'
+import { Q } from '../data/Q'
+import type { BusinessId } from '../data/types'
 
 export function BackToAdmin({ kind }: { kind?: string }) {
   return (
@@ -68,6 +71,15 @@ export function Denied({ what, body, title }: { what?: string; body?: string; ti
         action={<Btn onClick={() => UI.nav('dashboard')}>Back to dashboard</Btn>}
       />
     </div>
+  )
+}
+
+/** A page that belongs to another workspace's business, with the switch one click away. */
+export function OtherWorkspace({ title, body, to }: { title: string; body: string; to: BusinessId }) {
+  return (
+    <Centered>
+      <Empty icon="layers" title={title} body={body} action={<Btn kind="pri" onClick={() => { Act.setSession({ ws: to }); UI.toast(`Switched to ${Q.biz(to)?.name ?? to}`) }}>Switch to {Q.biz(to)?.name ?? to}</Btn>} />
+    </Centered>
   )
 }
 

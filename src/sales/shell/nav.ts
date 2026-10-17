@@ -70,9 +70,11 @@ export interface NavViewer {
   anyAdmin: boolean
   member: (b: BusinessId) => boolean
   canAdmin: (b: BusinessId) => boolean
+  /** Whether a business is in the current workspace (absent: treated as yes). One business's items show only in its workspace. */
+  inScope?: (b: BusinessId) => boolean
 }
 
 /** Whether the sidebar shows an item to this viewer. */
 export function navItemVisible(i: NavItem, v: NavViewer): boolean {
-  return (!i.admin || v.anyAdmin) && (!i.business || v.member(i.business)) && (!i.adminOf || v.canAdmin(i.adminOf))
+  return (!i.admin || v.anyAdmin) && (!i.business || v.member(i.business)) && (!i.adminOf || (v.canAdmin(i.adminOf) && (v.inScope?.(i.adminOf) ?? true)))
 }
