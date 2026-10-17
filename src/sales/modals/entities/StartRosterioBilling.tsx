@@ -6,9 +6,13 @@ import { billingChanged, dayText, firstOfNextMonth, perOf, rosMoneyOf, useRoster
 import { Q } from '../../data/Q'
 import { Banner, Btn, Fld, Inp, Seg, Skel } from '../../kit/basic'
 import { Modal } from '../../kit/overlay'
+import { CardLink } from '../../pages/rosterio/billingParts'
 import { UI } from '../../ui/store'
 
 /**
+ * No longer opened from anywhere: starting billing now happens inline in the Billing tab of the Rosterio account page
+ * (pages/rosterio/StartBillingForm.tsx). Kept, unregistered, so nothing is deleted.
+ *
  * Start a managed Rosterio account's billing in Stripe, from its agreed terms: an emailed invoice each period or a card on
  * file, from a first billing date, plus GST. Rosterio sets it up (the customer, the subscription, the card link); this is
  * the operator's view of what will happen, confirmed in one line before anything is created.
@@ -16,7 +20,7 @@ import { UI } from '../../ui/store'
 type When = 'today' | 'next' | 'pick'
 
 export function StartRosterioBilling({ companyId }: { companyId: string }) {
-  const b = useRosterioBilling(companyId)
+  const b = useRosterioBilling({ companyId })
   const [collection, setCollection] = useState<RosterioCollection>('send_invoice')
   const [when, setWhen] = useState<When>('next')
   const [picked, setPicked] = useState('')
@@ -57,7 +61,7 @@ export function StartRosterioBilling({ companyId }: { companyId: string }) {
       const r = await rosterioBillingStart({
         companyId, collection, firstBillingDate: first, ...(collection === 'send_invoice' ? { daysUntilDue: daysN } : {}), ...(to ? { billingEmail: to } : {}),
       })
-      billingChanged(companyId)
+      billingChanged({ companyId })
       if (r.billing.billing?.state === 'awaiting_card') {
         setCardSent({ sent: r.cardEmailSent === true, url: r.billing.billing.cardUrl, to: r.billing.billing.billingEmail })
         return
@@ -134,19 +138,5 @@ export function StartRosterioBilling({ companyId }: { companyId: string }) {
         </div>
       )}
     </Modal>
-  )
-}
-
-/** The customer's "add your card" link, to copy and send yourself. */
-export function CardLink({ url }: { url: string }) {
-  const copy = (): void => {
-    if (!navigator.clipboard) return UI.toast('Copy is not available in this browser. Select the link and copy it.', 'warn')
-    navigator.clipboard.writeText(url).then(() => UI.toast('Link copied'), () => UI.toast('Could not copy. Select the link and copy it.', 'warn'))
-  }
-  return (
-    <div className="row" style={{ gap: 8 }}>
-      <Inp readOnly aria-label="Card link" value={url} onChange={() => undefined} className="mono" style={{ flex: 1, minWidth: 0 }} onFocus={e => e.currentTarget.select()} />
-      <Btn size="sm" icon="copy" onClick={copy}>Copy</Btn>
-    </div>
   )
 }

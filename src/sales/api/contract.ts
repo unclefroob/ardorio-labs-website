@@ -445,6 +445,8 @@ export interface RosterioAccount {
   monthlyCost?: number | null
   pricingSource?: 'plan' | 'custom' | null
   billingQuantity?: number | null
+  /** Managed billing state, Rosterio admins only; null when billing has not been started. */
+  billingState?: RosterioBillingState | null
 }
 export interface RosterioAccountsResponse {
   accounts: RosterioAccount[]
@@ -521,8 +523,39 @@ export interface RosterioBilling {
   }
   canStart: boolean; cannotStartReason: string | null
 }
-export interface StartRosterioBillingRequest { companyId: string; collection: RosterioCollection; firstBillingDate: string; daysUntilDue?: number; billingEmail?: string }
+/** Exactly one of companyId and accountId. */
+export interface StartRosterioBillingRequest { companyId?: string; accountId?: string; collection: RosterioCollection; firstBillingDate: string; daysUntilDue?: number; billingEmail?: string }
 export interface StartRosterioBillingResponse { billing: RosterioBilling; cardEmailSent?: boolean }
+
+// ---- Rosterio account detail ----
+// GET /sales/rosterio/accounts/:accountId -> RosterioAccountDetail: one Rosterio account as Rosterio has it, read live
+// (Rosterio GET /api/admin/accounts/:id and /locations with the provisioning key), for the account page. Rosterio admins
+// and super users only (else ROLE_REQUIRED { needed: 'admin', businessId: 'ros' }). accountId is 24 hex (else 400
+// VALIDATION); an account Rosterio does not have -> 404 NOT_FOUND. Read field by field: no emails, phones, Stripe ids or
+// database names reach the browser. admins are the account's active super_admin members (name and role only).
+// locationCount is null when Rosterio's location list could not be read. company is the SalesOS company linked to it
+// (data.rosterio.state 'provisioned' and accountId), else null.
+export interface RosterioAccountFeature { key: string; label: string; on: boolean }
+export interface RosterioAccountDetail {
+  accountId: string; name: string; plan: string | null; status: string | null; isActive: boolean; isTrial: boolean
+  trialEndDate: string | null; createdAt: string | null; subscriptionStatus: string | null
+  memberCount: number; maxUsers: number | null; maxLocations: number | null; locationCount: number | null
+  billingState: RosterioBillingState | null
+  pricing: null | { source: 'plan' | 'custom'; managedContract: boolean; monthlyCost: number | null; billingQuantity: number | null }
+  terms: RosterioBilling['terms']
+  features: RosterioAccountFeature[]
+  aiCreditsPerPeriod: number | null
+  awardSetup: null | { status: string; updatedAt: string | null }
+  people: { active: number; byRole: { super_admin: number; manager: number; staff: number } }
+  admins: Array<{ name: string; role: string }>
+  company: null | { id: string; name: string }
+  fetchedAt: string
+}
+// Billing by account: GET /sales/rosterio/billing and POST /sales/rosterio/billing/start|stop|card-link now take
+// accountId (24 hex) as an alternative to companyId (query param for GET, body field for POSTs). Exactly one of the two;
+// both or neither -> 400 VALIDATION. An accountId is used as given (Rosterio refuses one it does not have, -> 404).
+// RosterioAccount (GET /sales/rosterio/accounts) gains billingState: RosterioBillingState | null — managed billing state,
+// Rosterio admins only like the pricing fields (absent for everyone else).
 
 // ---- Rosterio test accounts ----
 // settings/rosterioTest = { accounts: RosterioTestAccount[] }: Rosterio accounts kept for testing (an App Store review

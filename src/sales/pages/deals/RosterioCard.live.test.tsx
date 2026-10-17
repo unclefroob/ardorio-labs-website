@@ -101,12 +101,11 @@ describe('company card with the live Rosterio account', () => {
     // A reply's body is read once, so each test gets its own.
     const base = () => ({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])), 'GET /sales/rosterio/invoices?companyId=co1': json(200, { configured: true, syncedAt: null, syncError: null, invoices: [] }) })
 
-    it('a managed account not billed yet offers Start billing, which opens the window', async () => {
+    it('a managed account not billed yet says so, and has no billing buttons: those are on the account page', async () => {
       await show({ ...base(), [BILLING]: json(200, view()) }, { company: linked, role: 'admin' })
-      expect(text()).toContain('Not billed in Stripe yet')
-      await click(button(host, /Start billing/))
-      await settle(4)
-      expect(text()).toContain('Start billing in Stripe')
+      expect(text()).toContain('Not billed yet')
+      expect(button(host, /Start billing/)).toBeUndefined()
+      expect(host.querySelector('[role="dialog"]')).toBeNull()
     })
 
     it('a self-serve account pays at checkout: nothing to start', async () => {
@@ -115,40 +114,33 @@ describe('company card with the live Rosterio account', () => {
       expect(button(host, /Start billing/)).toBeUndefined()
     })
 
-    it('waiting for a card: the link to send, Send again, and Stop only after confirming', async () => {
-      let stopped = false
-      const api = await show({
-        ...base(),
-        [BILLING]: () => json(200, stopped ? { ...card('stopped', { stoppedAt: '2026-10-17T01:00:00.000Z', cardUrl: null }), canStart: true, cannotStartReason: null } : card('awaiting_card')),
-        'POST /sales/rosterio/billing/card-link': json(200, { billing: card('awaiting_card'), cardEmailSent: true }),
-        'POST /sales/rosterio/billing/stop': () => { stopped = true; return json(200, { billing: card('stopped') }) },
-      }, { company: linked, role: 'admin' })
-      expect(text()).toContain('Waiting for a card')
-      expect(text()).toContain('A$440.00 a month incl. GST · card on file')
-      expect((host.querySelector('input[aria-label="Card link"]') as HTMLInputElement).value).toBe('https://api.rosterio.test/api/billing/card/abc')
-      await click(button(host, /Send again/))
-      await settle(3)
-      expect(api.count('POST /sales/rosterio/billing/card-link')).toBe(1)
-
-      await click(button(host, /^Stop$/))
-      await settle(2)
-      expect(api.count('POST /sales/rosterio/billing/stop')).toBe(0) // asks first
-      await click(button(top(), /Stop billing/))
-      await settle(6)
-      expect(api.count('POST /sales/rosterio/billing/stop')).toBe(1)
-      expect(text()).toContain('Stopped')
-      expect(button(host, /Start billing/)).toBeDefined() // and can be started again
+    it.each([
+      ['awaiting_card', 'Waiting for a card'],
+      ['scheduled', 'Scheduled'],
+      ['active', 'Billing'],
+      ['stopping', 'Ending'],
+      ['stopped', 'Stopped'],
+    ])('billing %s is a read-only chip: %s', async (state, label) => {
+      await show({ ...base(), [BILLING]: json(200, card(state)) }, { company: linked, role: 'admin' })
+      const row = [...host.querySelectorAll('.row')].find(r => r.textContent?.startsWith('Billing'))
+      expect(row?.textContent).toContain(label)
+      for (const b of [/Start billing/, /^Stop$/, /Stop billing/, /Send again/]) expect(button(host, b)).toBeUndefined()
+      expect(host.querySelector('input[aria-label="Card link"]')).toBeNull()
     })
 
-    it('a scheduled start and a running subscription say when', async () => {
-      await show({ ...base(), [BILLING]: json(200, card('scheduled', { collection: 'send_invoice', cardUrl: null })) }, { company: linked, role: 'admin' })
-      expect(text()).toContain('Starts 1 Nov 2026')
-      expect(text()).toContain('emailed invoice')
+    it('a Rosterio admin gets a link to the account page, which remembers the company', async () => {
+      await show({ ...base(), [BILLING]: json(200, view()) }, { company: linked, role: 'admin' })
+      const a = [...host.querySelectorAll('a')].find(x => x.textContent === 'Open Rosterio account →')
+      expect(a).toBeDefined()
+      const url = new URL(a!.getAttribute('href')!, 'https://app.test')
+      expect(url.pathname).toBe('/sales/rosterio-accounts/acc1')
+      expect(JSON.parse(url.searchParams.get('q')!)).toEqual({ from: 'company', companyId: 'co1' })
     })
 
     it('Rosterio sales do not see billing, and nothing is asked', async () => {
       const api = await show({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])) }, { company: linked, role: 'sales' })
       expect(text()).not.toContain('Billing')
+      expect(text()).not.toContain('Open Rosterio account')
       expect(api.calls.some(c => c.path.startsWith('/sales/rosterio/billing'))).toBe(false)
     })
   })

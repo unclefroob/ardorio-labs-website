@@ -81,3 +81,40 @@ export const account = (o: Partial<RosterioAccount> = {}): RosterioAccount => ({
 export const accountsOf = (accounts: RosterioAccount[], o: Partial<RosterioAccountsResponse> = {}): RosterioAccountsResponse => ({
   accounts, total: accounts.length, truncated: false, fetchedAt: new Date().toISOString(), ...o,
 })
+
+import type { RosterioAccountDetail, RosterioBilling, RosterioInvoice } from '../api/contract'
+/** A Rosterio account id as the page requires: 24 hex characters. */
+export const ACC_ID = '65f0c0ffee0000000000abcd'
+/** A Spuntino-like managed account as the account page reads it: A$400 a month flat, 12 people, no billing started. */
+export const detail = (o: Partial<RosterioAccountDetail> = {}): RosterioAccountDetail => ({
+  accountId: ACC_ID, name: 'Acme Pty Ltd', plan: 'pro', status: 'active', isActive: true, isTrial: false, trialEndDate: null, createdAt: '2025-03-14T00:00:00.000Z',
+  subscriptionStatus: 'active', memberCount: 12, maxUsers: 20, maxLocations: 5, locationCount: 3, billingState: null,
+  pricing: { source: 'custom', managedContract: true, monthlyCost: 400, billingQuantity: null },
+  terms: { billingModel: 'flat', amountCents: 40000, interval: 'monthly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: 'ACME-MSA', status: 'active' },
+  features: [{ key: 'kioskAttendance', label: 'Kiosk clock-in', on: true }, { key: 'payroll', label: 'Payroll', on: false }],
+  aiCreditsPerPeriod: 500, awardSetup: { status: 'complete', updatedAt: '2026-09-02T00:00:00.000Z' },
+  people: { active: 12, byRole: { super_admin: 2, manager: 3, staff: 7 } },
+  admins: [{ name: 'Jo Park', role: 'super_admin' }, { name: 'Sam Lee', role: 'super_admin' }],
+  company: { id: 'co1', name: 'Acme Pty Ltd' }, fetchedAt: new Date().toISOString(), ...o,
+})
+
+/** A managed account's billing as Rosterio reports it. Pass a state to get it running (and so not startable). */
+export const billingView = (state: NonNullable<RosterioBilling['billing']>['state'] | null = null, o: Partial<NonNullable<RosterioBilling['billing']>> = {}, over: Partial<RosterioBilling> = {}): RosterioBilling => ({
+  accountId: ACC_ID, accountName: 'Acme Pty Ltd', timezone: 'Australia/Sydney', today: '2026-10-17', billingEmail: 'finance@acme.test',
+  terms: { billingModel: 'flat', amountCents: 40000, interval: 'monthly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: 'ACME-MSA', status: 'active' },
+  amounts: { quantity: 1, unitAmountCents: 40000, subtotalCents: 40000, gstCents: 4000, totalCents: 44000, gstPercent: 10, interval: 'monthly' },
+  ...(state
+    ? {
+        canStart: false, cannotStartReason: 'Billing is already set up for this account.',
+        billing: { state, collection: 'charge_automatically', firstBillingDate: '2026-11-01', daysUntilDue: null, billingEmail: 'finance@acme.test', startedAt: '2026-10-17T00:00:00.000Z',
+          stoppedAt: null, cardUrl: 'https://api.rosterio.test/api/billing/card/abc', cardSavedAt: null, lastError: null, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, ...o },
+      }
+    : { billing: null, canStart: true, cannotStartReason: null }),
+  ...over,
+})
+
+export const invoice = (o: Partial<RosterioInvoice> = {}): RosterioInvoice => ({
+  id: 'in_1', number: 'RS-1', accountId: ACC_ID, companyId: 'co1', customerName: 'Acme Pty Ltd', status: 'paid', failed: false, overdue: false,
+  amountDueCents: 44000, amountPaidCents: 44000, amountRemainingCents: 0, currency: 'aud', createdAt: '2026-10-01T00:00:00Z', dueAt: null, paidAt: '2026-10-02T00:00:00Z',
+  periodStart: null, periodEnd: null, attemptCount: 1, nextAttemptAt: null, lastError: null, hostedUrl: null, pdfUrl: null, ...o,
+})
