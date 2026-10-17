@@ -7,7 +7,7 @@ import { pathToRoute } from '../routes'
 import { useUi, type Route } from '../ui/store'
 import { Boundary } from './Boundary'
 import { ADMIN_OF_PAGES, ADMIN_PAGES, BUSINESS_PAGES } from './nav'
-import { Denied, NotFound } from './states'
+import { Denied, NotFound, OtherWorkspace } from './states'
 
 function focusHeading(): void {
   const main = document.getElementById('main')
@@ -39,6 +39,12 @@ export function PageView() {
   if (ADMIN_PAGES.includes(parsed.page) && !Q.anyAdmin()) return <Denied />
   const adminOf = ADMIN_OF_PAGES[parsed.page]
   if (adminOf && !Q.canAdmin(adminOf)) return <Denied title={`Invoices are for ${Q.biz(adminOf)?.name ?? 'Ardorio'} admins`} body={`You can see customers and deals, but invoices and billing details are limited to admins of the ${Q.biz(adminOf)?.name ?? 'Ardorio'} business. Ask an admin if you need access.`} />
+  // One business's pages (Ardorio's invoices) belong to that business's workspace: in another workspace, say so and offer to switch,
+  // rather than showing its records under the other business's name.
+  if (adminOf && !Q.inScope(adminOf)) {
+    const name = Q.biz(adminOf)?.name ?? adminOf
+    return <OtherWorkspace title={`Invoices are ${name}'s`} body={`You are in the ${Q.biz(S.session.ws)?.name ?? 'current'} workspace. Invoices are issued by ${name}, so they are shown in its workspace (or All businesses).`} to={adminOf} />
+  }
   const needs = BUSINESS_PAGES[parsed.page]
   if (needs && !Q.member(needs)) return <Denied body={`This page is for members of ${Q.biz(needs)?.name ?? 'this business'}. Ask an administrator if you need access.`} />
   return (

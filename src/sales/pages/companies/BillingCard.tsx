@@ -17,7 +17,8 @@ import { ExternalChip } from '../invoices/parts'
 /** Billing and billing details for a company in Ardorio, on the Overview tab. Admins of Ardorio only. */
 export function CompanyBilling({ company, focusDetails = false }: { company: Company; focusDetails?: boolean }) {
   useStore()
-  const show = Q.canBill() && !!Q.rel(company.id, 'ard')
+  // Ardorio's billing, in a workspace that includes Ardorio (not under Rosterio's name).
+  const show = Q.canBill() && !!Q.rel(company.id, 'ard') && Q.inScope('ard')
   const inv = useLoad(s => (show ? listInvoices({ companyId: company.id }, s).then(r => r.invoices) : Promise.resolve([] as InvoiceDto[])), `co:${company.id}:${show}`)
   const { clients, client, suggestions, dismiss, busy, fail, link, create } = useBillingLink(company, show)
   // Arrived from a "needs a billing client" notification: bring Billing details into view and put focus on it, once.
