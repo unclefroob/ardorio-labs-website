@@ -9,7 +9,8 @@ export interface NavItem {
   /** Hidden unless the viewer is a member of this business. */
   business?: BusinessId
   /** Hidden unless the viewer is an admin (or super admin) of this business. */
-  adminOf?: BusinessId
+  /** Hidden unless the viewer is an admin of (one of) these businesses, and it is in the current workspace. */
+  adminOf?: BusinessId | readonly BusinessId[]
 }
 export interface NavGroup {
   group: string
@@ -36,7 +37,7 @@ export const NAV: NavGroup[] = [
   { group: 'Revenue', items: [
     { page: 'deals', label: 'Deals & Pipeline', icon: 'kanban' },
     { page: 'customers', label: 'Customers', icon: 'dollar' },
-    { page: 'invoices', label: 'Invoices', icon: 'file', adminOf: 'ard' },
+    { page: 'invoices', label: 'Invoices', icon: 'file', adminOf: ['ard', 'ros'] },
     { page: 'reports', label: 'Reports', icon: 'chart' },
     { page: 'goals', label: 'Sales Goals', icon: 'target' },
   ] },
@@ -61,8 +62,8 @@ export const BUSINESS_PAGES: Readonly<Record<string, BusinessId>> = Object.fromE
 )
 
 /** Pages only admins of one business may open. The invoice editor is a detail page, so it is listed beside its nav entry. */
-export const ADMIN_OF_PAGES: Readonly<Record<string, BusinessId>> = {
-  ...Object.fromEntries(NAV.flatMap(g => g.items).filter(i => i.adminOf).map(i => [i.page, i.adminOf as BusinessId])),
+export const ADMIN_OF_PAGES: Readonly<Record<string, BusinessId | readonly BusinessId[]>> = {
+  ...Object.fromEntries(NAV.flatMap(g => g.items).filter(i => i.adminOf).map(i => [i.page, i.adminOf as BusinessId | readonly BusinessId[]])),
   invoice: 'ard',
 }
 
@@ -76,5 +77,6 @@ export interface NavViewer {
 
 /** Whether the sidebar shows an item to this viewer. */
 export function navItemVisible(i: NavItem, v: NavViewer): boolean {
-  return (!i.admin || v.anyAdmin) && (!i.business || v.member(i.business)) && (!i.adminOf || (v.canAdmin(i.adminOf) && (v.inScope?.(i.adminOf) ?? true)))
+  const of = i.adminOf === undefined ? [] : typeof i.adminOf === 'string' ? [i.adminOf] : i.adminOf
+  return (!i.admin || v.anyAdmin) && (!i.business || v.member(i.business)) && (!of.length || of.some(b => v.canAdmin(b) && (v.inScope?.(b) ?? true)))
 }
