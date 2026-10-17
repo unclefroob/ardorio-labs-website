@@ -260,6 +260,23 @@ describe('Rosterio account page: billing tab', () => {
     expect(m.ui.UI.get().toasts.map(t => t.msg)).toContain('Billing starts 1 Nov 2026')
   })
 
+  it('shows the invoice line by line, with GST as its own line, before anything is created', async () => {
+    await show({ ...base() }, { q: { tab: 'billing' } })
+    const card = host.querySelector('[aria-label="The invoice, line by line"]')!
+    expect(card.textContent).toContain('Rosterio subscription')
+    expect(card.textContent).toContain('A$400.00')
+    expect(card.textContent).toContain('GST (10%)')
+    expect(card.textContent).toContain('A$40.00')
+    expect(card.textContent).toContain('A$440.00')
+  })
+
+  it('the date and amount pickers keep their labels on one line', async () => {
+    await show({ ...base() }, { q: { tab: 'billing' } })
+    const segs = [...host.querySelectorAll('.seg')]
+    expect(segs.length).toBeGreaterThanOrEqual(2)
+    for (const s of segs) expect(s.classList.contains('nowrap')).toBe(true)
+  })
+
   it('card on file sends no days to pay', async () => {
     const { api } = await show({ ...base(), [START]: json(200, { cardEmailSent: true, billing: billingView('awaiting_card') }) }, { q: { tab: 'billing' } })
     await click([...host.querySelectorAll<HTMLButtonElement>('.seg button')].find(b => b.textContent === 'Card on file'))
