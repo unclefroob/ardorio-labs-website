@@ -70,6 +70,9 @@ describe('nav entry', () => {
     expect(nav.navItemVisible(item, viewer(true))).toBe(true)
     expect(nav.navItemVisible(item, viewer(false))).toBe(false)
     expect(nav.navItemVisible(item, { anyAdmin: true, member: () => true, canAdmin: b => b === 'ros' })).toBe(false)
+    // Ardorio's own workspace or All businesses: shown; Rosterio's workspace: not.
+    expect(nav.navItemVisible(item, { ...viewer(true), inScope: b => b === 'ard' })).toBe(true)
+    expect(nav.navItemVisible(item, { ...viewer(true), inScope: b => b === 'ros' })).toBe(false)
     const customers = nav.NAV.flatMap(g => g.items).find(i => i.page === 'customers')!
     expect(nav.navItemVisible(customers, viewer(false))).toBe(true)
   })
@@ -114,6 +117,18 @@ describe('page gate', () => {
     await visit(path, 'invoice', id)
     expect(text()).toContain('Invoices are for Ardorio admins')
     expect(api.calls).toEqual([])
+  })
+
+  it('in the Rosterio workspace, an Ardorio admin is offered the switch instead of Ardorio\'s invoices, and nothing is requested', async () => {
+    await setup('admin', { ros: 'admin' })
+    const { Act } = await import('../data/Act')
+    Act.setSession({ ws: 'ros' })
+    const api = fakeApi({})
+    await visit('/sales/invoices', 'invoices')
+    expect(text()).toContain("Invoices are Ardorio's")
+    expect(api.calls).toEqual([])
+    await act(async () => { [...host.querySelectorAll('button')].find(b => b.textContent === 'Switch to Ardorio')!.click() })
+    expect(m.store.S.session.ws).toBe('ard')
   })
 
   it('an admin of Ardorio gets the page', async () => {
