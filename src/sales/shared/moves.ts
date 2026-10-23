@@ -4,6 +4,7 @@ import { Q } from '../data/Q'
 import type { Task } from '../data/types'
 import { UI } from '../ui/store'
 import { askReopen } from './reopen'
+import { optionsOf } from './commercialOptions'
 
 export function doMove(dealId: string, stageId: string): void {
   const d = Q.deal(dealId)
@@ -43,6 +44,20 @@ export function tryMove(dealId: string, stageId: string): void {
   if (d.status !== 'open') return askReopen(dealId, stageId, tryMove)
   if (st.won) return UI.open('won', { id: dealId })
   if (st.lost) return UI.open('lost', { id: dealId })
+  // Into Proposal with commercial options saved and none chosen yet: ask which model is going to the client first.
+  if (d.businessId === 'ard' && /proposal/i.test(st.name)) {
+    const opts = optionsOf(d.fields)
+    if (opts.length > 0 && opts.every(o => o.status === 'draft')) return UI.open('proposeOptions', { id: dealId, stageId })
+  }
+  proceedMove(dealId, stageId)
+}
+
+/** The rest of a move once the dialogs that come before it are settled: the stage's required fields, then the move itself. */
+export function proceedMove(dealId: string, stageId: string): void {
+  const d = Q.deal(dealId)
+  if (!d) return
+  const st = Q.pipeline(d.businessId).stages.find(s => s.id === stageId)
+  if (!st) return
   const miss = Q.missingFor(d, st)
   if (miss.length) return UI.open('stageCheck', { id: dealId, stageId, missing: miss })
   doMove(dealId, stageId)

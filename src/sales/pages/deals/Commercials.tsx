@@ -6,6 +6,8 @@ import { Btn, Card, Chip, Fld, Inp, Sel } from '../../kit'
 import { RosCalc, useF } from '../../shared/forms'
 import { UI } from '../../ui/store'
 import { describePricing, priceTotals, pricingOf } from '../../shared/dealPricing'
+import { acceptedOf, optionsOf } from '../../shared/commercialOptions'
+import { CommercialOptions } from './CommercialOptions'
 import { PricingFields } from './PricingFields'
 
 interface CommercialForm {
@@ -21,11 +23,22 @@ interface CommercialForm {
 const text = (v: unknown): string => (v == null ? '' : String(v))
 const toNum = (v: unknown): number => (typeof v === 'number' ? v : parseFloat(text(v)))
 
+/** The deal's terms and, for an Ardorio deal, its commercial options. Accepting an option rewrites the terms, so the form reloads from the deal when that happens. */
 export function Commercials({ d }: { d: Deal }) {
+  const accepted = acceptedOf(optionsOf(d.fields))
+  return (
+    <div className="col gap12">
+      <CommercialTerms key={`${accepted?.id ?? ''}|${d.value}|${d.contractMonths}`} d={d} />
+      {d.businessId === 'ard' && <CommercialOptions d={d} />}
+    </div>
+  )
+}
+
+function CommercialTerms({ d }: { d: Deal }) {
   const can = Q.canEdit(d.businessId)
   const [f, set] = useF<CommercialForm>({
     value: text(d.value), contractMonths: text(d.contractMonths), forecast: d.forecast, probability: text(d.probability),
-    close: d.close, type: d.type, fields: { ...d.fields },
+    close: d.close, type: d.type, fields: Object.fromEntries(Object.entries(d.fields).filter(([k]) => k !== 'options')),
   })
   const setF2 = (k: string, v: unknown): void => set('fields', { ...f.fields, [k]: v })
   const pl = Q.pipeline(d.businessId)
@@ -100,6 +113,7 @@ export function Commercials({ d }: { d: Deal }) {
             </>
           )}
           {(() => { const pr = d.businessId === 'ard' ? pricingOf(d.fields) : null; return pr && (pr.amount > 0 || pr.oneOff > 0) ? <><dt>Price</dt><dd>{describePricing(pr, d.contractMonths, F.money)}{priceTotals(pr, d.contractMonths).annual != null && <span className="muted"> · {F.money(priceTotals(pr, d.contractMonths).annual ?? 0)} a year</span>}</dd></> : null })()}
+          {(() => { const a = acceptedOf(optionsOf(d.fields)); return a && <><dt>Option</dt><dd>{a.name} <Chip tone="ok">Accepted</Chip></dd></> })()}
           <dt>Weighted</dt><dd className="num">{F.money(Q.weighted(d))}</dd>
           <dt>Total contract</dt><dd className="num">{F.money(d.recurring ? (d.value / 12) * d.contractMonths : d.value)}</dd>
           <dt>Recurring</dt><dd>{d.recurring ? 'Yes' : 'No (project)'}</dd>
