@@ -1,4 +1,4 @@
-import type { CompanyProfileField, CompanyProfileItem } from '../api/contract'
+import type { CompanyProfileField, CompanyProfileItem, ResearchProfile } from '../api/contract'
 import type { Company } from '../data/types'
 
 // Reading research suggestions against the company record: what the CRM holds now for each field, which suggestions fill a gap, which
@@ -49,3 +49,29 @@ export function presetOf(c: Company, items: readonly CompanyProfileItem[], compa
 }
 
 export const showValue = (v: string | number | null): string => (v === null ? '' : typeof v === 'number' ? v.toLocaleString('en-AU') : v)
+
+const isRec = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+
+/** The head office and headcount on a research record, narrowed from the loose JSON it round-trips through. */
+export function researchProfileOf(v: unknown): ResearchProfile | null {
+  if (!isRec(v)) return null
+  const out: ResearchProfile = {}
+  if (typeof v.headOffice === 'string' && v.headOffice.trim()) out.headOffice = v.headOffice.trim()
+  const e = v.employees
+  if (isRec(e) && typeof e.count === 'number' && Number.isInteger(e.count) && e.count > 0) {
+    out.employees = { count: e.count, basis: e.basis === 'stated' ? 'stated' : 'estimated', note: typeof e.note === 'string' ? e.note : '' }
+  }
+  return out.headOffice || out.employees ? out : null
+}
+
+/** "Sydney, NSW, Australia" into the company's city, state and country. Two parts are city and country; one part is the city. */
+export function splitHeadOffice(s: string): { hq: string; state: string; country: string } {
+  const parts = s.split(',').map(x => x.trim()).filter(Boolean)
+  if (parts.length >= 3) return { hq: parts[0], state: parts[1], country: parts[parts.length - 1] }
+  if (parts.length === 2) return { hq: parts[0], state: '', country: parts[1] }
+  return { hq: parts[0] ?? '', state: '', country: '' }
+}
+
+/** The employee figure as shown: "about 850" for an estimate, "850" for a stated one. */
+export const employeesText = (e: NonNullable<ResearchProfile['employees']>): string =>
+  (e.basis === 'estimated' ? 'about ' : '') + e.count.toLocaleString('en-AU')

@@ -7,6 +7,7 @@ import type { Research } from '../../../data/types'
 import { providerName } from '../../../ai/client'
 import type { AiProvider, ResearchIdentity } from '../../../api/contract'
 import { Banner, Btn, Chip, Icon, ScoreRing, Sim } from '../../../kit'
+import { employeesText, researchProfileOf } from '../../../shared/companyProfile'
 import { ScoreWhy } from '../../../shared/IntelBits'
 import { UI } from '../../../ui/store'
 import { safeHref } from '../query'
@@ -121,6 +122,7 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved, onWrongC
   const facts = pairs(r.facts).map(([k, v]): [string, string] => [factLabel(k), cleanFact(v)]).filter(([, v]) => v !== '')
   const lowConfidence = !limited && facts.length === 0
   const angle = text(r.angle)
+  const found = researchProfileOf(r.profile)
   const model = text(r.model)
   const cid = r.companyId || ''
   const company = cid ? Q.company(cid) : undefined
@@ -135,6 +137,16 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved, onWrongC
   const confirmedBy = confirmedById ? Q.user(confirmedById)?.name : undefined
   const tag = provider ? <Chip tone="ai">AI inference</Chip> : null
 
+  // What the search found that the company record lacks: the button only appears when it would fill something.
+  const canFill = !!found && !!company && canEdit && (
+    (!!found.headOffice && !(company.hq || '').trim() && !(company.state || '').trim() && !(company.country || '').trim()) ||
+    (!!found.employees && company.employees === null)
+  )
+  const fill = (): void => {
+    if (!found) return
+    const n = Act.fillCompanyFromResearch(cid, { headOffice: found.headOffice, employees: found.employees })
+    UI.toast(n ? 'Added to the company' : 'Nothing to add: the company already has these', n ? 'ok' : 'warn')
+  }
   const edit = (): void => UI.open('editCompany', { id: cid })
   const findPeople = (): void => UI.open('findPeople', cid ? { companyId: cid, businessId: r.businessId } : { name: text(r.companyName), businessId: r.businessId })
   const addNote = (): void => {
@@ -210,7 +222,8 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved, onWrongC
             <div className="rv-eyebrow">Summary {tag}</div>
             <p className="rv-prose">{text(r.overview)}</p>
             <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
-              <Chip>Size: {text(r.size) || 'not stated'}</Chip>
+              <Chip>Size: {cleanFact(text(r.size)) || (found?.employees ? `${employeesText(found.employees)}${found.employees.basis === 'estimated' ? ' (estimate)' : ''}` : 'not stated')}</Chip>
+              {found?.headOffice && <Chip>Head office: {found.headOffice}</Chip>}
               <Chip>Industry: {text(r.industry) || 'not stated'}</Chip>
               {model && (
                 <button type="button" className="rv-link" style={{ marginLeft: 6 }} aria-expanded={modelOpen} onClick={() => setModelOpen(o => !o)}>
@@ -319,6 +332,24 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved, onWrongC
               )}
             </div>
           </div>
+
+          {found && (
+            <div className="card" style={{ boxShadow: 'none' }} data-testid="research-found">
+              <div className="card-h"><h3>Found by search</h3>{provider && <Chip tone="ai">AI</Chip>}</div>
+              <div className="card-b">
+                <dl className="dl" style={{ gridTemplateColumns: '120px minmax(0,1fr)' }}>
+                  {found.headOffice && <div style={{ display: 'contents' }}><dt>Head office</dt><dd>{found.headOffice}</dd></div>}
+                  {found.employees && (
+                    <div style={{ display: 'contents' }}>
+                      <dt>{found.employees.basis === 'estimated' ? 'Employees (estimate)' : 'Employees'}</dt>
+                      <dd>{employeesText(found.employees)}{found.employees.note ? <div className="xs faint">{found.employees.note}</div> : null}</dd>
+                    </div>
+                  )}
+                </dl>
+                {canFill && <Btn size="sm" icon="check" style={{ marginTop: 10 }} onClick={fill}>Fill empty company fields</Btn>}
+              </div>
+            </div>
+          )}
 
           <div className="card" style={{ boxShadow: 'none' }}>
             <div className="card-h"><h3>Sources</h3>{web.length > 0 && <Chip>{web.length} web</Chip>}</div>

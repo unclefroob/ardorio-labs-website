@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
+import { setWorkspace } from '../../data/session'
 import { S, useStore } from '../../data/store'
 import type { Task, TaskStatus } from '../../data/types'
-import { Av, BizDot, Btn, Card, Chip, Due, Empty, Icon, Menu, SearchInp, Seg, Sel, TONE, Tabs, type TabDef } from '../../kit'
+import { Av, BizDot, Banner, Btn, Card, Chip, Due, Empty, Icon, Menu, SearchInp, Seg, Sel, TONE, Tabs, type TabDef } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { completeFlow } from '../../shared/moves'
 import { UI, type Route } from '../../ui/store'
@@ -66,6 +67,9 @@ export function Tasks({ route }: { route: Route }) {
   const filtered = !!(ty || pri || q)
   const clear = (): void => { setTy(''); setPri(''); setQ('') }
   const overdueAll = scoped.filter(Q.overdue).length
+  // Open tasks of mine that sit in a business outside the workspace picked in the sidebar: the lists above never show them.
+  const elsewhere = S.tasks.filter(t => !Q.inScope(t.businessId) && Q.member(t.businessId) && t.assigneeId === me.id && !Q.done(t))
+  const elsewhereNames = [...new Set(elsewhere.map(t => Q.biz(t.businessId)?.name ?? t.businessId))].join(', ')
 
   const my = scoped.filter(t => t.assigneeId === me.id)
   const intel: Intel[] = []
@@ -116,6 +120,13 @@ export function Tasks({ route }: { route: Route }) {
         {scoped.length > 0 && <Seg value={mode} onChange={setMode} opts={[['list', 'List', 'list'], ['board', 'Board', 'kanban'], ['cal', 'Calendar', 'cal']]} />}
         <Btn kind="pri" icon="plus" disabled={!canNew} onClick={newTask}>New task</Btn>
       </PageHead>
+      {elsewhere.length > 0 && (
+        <div style={{ marginBottom: 12 }} data-testid="tasks-elsewhere">
+          <Banner tone="info" action={<Btn size="sm" onClick={() => setWorkspace('all')}>Show all businesses</Btn>}>
+            {elsewhere.length} open task{elsewhere.length === 1 ? '' : 's'} assigned to you {elsewhere.length === 1 ? 'is' : 'are'} in {elsewhereNames}, outside the business you are viewing.
+          </Banner>
+        </div>
+      )}
       {scoped.length === 0 ? (
         <Card>
           <Empty
