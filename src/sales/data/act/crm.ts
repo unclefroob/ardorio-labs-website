@@ -3,6 +3,7 @@ import { F } from '../F'
 import { uid } from '../ids'
 import { act, audit, ensureRels, notify } from '../internals'
 import { Q } from '../Q'
+import { splitHeadOffice } from '../../shared/companyProfile'
 import { cleanLinkPatch, urlOrEmpty } from '../../shared/url'
 import type { CompanyProfileField } from '../../api/contract'
 import type { BizChangePlan } from '../../shared/businessChange'
@@ -214,6 +215,33 @@ export function applyCompanyProfile(id: string, picks: ReadonlyArray<{ field: Co
   audit('Research applied', `Company: ${c.name} (${picks.map(p => p.field).join(', ')})`)
   commit()
   return picks.length
+}
+
+/**
+ * Fill a company's empty head office and headcount from a research result. Only empty fields change, so nothing a person typed is replaced.
+ * An estimated headcount is saved as a plain number; the audit entry says it was an estimate.
+ */
+export function fillCompanyFromResearch(id: string, p: { headOffice?: string; employees?: { count: number; basis: 'stated' | 'estimated' } }): number {
+  const c = idx.companies.get(id)
+  if (!c) return 0
+  const filled: string[] = []
+  if (p.headOffice && !(c.hq || '').trim() && !(c.state || '').trim() && !(c.country || '').trim()) {
+    const o = splitHeadOffice(p.headOffice)
+    c.hq = o.hq
+    c.state = o.state
+    c.country = o.country
+    filled.push('head office')
+  }
+  if (p.employees && c.employees === null) {
+    c.employees = p.employees.count
+    filled.push(p.employees.basis === 'estimated' ? 'employees (estimate)' : 'employees')
+  }
+  if (!filled.length) return 0
+  const now = F.nowIso()
+  c.updatedAt = now
+  audit('Research applied', `Company: ${c.name} (${filled.join(', ')})`)
+  commit()
+  return filled.length
 }
 
 export function archiveCompany(id: string): void {
