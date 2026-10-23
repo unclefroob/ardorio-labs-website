@@ -1,4 +1,4 @@
-import { applyCompanyProfile, applyBusinessChange, undoBusinessChange, archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importLeads, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
+import { applyCompanyProfile, fillCompanyFromResearch, applyBusinessChange, undoBusinessChange, archiveCompany, archiveContact, restoreCompany, restoreContact, addNote, addSuppression, assignContacts, bulkCompanies, createCompany, createContact, deleteList, deleteNote, deleteTemplate, editNote, importLeads, linkCompany, linkContact, listAdd, listRemove, logLinkedIn, markVerified, removeSuppression, saveList, saveTemplate, setPermission, updateCompany, updateContact, updateCrel, updateRel } from './act/crm'
 import { addVariation, claimRetainerPeriod, confirmCpi, decideVariation, endTermEarly, markDelivered, retainerClaimProblem, saveMilestones, saveRetainer, setContract, setTermAgreement, setTermAutoDraft, termBaseline, waiveInstalment } from './act/billing'
 import { recordWonDeal, recordWonOutcome } from './act/recordWon'
 import { archiveDeal, createDeal, markLost, markWon, moveStage, reopenDeal, restoreDeal, updateDeal } from './act/deals'
@@ -32,7 +32,7 @@ export type { GoalInput, TeamInput, UserForm } from './act/admin'
  */
 export const Act = {
   setSession, setTheme, runSequences,
-  createCompany, updateCompany, linkCompany, updateRel, bulkCompanies, archiveCompany, restoreCompany,
+  createCompany, updateCompany, fillCompanyFromResearch, linkCompany, updateRel, bulkCompanies, archiveCompany, restoreCompany,
   addNote, editNote, deleteNote,
   createContact, linkContact, updateContact, updateCrel, setPermission, logLinkedIn, archiveContact, restoreContact, assignContacts,
   saveMilestones, saveRetainer, claimRetainerPeriod, retainerClaimProblem, setContract, addVariation, decideVariation, markDelivered,

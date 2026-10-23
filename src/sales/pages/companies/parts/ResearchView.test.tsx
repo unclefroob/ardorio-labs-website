@@ -143,3 +143,32 @@ describe('ResearchView sources and angle', () => {
     expect(out).not.toContain('Venue hire and catering.')
   })
 })
+
+describe('ResearchView head office and headcount', () => {
+  const profile = { headOffice: 'Sydney, NSW, Australia', employees: { count: 850, basis: 'estimated', note: 'Company website says about 850 staff' } }
+
+  it('shows the estimate in the size chip and the found-by-search card when the CRM has no size', () => {
+    const out = html({ size: 'Unknown', profile })
+    expect(out).toContain('Size: about 850 (estimate)')
+    expect(out).toContain('Head office: Sydney, NSW, Australia')
+    expect(out).toContain('Employees (estimate)')
+    expect(out).toContain('Company website says about 850 staff')
+  })
+
+  it('shows a stated headcount without calling it an estimate', () => {
+    const out = html({ size: 'Unknown', profile: { employees: { count: 1200, basis: 'stated', note: '' } } })
+    expect(out).toContain('Size: 1,200')
+    expect(out).not.toContain('(estimate)')
+  })
+
+  it('keeps the CRM size when there is one, and shows nothing extra without a profile', () => {
+    expect(html({ size: '400 employees (est.)' })).toContain('Size: 400 employees (est.)')
+    expect(html({ size: 'Unknown' })).not.toContain('research-found')
+    expect(html({ size: 'Unknown' })).toContain('Size: not stated')
+  })
+
+  it('ignores a malformed profile', () => {
+    const out = html({ profile: { headOffice: 7, employees: { count: 'lots', basis: 'stated' } } })
+    expect(out).not.toContain('research-found')
+  })
+})
