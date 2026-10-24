@@ -98,6 +98,17 @@ describe('Xero card', () => {
     expect(button(host, 'Save Xero settings')?.disabled).toBe(true)
   })
 
+  it('a bank account with no code is chosen by its Xero id and saves without a code error', async () => {
+    const ID = '3f1c2b7a-5d4e-4a69-9b0c-1e2f3a4b5c6d'
+    const api = await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, { ...ACCTS, bank: [...ACCTS.bank, { code: ID, name: 'Business Trans Acct' }] }), [SAVE]: () => json(200, { settings: { ...SETTINGS, paymentAccountCode: ID } }) })
+    await type(field(host, 'Bank account for payments'), ID)
+    expect(text()).not.toContain('Up to 10 letters')
+    expect([...(field(host, 'Bank account for payments') as HTMLSelectElement).options].map(o => o.textContent)).toContain('Business Trans Acct')
+    await click(button(host, 'Save Xero settings'))
+    await settle(4)
+    expect(api.calls.find(c => `${c.method} ${c.path}` === SAVE)?.body).toEqual({ paymentAccountCode: ID })
+  })
+
   it('saves only what changed', async () => {
     const api = await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, ACCTS), [SAVE]: () => json(200, { settings: { ...SETTINGS, salesAccountCode: '210' } }) })
     await type(field(host, 'Sales account'), '210')
