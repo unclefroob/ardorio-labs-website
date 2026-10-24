@@ -3,12 +3,12 @@ import type { InvoiceDto, XeroSettings, XeroStatus, XeroTaxType } from '../api/c
 // What the Xero connection means on each page, as plain words. The server decides what is sent; this only says it.
 
 /** Where Xero sends the browser back to, read once: ?xero=connected|error&reason=… */
-export interface XeroReturn { ok: boolean; reason?: string }
+export interface XeroReturn { ok: boolean; reason?: string; error?: string; detail?: string }
 export function readXeroReturn(search: string): XeroReturn | null {
   const q = new URLSearchParams(search)
   const x = q.get('xero')
   if (x !== 'connected' && x !== 'error') return null
-  return { ok: x === 'connected', reason: q.get('reason') ?? undefined }
+  return { ok: x === 'connected', reason: q.get('reason') ?? undefined, error: q.get('xeroError') ?? undefined, detail: q.get('xeroDetail') ?? undefined }
 }
 
 const REASONS: Record<string, string> = {
@@ -20,8 +20,12 @@ const REASONS: Record<string, string> = {
   'choose-one': 'Select only one Xero organisation, then connect again.',
   'not-configured': 'Xero isn\'t set up on the server.',
 }
-export const xeroReturnMessage = (r: XeroReturn): string =>
-  r.ok ? 'Xero connected. Choose a sales account to start sending.' : REASONS[r.reason ?? ''] ?? 'Xero couldn\'t be connected. Try again.'
+export function xeroReturnMessage(r: XeroReturn): string {
+  if (r.ok) return 'Xero connected. Choose a sales account to start sending.'
+  // Xero's own refusal (invalid_scope, unauthorized_client…) says more than "cancelled"; a plain access_denied is the user choosing Deny.
+  if (r.reason === 'denied' && r.error && r.error !== 'access_denied') return `Xero refused the connection: ${r.error}${r.detail ? `. ${r.detail}` : ''}`
+  return REASONS[r.reason ?? ''] ?? 'Xero couldn\'t be connected. Try again.'
+}
 
 export const TAX_LABEL: Record<XeroTaxType, string> = {
   OUTPUT: 'GST on Income (10%)',
