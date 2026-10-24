@@ -1,15 +1,60 @@
 import { useEffect, useState } from 'react'
 import type { XeroSettings, XeroStatus } from '../../api/contract'
+import { SalesHttpError } from '../../api/http'
 import { invoiceError } from '../../api/invoices'
-import { xeroAccounts, xeroConnect, xeroDisconnect, xeroSaveSettings, xeroStatus } from '../../api/xero'
+import { downloadStripeStatement, xeroAccounts, xeroConnect, xeroDisconnect, xeroSaveSettings, xeroStatus } from '../../api/xero'
 import { useLoad } from '../../data/invoicing'
 import { Banner, Btn, Card, Chip, Fld, Inp, Skel, Sel, Toggle } from '../../kit'
 import { leaveTo } from '../../mail/navigate'
 import { FEE_TAX_OPTIONS, TAX_OPTIONS, isXeroId, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from '../../shared/xero'
+import { F } from '../../data/F'
 import { UI } from '../../ui/store'
 
 const CODE = /^[A-Za-z0-9._-]{0,10}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+const isDay = (v: string): boolean => DAY.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
+
+/** The 1st of the month before the given day. */
+function firstOfPreviousMonth(today: string): string {
+  const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7))
+  return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, '0')}-01`
+}
+
+/** Pure: the message under each date and whether the range can be downloaded. */
+function rangeErrors(from: string, to: string): { from: string; to: string } {
+  const e = { from: isDay(from) ? '' : 'Choose a date', to: isDay(to) ? '' : 'Choose a date' }
+  if (e.from || e.to) return e
+  if (from > to) return { from: '', to: 'To must be on or after From' }
+  if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > 366) return { from: '', to: 'Up to a year at a time' }
+  return e
+}
+
+/** Stripe statement: local state only, so it never touches the settings draft. */
+function StripeStatement() {
+  const [to, setTo] = useState(() => F.today())
+  const [from, setFrom] = useState(() => firstOfPreviousMonth(F.today()))
+  const [busy, setBusy] = useState(false)
+  const err = rangeErrors(from, to)
+  const bad = !!err.from || !!err.to
+  const go = async (): Promise<void> => {
+    if (bad) return
+    setBusy(true)
+    try { await downloadStripeStatement(from, to); UI.toast('Statement downloaded') } catch (e) { UI.toast(e instanceof SalesHttpError && e.message ? e.message : invoiceError(e, 'download').message, 'bad') } finally { setBusy(false) }
+  }
+  return (
+    <div className="col" style={{ gap: 12 }}>
+      <div>
+        <div className="b">Stripe statement</div>
+        <div className="sm muted">A CSV of your Stripe balance activity. Import it into the Stripe clearing account in Xero (Manage Account, Import a statement) and choose the date format YYYY-MM-DD.</div>
+      </div>
+      <div className="grid g2">
+        <Fld label="From" err={err.from}><Inp type="date" value={from} onChange={setFrom} style={{ maxWidth: 200 }} /></Fld>
+        <Fld label="To" err={err.to}><Inp type="date" value={to} onChange={setTo} style={{ maxWidth: 200 }} /></Fld>
+      </div>
+      <div><Btn kind="ghost" onClick={() => void go()} disabled={bad} loading={busy}>Download CSV</Btn></div>
+    </div>
+  )
+}
 
 /** The Connections row in the settings rail. */
 export function XeroRailRow() {
@@ -162,6 +207,7 @@ function Connected({ status, reload }: { status: XeroStatus; reload: () => void 
             {picker('Stripe fees account', draft.feeAccountCode, accounts.data?.expense, v => set({ feeAccountCode: v }), 'Expense account for Stripe fees')}
             <Fld label="Fee GST"><Sel value={draft.feeTaxType} onChange={v => set({ feeTaxType: v as XeroSettings['feeTaxType'] })} options={FEE_TAX_OPTIONS} /></Fld>
           </div>
+          <StripeStatement />
         </div>
         <div className="row wrap" style={{ gap: 10 }}>
           <Btn kind="pri" onClick={() => void save()} disabled={!dirty || invalid} loading={busy}>Save Xero settings</Btn>
