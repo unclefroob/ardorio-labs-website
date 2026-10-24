@@ -92,10 +92,10 @@ describe('Rosterio account page: header and overview', () => {
     expect(text()).toContain('Managed contract')
     expect(text()).toContain('12 of 20 users')
     expect(text()).toContain('customer since 14 Mar 2025')
-    const admin = [...host.querySelectorAll('a')].find(a => a.textContent?.includes('Open in Rosterio admin'))
-    expect(admin?.getAttribute('href')).toBe(`https://rosterio-crm.web.app/accounts/${ACC_ID}`)
+    const admin = [...host.querySelectorAll('a')].find(a => a.textContent === 'Open in Admin')
+    expect(admin?.getAttribute('href')).toBe(`https://admin.rosterio.test/accounts/${ACC_ID}`)
     expect(admin?.getAttribute('target')).toBe('_blank')
-    expect([...host.querySelectorAll('[role="tab"]')].map(t => t.textContent)).toEqual(['Overview', 'Billing', 'Invoices0', 'People12', 'Features', 'Activity'])
+    expect([...host.querySelectorAll('[role="tab"]')].map(t => t.textContent)).toEqual(['Overview', 'Billing', 'Invoices0', 'People12', 'Activity'])
     // Overview figures and cards
     expect(text()).toContain('Locations')
     expect(text()).toContain('3 of 5')
@@ -104,7 +104,8 @@ describe('Rosterio account page: header and overview', () => {
     expect(text()).toContain('Not billed yet')
     expect(text()).toContain('ACME-MSA')
     expect(text()).toContain('Jo Park')
-    expect(text()).toContain('Kiosk clock-in')
+    expect(text()).not.toContain('Kiosk clock-in')
+    expect(text()).toContain('AI credits each period')
   })
 
   it('a self-serve account says so and shows no contract', async () => {
@@ -215,7 +216,7 @@ describe('Rosterio account page: header and overview', () => {
   it('the overview links through to the Billing and People tabs, and Correct terms goes to Rosterio admin', async () => {
     await show(base())
     const terms = [...host.querySelectorAll('a')].find(a => a.textContent === 'Correct terms')
-    expect(terms?.getAttribute('href')).toBe(`https://rosterio-crm.web.app/accounts/${ACC_ID}`)
+    expect(terms?.getAttribute('href')).toBe(`https://admin.rosterio.test/accounts/${ACC_ID}`)
     await click(button(host, /All 12 people/))
     expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toMatch(/^People/)
     await tab(/^Overview/)
@@ -225,9 +226,8 @@ describe('Rosterio account page: header and overview', () => {
 
   it('the tab comes from the address: Back and Forward move between tabs', async () => {
     const { nav } = await show(base())
-    await tab(/^Features/)
-    expect(decodeURIComponent(nav.at(-1)!)).toContain('"tab":"features"')
-    expect(text()).toContain('Kiosk clock-in')
+    await tab(/^Billing/)
+    expect(decodeURIComponent(nav.at(-1)!)).toContain('"tab":"billing"')
     await act(async () => { m.ui.syncRoute({ page: 'rosterioAccount', id: ACC_ID, q: { tab: 'people' } }) })
     expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toMatch(/^People/)
     await act(async () => { m.ui.syncRoute({ page: 'rosterioAccount', id: ACC_ID, q: {} }) })
@@ -239,10 +239,28 @@ describe('Rosterio account page: header and overview', () => {
     expect(text()).toContain('12 of 20 users')
   })
 
-  it('opens on the tab named in the address', async () => {
-    await show(base(), { q: { tab: 'features' } })
-    expect(rowOf('Kiosk clock-in')).toBe('Kiosk clock-inOn')
-    expect(rowOf('Payroll')).toBe('PayrollOff')
+  it('opens on the tab named in the address, and an old Features address falls back to Overview', async () => {
+    await show(base(), { q: { tab: 'people' } })
+    expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toMatch(/^People/)
+    await act(async () => { m.ui.syncRoute({ page: 'rosterioAccount', id: ACC_ID, q: { tab: 'features' } }) })
+    expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Overview')
+  })
+
+  it('shows no operator feature switches', async () => {
+    await show(base())
+    expect(text()).not.toContain('Kiosk clock-in')
+    expect(text()).not.toContain('Payroll')
+  })
+
+  it('offers Open in Admin only when the server sent an address, and the overview links use it too', async () => {
+    await show({ ...base(), [DETAIL]: json(200, detail({ adminUrl: undefined })) })
+    expect([...host.querySelectorAll('a')].some(a => a.textContent === 'Open in Admin')).toBe(false)
+    expect([...host.querySelectorAll('a')].some(a => a.textContent === 'Correct terms')).toBe(false)
+  })
+
+  it('says when the account is on a different plan from the deal, and never offers to change the deal', async () => {
+    await show({ ...base(), [DETAIL]: json(200, detail({ planDrift: { dealPlan: 'starter', accountPlan: 'pro' } })) })
+    expect(text()).toContain('The account is on Pro, the deal says Starter.')
   })
 })
 
@@ -425,9 +443,8 @@ describe('Rosterio account page: other tabs', () => {
   it('switching tabs changes what is shown', async () => {
     await show(base())
     expect(text()).toContain('Contract terms')
-    await tab(/^Features/)
+    await tab(/^Activity/)
     expect(text()).not.toContain('Contract terms')
-    expect(text()).toContain('Kiosk clock-in')
   })
 })
 

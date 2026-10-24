@@ -181,3 +181,114 @@ describe('Winning a Rosterio deal', () => {
     expect(text()).not.toContain('Provision a Rosterio account for')
   })
 })
+
+describe('Rosterio card: the refreshed snapshot', () => {
+  const REFRESH = 'POST /sales/rosterio/refresh'
+  const ACCOUNTS = 'GET /sales/rosterio/accounts'
+  const UNLINK = 'POST /sales/rosterio/unlink'
+  const linked = { rosterio: link({ accountId: 'acc1', accountName: 'Acme Pty Ltd' }) }
+  const mount = async () => {
+    const { RosterioCard } = await import('./RosterioCard')
+    await act(async () => { root.render(<RosterioCard companyId="co1" />) })
+    await settle(6)
+  }
+
+  it('refreshes the saved snapshot when the company is opened, once', async () => {
+    const api = await setup({ [REFRESH]: json(200, { link: link({ accountState: 'active' }), refreshed: true, planDrift: null }) }, { world: { company: linked } })
+    await mount()
+    expect(api.calls.find(c => c.path === '/sales/rosterio/refresh')?.body).toEqual({ companyId: 'co1' })
+    expect(api.count(REFRESH)).toBe(1)
+  })
+
+  it('does not refresh a company with no account', async () => {
+    const api = await setup()
+    await mount()
+    expect(api.count(REFRESH)).toBe(0)
+  })
+
+  it('stays quiet when Rosterio could not be asked (refreshed false) or the request fails', async () => {
+    await setup({ [REFRESH]: json(200, { link: link(), refreshed: false, planDrift: null }) }, { world: { company: linked } })
+    await mount()
+    expect(text()).toContain('Rosterio account: Acme Pty Ltd · Pro')
+    expect(text()).not.toContain('deleted')
+    expect(text()).not.toContain('The account is on')
+    vi.unstubAllGlobals()
+    await setup({ [REFRESH]: json(500, { error: 'boom', code: 'INTERNAL' }) }, { world: { company: linked } })
+    await mount()
+    expect(text()).toContain('Rosterio account: Acme Pty Ltd · Pro')
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('names the plan drift, as information only', async () => {
+    await setup({ [REFRESH]: json(200, { link: link({ plan: 'pro' }), refreshed: true, planDrift: { dealPlan: 'starter', accountPlan: 'pro' } }) }, { world: { company: linked } })
+    await mount()
+    expect(text()).toContain('The account is on Pro, the deal says Starter.')
+    expect(text()).toContain('The deal is not changed.')
+  })
+
+  it('shows no drift nudge when there is none', async () => {
+    await setup({ [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null }) }, { world: { company: linked } })
+    await mount()
+    expect(text()).not.toContain('the deal says')
+  })
+
+  it('says the account was deleted in Rosterio and offers Unlink, which uses the existing unlink', async () => {
+    const api = await setup({
+      [REFRESH]: json(200, { link: link({ accountState: 'deleted', accountStatus: 'deleted' }), refreshed: true, planDrift: null }),
+      [UNLINK]: json(200, {}),
+    }, { world: { company: linked } })
+    const { Hosts } = await import('../../shell/Hosts')
+    const { RosterioCard } = await import('./RosterioCard')
+    await act(async () => { root.render(<><RosterioCard companyId="co1" /><Hosts /></>) })
+    await settle(6)
+    expect(text()).toContain('Account deleted in Rosterio')
+    expect(text()).toContain('kept until you unlink it')
+    expect(text()).not.toContain('The account is on')
+    await click(button(host, 'Unlink'))
+    await click(button(top(), 'Unlink'))
+    await settle(5)
+    expect(api.calls.find(c => c.path === '/sales/rosterio/unlink')?.body).toEqual({ companyId: 'co1' })
+  })
+
+  it('never links or unlinks by itself: a deleted account makes no other call', async () => {
+    const api = await setup({ [REFRESH]: json(200, { link: link({ accountState: 'deleted' }), refreshed: true, planDrift: null }) }, { world: { company: linked } })
+    await mount()
+    expect(api.calls.filter(c => c.method === 'POST').map(c => c.path)).toEqual(['/sales/rosterio/refresh'])
+  })
+
+  it('does not offer Unlink for the deleted account to someone who cannot edit', async () => {
+    await setup({ [REFRESH]: json(200, { link: link({ accountState: 'deleted' }), refreshed: true, planDrift: null }) }, { role: 'viewer', world: { company: linked } })
+    await mount()
+    expect(text()).toContain('Account deleted in Rosterio')
+    expect(button(host, 'Unlink')).toBeUndefined()
+  })
+
+  it('shows Open in Admin only when the server sent an address', async () => {
+    await setup({ [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null, adminUrl: 'https://admin.rosterio.test/accounts/acc1' }) }, { role: 'admin', world: { company: linked } })
+    await mount()
+    const a = [...host.querySelectorAll('a')].find(x => x.textContent === 'Open in Admin')
+    expect(a?.getAttribute('href')).toBe('https://admin.rosterio.test/accounts/acc1')
+    expect(a?.getAttribute('rel')).toContain('noopener')
+  })
+
+  it('has no Open in Admin link without an address', async () => {
+    await setup({ [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null }) }, { role: 'admin', world: { company: linked } })
+    await mount()
+    expect([...host.querySelectorAll('a')].some(x => x.textContent === 'Open in Admin')).toBe(false)
+  })
+
+  it('shows a salesperson the plan, status, trial end and seats, and no operator features, pricing or billing email', async () => {
+    const { account, accountsOf } = await import('../../testing/rosterioWorld')
+    await setup({
+      [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null }),
+      [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', plan: 'pro', isTrial: true, trialEndDate: '2999-01-31T00:00:00.000Z', memberCount: 12 })])),
+    }, { world: { company: linked } })
+    await mount()
+    expect(text()).toContain('Pro')
+    expect(text()).toContain('Trial ends')
+    expect(text()).toContain('31 Jan 2999')
+    expect(text()).toContain('Active users')
+    expect(text()).toContain('12')
+    for (const t of ['Kiosk', 'Payroll', 'Compliance', 'Monthly', 'Billing email']) expect(text()).not.toContain(t)
+  })
+})
