@@ -96,7 +96,7 @@ describe('Rosterio invoices', () => {
   })
 
   describe('Xero', () => {
-    const info = (o: Partial<NonNullable<RosterioInvoice['xero']>> = {}): NonNullable<RosterioInvoice['xero']> => ({ state: 'not_sent', message: '', syncedAt: null, url: null, feeCents: null, payout: null, ...o })
+    const info = (o: Partial<NonNullable<RosterioInvoice['xero']>> = {}): NonNullable<RosterioInvoice['xero']> => ({ state: 'not_sent', message: '', syncedAt: null, url: null, feeCents: null, payout: null, voidedInXero: false, redoable: false, nextNumber: null, ...o })
     const XLIST = { ...LIST, invoices: [
       inv('1', { xero: info({ state: 'synced', syncedAt: '2026-10-03T00:00:00Z', url: 'https://go.xero.com/i1', feeCents: 215, payout: 'awaiting' }), xeroContact: { id: 'c1', name: 'Spuntino Pty Ltd' } }),
       inv('2', { customerName: 'Forty Winks', customerId: 'cus_2', xero: info({ state: 'needs-contact' }) }),
