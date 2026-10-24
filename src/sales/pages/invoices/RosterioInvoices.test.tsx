@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RosterioInvoice } from '../../api/contract'
 import { changes } from '../../testing/fixtures'
-import { button, click, settle } from '../../testing/dom'
+import { button, click, settle, type } from '../../testing/dom'
 import { invoicingWorld, setArdRole, SUMMARY } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
 import { fakeApi, json } from '../../testing/rosterioWorld'
@@ -36,7 +36,7 @@ const inv = (id: string, o: Partial<RosterioInvoice> = {}): RosterioInvoice => (
   id, number: `RS-${id}`, accountId: 'acc1', companyId: null, customerName: 'Spuntino', status: 'paid', failed: false, overdue: false,
   amountDueCents: 9900, amountPaidCents: 9900, amountRemainingCents: 0, currency: 'aud', createdAt: `${thisMonth}-01T00:00:00Z`, dueAt: null,
   paidAt: `${thisMonth}-02T00:00:00Z`, periodStart: null, periodEnd: null, attemptCount: 1, nextAttemptAt: null, lastError: null,
-  hostedUrl: `https://invoice.stripe.test/${id}`, pdfUrl: null, ...o,
+  hostedUrl: `https://invoice.stripe.test/${id}`, pdfUrl: null, customerId: 'cus_1', xero: null, xeroContact: null, ...o,
 })
 const LIST = { configured: true, syncedAt: new Date().toISOString(), syncError: null, invoices: [
   inv('1'),
@@ -93,5 +93,86 @@ describe('Rosterio invoices', () => {
     const tabs = [...host.querySelectorAll('[role="tab"]')].map(t => t.textContent)
     expect(tabs.some(t => t?.startsWith('Ardorio'))).toBe(true)
     expect(tabs.some(t => t?.includes('(Stripe)'))).toBe(true)
+  })
+
+  describe('Xero', () => {
+    const info = (o: Partial<NonNullable<RosterioInvoice['xero']>> = {}): NonNullable<RosterioInvoice['xero']> => ({ state: 'not_sent', message: '', syncedAt: null, url: null, feeCents: null, payout: null, ...o })
+    const XLIST = { ...LIST, invoices: [
+      inv('1', { xero: info({ state: 'synced', syncedAt: '2026-10-03T00:00:00Z', url: 'https://go.xero.com/i1', feeCents: 215, payout: 'awaiting' }), xeroContact: { id: 'c1', name: 'Spuntino Pty Ltd' } }),
+      inv('2', { customerName: 'Forty Winks', customerId: 'cus_2', xero: info({ state: 'needs-contact' }) }),
+      inv('3', { customerName: 'Kaffeehaus', xero: info({ state: 'error', message: 'Account code 999 is not valid' }), xeroContact: { id: 'c3', name: 'Kaffeehaus' } }),
+      inv('4', { customerName: 'Drafty', status: 'draft', xero: null }),
+    ] }
+    const GET = 'GET /sales/rosterio/invoices'
+    const openPanel = async (num: string) => { await click(host.querySelector(`[aria-label="Xero details for RS-${num}"]`)); await settle(2) }
+    const wait = async (ms = 350) => { await act(async () => { await new Promise(r => setTimeout(r, ms)) }); await settle(3) }
+
+    it('a chip per invoice: its state, and a dash for a draft', async () => {
+      fakeApi({ [GET]: json(200, XLIST) })
+      await page('ros')
+      expect(text()).toContain('In Xero')
+      expect(text()).toContain('Choose a contact')
+      expect(text()).toContain('Not in Xero')
+    })
+
+    it('a synced invoice: contact, fee, payout and a link, with no send button', async () => {
+      fakeApi({ [GET]: json(200, XLIST) })
+      await page('ros')
+      await openPanel('1')
+      expect(text()).toContain('Spuntino Pty Ltd')
+      expect(text()).toContain('Stripe fee A$2.15')
+      expect(text()).toContain('Awaiting payout')
+      expect(button(host, 'Send to Xero')).toBeUndefined()
+      expect([...host.querySelectorAll('a')].map(a => a.getAttribute('href'))).toContain('https://go.xero.com/i1')
+    })
+
+    it('no contact yet: search, pick, and it saves with the customer and contact, then refreshes', async () => {
+      const api = fakeApi({
+        [GET]: json(200, XLIST),
+        'GET /sales/xero/contacts?q=forty': json(200, { contacts: [{ id: 'xc9', name: 'Forty Winks Pty Ltd' }, { id: 'xc8', name: 'Forty Winks Sales' }] }),
+        'PUT /sales/xero/stripe-contact': json(200, { contact: { id: 'xc9', name: 'Forty Winks Pty Ltd' } }),
+      })
+      await page('ros')
+      await openPanel('2')
+      expect(text()).toContain('No Xero contact yet')
+      expect(button(host, 'Send to Xero')).toBeUndefined()
+      await type(host.querySelector('[aria-label="Search Xero contacts"]'), 'forty')
+      await wait()
+      expect(api.count('GET /sales/xero/contacts?q=forty')).toBe(1)
+      await click(button(host, 'Forty Winks Pty Ltd'))
+      await settle(4)
+      expect(api.calls.find(c => c.method === 'PUT')?.body).toEqual({ customerId: 'cus_2', contactId: 'xc9' })
+      expect(api.count(GET)).toBe(2)
+      expect(m.ui.UI.get().toasts.map(t => t.msg)).toContain('Xero contact saved')
+    })
+
+    it('Retry calls the sync endpoint and refreshes', async () => {
+      const api = fakeApi({ [GET]: json(200, XLIST), 'POST /sales/xero/stripe-invoices/3/sync': json(200, inv('3', { xero: info({ state: 'synced' }) })) })
+      await page('ros')
+      await openPanel('3')
+      expect(text()).toContain('Account code 999 is not valid')
+      await click(button(host, 'Retry'))
+      await settle(4)
+      expect(api.count('POST /sales/xero/stripe-invoices/3/sync')).toBe(1)
+      expect(api.count(GET)).toBe(2)
+      expect(m.ui.UI.get().toasts.map(t => t.msg)).toContain('Sent to Xero')
+    })
+
+    it('a refused send shows the server reason', async () => {
+      fakeApi({ [GET]: json(200, XLIST), 'POST /sales/xero/stripe-invoices/3/sync': json(409, { error: 'Already in Xero', code: 'CONFLICT' }) })
+      await page('ros')
+      await openPanel('3')
+      await click(button(host, 'Retry'))
+      await settle(4)
+      expect(m.ui.UI.get().toasts.map(t => t.msg)).toContain('Already in Xero')
+    })
+
+    it('someone who is not an admin of Ardorio sees the state but no actions', async () => {
+      fakeApi({ [GET]: json(200, XLIST) })
+      await page('ros', 'manager')
+      await openPanel('3')
+      expect(text()).toContain('Account code 999 is not valid')
+      expect(button(host, 'Retry')).toBeUndefined()
+    })
   })
 })

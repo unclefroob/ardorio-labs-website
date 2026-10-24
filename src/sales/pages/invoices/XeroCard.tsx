@@ -5,7 +5,7 @@ import { xeroAccounts, xeroConnect, xeroDisconnect, xeroSaveSettings, xeroStatus
 import { useLoad } from '../../data/invoicing'
 import { Banner, Btn, Card, Chip, Fld, Inp, Skel, Sel, Toggle } from '../../kit'
 import { leaveTo } from '../../mail/navigate'
-import { TAX_OPTIONS, isXeroId, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from '../../shared/xero'
+import { FEE_TAX_OPTIONS, TAX_OPTIONS, isXeroId, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from '../../shared/xero'
 import { UI } from '../../ui/store'
 
 const CODE = /^[A-Za-z0-9._-]{0,10}$/
@@ -87,7 +87,9 @@ function Connected({ status, reload }: { status: XeroStatus; reload: () => void 
   const set = (p: Partial<XeroSettings>): void => setDraft(d => ({ ...d, ...p }))
   const codeErr = (v: string): string => (CODE.test(v) || isXeroId(v) ? '' : 'Up to 10 letters, digits, dots or dashes')
   const dayErr = DAY.test(draft.syncFrom) && !Number.isNaN(Date.parse(`${draft.syncFrom}T00:00:00Z`)) ? '' : 'Choose a date'
-  const invalid = !!codeErr(draft.salesAccountCode) || !!codeErr(draft.paymentAccountCode) || !!dayErr
+  // Empty is allowed here: nothing is sent until a start date is chosen.
+  const stripeDayErr = !draft.stripeFrom || (DAY.test(draft.stripeFrom) && !Number.isNaN(Date.parse(`${draft.stripeFrom}T00:00:00Z`))) ? '' : 'Choose a date'
+  const invalid = !!codeErr(draft.salesAccountCode) || !!codeErr(draft.paymentAccountCode) || !!codeErr(draft.clearingAccountCode) || !!codeErr(draft.feeAccountCode) || !!dayErr || !!stripeDayErr
   const step = nextStep({ ...status, settings: saved })
 
   const save = async (): Promise<void> => {
@@ -99,6 +101,10 @@ function Connected({ status, reload }: { status: XeroStatus; reload: () => void 
       UI.toast('Xero settings saved')
       reload()
     } catch (e) { setFail(invoiceError(e, 'save').message) } finally { setBusy(false) }
+  }
+  const reconnect = async (): Promise<void> => {
+    setBusy(true)
+    try { leaveTo((await xeroConnect()).url) } catch (e) { setBusy(false); UI.toast(invoiceError(e, 'save').message, 'bad') }
   }
   const disconnect = async (): Promise<void> => {
     setBusy(true); setFail('')
@@ -138,6 +144,25 @@ function Connected({ status, reload }: { status: XeroStatus; reload: () => void 
         <Fld label="Start from" hint="Earlier invoices are not sent automatically" err={dayErr}>
           <Inp type="date" value={draft.syncFrom} onChange={v => set({ syncFrom: v })} style={{ maxWidth: 200 }} />
         </Fld>
+        <div className="col" style={{ gap: 12, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+          <div className="b">Stripe invoices</div>
+          {status.bankScope === false && <Banner tone="warn" action={<Btn size="sm" onClick={() => void reconnect()} loading={busy}>Reconnect to Xero</Btn>}>Reconnect Xero to allow bank transactions.</Banner>}
+          <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+            <Toggle on={draft.stripeSync} onChange={v => set({ stripeSync: v })} label="Send Stripe invoices automatically" />
+            <div>
+              <div className="b">Send Stripe invoices automatically</div>
+              <div className="sm muted">{draft.stripeSync ? 'Rosterio invoices, their payments and Stripe fees go to Xero within minutes.' : 'Off. Use Send to Xero on each Rosterio invoice.'}</div>
+            </div>
+          </div>
+          <Fld label="Stripe start date" hint="Leave empty to send nothing. Earlier invoices are not sent automatically." err={stripeDayErr}>
+            <Inp type="date" value={draft.stripeFrom} onChange={v => set({ stripeFrom: v })} style={{ maxWidth: 200 }} />
+          </Fld>
+          <div className="grid g2">
+            {picker('Stripe clearing account', draft.clearingAccountCode, accounts.data?.bank, v => set({ clearingAccountCode: v }), 'Bank-type account that holds Stripe money')}
+            {picker('Stripe fees account', draft.feeAccountCode, accounts.data?.expense, v => set({ feeAccountCode: v }), 'Expense account for Stripe fees')}
+            <Fld label="Fee GST"><Sel value={draft.feeTaxType} onChange={v => set({ feeTaxType: v as XeroSettings['feeTaxType'] })} options={FEE_TAX_OPTIONS} /></Fld>
+          </div>
+        </div>
         <div className="row wrap" style={{ gap: 10 }}>
           <Btn kind="pri" onClick={() => void save()} disabled={!dirty || invalid} loading={busy}>Save Xero settings</Btn>
           <span className="faint sm">{status.counts.waiting} waiting · {status.counts.failed} to fix</span>
