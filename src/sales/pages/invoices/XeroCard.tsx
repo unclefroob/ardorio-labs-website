@@ -5,7 +5,7 @@ import { xeroAccounts, xeroConnect, xeroDisconnect, xeroSaveSettings, xeroStatus
 import { useLoad } from '../../data/invoicing'
 import { Banner, Btn, Card, Chip, Fld, Inp, Skel, Sel, Toggle } from '../../kit'
 import { leaveTo } from '../../mail/navigate'
-import { TAX_OPTIONS, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from '../../shared/xero'
+import { TAX_OPTIONS, isXeroId, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from '../../shared/xero'
 import { UI } from '../../ui/store'
 
 const CODE = /^[A-Za-z0-9._-]{0,10}$/
@@ -109,7 +109,7 @@ function Connected({ status, reload }: { status: XeroStatus; reload: () => void 
   const picker = (label: string, value: string, list: Array<{ code: string; name: string }> | undefined, onChange: (v: string) => void, hint: string) => (
     <Fld label={label} hint={hint} err={codeErr(value)}>
       {list
-        ? <Sel value={value} onChange={onChange} placeholder="Choose an account…" options={[...(value && !list.some(a => a.code === value) ? [[value, `${value} (not in Xero)`] as const] : []), ...list.map(a => [a.code, `${a.code} · ${a.name}`] as const)]} />
+        ? <Sel value={value} onChange={onChange} placeholder="Choose an account…" options={[...(value && !list.some(a => a.code === value) ? [[value, `${isXeroId(value) ? 'Account' : value} (not in Xero)`] as const] : []), ...list.map(a => [a.code, isXeroId(a.code) ? a.name : `${a.code} · ${a.name}`] as const)]} />
         : <Inp className="mono" value={value} onChange={onChange} placeholder="e.g. 200" />}
     </Fld>
   )
