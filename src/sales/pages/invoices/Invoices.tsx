@@ -15,6 +15,7 @@ import { UI } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
 import { CustomerLink, ExternalChip, MethodChip, RetainerChip, TermChip, StatusChip, TestChip, milestoneLabel } from './parts'
 import { InvoicesDenied } from './states'
+import { XeroChip } from './XeroChip'
 
 const SHOW_TEST_KEY = 'sos.invoices.showTest'
 // Remembered for this browser session only; storage can be blocked, so every access is guarded.
@@ -103,7 +104,7 @@ function ArdorioInvoices({ tabs }: { tabs: ReactNode }) {
       k: 'status', l: 'Status', sort: r => (r.overdue ? 'overdue' : r.status),
       r: r => (
         <div>
-          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><RetainerChip inv={r} /><TermChip inv={r} /><ExternalChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}</span>
+          <span className="row wrap" style={{ gap: 4 }}><StatusChip inv={r} /><TestChip inv={r} /><RetainerChip inv={r} /><TermChip inv={r} /><ExternalChip inv={r} /><MethodChip inv={r} />{needsRefund(r) && <Chip tone="bad" icon="alert">Needs refund</Chip>}{r.xero?.state === 'error' && <Chip tone="bad" icon="alert" title={r.xero.message}>Not in Xero</Chip>}</span>
           {r.voided && <div className="void-cell sm" style={{ marginTop: 2 }}>{voidReasonLabel(r.voided.reason)} · {fmtDay(r.voided.voidedAt)}</div>}
           {r.payment && <div className="faint sm" style={{ marginTop: 2 }}>{fmtDay(r.payment.paidAt)}</div>}
         </div>
@@ -133,7 +134,7 @@ function ArdorioInvoices({ tabs }: { tabs: ReactNode }) {
   return (
     <div className="page">
       <PageHead title="Invoices" sub="Create, issue and track invoices for your customers. Amounts are shown ex-GST unless marked.">
-        <Chip icon="plug" title="Reserved for the next phase">Xero: not connected</Chip>
+        <XeroChip />
         <Btn icon="download" onClick={() => void exportCsv()} disabled={exporting}>{exporting ? 'Exporting…' : 'Export CSV'}</Btn>
         <Btn icon="plus" onClick={recordExternal}>Record external invoice or payment</Btn>
         <Btn kind="pri" icon="plus" onClick={() => UI.nav('invoice', { id: 'new' })}>New invoice</Btn>

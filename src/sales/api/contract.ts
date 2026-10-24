@@ -660,6 +660,7 @@ export interface InvoiceDto {
   test: InvoiceTestInfo | null
   source: InvoiceSource
   external: InvoiceExternalInfo | null
+  xero?: InvoiceXeroInfo | null
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -680,6 +681,23 @@ export interface MarkTestInput { reason: string }
 /** DELETE /invoices/:id/permanent (super only, test invoices only). `confirmNumber` must equal the invoice number exactly. */
 export interface DeleteTestInput { confirmNumber: string }
 export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; reference?: string; amountCents?: number }
+// ---- Xero (SalesOS pushes issued invoices and payments to Xero; Xero stays the books) ----
+// InvoiceDto.xero is null for drafts, test invoices and external records. 'synced': Xero matches the SalesOS status. 'pending': sent before
+// but SalesOS has since changed. 'error': the last push failed (message is plain text). 'not_sent': never pushed; the page says why from
+// XeroStatus (not connected, or issued before settings.syncFrom). url opens the invoice in Xero once it exists. Optional here so a page
+// released ahead of the API still reads an invoice.
+export type XeroInfoState = 'synced' | 'pending' | 'error' | 'not_sent'
+export interface InvoiceXeroInfo { state: XeroInfoState; message: string; syncedAt: string | null; url: string | null }
+export type XeroTaxType = 'OUTPUT' | 'EXEMPTOUTPUT' | 'EXEMPTEXPORT' | 'NONE'
+export interface XeroSettings { salesAccountCode: string; paymentAccountCode: string; gstTaxType: XeroTaxType; noGstTaxType: XeroTaxType; autoSync: boolean; syncFrom: string }
+export interface XeroStatus {
+  configured: boolean; reason?: string; connected: boolean; tenantName: string; connectedAt: string | null
+  /** Xero turned the connection down (revoked or expired): offer Reconnect. */
+  problem: string | null
+  settings: XeroSettings | null; counts: { waiting: number; failed: number }
+}
+export interface XeroAccount { code: string; name: string }
+export interface XeroAccountsResponse { sales: XeroAccount[]; bank: XeroAccount[] }
 export interface InvoiceListResponse { invoices: InvoiceDto[] }
 export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
 export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number; needsRefundCount: number; needsRefundCents: number }; byCompany: InvoiceCompanyTotals[] }

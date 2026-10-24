@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { changes } from '../../testing/fixtures'
 import { button, click, settle, type } from '../../testing/dom'
-import { boardInvoices, invoicingWorld, setArdRole, SUMMARY } from '../../testing/invoicingWorld'
+import { boardInvoices, dto, invoicingWorld, setArdRole, SUMMARY } from '../../testing/invoicingWorld'
 import { loadSales, type Sales } from '../../testing/load'
 import { fakeApi, json } from '../../testing/rosterioWorld'
 
@@ -67,12 +67,46 @@ describe('Invoices list', () => {
     expect(text()).toContain('Not yet issued')
   })
 
-  it('has status tabs with counts and the static Xero chip', async () => {
-    await show(ok)
+  const XERO = 'GET /sales/xero/status'
+  const xeroOf = (over: Record<string, unknown> = {}) => ({
+    configured: true, connected: false, tenantName: '', connectedAt: null, problem: null, settings: null, counts: { waiting: 0, failed: 0 }, ...over,
+  })
+  const SET = { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01' }
+
+  it('has status tabs with counts and a Xero chip that opens the Xero settings', async () => {
+    await show({ ...ok, [XERO]: () => json(200, xeroOf()) })
     const tabs = [...host.querySelectorAll('[role="tab"]')].map(t => t.textContent)
     expect(tabs).toEqual(['All5', 'Drafts1', 'Sent2', 'Overdue1', 'Paid2'])
     expect(text()).toContain('Xero: not connected')
-    expect(button(host, 'Xero: not connected')).toBeUndefined()
+    const nav = vi.fn()
+    m.ui.bindNavigate(nav)
+    await click(button(host, /Xero: not connected/))
+    expect(nav).toHaveBeenCalledTimes(1)
+    const [to] = nav.mock.calls[0] as [string]
+    expect(to.startsWith('/sales/settings?q=')).toBe(true)
+    expect(JSON.parse(decodeURIComponent(to.split('q=')[1]))).toEqual({ tab: 'invoicing' })
+  })
+
+  it('the Xero chip says connected, or how many invoices need fixing', async () => {
+    await show({ ...ok, [XERO]: () => json(200, xeroOf({ connected: true, tenantName: 'Ardorio Pty Ltd', settings: SET })) })
+    expect(text()).toContain('Xero: connected')
+    act(() => root.unmount())
+    root = createRoot(host)
+    await show({ ...ok, [XERO]: () => json(200, xeroOf({ connected: true, tenantName: 'Ardorio Pty Ltd', settings: SET, counts: { waiting: 0, failed: 2 } })) })
+    expect(text()).toContain('Xero: 2 to fix')
+  })
+
+  it('if Xero’s state cannot be read the chip is left out rather than guessing', async () => {
+    await show({ ...ok, [XERO]: () => json(500, { error: 'x', code: 'INTERNAL' }) })
+    expect(text()).not.toContain('Xero:')
+  })
+
+  it('an invoice Xero refused is marked in the list with its reason on hover', async () => {
+    const bad = dto({ id: 'x1', invoiceNumber: 'INV-0099', xero: { state: 'error', message: 'Xero: Account code 999 is not valid', syncedAt: null, url: null } })
+    await show({ [LIST]: () => json(200, { invoices: [bad, ...boardInvoices()] }), [SUM]: () => json(200, SUMMARY), [XERO]: () => json(200, xeroOf({ connected: true, settings: SET })) })
+    const chip = [...host.querySelectorAll('.chip')].find(c => c.textContent === 'Not in Xero')
+    expect(chip).toBeDefined()
+    expect(chip?.getAttribute('title')).toBe('Xero: Account code 999 is not valid')
   })
 
   it('lists newest first, with total and ex-GST amounts, due dates and the overdue note', async () => {
