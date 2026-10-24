@@ -116,5 +116,5 @@ export const billingView = (state: NonNullable<RosterioBilling['billing']>['stat
 export const invoice = (o: Partial<RosterioInvoice> = {}): RosterioInvoice => ({
   id: 'in_1', number: 'RS-1', accountId: ACC_ID, companyId: 'co1', customerName: 'Acme Pty Ltd', status: 'paid', failed: false, overdue: false,
   amountDueCents: 44000, amountPaidCents: 44000, amountRemainingCents: 0, currency: 'aud', createdAt: '2026-10-01T00:00:00Z', dueAt: null, paidAt: '2026-10-02T00:00:00Z',
-  periodStart: null, periodEnd: null, attemptCount: 1, nextAttemptAt: null, lastError: null, hostedUrl: null, pdfUrl: null, ...o,
+  periodStart: null, periodEnd: null, attemptCount: 1, nextAttemptAt: null, lastError: null, hostedUrl: null, pdfUrl: null, customerId: 'cus_1', xero: null, xeroContact: null, ...o,
 })

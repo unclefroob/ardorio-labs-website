@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { InvoiceDto, XeroSettings, XeroStatus } from '../api/contract'
-import { isXeroId, chipFor, invoiceXero, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from './xero'
+import { FEE_TAX_OPTIONS, payoutLine, stripeFeeLine, stripeXero, isXeroId, chipFor, invoiceXero, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from './xero'
 
-const SETTINGS: XeroSettings = { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01' }
+const SETTINGS: XeroSettings = { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01', stripeSync: false, stripeFrom: '', clearingAccountCode: '', feeAccountCode: '', feeTaxType: 'INPUT' }
 const status = (over: Partial<XeroStatus> = {}, settings: Partial<XeroSettings> = {}): XeroStatus => ({
   configured: true, connected: true, tenantName: 'Ardorio Pty Ltd', connectedAt: '2026-09-01T00:00:00.000Z', problem: null,
-  settings: { ...SETTINGS, ...settings }, counts: { waiting: 0, failed: 0 }, ...over,
+  settings: { ...SETTINGS, ...settings }, counts: { waiting: 0, failed: 0 }, bankScope: true, ...over,
 })
 const inv = (over: Partial<InvoiceDto> = {}, xero: InvoiceDto['xero'] = null): InvoiceDto => ({
   id: 'i1', invoiceNumber: 'INV-0001', clientSlug: 'acme', clientName: 'Acme', companyId: null, dealId: null, milestoneId: null, lineItems: [], gstRate: 0.1, notes: '',
@@ -126,5 +126,42 @@ describe('isXeroId', () => {
     expect(isXeroId('3f1c2b7a-5d4e-4a69-9b0c-1e2f3a4b5c6d')).toBe(true)
     expect(isXeroId('090')).toBe(false)
     expect(isXeroId('')).toBe(false)
+  })
+})
+
+describe('settingsPatch with the Stripe settings', () => {
+  it('holds only the Stripe settings that changed', () => {
+    expect(settingsPatch(SETTINGS, { ...SETTINGS, stripeSync: true, stripeFrom: '2026-10-01', clearingAccountCode: '095', feeAccountCode: '404', feeTaxType: 'NONE' }))
+      .toEqual({ stripeSync: true, stripeFrom: '2026-10-01', clearingAccountCode: '095', feeAccountCode: '404', feeTaxType: 'NONE' })
+    expect(settingsPatch(SETTINGS, { ...SETTINGS, feeTaxType: 'EXEMPTEXPENSES' })).toEqual({ feeTaxType: 'EXEMPTEXPENSES' })
+  })
+})
+
+describe('Stripe invoices in Xero', () => {
+  const x = (over: Partial<NonNullable<Parameters<typeof stripeXero>[0]>> = {}) => ({ state: 'not_sent' as const, message: '', syncedAt: null, url: null, feeCents: null, payout: null, ...over })
+  it('says nothing when the server sent nothing', () => {
+    expect(stripeXero(null)).toBeNull()
+    expect(stripeXero(undefined)).toBeNull()
+  })
+  it.each([
+    [x({ state: 'synced', syncedAt: '2026-10-02T01:00:00.000Z' }), 'ok', 'In Xero', null, 'Updated 2026-10-02'],
+    [x({ state: 'pending' }), 'warn', 'Waiting to update Xero', 'send', 'Changed since last sent. Updates shortly.'],
+    [x({ state: 'error', message: 'Already in Xero' }), 'bad', 'Not in Xero', 'retry', 'Already in Xero'],
+    [x({ state: 'error' }), 'bad', 'Not in Xero', 'retry', 'Xero rejected this invoice.'],
+    [x({ state: 'needs-contact' }), 'warn', 'Choose a contact', null, 'Choose the Xero contact for this customer. Nothing is sent until you do.'],
+    [x({ state: 'not_sent', message: 'Before the start date' }), '', 'Not in Xero', 'send', 'Before the start date'],
+  ])('reads %j', (info, tone, label, action, text) => {
+    expect(stripeXero(info)).toEqual({ tone, label, action, text })
+  })
+  it('the fee and payout lines', () => {
+    expect(stripeFeeLine(1234)).toBe('Stripe fee A$12.34')
+    expect(stripeFeeLine(5)).toBe('Stripe fee A$0.05')
+    expect(stripeFeeLine(null)).toBe('')
+    expect(payoutLine('paid-out')).toBe('Paid out')
+    expect(payoutLine('awaiting')).toBe('Awaiting payout')
+    expect(payoutLine(null)).toBe('')
+  })
+  it('fee GST options', () => {
+    expect(FEE_TAX_OPTIONS).toEqual([['INPUT', 'GST on Expenses (10%)'], ['EXEMPTEXPENSES', 'GST Free Expenses'], ['NONE', 'BAS Excluded']])
   })
 })
