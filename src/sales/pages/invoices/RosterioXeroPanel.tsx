@@ -9,7 +9,7 @@ import { UI } from '../../ui/store'
 const DEBOUNCE_MS = 300
 
 /** Under the Rosterio invoices: the Xero contact for this customer, the button to send or retry, and the fee and payout once known. */
-export function RosterioXeroPanel({ invoice: inv, canAct, onChange, onClose }: { invoice: RosterioInvoice; canAct: boolean; onChange: () => void; onClose: () => void }) {
+export function RosterioXeroPanel({ invoice: inv, canAct, onChange, onClose }: { invoice: RosterioInvoice; canAct: boolean; onChange: () => void; onClose?: () => void }) {
   const v = stripeXero(inv.xero)
   const [busy, setBusy] = useState(false)
   const [changing, setChanging] = useState(false)
@@ -62,7 +62,7 @@ export function RosterioXeroPanel({ invoice: inv, canAct, onChange, onClose }: {
   const fee = stripeFeeLine(inv.xero?.feeCents)
   const payout = payoutLine(inv.xero?.payout)
   return (
-    <Card title={`Xero · ${inv.number ?? inv.customerName}`} icon="plug" right={<span className="row" style={{ gap: 8 }}>{v && <Chip tone={v.tone}>{v.label}</Chip>}<Btn size="sm" kind="ghost" onClick={onClose}>Close</Btn></span>}>
+    <Card title={`Xero · ${inv.number ?? inv.customerName}`} icon="plug" right={<span className="row" style={{ gap: 8 }}>{v && <Chip tone={v.tone}>{v.label}</Chip>}{onClose && <Btn size="sm" kind="ghost" onClick={onClose}>Close</Btn>}</span>}>
       <div className="col" style={{ gap: 10 }}>
         <div className="row wrap" style={{ gap: 8 }}>
           <span className="faint sm">Contact</span>
