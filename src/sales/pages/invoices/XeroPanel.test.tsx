@@ -17,8 +17,8 @@ vi.mock('../../data/engineNudge', () => ({ nudgeEngine: vi.fn() }))
 const STATUS = 'GET /sales/xero/status'
 const SYNC = 'POST /sales/invoices/i1/xero/sync'
 const connected: XeroStatus = {
-  configured: true, connected: true, tenantName: 'Ardorio Pty Ltd', connectedAt: '2026-09-01T00:00:00.000Z', problem: null, counts: { waiting: 0, failed: 0 },
-  settings: { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01' },
+  configured: true, connected: true, tenantName: 'Ardorio Pty Ltd', connectedAt: '2026-09-01T00:00:00.000Z', problem: null, counts: { waiting: 0, failed: 0 }, bankScope: true,
+  settings: { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01', stripeSync: false, stripeFrom: '', clearingAccountCode: '', feeAccountCode: '', feeTaxType: 'INPUT' },
 }
 const x = (over: Partial<InvoiceXeroInfo>): InvoiceXeroInfo => ({ state: 'synced', message: '', syncedAt: '2026-10-04T00:00:00.000Z', url: 'https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=abc', ...over })
 

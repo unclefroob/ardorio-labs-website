@@ -1,4 +1,4 @@
-import type { InvoiceDto, XeroSettings, XeroStatus, XeroTaxType } from '../api/contract'
+import type { InvoiceDto, StripeXeroInfo, XeroExpenseTaxType, XeroSettings, XeroStatus, XeroTaxType } from '../api/contract'
 
 // What the Xero connection means on each page, as plain words. The server decides what is sent; this only says it.
 
@@ -37,6 +37,12 @@ export const TAX_LABEL: Record<XeroTaxType, string> = {
   EXEMPTEXPORT: 'GST Free Exports',
   NONE: 'BAS Excluded',
 }
+export const FEE_TAX_LABEL: Record<XeroExpenseTaxType, string> = {
+  INPUT: 'GST on Expenses (10%)',
+  EXEMPTEXPENSES: 'GST Free Expenses',
+  NONE: 'BAS Excluded',
+}
+export const FEE_TAX_OPTIONS: ReadonlyArray<readonly [XeroExpenseTaxType, string]> = (Object.keys(FEE_TAX_LABEL) as XeroExpenseTaxType[]).map(k => [k, FEE_TAX_LABEL[k]] as const)
 export const TAX_OPTIONS: ReadonlyArray<readonly [XeroTaxType, string]> = (Object.keys(TAX_LABEL) as XeroTaxType[]).map(k => [k, TAX_LABEL[k]] as const)
 
 /** The one thing a person should do next about the connection, or null when nothing is needed. */
@@ -97,4 +103,36 @@ export function settingsPatch(before: XeroSettings, after: XeroSettings): Partia
   const out: Partial<XeroSettings> = {}
   for (const k of Object.keys(after) as Array<keyof XeroSettings>) if (after[k] !== before[k]) (out as Record<string, unknown>)[k] = after[k]
   return out
+}
+
+export interface StripeXeroView {
+  tone: '' | 'ok' | 'warn' | 'bad'
+  label: string
+  /** One line saying what the state means; the server's own message wins when it sent one. */
+  text: string
+  /** The button, when one applies. */
+  action: 'send' | 'retry' | null
+}
+
+/** How a Rosterio Stripe invoice reads against Xero. null while the server has nothing to say (a draft). */
+export function stripeXero(x: StripeXeroInfo | null | undefined): StripeXeroView | null {
+  if (!x) return null
+  switch (x.state) {
+    case 'synced': return { tone: 'ok', label: 'In Xero', text: x.message || (x.syncedAt ? `Updated ${x.syncedAt.slice(0, 10)}` : 'In Xero.'), action: null }
+    case 'pending': return { tone: 'warn', label: 'Waiting to update Xero', text: x.message || 'Changed since last sent. Updates shortly.', action: 'send' }
+    case 'error': return { tone: 'bad', label: 'Not in Xero', text: x.message || 'Xero rejected this invoice.', action: 'retry' }
+    case 'needs-contact': return { tone: 'warn', label: 'Choose a contact', text: x.message || 'Choose the Xero contact for this customer. Nothing is sent until you do.', action: null }
+    default: return { tone: '', label: 'Not in Xero', text: x.message || 'Not sent to Xero yet.', action: 'send' }
+  }
+}
+
+/** 'Stripe fee A$1.23', or '' when the fee is not known yet. */
+export function stripeFeeLine(feeCents: number | null | undefined): string {
+  if (feeCents == null) return ''
+  return `Stripe fee A$${(feeCents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+/** The payout line under the fee, or '' when it does not apply yet. */
+export function payoutLine(payout: StripeXeroInfo['payout'] | undefined): string {
+  return payout === 'paid-out' ? 'Paid out' : payout === 'awaiting' ? 'Awaiting payout' : ''
 }

@@ -1,4 +1,4 @@
-import type { InvoiceDto, XeroAccountsResponse, XeroSettings, XeroStatus } from './contract'
+import type { InvoiceDto, RosterioInvoice, XeroAccountsResponse, XeroContactRef, XeroSettings, XeroStatus } from './contract'
 import { salesFetch } from './http'
 
 /** Xero for invoicing. Every call is limited by the server to admins of business `ard` (or super). */
@@ -10,3 +10,9 @@ export const xeroSaveSettings = (patch: Partial<XeroSettings>) => salesFetch<{ s
 export const xeroAccounts = (signal?: AbortSignal) => salesFetch<XeroAccountsResponse>('/xero/accounts', { signal })
 /** Send to Xero, or Retry: ignores automatic sending and the start date. A refusal (a draft, no sales account yet) is a 409 with the reason. */
 export const sendInvoiceToXero = (id: string) => salesFetch<InvoiceDto>(`/invoices/${encodeURIComponent(id)}/xero/sync`, { method: 'POST', body: {} })
+/** Search Xero contacts by name (at most 20). */
+export const xeroContacts = (q: string, signal?: AbortSignal) => salesFetch<{ contacts: XeroContactRef[] }>(`/xero/contacts?q=${encodeURIComponent(q)}`, { signal })
+/** Choose the Xero contact for a Stripe customer. An empty contactId clears it. */
+export const xeroSaveStripeContact = (customerId: string, contactId: string) => salesFetch<{ contact: XeroContactRef }>('/xero/stripe-contact', { method: 'PUT', body: { customerId, contactId } })
+/** Send a Rosterio Stripe invoice to Xero, or Retry: ignores automatic sending and the start date. A refusal is a 409 with the reason. */
+export const sendStripeInvoiceToXero = (id: string) => salesFetch<RosterioInvoice>(`/xero/stripe-invoices/${encodeURIComponent(id)}/sync`, { method: 'POST', body: {} })

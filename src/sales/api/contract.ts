@@ -543,6 +543,12 @@ export interface RosterioInvoice {
   amountDueCents: number; amountPaidCents: number; amountRemainingCents: number; currency: string
   createdAt: string; dueAt: string | null; paidAt: string | null; periodStart: string | null; periodEnd: string | null
   attemptCount: number; nextAttemptAt: string | null; lastError: string | null; hostedUrl: string | null; pdfUrl: string | null
+  /** The Stripe customer; the Xero contact is chosen once per customer. */
+  customerId: string
+  /** Where this invoice stands against Xero. null when the server has nothing to say (a draft). */
+  xero: StripeXeroInfo | null
+  /** The Xero contact chosen for this customer, or null when none is chosen yet. */
+  xeroContact: XeroContactRef | null
 }
 export interface RosterioInvoicesResponse { invoices: RosterioInvoice[]; configured: boolean; syncedAt: string | null; syncError: string | null }
 
@@ -689,15 +695,27 @@ export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; 
 export type XeroInfoState = 'synced' | 'pending' | 'error' | 'not_sent'
 export interface InvoiceXeroInfo { state: XeroInfoState; message: string; syncedAt: string | null; url: string | null }
 export type XeroTaxType = 'OUTPUT' | 'EXEMPTOUTPUT' | 'EXEMPTEXPORT' | 'NONE'
-export interface XeroSettings { salesAccountCode: string; paymentAccountCode: string; gstTaxType: XeroTaxType; noGstTaxType: XeroTaxType; autoSync: boolean; syncFrom: string }
+/** Tax type on the Stripe fee, an expense. */
+export type XeroExpenseTaxType = 'INPUT' | 'EXEMPTEXPENSES' | 'NONE'
+export interface XeroSettings {
+  salesAccountCode: string; paymentAccountCode: string; gstTaxType: XeroTaxType; noGstTaxType: XeroTaxType; autoSync: boolean; syncFrom: string
+  /** Rosterio subscription invoices from Stripe. Nothing is sent before stripeFrom ('' until chosen). */
+  stripeSync: boolean; stripeFrom: string; clearingAccountCode: string; feeAccountCode: string; feeTaxType: XeroExpenseTaxType
+}
+// Rosterio's Stripe invoices in Xero. 'needs-contact': no Xero contact is chosen for the customer yet. payout: whether the money has left Stripe.
+export type StripeXeroState = 'synced' | 'pending' | 'error' | 'needs-contact' | 'not_sent'
+export interface StripeXeroInfo { state: StripeXeroState; message: string; syncedAt: string | null; url: string | null; feeCents: number | null; payout: 'paid-out' | 'awaiting' | null }
+export interface XeroContactRef { id: string; name: string }
 export interface XeroStatus {
   configured: boolean; reason?: string; connected: boolean; tenantName: string; connectedAt: string | null
   /** Xero turned the connection down (revoked or expired): offer Reconnect. */
   problem: string | null
   settings: XeroSettings | null; counts: { waiting: number; failed: number }
+  /** False when the stored Xero scopes lack bank transactions: reconnect to send Stripe fees. */
+  bankScope: boolean
 }
 export interface XeroAccount { code: string; name: string }
-export interface XeroAccountsResponse { sales: XeroAccount[]; bank: XeroAccount[] }
+export interface XeroAccountsResponse { sales: XeroAccount[]; bank: XeroAccount[]; expense: XeroAccount[] }
 export interface InvoiceListResponse { invoices: InvoiceDto[] }
 export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
 export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number; needsRefundCount: number; needsRefundCents: number }; byCompany: InvoiceCompanyTotals[] }

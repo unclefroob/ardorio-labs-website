@@ -5,6 +5,9 @@ import { rosterioInvoices, rosterioInvoicesSync } from '../../api/rosterio'
 import { F } from '../../data/F'
 import { useLoad } from '../../data/invoicing'
 import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, SearchInp, Skel, Tabs, type Col } from '../../kit'
+import { stripeXero } from '../../shared/xero'
+import { Q } from '../../data/Q'
+import { RosterioXeroPanel } from './RosterioXeroPanel'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 
@@ -35,11 +38,17 @@ const FILTERS: Array<[Filter, string, (i: RosterioInvoice) => boolean]> = [
   ['void', 'Void / written off', i => i.status === 'void' || i.status === 'uncollectible'],
 ]
 
+const all_find = (l: RosterioInvoice[] | undefined, id: string | null): RosterioInvoice | null => (id && l ? l.find(i => i.id === id) ?? null : null)
+
 export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
   const list = useLoad(s => rosterioInvoices({}, s), 'ros-invoices')
   const [f, setF] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
+  // Xero actions belong to admins of Ardorio; anyone else sees the state only.
+  const canAct = Q.canAdmin('ard')
+  const open = all_find(list.data?.invoices, openId)
   const all = useMemo(() => list.data?.invoices ?? [], [list.data])
   const month = F.today().slice(0, 7)
   const collected = all.filter(i => i.status === 'paid' && (i.paidAt ?? '').slice(0, 7) === month).reduce((t, i) => t + i.amountPaidCents, 0)
@@ -67,7 +76,9 @@ export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
     { k: 'period', l: 'Period', sort: i => i.periodStart ?? '', r: i => (i.periodStart && i.periodEnd ? <span className="sm">{F.date(i.periodStart)} – {F.date(i.periodEnd)}</span> : <span className="faint">—</span>) },
     { k: 'amount', l: 'Amount', right: true, sort: i => i.amountDueCents, r: i => <span className="num">{rosMoney(i.amountDueCents, i.currency)}</span> },
     { k: 'status', l: 'Status', sort: i => payState(i).label, r: i => { const s = payState(i); return <Chip tone={s.tone}>{s.label}</Chip> } },
+    { k: 'xero', l: 'Xero', sort: i => stripeXero(i.xero)?.label ?? '', r: i => { const x = stripeXero(i.xero); return x ? <Chip tone={x.tone}>{x.label}</Chip> : <span className="faint">—</span> } },
     { k: 'when', l: 'Paid / due', sort: i => i.paidAt ?? i.dueAt ?? i.createdAt, r: i => <span className="sm">{i.paidAt ? F.date(i.paidAt) : i.dueAt ? `Due ${F.date(i.dueAt)}` : F.date(i.createdAt)}</span> },
+    { k: 'details', l: '', nosort: true, r: i => <Btn size="sm" kind="ghost" onClick={() => setOpenId(openId === i.id ? null : i.id)} aria-label={`Xero details for ${i.number ?? i.customerName}`}>Xero</Btn> },
     { k: 'open', l: '', nosort: true, r: i => (i.hostedUrl ? <a className="sm" href={i.hostedUrl} target="_blank" rel="noopener noreferrer">View in Stripe</a> : null) },
   ]
 
@@ -96,12 +107,15 @@ export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
         ) : !list.data ? (
           <Card><Skel rows={8} table label="Loading Rosterio invoices" /></Card>
         ) : (
+          <>
+          {open && <RosterioXeroPanel key={open.id} invoice={open} canAct={canAct} onChange={list.reload} onClose={() => setOpenId(null)} />}
           <Card pad={false}>
             <DataTable<RosterioInvoice>
               cols={cols} rows={rows} page={50} sortInit={['when', -1]}
               empty={<Empty icon="file" title={all.length ? 'No invoices match' : 'No Rosterio invoices yet'} body={all.length ? 'Try another filter or search.' : 'Invoices appear once Stripe has billed a Rosterio account linked here. Use Check Stripe now to look again.'} />}
             />
           </Card>
+          </>
         )}
       </div>
     </div>

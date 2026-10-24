@@ -21,12 +21,12 @@ const SAVE = 'PUT /sales/xero/settings'
 const CONNECT = 'POST /sales/xero/connect'
 const DISCONNECT = 'POST /sales/xero/disconnect'
 
-const SETTINGS: XeroSettings = { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01' }
+const SETTINGS: XeroSettings = { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01', stripeSync: false, stripeFrom: '', clearingAccountCode: '', feeAccountCode: '', feeTaxType: 'INPUT' }
 const status = (over: Partial<XeroStatus> = {}, settings: Partial<XeroSettings> = {}): XeroStatus => ({
   configured: true, connected: true, tenantName: 'Ardorio Pty Ltd', connectedAt: '2026-09-01T00:00:00.000Z', problem: null,
-  settings: { ...SETTINGS, ...settings }, counts: { waiting: 2, failed: 1 }, ...over,
+  settings: { ...SETTINGS, ...settings }, counts: { waiting: 2, failed: 1 }, bankScope: true, ...over,
 })
-const ACCTS: XeroAccountsResponse = { sales: [{ code: '200', name: 'Sales' }, { code: '210', name: 'Consulting' }], bank: [{ code: '090', name: 'Business Bank Account' }, { code: '091', name: 'Savings' }] }
+const ACCTS: XeroAccountsResponse = { sales: [{ code: '200', name: 'Sales' }, { code: '210', name: 'Consulting' }], bank: [{ code: '090', name: 'Business Bank Account' }, { code: '091', name: 'Savings' }, { code: '095', name: 'Stripe Clearing' }], expense: [{ code: '400', name: 'Bank Fees' }, { code: '404', name: 'Merchant Fees' }] }
 
 let host: HTMLDivElement
 let root: Root
@@ -200,5 +200,58 @@ describe('Xero card', () => {
     window.history.replaceState(null, '', '/sales/settings?xero=connected')
     await show({ [STATUS]: () => json(200, status({}, { salesAccountCode: '' })), [ACCOUNTS]: () => json(200, ACCTS) })
     expect(toasts().join(' ')).toContain('Xero connected')
+  })
+
+  describe('Stripe invoices', () => {
+    it('shows the saved choices and lists accounts from the bank and expense lists', async () => {
+      await show({ [STATUS]: () => json(200, status({}, { stripeSync: true, stripeFrom: '2026-10-01', clearingAccountCode: '095', feeAccountCode: '404', feeTaxType: 'EXEMPTEXPENSES' })), [ACCOUNTS]: () => json(200, ACCTS) })
+      expect(text()).toContain('Stripe invoices')
+      expect(host.querySelector('[aria-label="Send Stripe invoices automatically"]')).not.toBeNull()
+      expect((field(host, 'Stripe start date') as HTMLInputElement).value).toBe('2026-10-01')
+      expect((field(host, 'Stripe clearing account') as HTMLSelectElement).value).toBe('095')
+      expect([...(field(host, 'Stripe fees account') as HTMLSelectElement).options].map(o => o.textContent)).toEqual(['Choose an account…', '400 · Bank Fees', '404 · Merchant Fees'])
+      expect((field(host, 'Fee GST') as HTMLSelectElement).value).toBe('EXEMPTEXPENSES')
+      expect([...(field(host, 'Fee GST') as HTMLSelectElement).options].map(o => o.textContent)).toEqual(['GST on Expenses (10%)', 'GST Free Expenses', 'BAS Excluded'])
+      expect(button(host, 'Save Xero settings')?.disabled).toBe(true)
+    })
+
+    it('an empty start date says nothing is sent', async () => {
+      await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, ACCTS) })
+      expect(text()).toContain('Leave empty to send nothing')
+      expect(button(host, 'Save Xero settings')?.disabled).toBe(true)
+    })
+
+    it('saves only what changed in the Stripe group', async () => {
+      const api = await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, ACCTS), [SAVE]: () => json(200, { settings: SETTINGS }) })
+      await click(host.querySelector('[aria-label="Send Stripe invoices automatically"]'))
+      await type(field(host, 'Stripe start date'), '2026-10-01')
+      await type(field(host, 'Stripe clearing account'), '095')
+      await type(field(host, 'Stripe fees account'), '404')
+      await type(field(host, 'Fee GST'), 'NONE')
+      await click(button(host, 'Save Xero settings'))
+      await settle(4)
+      expect(api.calls.find(c => `${c.method} ${c.path}` === SAVE)?.body).toEqual({ stripeSync: true, stripeFrom: '2026-10-01', clearingAccountCode: '095', feeAccountCode: '404', feeTaxType: 'NONE' })
+    })
+
+    it('the clearing account can be a Xero id, and a bad code stops the save', async () => {
+      const ID = '3f1c2b7a-5d4e-4a69-9b0c-1e2f3a4b5c6d'
+      const api = await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, { ...ACCTS, bank: [...ACCTS.bank, { code: ID, name: 'Stripe Clearing' }] }), [SAVE]: () => json(200, { settings: { ...SETTINGS, clearingAccountCode: ID } }) })
+      await type(field(host, 'Stripe clearing account'), ID)
+      expect(text()).not.toContain('Up to 10 letters')
+      await click(button(host, 'Save Xero settings'))
+      await settle(4)
+      expect(api.calls.find(c => `${c.method} ${c.path}` === SAVE)?.body).toEqual({ clearingAccountCode: ID })
+    })
+
+    it('without bank transaction access: a warning with Reconnect, and none when access is there', async () => {
+      const api = await show({ [STATUS]: () => json(200, status({ bankScope: false })), [ACCOUNTS]: () => json(200, ACCTS), [CONNECT]: () => json(200, { url: 'https://login.xero.com/x' }) })
+      expect(text()).toContain('Reconnect Xero to allow bank transactions.')
+      await click(button(host, 'Reconnect to Xero'))
+      await settle(4)
+      expect(api.count(CONNECT)).toBe(1)
+      act(() => root.unmount()); root = createRoot(host)
+      await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, ACCTS) })
+      expect(text()).not.toContain('allow bank transactions')
+    })
   })
 })
