@@ -1,4 +1,4 @@
-import type { InvoiceDto, RosterioInvoice, XeroAccountsResponse, XeroContactRef, XeroSettings, XeroStatus } from './contract'
+import type { ExternalStripeLink, InvoiceDto, RosterioInvoice, XeroAccountsResponse, XeroContactRef, XeroSettings, XeroStatus } from './contract'
 import { salesFetch } from './http'
 
 /** Xero for invoicing. Every call is limited by the server to admins of business `ard` (or super). */
@@ -16,3 +16,7 @@ export const xeroContacts = (q: string, signal?: AbortSignal) => salesFetch<{ co
 export const xeroSaveStripeContact = (customerId: string, contactId: string) => salesFetch<{ contact: XeroContactRef }>('/xero/stripe-contact', { method: 'PUT', body: { customerId, contactId } })
 /** Send a Rosterio Stripe invoice to Xero, or Retry: ignores automatic sending and the start date. A refusal is a 409 with the reason. */
 export const sendStripeInvoiceToXero = (id: string) => salesFetch<RosterioInvoice>(`/xero/stripe-invoices/${encodeURIComponent(id)}/sync`, { method: 'POST', body: {} })
+/** An external record's Stripe copy, if someone has found it. No Stripe lookup. */
+export const externalStripeLink = (invoiceId: string, signal?: AbortSignal) => salesFetch<ExternalStripeLink>(`/invoices/${encodeURIComponent(invoiceId)}/xero/stripe`, { signal })
+/** Look the record's reference up in Stripe and keep a copy. Not found is a 409 with the reason. */
+export const findExternalInStripe = (invoiceId: string) => salesFetch<RosterioInvoice>(`/invoices/${encodeURIComponent(invoiceId)}/xero/stripe-link`, { method: 'POST', body: {} })
