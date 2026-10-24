@@ -20,30 +20,36 @@ export function RosterioXeroPanel({ invoice: inv, canAct, onChange, onClose }: {
   const picking = canAct && (!inv.xeroContact || changing)
 
   // The fee items of a paid invoice: shown for choosing before it is sent, read-only once it is in Xero.
-  const feeInXero = inv.xero?.feeCents != null
+  const voided = !!inv.xero?.voidedInXero
+  const redoable = !!inv.xero?.redoable && !voided
+  const [redoing, setRedoing] = useState(false)
+  const [confirmNew, setConfirmNew] = useState(false)
+  const redo = redoing && redoable
+  // A voided invoice goes again as a new one, with a fresh fee, so its old fee does not lock the rows.
+  const feeInXero = inv.xero?.feeCents != null && !voided
   const wantFees = inv.status === 'paid' && !!inv.xeroContact && canAct
-  const [preview, setPreview] = useState<{ id: string; data: StripeFeePreview | null; error: string } | null>(null)
+  const [preview, setPreview] = useState<{ id: string; redo: boolean; data: StripeFeePreview | null; error: string } | null>(null)
   const [accounts, setAccounts] = useState<XeroAccount[] | null>(null)
   const [chosen, setChosen] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!wantFees) return
     const ac = new AbortController()
-    xeroStripeFees(inv.id, ac.signal).then(
-      data => { if (!ac.signal.aborted) setPreview({ id: inv.id, data, error: '' }) },
-      e => { if (!ac.signal.aborted) setPreview({ id: inv.id, data: null, error: invoiceError(e, 'load').message }) },
+    xeroStripeFees(inv.id, ac.signal, redo || undefined).then(
+      data => { if (!ac.signal.aborted) setPreview({ id: inv.id, redo, data, error: '' }) },
+      e => { if (!ac.signal.aborted) setPreview({ id: inv.id, redo, data: null, error: invoiceError(e, 'load').message }) },
     )
     return () => ac.abort()
-  }, [wantFees, inv.id])
-  const editable = wantFees && !feeInXero
+  }, [wantFees, inv.id, redo])
+  const editable = wantFees && (!feeInXero || redo)
   useEffect(() => {
     if (!editable) return
     const ac = new AbortController()
     xeroAccounts(ac.signal).then(r => { if (!ac.signal.aborted) setAccounts(r.expense) }, () => undefined)
     return () => ac.abort()
   }, [editable])
-  const pv = wantFees && preview?.id === inv.id ? preview : null
+  const pv = wantFees && preview?.id === inv.id && preview.redo === redo ? preview : null
   const feeData = pv?.data ?? null
-  const locked = !!feeData && (feeData.locked || feeInXero)
+  const locked = !!feeData && (feeData.locked || (feeInXero && !redo))
   const codeOf = (key: string, suggested: string): string => chosen[key] ?? suggested
   const missing = !!feeData && !locked && feeData.lines.some(l => l.amountCents !== 0 && !codeOf(l.key, l.accountCode))
   const feeLoading = editable && !pv
@@ -75,13 +81,14 @@ export function RosterioXeroPanel({ invoice: inv, canAct, onChange, onClose }: {
       setBusy(false)
     }
   }
-  const send = async (): Promise<void> => {
+  const send = async (mode?: 'redo' | 'new-invoice'): Promise<void> => {
     setBusy(true)
     try {
       const mapping = feeData && !locked ? Object.fromEntries(feeData.lines.map(l => [l.key, codeOf(l.key, l.accountCode)])) : undefined
-      const next = await (mapping ? sendStripeInvoiceToXero(inv.id, mapping) : sendStripeInvoiceToXero(inv.id))
+      const next = await (mode ? sendStripeInvoiceToXero(inv.id, mapping, mode) : mapping ? sendStripeInvoiceToXero(inv.id, mapping) : sendStripeInvoiceToXero(inv.id))
       const st = next.xero?.state
-      UI.toast(st === 'error' ? 'Xero rejected the invoice' : 'Sent to Xero', st === 'error' ? 'bad' : undefined)
+      UI.toast(st === 'error' ? 'Xero rejected the invoice' : mode === 'redo' ? 'Payment and fee redone in Xero' : 'Sent to Xero', st === 'error' ? 'bad' : undefined)
+      setRedoing(false); setConfirmNew(false)
       onChange()
     } catch (e) {
       UI.toast(invoiceError(e, 'save').message, 'bad')
@@ -146,17 +153,30 @@ export function RosterioXeroPanel({ invoice: inv, canAct, onChange, onClose }: {
             {payout && <div className="sm muted">{payout}</div>}
           </div>
         )}
+        {voided && canAct && <div className="sm" role="status">Voided in Xero.</div>}
         {locked && feeRows}
         {editable && !locked && (
           <div className="col" style={{ gap: 6 }}>
             <span className="b sm">Stripe fee</span>
+            {redo && <div className="sm muted">Removes the payment and fee in Xero, then adds them again. If they are reconciled, Xero refuses: unreconcile them first.</div>}
             {pv?.error && <Banner tone="warn">{pv.error}</Banner>}
             {feeLoading && <div className="sm muted">Loading the fee.</div>}
             {feeRows}
           </div>
         )}
+        {canAct && voided && inv.xero?.nextNumber && <div className="sm muted">{`Creates ${inv.xero.nextNumber} in Xero. The voided invoice stays as it is.`}</div>}
         <div className="row wrap" style={{ gap: 8 }}>
-          {canAct && v && v.action !== null && inv.xeroContact && <Btn size="sm" kind={v.action === 'retry' ? 'pri' : undefined} onClick={() => void send()} loading={busy} disabled={missing || feeLoading}>{v.action === 'retry' ? 'Retry' : 'Send to Xero'}</Btn>}
+          {canAct && v && v.action !== null && inv.xeroContact && !voided && <Btn size="sm" kind={v.action === 'retry' ? 'pri' : undefined} onClick={() => void send()} loading={busy} disabled={missing || feeLoading}>{v.action === 'retry' ? 'Retry' : 'Send to Xero'}</Btn>}
+          {canAct && voided && !confirmNew && <Btn size="sm" onClick={() => setConfirmNew(true)} disabled={busy}>Send as a new invoice</Btn>}
+          {canAct && voided && confirmNew && <>
+            <Btn size="sm" kind="pri" onClick={() => void send('new-invoice')} loading={busy} disabled={missing || feeLoading}>Confirm</Btn>
+            <Btn size="sm" kind="ghost" onClick={() => setConfirmNew(false)} disabled={busy}>Cancel</Btn>
+          </>}
+          {canAct && redoable && !redo && <Btn size="sm" kind="ghost" onClick={() => setRedoing(true)}>Redo payment and fee</Btn>}
+          {canAct && redo && <>
+            <Btn size="sm" kind="pri" onClick={() => void send('redo')} loading={busy} disabled={missing || feeLoading || !feeData}>Redo in Xero</Btn>
+            <Btn size="sm" kind="ghost" onClick={() => setRedoing(false)} disabled={busy}>Cancel</Btn>
+          </>}
           {inv.xero?.url && <a className="btn sm" href={inv.xero.url} target="_blank" rel="noopener noreferrer">Open in Xero</a>}
         </div>
       </div>

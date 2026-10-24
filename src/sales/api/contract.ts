@@ -711,7 +711,14 @@ export interface XeroSettings {
 }
 // Rosterio's Stripe invoices in Xero. 'needs-contact': no Xero contact is chosen for the customer yet. payout: whether the money has left Stripe.
 export type StripeXeroState = 'synced' | 'pending' | 'error' | 'needs-contact' | 'not_sent'
-export interface StripeXeroInfo { state: StripeXeroState; message: string; syncedAt: string | null; url: string | null; feeCents: number | null; payout: 'paid-out' | 'awaiting' | null }
+export interface StripeXeroInfo { state: StripeXeroState; message: string; syncedAt: string | null; url: string | null; feeCents: number | null; payout: 'paid-out' | 'awaiting' | null
+  /** A person voided the invoice in Xero: it can only be sent again as a new one. */
+  voidedInXero: boolean
+  /** The payment and fee are in Xero and can be removed and posted again. */
+  redoable: boolean
+  /** The number the new invoice would get; set only when voidedInXero. */
+  nextNumber: string | null
+}
 export interface XeroContactRef { id: string; name: string }
 export interface XeroStatus {
   configured: boolean; reason?: string; connected: boolean; tenantName: string; connectedAt: string | null

@@ -138,7 +138,7 @@ describe('settingsPatch with the Stripe settings', () => {
 })
 
 describe('Stripe invoices in Xero', () => {
-  const x = (over: Partial<NonNullable<Parameters<typeof stripeXero>[0]>> = {}) => ({ state: 'not_sent' as const, message: '', syncedAt: null, url: null, feeCents: null, payout: null, ...over })
+  const x = (over: Partial<NonNullable<Parameters<typeof stripeXero>[0]>> = {}) => ({ state: 'not_sent' as const, message: '', syncedAt: null, url: null, feeCents: null, payout: null, voidedInXero: false, redoable: false, nextNumber: null, ...over })
   it('says nothing when the server sent nothing', () => {
     expect(stripeXero(null)).toBeNull()
     expect(stripeXero(undefined)).toBeNull()

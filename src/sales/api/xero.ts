@@ -14,10 +14,10 @@ export const sendInvoiceToXero = (id: string) => salesFetch<InvoiceDto>(`/invoic
 export const xeroContacts = (q: string, signal?: AbortSignal) => salesFetch<{ contacts: XeroContactRef[] }>(`/xero/contacts?q=${encodeURIComponent(q)}`, { signal })
 /** Choose the Xero contact for a Stripe customer. An empty contactId clears it. */
 export const xeroSaveStripeContact = (customerId: string, contactId: string) => salesFetch<{ contact: XeroContactRef }>('/xero/stripe-contact', { method: 'PUT', body: { customerId, contactId } })
-/** Send a Rosterio Stripe invoice to Xero, or Retry: ignores automatic sending and the start date. A refusal is a 409 with the reason. */
-export const sendStripeInvoiceToXero = (id: string, feeAccounts?: Record<string, string>) => salesFetch<RosterioInvoice>(`/xero/stripe-invoices/${encodeURIComponent(id)}/sync`, { method: 'POST', body: feeAccounts ? { feeAccounts } : {} })
+/** Send a Rosterio Stripe invoice to Xero, or Retry (mode 'new-invoice': a fresh invoice after a void; 'redo': post the payment and fee again): ignores automatic sending and the start date. A refusal is a 409 with the reason. */
+export const sendStripeInvoiceToXero = (id: string, feeAccounts?: Record<string, string>, mode?: 'redo' | 'new-invoice') => salesFetch<RosterioInvoice>(`/xero/stripe-invoices/${encodeURIComponent(id)}/sync`, { method: 'POST', body: { ...(feeAccounts ? { feeAccounts } : {}), ...(mode ? { mode } : {}) } })
 /** The Stripe fee items of a paid invoice with the account each would go to. Not previewable (not paid, not settled) is a 409 with the reason. */
-export const xeroStripeFees = (invoiceId: string, signal?: AbortSignal) => salesFetch<StripeFeePreview>(`/xero/stripe-invoices/${encodeURIComponent(invoiceId)}/fees`, { signal })
+export const xeroStripeFees = (invoiceId: string, signal?: AbortSignal, redo?: boolean) => salesFetch<StripeFeePreview>(`/xero/stripe-invoices/${encodeURIComponent(invoiceId)}/fees${redo ? '?redo=1' : ''}`, { signal })
 /** An external record's Stripe copy, if someone has found it. No Stripe lookup. */
 export const externalStripeLink = (invoiceId: string, signal?: AbortSignal) => salesFetch<ExternalStripeLink>(`/invoices/${encodeURIComponent(invoiceId)}/xero/stripe`, { signal })
 /** Look the record's reference up in Stripe and keep a copy. Not found is a 409 with the reason. */
