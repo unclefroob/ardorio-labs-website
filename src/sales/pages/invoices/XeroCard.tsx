@@ -85,7 +85,7 @@ function Connected({ status, reload }: { status: XeroStatus; reload: () => void 
   const patch = settingsPatch(saved, draft)
   const dirty = Object.keys(patch).length > 0
   const set = (p: Partial<XeroSettings>): void => setDraft(d => ({ ...d, ...p }))
-  const codeErr = (v: string): string => (CODE.test(v) ? '' : 'Up to 10 letters, digits, dots or dashes')
+  const codeErr = (v: string): string => (CODE.test(v) || isXeroId(v) ? '' : 'Up to 10 letters, digits, dots or dashes')
   const dayErr = DAY.test(draft.syncFrom) && !Number.isNaN(Date.parse(`${draft.syncFrom}T00:00:00Z`)) ? '' : 'Choose a date'
   const invalid = !!codeErr(draft.salesAccountCode) || !!codeErr(draft.paymentAccountCode) || !!dayErr
   const step = nextStep({ ...status, settings: saved })
