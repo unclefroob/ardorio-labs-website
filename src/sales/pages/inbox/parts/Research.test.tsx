@@ -151,3 +151,37 @@ describe('prospecting research form: website', () => {
     expect(text()).toContain('Saved.')
   })
 })
+
+describe('prospecting research: head office and headcount', () => {
+  const accept = (): unknown => postBatch.mockImplementation(async (req: BatchRequest): Promise<BatchResponse> => ({
+    serverNow: '2026-10-10T00:00:00.000Z',
+    results: req.ops.map((op, i) => appliedResult(i, op.collection, op.id, 1, 'set' in op ? { ...op.set } : {})),
+  }))
+
+  it('puts the head office and an estimated headcount on the company when the research is saved', async () => {
+    await render()
+    accept()
+    aiResearch.mockResolvedValue({
+      value: { ...RESEARCH, profile: { headOffice: 'Sydney, NSW, Australia', employees: { count: 850, basis: 'estimated', note: 'LinkedIn range' } } },
+      ai: { source: 'llm', model: 'm' },
+    })
+    await fill('Harbour Retail Group', 'harbour.com.au')
+    await submit()
+    await act(async () => { button(host, 'Create company & save research')?.click() })
+    await settle(8)
+    const c = m.store.S.companies.find(x => x.name === 'Harbour Retail Group')
+    expect(c).toMatchObject({ hq: 'Sydney', state: 'NSW', country: 'Australia', employees: 850 })
+  })
+
+  it('saves research with no profile without touching the company', async () => {
+    await render()
+    accept()
+    await fill('Harbour Retail Group', 'harbour.com.au')
+    await submit()
+    await act(async () => { button(host, 'Create company & save research')?.click() })
+    await settle(8)
+    const c = m.store.S.companies.find(x => x.name === 'Harbour Retail Group')
+    expect(c?.employees).toBeNull()
+    expect(c?.hq || '').toBe('')
+  })
+})

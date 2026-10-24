@@ -225,11 +225,12 @@ export function fillCompanyFromResearch(id: string, p: { headOffice?: string; em
   const c = idx.companies.get(id)
   if (!c) return 0
   const filled: string[] = []
-  if (p.headOffice && !(c.hq || '').trim() && !(c.state || '').trim() && !(c.country || '').trim()) {
+  // A country alone is no head office (a new company starts as Australia), so the city and state are what must be empty; a country already there stays.
+  if (p.headOffice && !(c.hq || '').trim() && !(c.state || '').trim()) {
     const o = splitHeadOffice(p.headOffice)
     c.hq = o.hq
     c.state = o.state
-    c.country = o.country
+    if (!(c.country || '').trim()) c.country = o.country
     filled.push('head office')
   }
   if (p.employees && c.employees === null) {
