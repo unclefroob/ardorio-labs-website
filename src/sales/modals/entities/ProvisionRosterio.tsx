@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
-import type { RosterioPlan, RosterioProvisionRequest } from '../../api/contract'
+import type { RosterioMatch, RosterioMatchesResponse, RosterioPlan, RosterioProvisionRequest } from '../../api/contract'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
-import { asPlan, planLabel, PLAN_OPTIONS, provision, rosterioLinkOf, UNSURE_MESSAGE, useRosterioLinks, useRosterioStatus, linkSummary } from '../../data/rosterio'
+import { asPlan, checkMatches, linkAccount, planLabel, PLAN_OPTIONS, provision, rosterioLinkOf, UNSURE_MESSAGE, useRosterioLinks, useRosterioStatus, linkSummary } from '../../data/rosterio'
 import type { Deal } from '../../data/types'
-import { Banner, Btn, Fld, Inp, Sel, Toggle } from '../../kit/basic'
+import { Banner, Btn, Chip, Fld, Inp, Sel, Toggle } from '../../kit/basic'
 import { Spinner } from '../../kit/basic'
 import { Modal } from '../../kit/overlay'
 import { UI } from '../../ui/store'
@@ -20,7 +20,7 @@ interface Draft {
   isTrial: boolean
   trialEndDate: string
 }
-type Phase = 'form' | 'confirm' | 'sending'
+type Phase = 'form' | 'checking' | 'matches' | 'confirm' | 'sending'
 interface Done { accountName: string; email: string; isNewUser: boolean; tempPassword: string | null }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -74,8 +74,19 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
   const [phase, setPhase] = useState<Phase>('form')
   const [err, setErr] = useState<Partial<Record<keyof Draft, string>>>({})
   const [problem, setProblem] = useState('')
+  /** What Rosterio already has that looks like this account. Null when nobody could say, and the form carries on as before. */
+  const [found, setFound] = useState<RosterioMatchesResponse | null>(null)
+  /** The person has seen the matches and chose to create a new account anyway. Sent as confirmNotDuplicate. */
+  const [goAhead, setGoAhead] = useState(false)
+  const [linking, setLinking] = useState<string | null>(null)
+  const [linkErr, setLinkErr] = useState('')
   const sending = useRef(false)
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]): void => setF(o => ({ ...o, [k]: v }))
+  const checking = useRef(false)
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]): void => {
+    // What was checked, and any go-ahead given, belongs to the name and admin email that were checked: change either and both are void.
+    if ((k === 'accountName' || k === 'adminEmail') && v !== f[k]) { setFound(null); setGoAhead(false) }
+    setF(o => ({ ...o, [k]: v }))
+  }
 
   const validate = (): boolean => {
     const e: Partial<Record<keyof Draft, string>> = {}
@@ -99,6 +110,7 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
       adminEmail: f.adminEmail.trim(), plan: f.plan, isTrial: f.isTrial,
       ...(f.adminPhone.trim() ? { adminPhone: f.adminPhone.trim() } : {}),
       ...(f.isTrial ? { trialEndDate: f.trialEndDate } : {}),
+      ...(goAhead ? { confirmNotDuplicate: true } : {}),
     }
     const r = await provision(d.companyId, req)
     sending.current = false
@@ -106,14 +118,77 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
       onDone({ accountName: r.link.accountName || req.accountName, email: r.adminUser.email, isNewUser: r.adminUser.isNewUser, tempPassword: r.adminUser.tempPassword })
       return
     }
+    if (r.kind === 'match') {
+      // The server stopped it and made nothing: show what it found, as the pre-check would have.
+      setFound(r.found)
+      setGoAhead(false)
+      setLinkErr('')
+      setPhase('matches')
+      return
+    }
     setProblem(r.message)
+    setGoAhead(false)
     setPhase('form')
   }
 
-  const next = (): void => {
+  const next = async (): Promise<void> => {
     if (!validate()) return
-    if (recover) void send()
-    else setPhase('confirm')
+    if (recover) { setGoAhead(false); void send(); return }
+    if (checking.current) return
+    checking.current = true
+    onStart()   // from here a sync landing mid-check must not swap the dialog away
+    setProblem('')
+    setPhase('checking')
+    const check = await checkMatches(d.companyId, f.accountName.trim(), f.adminEmail.trim())
+    checking.current = false
+    if (check.kind === 'limited') {
+      // Not "no matches": say so and let the person try again later. Nothing was created.
+      setFound(null)
+      setProblem(check.message)
+      setPhase('form')
+      return
+    }
+    const r = check.kind === 'found' ? check.found : null
+    setFound(r)
+    setGoAhead(false)
+    setLinkErr('')
+    // Only an account the person could link, or one that blocks the name, is worth stopping for.
+    const stop = !!r && (r.matches.length > 0 || r.alreadyLinked.some(m => m.matchedOn.includes('name')))
+    setPhase(stop ? 'matches' : 'confirm')
+  }
+
+  const linkInstead = async (m: RosterioMatch): Promise<void> => {
+    if (linking) return
+    setLinking(m.accountId)
+    setLinkErr('')
+    const r = await linkAccount(d.companyId, m.accountId)
+    setLinking(null)
+    if (r.ok) {
+      UI.close()
+      const id = d.companyId
+      UI.toast(`Linked ${m.name} to ${co?.name ?? 'the company'}`, 'ok', { label: 'Open company', fn: () => UI.nav('company', { id }) })
+    } else setLinkErr(r.message)
+  }
+
+  if (phase === 'matches' && found) {
+    return (
+      <Modal
+        key="matches"
+        title="This looks like an existing Rosterio account"
+        icon="alert"
+        sub={d.title}
+        width={620}
+        describedBy="ros-match-list"
+        footer={
+          <>
+            <Btn disabled={!!linking} onClick={() => setPhase('form')}>Back</Btn>
+            {found.canConfirmNotDuplicate && <Btn disabled={!!linking} onClick={() => { setGoAhead(true); setPhase('confirm') }}>Create a new account anyway</Btn>}
+          </>
+        }
+      >
+        <MatchPanel found={found} linking={linking} err={linkErr} onLink={m => void linkInstead(m)} />
+      </Modal>
+    )
   }
 
   if (phase === 'confirm' || (phase === 'sending' && !recover)) {
@@ -123,9 +198,10 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
         title="Confirm new Rosterio account"
         icon="zap"
         sub={d.title}
-        footer={<><Btn disabled={busy} onClick={() => setPhase('form')}>Back</Btn><Btn kind="pri" disabled={busy} onClick={() => void send()}>{busy ? 'Creating…' : 'Create account'}</Btn></>}
+        footer={<><Btn disabled={busy} onClick={() => setPhase(goAhead && found ? 'matches' : 'form')}>Back</Btn><Btn kind="pri" disabled={busy} onClick={() => void send()}>{busy ? 'Creating…' : 'Create account'}</Btn></>}
       >
         <Banner tone="warn">This creates a live Rosterio account and a login for {f.adminEmail.trim()}.</Banner>
+        {goAhead && <div className="sm muted" style={{ marginTop: 8 }}>You have seen the similar account{(found?.matches.length ?? 0) === 1 ? '' : 's'} and chose to create a new one anyway.</div>}
         <dl className="dl" style={{ marginTop: 12 }}>
           <dt>Account name</dt><dd>{f.accountName.trim()}</dd>
           <dt>Plan</dt><dd>{planLabel(f.plan)}</dd>
@@ -136,7 +212,7 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
     )
   }
 
-  const busy = phase === 'sending'
+  const busy = phase === 'sending' || phase === 'checking'
   return (
     <Modal
       title={recover ? 'Check Rosterio account' : TITLE}
@@ -146,17 +222,17 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
       footer={
         <>
           <Btn onClick={UI.close}>Cancel</Btn>
-          <Btn kind="pri" disabled={busy} onClick={next}>{recover ? (busy ? 'Checking…' : 'Check status') : 'Continue'}</Btn>
+          <Btn kind="pri" disabled={busy} onClick={() => void next()}>{recover ? (busy ? 'Checking…' : 'Check status') : phase === 'checking' ? 'Checking Rosterio…' : 'Continue'}</Btn>
         </>
       }
     >
       {recover && !problem && <Banner tone="warn">{UNSURE_MESSAGE} If the account was never created, this creates it now with a login for {f.adminEmail.trim() || 'the email below'}.</Banner>}
       {problem && <Banner tone="bad">{problem}</Banner>}
       <div className="grid g2" style={{ marginTop: 8 }}>
-        <Fld label="Account name" req err={err.accountName} style={{ gridColumn: '1/-1' }}><Inp value={f.accountName} onChange={v => set('accountName', v)} autoFocus /></Fld>
+        <Fld label="Account name" req err={err.accountName} style={{ gridColumn: '1/-1' }}><Inp value={f.accountName} onChange={v => set('accountName', v)} disabled={phase === 'checking'} autoFocus /></Fld>
         <Fld label="Admin first name" req err={err.adminFirstName}><Inp value={f.adminFirstName} onChange={v => set('adminFirstName', v)} /></Fld>
         <Fld label="Admin last name" req err={err.adminLastName}><Inp value={f.adminLastName} onChange={v => set('adminLastName', v)} /></Fld>
-        <Fld label="Admin email" req err={err.adminEmail} hint="This person gets the login."><Inp type="email" value={f.adminEmail} onChange={v => set('adminEmail', v)} /></Fld>
+        <Fld label="Admin email" req err={err.adminEmail} hint="This person gets the login."><Inp type="email" value={f.adminEmail} onChange={v => set('adminEmail', v)} disabled={phase === 'checking'} /></Fld>
         <Fld label="Admin phone"><Inp value={f.adminPhone} onChange={v => set('adminPhone', v)} /></Fld>
         <Fld label="Plan"><Sel value={f.plan} onChange={v => set('plan', asPlan(v) ?? 'starter')} options={PLAN_OPTIONS} /></Fld>
         <Fld label="Trial">
@@ -165,6 +241,72 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
         {f.isTrial && <Fld label="Trial ends" req err={err.trialEndDate}><Inp type="date" value={f.trialEndDate} onChange={v => set('trialEndDate', v)} /></Fld>}
       </div>
     </Modal>
+  )
+}
+
+const REASON: Record<RosterioMatch['matchedOn'][number], string> = {
+  name: 'the same account name', administratorEmail: 'the same administrator email', billingEmail: 'the same billing email',
+}
+/** Why it matched, in plain words, never an email address: "Same account name and same billing email". */
+export function whyMatched(m: RosterioMatch): string {
+  const parts = m.matchedOn.map(r => REASON[r])
+  if (parts.length === 0) return ''
+  const text = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]
+  return 'Matched on ' + text
+}
+
+function AccountLine({ m }: { m: RosterioMatch }) {
+  const why = whyMatched(m)
+  return (
+    <div className="col" style={{ gap: 4, minWidth: 0 }}>
+      <div className="row wrap" style={{ gap: 6 }}>
+        <b>{m.name}</b>
+        {m.plan && <Chip tone="acc">{planLabel(m.plan)}</Chip>}
+        <Chip tone={m.isTrial ? 'warn' : 'ok'}>{m.isTrial ? 'Trial' : 'Paid'}</Chip>
+        {m.status && m.status !== 'active' && <Chip tone="bad">{m.status.charAt(0).toUpperCase() + m.status.slice(1)}</Chip>}
+      </div>
+      {why && <div className="sm muted">{why}</div>}
+    </div>
+  )
+}
+
+/** The match the server found: link the existing account, or (only for email matches) create a new one anyway. */
+function MatchPanel({ found, linking, err, onLink }: { found: RosterioMatchesResponse; linking: string | null; err: string; onLink: (m: RosterioMatch) => void }) {
+  const named = found.matches.some(m => m.matchedOn.includes('name'))
+  return (
+    <div className="col" style={{ gap: 14 }} id="ros-match-list">
+      {found.matches.length > 0 && (
+        <div className="sm muted">
+          {named || !found.canConfirmNotDuplicate
+            ? 'Rosterio does not allow a second account with the same name, so the way forward is to link the one it already has.'
+            : 'Linking keeps one account for this customer. If this is a separate business that shares the same email, you can create a new account anyway.'}
+        </div>
+      )}
+      {found.matches.length > 0 && (
+        <ul className="col" style={{ gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
+          {found.matches.map(m => (
+            <li key={m.accountId} className="row" style={{ gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <AccountLine m={m} />
+              <Btn kind="pri" loading={linking === m.accountId} disabled={!!linking} aria-label={`Link this account instead: ${m.name}`} onClick={() => onLink(m)}>Link this account instead</Btn>
+            </li>
+          ))}
+        </ul>
+      )}
+      {found.alreadyLinked.length > 0 && (
+        <div className="col" style={{ gap: 6 }}>
+          <div className="b sm">{found.matches.length > 0 ? 'Also in Rosterio, already linked' : 'Rosterio already has this account, and it is linked'}</div>
+          <ul className="col" style={{ gap: 8, listStyle: 'none', margin: 0, padding: 0 }}>
+            {found.alreadyLinked.map(m => (
+              <li key={m.accountId} className="col" style={{ gap: 4 }}>
+                <AccountLine m={m} />
+                <div className="sm muted">Already linked to {m.companyName ? m.companyName : 'another company'}, so it cannot be linked here.</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {err && <Banner tone="bad">{err}</Banner>}
+    </div>
   )
 }
 

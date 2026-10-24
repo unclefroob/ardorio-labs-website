@@ -4,8 +4,8 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { useStore, S } from '../../data/store'
 import { useLoad } from '../../data/invoicing'
-import { accountSnapshot, planLabel, rosterioLinkOf, useRosterioAccounts } from '../../data/rosterio'
-import { detailStanding, rosterioAdminUrl, standingText, useRosterioAccountDetail } from '../../data/rosterioAccount'
+import { accountSnapshot, planLabel, safeUrl, rosterioLinkOf, useRosterioAccounts } from '../../data/rosterio'
+import { detailStanding, standingText, useRosterioAccountDetail } from '../../data/rosterioAccount'
 import { useRosterioBilling } from '../../data/rosterioBilling'
 import { Banner, Btn, Chip, Empty, Link, Skel, Tabs } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
@@ -13,9 +13,9 @@ import { Denied } from '../../shell/states'
 import { UI, type Route } from '../../ui/store'
 import { AccountBilling } from './AccountBilling'
 import { AccountOverview, type AccountTab } from './AccountOverview'
-import { ActivityPanel, FeaturesPanel, InvoicesPanel, PeoplePanel } from './AccountPanels'
+import { ActivityPanel, InvoicesPanel, PeoplePanel } from './AccountPanels'
 
-const TABS: readonly AccountTab[] = ['overview', 'billing', 'invoices', 'people', 'features', 'activity']
+const TABS: readonly AccountTab[] = ['overview', 'billing', 'invoices', 'people', 'activity']
 const isTab = (v: unknown): v is AccountTab => TABS.includes(v as AccountTab)
 const TONE = { paid: 'ok', trial: 'warn', trialEnded: 'bad', inactive: 'bad' } as const
 
@@ -118,13 +118,13 @@ function Account({ id, route }: { id: string; route: Route }) {
       >
         <span className="faint sm" title={F.dt(d.fetchedAt)}>Read from Rosterio {F.rel(d.fetchedAt)}</span>
         <Btn icon="refresh" disabled={detail.loading} onClick={() => { detail.reload(); billing.reload(); invoices.reload() }}>Refresh</Btn>
-        <a className="btn" href={rosterioAdminUrl(d.accountId)} target="_blank" rel="noopener noreferrer">Open in Rosterio admin</a>
+        {safeUrl(d.adminUrl) && <a className="btn" href={safeUrl(d.adminUrl)} target="_blank" rel="noopener noreferrer">Open in Admin</a>}
       </PageHead>
 
       <Tabs
         value={tab}
         onChange={choose}
-        tabs={[['overview', 'Overview'], ['billing', 'Billing'], ['invoices', 'Invoices', list ? list.length : null], ['people', 'People', d.people.active], ['features', 'Features'], ['activity', 'Activity']]}
+        tabs={[['overview', 'Overview'], ['billing', 'Billing'], ['invoices', 'Invoices', list ? list.length : null], ['people', 'People', d.people.active], ['activity', 'Activity']]}
       />
 
       {tab === 'overview' && <AccountOverview d={d} go={choose} />}
@@ -135,7 +135,6 @@ function Account({ id, route }: { id: string; route: Route }) {
           : !invoices.data ? <Skel rows={5} table label="Loading invoices" /> : <InvoicesPanel data={invoices.data} />
       )}
       {tab === 'people' && <PeoplePanel d={d} />}
-      {tab === 'features' && <FeaturesPanel d={d} />}
       {tab === 'activity' && <ActivityPanel d={d} billing={billing.data} />}
     </div>
   )

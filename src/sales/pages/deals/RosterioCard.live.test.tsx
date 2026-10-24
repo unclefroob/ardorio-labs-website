@@ -54,14 +54,14 @@ async function show(routes: Parameters<typeof fakeApi>[0], o: { role?: Parameter
 const linked = { rosterio: link({ accountId: 'acc1', accountName: 'Acme Pty Ltd' }) }
 
 describe('company card with the live Rosterio account', () => {
-  it('shows the live plan, status, users and billing email, and a note that lead pushes are paused', async () => {
+  it('shows the live plan, status and users (not the billing email), and a note that lead pushes are paused', async () => {
     await show({ [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', plan: 'enterprise', memberCount: 340, billingEmail: 'finance@acme.test' })])) }, { company: linked })
     expect(text()).toContain('Live')
     expect(text()).toContain('Enterprise')
     expect(text()).toContain('Paid')
     expect(text()).toContain('340')
     expect(text()).toContain('Customer since')
-    expect(text()).toContain('finance@acme.test')
+    expect(text()).not.toContain('finance@acme.test')   // billing email is for Rosterio admins
     expect(text()).toContain('Read from Rosterio')
     expect(text()).toContain('New Rosterio deals on this company are not sent as leads')
     expect(button(host, 'Unlink')).toBeDefined()

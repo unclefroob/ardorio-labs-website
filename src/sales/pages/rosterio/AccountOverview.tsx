@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 import type { RosterioAccountDetail } from '../../api/contract'
-import { planLabel } from '../../data/rosterio'
-import { rosterioAdminUrl, roleLabel } from '../../data/rosterioAccount'
+import { planDriftText, planLabel, safeUrl } from '../../data/rosterio'
+import { roleLabel } from '../../data/rosterioAccount'
 import { dayText, perOf, rosMoneyOf, statePill } from '../../data/rosterioBilling'
-import { Btn, Card, Chip, Prog } from '../../kit'
+import { Banner, Btn, Card, Chip, Prog } from '../../kit'
+import { AlsoOnAccount } from './AccountPanels'
 
-export type AccountTab = 'overview' | 'billing' | 'invoices' | 'people' | 'features' | 'activity'
+export type AccountTab = 'overview' | 'billing' | 'invoices' | 'people' | 'activity'
 
 function Fig({ label, value, sub, bar, onClick }: { label: string; value: ReactNode; sub?: ReactNode; bar?: number; onClick?: () => void }) {
   const body = (
@@ -34,10 +35,10 @@ export function AccountOverview({ d, go }: { d: RosterioAccountDetail; go: (t: A
   const managed = d.pricing?.managedContract ?? !!t
   const pill = statePill(d.billingState, managed)
   const monthly = d.pricing?.monthlyCost
-  const on = d.features.filter(f => f.on)
   const day = (s: string): string => dayText(s.slice(0, 10))
   return (
     <div className="col" style={{ gap: 14 }}>
+      {d.planDrift && <Banner tone="info">{planDriftText(d.planDrift)} SalesOS leaves the deal as it is.</Banner>}
       <div className="grid g4">
         <Fig label="Active users" value={<>{d.memberCount} <span className="faint sm">of {d.maxUsers ?? 'unlimited'}</span></>} bar={d.maxUsers ? (d.memberCount / d.maxUsers) * 100 : undefined} />
         <Fig
@@ -55,7 +56,7 @@ export function AccountOverview({ d, go }: { d: RosterioAccountDetail; go: (t: A
       </div>
 
       <div className="grid g2" style={{ alignItems: 'start' }}>
-        <Card title="Contract terms" icon="file" right={managed ? <a className="sm" href={rosterioAdminUrl(d.accountId)} target="_blank" rel="noopener noreferrer">Correct terms</a> : undefined}>
+        <Card title="Contract terms" icon="file" right={managed && safeUrl(d.adminUrl) ? <a className="sm" href={safeUrl(d.adminUrl)} target="_blank" rel="noopener noreferrer">Correct terms</a> : undefined}>
           {t ? (
             <div className="col" style={{ gap: 8 }}>
               <Line label="Price">{priceText(t)} <span className="faint">ex GST</span></Line>
@@ -73,16 +74,7 @@ export function AccountOverview({ d, go }: { d: RosterioAccountDetail; go: (t: A
           )}
         </Card>
 
-        <Card title="Features" icon="sliders" right={<Btn size="xs" kind="ghost" onClick={() => go('features')}>All features</Btn>}>
-          {d.features.length === 0 ? <div className="faint sm">Rosterio did not report any features.</div> : (
-            <div className="col" style={{ gap: 6 }}>
-              <div className="sm"><b>{on.length}</b> of {d.features.length} on</div>
-              <div className="row wrap" style={{ gap: 6 }}>
-                {on.length ? on.map(f => <Chip key={f.key} tone="ok">{f.label}</Chip>) : <span className="faint sm">None switched on</span>}
-              </div>
-            </div>
-          )}
-        </Card>
+        <AlsoOnAccount d={d} />
       </div>
 
       <Card title="Account admins" icon="users" right={<Btn size="xs" kind="ghost" onClick={() => go('people')}>All {d.people.active} people</Btn>}>

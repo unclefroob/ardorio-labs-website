@@ -8,9 +8,6 @@ import { standing, type AccountStanding } from './rosterio'
 export const useRosterioAccountDetail = (accountId: string): Loaded<RosterioAccountDetail> =>
   useLoad(sig => rosterioAccount(accountId, sig), `ros-account:${accountId}`)
 
-/** Where the account's own Rosterio admin page is: for fixing terms, which SalesOS cannot do. */
-export const rosterioAdminUrl = (accountId: string): string => `https://rosterio-crm.web.app/accounts/${encodeURIComponent(accountId)}`
-
 /** The list shape `standing()` reads, from the page's detail. */
 export function detailStanding(d: RosterioAccountDetail): AccountStanding {
   const a: RosterioAccount = {

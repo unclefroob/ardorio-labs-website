@@ -53,31 +53,18 @@ export function PeoplePanel({ d }: { d: RosterioAccountDetail }) {
   )
 }
 
-export function FeaturesPanel({ d }: { d: RosterioAccountDetail }) {
+/** AI credits and award setup, as Rosterio reports them. The operator feature switches are not shown here: they live in Rosterio Admin. */
+export function AlsoOnAccount({ d }: { d: RosterioAccountDetail }) {
   return (
-    <div className="grid g2" style={{ alignItems: 'start' }}>
-      <Card title="Features" icon="sliders">
-        {d.features.length === 0 ? <div className="faint sm">Rosterio did not report any features.</div> : (
-          <div className="col" style={{ gap: 8 }}>
-            {d.features.map(f => (
-              <div key={f.key} className="row">
-                <span style={{ flex: 1 }}>{f.label}</span>
-                <Chip tone={f.on ? 'ok' : ''}>{f.on ? 'On' : 'Off'}</Chip>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-      <Card title="Also on the account" icon="info">
-        <div className="col" style={{ gap: 8 }}>
-          <div className="row"><span style={{ flex: 1 }}>AI credits each period</span><span className="num">{d.aiCreditsPerPeriod ?? '—'}</span></div>
-          <div className="row">
-            <span style={{ flex: 1 }}>Award setup</span>
-            <span>{d.awardSetup ? <>{d.awardSetup.status.replace(/_/g, ' ')}{d.awardSetup.updatedAt && <span className="faint sm"> · {F.date(d.awardSetup.updatedAt)}</span>}</> : 'Not started'}</span>
-          </div>
+    <Card title="Also on the account" icon="info">
+      <div className="col" style={{ gap: 8 }}>
+        <div className="row"><span style={{ flex: 1 }}>AI credits each period</span><span className="num">{d.aiCreditsPerPeriod ?? '—'}</span></div>
+        <div className="row">
+          <span style={{ flex: 1 }}>Award setup</span>
+          <span>{d.awardSetup ? <>{d.awardSetup.status.replace(/_/g, ' ')}{d.awardSetup.updatedAt && <span className="faint sm"> · {F.date(d.awardSetup.updatedAt)}</span>}</> : 'Not started'}</span>
         </div>
-      </Card>
-    </div>
+      </div>
+    </Card>
   )
 }
 

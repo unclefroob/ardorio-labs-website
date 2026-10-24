@@ -277,3 +277,218 @@ describe('Provision Rosterio account: not sure what happened', () => {
     expect(text()).toContain('Rosterio account created')
   })
 })
+
+describe('Provision Rosterio account: an account that already exists', () => {
+  const MATCHES = 'POST /sales/rosterio/matches'
+  const LINK = 'POST /sales/rosterio/link'
+  const match = (o: Record<string, unknown> = {}) => ({ accountId: 'acc9', name: 'Acme Group', plan: 'pro', isTrial: false, status: 'active', matchedOn: ['administratorEmail'], ...o })
+  const found = (o: Record<string, unknown> = {}) => ({ checked: true, matches: [match()], alreadyLinked: [], canConfirmNotDuplicate: true, ...o })
+
+  it('asks Rosterio before the confirm step, with the name and admin email, and carries on when nothing matches', async () => {
+    const api = await open({ [MATCHES]: json(200, found({ matches: [], canConfirmNotDuplicate: false })) })
+    await click(button(dialog(), 'Continue'))
+    expect(api.calls.find(c => c.path === '/sales/rosterio/matches')?.body).toEqual({ companyId: 'co1', accountName: 'Acme Pty Ltd', administratorEmail: 'jo@acme.test' })
+    expect(text()).toContain('This creates a live Rosterio account')
+    expect(api.count(PROVISION)).toBe(0)
+  })
+
+  it('carries on as before when Rosterio could not be asked (checked false) or the check fails', async () => {
+    await open({ [MATCHES]: json(200, { checked: false, matches: [], alreadyLinked: [], canConfirmNotDuplicate: false }) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('This creates a live Rosterio account')
+    await click(button(dialog(), 'Back'))
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('This creates a live Rosterio account')
+  })
+
+  it('says it looks like an existing account, with plan, paid or trial and why, and never an email address', async () => {
+    const api = await open({ [MATCHES]: json(200, found({ matches: [match({ matchedOn: ['administratorEmail', 'billingEmail'] }), match({ accountId: 'acc8', name: 'Acme Trial', isTrial: true, plan: 'starter', matchedOn: ['billingEmail'] })] })) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('This looks like an existing Rosterio account')
+    expect(text()).toContain('Acme Group')
+    expect(text()).toContain('Matched on the same administrator email and the same billing email')
+    expect(text()).toContain('Acme Trial')
+    expect(text()).toContain('Trial')
+    expect(text()).toContain('Paid')
+    expect(text()).toContain('Matched on the same billing email')
+    expect(text()).not.toContain('jo@acme.test')
+    expect(button(dialog(), /^Link this account instead/)).toBeDefined()
+    expect(text()).not.toContain('This creates a live Rosterio account')
+    expect(api.count(PROVISION)).toBe(0)
+  })
+
+  it('links the existing account with the existing link action, and sends nothing to provision', async () => {
+    const api = await open({ [MATCHES]: json(200, found()), [LINK]: json(200, { link: link({ accountId: 'acc9', accountName: 'Acme Group' }) }) })
+    await click(button(dialog(), 'Continue'))
+    await click(dialog().querySelector('button[aria-label="Link this account instead: Acme Group"]'))
+    await settle(5)
+    expect(api.calls.find(c => c.path === '/sales/rosterio/link')?.body).toEqual({ companyId: 'co1', accountId: 'acc9' })
+    expect(api.count(PROVISION)).toBe(0)
+    expect(host.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('shows the server\'s reason and stays open when the link is refused', async () => {
+    await open({ [MATCHES]: json(200, found()), [LINK]: json(409, { error: 'That account is already linked to another company.', code: 'CONFLICT' }) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), /^Link this account instead/))
+    await settle(5)
+    expect(text()).toContain('That account is already linked to another company.')
+    expect(button(dialog(), /^Link this account instead/)).toBeDefined()
+  })
+
+  it('moves focus into the match panel when it opens', async () => {
+    await open({ [MATCHES]: json(200, found()) })
+    await click(button(dialog(), 'Continue'))
+    await settle()
+    expect(dialog().contains(document.activeElement)).toBe(true)
+    expect(document.activeElement?.tagName).toBe('BUTTON')
+  })
+
+  it('offers "Create a new account anyway" for an email-only match, and that sends confirmNotDuplicate', async () => {
+    const api = await open({ [MATCHES]: json(200, found()), [PROVISION]: json(201, provisioned()) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create a new account anyway'))
+    expect(text()).toContain('This creates a live Rosterio account')
+    expect(api.count(PROVISION)).toBe(0)
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect((api.calls.find(c => c.path === '/sales/rosterio/provision')?.body as Record<string, unknown>).confirmNotDuplicate).toBe(true)
+    expect(text()).toContain('Rosterio account created')
+  })
+
+  it('never sends confirmNotDuplicate when nothing was confirmed', async () => {
+    const api = await open({ [PROVISION]: json(201, provisioned()) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(api.calls.find(c => c.path === '/sales/rosterio/provision')?.body).not.toHaveProperty('confirmNotDuplicate')
+  })
+
+  it('offers only the link for an exact name match', async () => {
+    await open({ [MATCHES]: json(200, found({ matches: [match({ matchedOn: ['name'] })], canConfirmNotDuplicate: false })) })
+    await click(button(dialog(), 'Continue'))
+    expect(button(dialog(), /^Link this account instead/)).toBeDefined()
+    expect(button(dialog(), 'Create a new account anyway')).toBeUndefined()
+    expect(text()).toContain('Matched on the same account name')
+  })
+
+  it('explains an account that is already linked, and never offers to link it', async () => {
+    await open({ [MATCHES]: json(200, found({
+      matches: [],
+      alreadyLinked: [
+        { ...match({ accountId: 'acc5', name: 'Acme Pty Ltd', matchedOn: ['name'] }), companyId: 'co7', companyName: 'Acme Holdings' },
+        { ...match({ accountId: 'acc6', name: 'Acme West', matchedOn: ['name'] }), companyId: 'co8', companyName: null },
+      ],
+      canConfirmNotDuplicate: false,
+    })) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('Already linked to Acme Holdings')
+    expect(text()).toContain('Already linked to another company')
+    expect(button(dialog(), /Link this account instead/)).toBeUndefined()
+    expect(button(dialog(), 'Create a new account anyway')).toBeUndefined()
+    expect(button(dialog(), 'Create account')).toBeUndefined()
+  })
+
+  it('goes on to the confirm step when the only matches are linked on something other than the name', async () => {
+    await open({ [MATCHES]: json(200, found({ matches: [], alreadyLinked: [{ ...match(), companyId: 'co7', companyName: 'Other' }], canConfirmNotDuplicate: false })) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('This creates a live Rosterio account')
+  })
+
+  it('shows the same panel when the server answers 409 ROSTERIO_MATCH to the provision, and nothing was created', async () => {
+    const api = await open({ [PROVISION]: json(409, { error: 'Rosterio already has an account that looks like "Acme Pty Ltd".', code: 'ROSTERIO_MATCH', details: found() }) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(api.count(PROVISION)).toBe(1)
+    expect(text()).toContain('This looks like an existing Rosterio account')
+    expect(button(dialog(), /^Link this account instead/)).toBeDefined()
+    expect(host.querySelector('[data-testid="temp-password"]')).toBeNull()
+    const { rosterioLinkOf } = await import('../../data/rosterio')
+    expect(rosterioLinkOf(m.store.S.companies[0])).toBeUndefined()
+  })
+
+  it('goes Back from the panel to the form with the entries intact', async () => {
+    await open({ [MATCHES]: json(200, found()) })
+    await type(field(dialog(), 'Account name'), 'Acme Group')
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Back'))
+    expect(field(dialog(), 'Account name')?.value).toBe('Acme Group')
+  })
+
+  it('voids the matches when the name or the admin email is edited after seeing them', async () => {
+    const api = await open({ [MATCHES]: json(200, found()), [PROVISION]: json(201, provisioned()) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create a new account anyway'))
+    await click(button(dialog(), 'Back'))
+    await click(button(dialog(), 'Back'))
+    await type(field(dialog(), 'Admin email'), 'someone@else.test')
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(api.count(MATCHES)).toBe(2)
+    expect(api.calls.find(c => c.path === '/sales/rosterio/provision')?.body).not.toHaveProperty('confirmNotDuplicate')
+  })
+
+  it('does not carry a go-ahead through a failed create, an edit and Check status', async () => {
+    let n = 0
+    const api = await open({
+      [MATCHES]: json(200, found()),
+      [PROVISION]: () => (++n === 1 ? json(504, { error: 'Gateway timeout', code: 'INTERNAL' }) : json(201, provisioned({ isNewUser: false, tempPassword: null }))),
+    })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create a new account anyway'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(api.calls.filter(c => c.path === '/sales/rosterio/provision')[0].body).toHaveProperty('confirmNotDuplicate', true)
+    expect(button(dialog(), 'Check status')).toBeDefined()
+    await type(field(dialog(), 'Account name'), 'A different name')
+    await click(button(dialog(), 'Check status'))
+    await settle()
+    const sent = api.calls.filter(c => c.path === '/sales/rosterio/provision')
+    expect(sent).toHaveLength(2)
+    expect(sent[1].body).not.toHaveProperty('confirmNotDuplicate')
+  })
+
+  it('locks the name and email fields while Rosterio is being asked, and links the match list to the dialog', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    await open({ [MATCHES]: async () => { await gate; return json(200, found()) } })
+    await click(button(dialog(), 'Continue'))
+    expect(field(dialog(), 'Account name')?.disabled).toBe(true)
+    expect(field(dialog(), 'Admin email')?.disabled).toBe(true)
+    release()
+    await settle(5)
+    const id = dialog().getAttribute('aria-describedby')
+    expect(id).toBeTruthy()
+    expect(dialog().querySelector(`[id="${id}"]`)?.textContent).toContain('Acme Group')
+  })
+
+  it('shows a 409 CONFLICT from the duplicate-name fallback and makes Check status reachable', async () => {
+    const msg = 'This company already has that Rosterio account. Press "Check status" to see where it stands.'
+    await open({ [PROVISION]: json(409, { error: msg, code: 'CONFLICT', details: { accountId: 'acc1' } }) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(text()).toContain(msg)
+    expect(button(dialog(), 'Check status')).toBeDefined()
+    expect(button(dialog(), 'Continue')).toBeUndefined()
+  })
+
+  it('shows the rate-limit message from the check and lets the person try again, instead of reading it as no matches', async () => {
+    let n = 0
+    const api = await open({ [MATCHES]: () => (++n === 1 ? json(429, { error: 'Too many attempts. Try again in a few minutes.', code: 'RATE_LIMITED' }) : json(200, found())) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('Too many attempts. Try again in a few minutes.')
+    expect(text()).not.toContain('This creates a live Rosterio account')
+    expect(api.count(PROVISION)).toBe(0)
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('This looks like an existing Rosterio account')
+  })
+
+  it('explains a linked match with no company at all as linked to another company', async () => {
+    await open({ [MATCHES]: json(200, found({ matches: [], alreadyLinked: [{ ...match({ matchedOn: ['name'] }), companyId: null, companyName: null }], canConfirmNotDuplicate: false })) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('Already linked to another company')
+  })
+})
