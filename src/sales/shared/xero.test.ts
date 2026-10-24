@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InvoiceDto, XeroSettings, XeroStatus } from '../api/contract'
-import { chipFor, invoiceXero, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from './xero'
+import { isXeroId, chipFor, invoiceXero, nextStep, readXeroReturn, settingsPatch, xeroReturnMessage } from './xero'
 
 const SETTINGS: XeroSettings = { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01' }
 const status = (over: Partial<XeroStatus> = {}, settings: Partial<XeroSettings> = {}): XeroStatus => ({
@@ -118,5 +118,13 @@ describe('settingsPatch', () => {
   it('holds only what changed', () => {
     expect(settingsPatch(SETTINGS, { ...SETTINGS, salesAccountCode: '210', autoSync: false })).toEqual({ salesAccountCode: '210', autoSync: false })
     expect(settingsPatch(SETTINGS, SETTINGS)).toEqual({})
+  })
+})
+
+describe('isXeroId', () => {
+  it('tells a Xero account id from an account code', () => {
+    expect(isXeroId('3f1c2b7a-5d4e-4a69-9b0c-1e2f3a4b5c6d')).toBe(true)
+    expect(isXeroId('090')).toBe(false)
+    expect(isXeroId('')).toBe(false)
   })
 })
