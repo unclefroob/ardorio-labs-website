@@ -197,7 +197,7 @@ export function asMatches(v: unknown): RosterioMatchesResponse | undefined {
       companyId: typeof m.companyId === 'string' ? m.companyId : null, companyName: typeof m.companyName === 'string' ? m.companyName : null,
     }
   }
-  const matches = o.matches.map(one).filter((m): m is NonNullable<ReturnType<typeof one>> => !!m).map(({ companyId: _c, companyName: _n, ...m }) => m)
+  const matches = o.matches.map(one).filter((m): m is NonNullable<ReturnType<typeof one>> => !!m).map(m => ({ accountId: m.accountId, name: m.name, plan: m.plan, isTrial: m.isTrial, status: m.status, matchedOn: m.matchedOn }))
   const alreadyLinked = (Array.isArray(o.alreadyLinked) ? o.alreadyLinked : []).map(one).filter((m): m is NonNullable<ReturnType<typeof one>> => !!m)
   return { checked: o.checked !== false, matches, alreadyLinked, canConfirmNotDuplicate: o.canConfirmNotDuplicate === true }
 }
