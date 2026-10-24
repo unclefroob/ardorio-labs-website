@@ -722,6 +722,10 @@ export interface XeroStatus {
   bankScope: boolean
 }
 export interface XeroAccount { code: string; name: string }
+/** One Stripe fee item and the Xero expense account it goes to (the suggested one, or the one used once locked). */
+export interface StripeFeeLine { key: string; label: string; amountCents: number; accountCode: string }
+/** locked: the fee is already in Xero, so the lines show what was used and cannot change. */
+export interface StripeFeePreview { lines: StripeFeeLine[]; taxCents: number; totalCents: number; locked: boolean }
 export interface XeroAccountsResponse { sales: XeroAccount[]; bank: XeroAccount[]; expense: XeroAccount[] }
 export interface InvoiceListResponse { invoices: InvoiceDto[] }
 export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
