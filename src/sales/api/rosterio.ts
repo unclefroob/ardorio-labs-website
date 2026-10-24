@@ -1,6 +1,7 @@
 import { salesFetch } from './http'
 import type {
   RosterioAccountDetail, RosterioAccountsResponse, RosterioLinkRequest, RosterioLinkResponse, RosterioProvisionRequest, RosterioProvisionResponse, RosterioRetryResponse,
+  RosterioMatchesRequest, RosterioMatchesResponse, RosterioRefreshRequest, RosterioRefreshResponse,
   RosterioBilling, RosterioInvoicesResponse, RosterioStatusResponse, RosterioUnlinkRequest, StartRosterioBillingRequest, StartRosterioBillingResponse,
 } from './contract'
 
@@ -8,6 +9,12 @@ import type {
 export const rosterioStatus = (signal?: AbortSignal) => salesFetch<RosterioStatusResponse>('/rosterio/status', { signal })
 export const rosterioProvision = (req: RosterioProvisionRequest) =>
   salesFetch<RosterioProvisionResponse>('/rosterio/provision', { method: 'POST', body: req })
+/** Read-only: is there already a Rosterio account for this name or admin email? */
+export const rosterioMatches = (req: RosterioMatchesRequest) =>
+  salesFetch<RosterioMatchesResponse>('/rosterio/matches', { method: 'POST', body: req })
+/** Refreshes the company's link snapshot from the live account. Never changes the deal, never unlinks. */
+export const rosterioRefresh = (req: RosterioRefreshRequest, signal?: AbortSignal) =>
+  salesFetch<RosterioRefreshResponse>('/rosterio/refresh', { method: 'POST', body: req, signal })
 export const rosterioRetry = () => salesFetch<RosterioRetryResponse>('/rosterio/sync/retry', { method: 'POST', body: {} })
 export const rosterioAccounts = (signal?: AbortSignal) => salesFetch<RosterioAccountsResponse>('/rosterio/accounts', { signal })
 export const rosterioLink = (req: RosterioLinkRequest) => salesFetch<RosterioLinkResponse>('/rosterio/link', { method: 'POST', body: req })

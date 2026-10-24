@@ -5,6 +5,7 @@ import { useLoad } from '../../data/invoicing'
 import { Banner, Btn, Card, Chip, Fld, Inp, Skel, TA, Toggle } from '../../kit'
 import { DEFAULT_TERMS_DAYS, validateSettings, type SettingsErrors } from '../../shared/invoices'
 import { UI } from '../../ui/store'
+import { XeroCard, XeroRailRow } from './XeroCard'
 
 /** Settings > Invoicing: the business profile printed on every invoice, plus the defaults a new invoice starts from. */
 export function InvoicingSettings() {
@@ -92,11 +93,12 @@ function SettingsForm({ initial }: { initial: InvoiceSettings }) {
               </div>
             </div>
           </Card>
+          <XeroCard />
         </div>
         <div className="inv-rail">
           <Card title="Connections">
             <div className="rowx"><span><div className="b">Stripe card payments</div><div className="faint sm">Single-use links, card only</div></span><Chip tone={stripe ? 'ok' : ''}>{stripe ? 'Connected' : 'Not set up'}</Chip></div>
-            <div className="rowx"><span><div className="b">Xero</div><div className="faint sm">Accounting sync, planned for the next phase</div></span><Chip>Not connected</Chip></div>
+            <XeroRailRow />
           </Card>
         </div>
       </div>

@@ -1,8 +1,9 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { rosterioAccounts, rosterioLink, rosterioProvision, rosterioRetry, rosterioStatus, rosterioUnlink } from '../api/rosterio'
+import { rosterioAccounts, rosterioLink, rosterioMatches, rosterioProvision, rosterioRefresh, rosterioRetry, rosterioStatus, rosterioUnlink } from '../api/rosterio'
 import { ROSTERIO_PLANS } from '../api/contract'
 import type {
-  RosterioAccount, RosterioAccountsResponse, RosterioLink, RosterioLinkState, RosterioPlan, RosterioProvisionRequest, RosterioProvisionResponse, RosterioStatusResponse,
+  RosterioAccount, RosterioAccountsResponse, RosterioLink, RosterioLinkState, RosterioMatchesResponse, RosterioMatchReason, RosterioPlan, RosterioPlanDrift, RosterioProvisionRequest,
+  RosterioProvisionResponse, RosterioRefreshResponse, RosterioStatusResponse,
 } from '../api/contract'
 import { SalesHttpError, SalesNetworkError } from '../api/http'
 import { F } from './F'
@@ -36,6 +37,8 @@ export function asLink(v: unknown): RosterioLink | undefined {
   return {
     state: o.state as RosterioLinkState, accountId: str(o.accountId), accountName: str(o.accountName), plan: asPlan(o.plan),
     isTrial: typeof o.isTrial === 'boolean' ? o.isTrial : undefined, trialEndDate: str(o.trialEndDate), by: str(o.by), at: str(o.at),
+    accountStatus: str(o.accountStatus), accountState: o.accountState === 'active' || o.accountState === 'deleted' ? o.accountState : undefined, refreshedAt: str(o.refreshedAt),
+    locationCount: typeof o.locationCount === 'number' && o.locationCount >= 0 ? o.locationCount : o.locationCount === null ? null : undefined,
   }
 }
 
@@ -112,6 +115,9 @@ export function canOfferProvision(st: StatusState, link: RosterioLink | undefine
   return Q.canEdit('ros') && st.s === 'ok' && st.status.configured && !link
 }
 
+/** The plan drift nudge. Informational: SalesOS never changes the deal from it. */
+export const planDriftText = (d: RosterioPlanDrift): string => `The account is on ${planLabel(d.accountPlan)}, the deal says ${planLabel(d.dealPlan)}.`
+
 export function linkSummary(l: RosterioLink): string {
   const parts = [l.accountName || 'Rosterio account', l.plan ? planLabel(l.plan) : '']
   if (l.isTrial) parts.push(l.trialEndDate ? 'trial until ' + F.date(l.trialEndDate) : 'trial')
@@ -123,6 +129,8 @@ export type ProvisionResult =
   | { ok: true; link: RosterioLink; adminUser: RosterioProvisionResponse['adminUser'] }
   /** The server said no (bad input, no permission). Nothing was created and the link is clear again. */
   | { ok: false; kind: 'rejected' | 'forbidden'; message: string }
+  /** Rosterio already has an account that looks like this one. Nothing was created. */
+  | { ok: false; kind: 'match'; message: string; found: RosterioMatchesResponse }
   /** Someone already provisioned this company. */
   | { ok: false; kind: 'already'; message: string; link?: RosterioLink }
   /** No answer, or an error on the way: the account may or may not exist. "Check status" asks again. */
@@ -146,6 +154,21 @@ export async function provision(companyId: string, req: RosterioProvisionRequest
     return { ok: true, link, adminUser: r.adminUser }
   } catch (e) {
     if (e instanceof SalesHttpError && e.status < 500) {
+      if (e.status === 409 && e.code === 'ROSTERIO_MATCH') {
+        const found = asMatches(e.body?.details)
+        if (found) {
+          // The server let go of its claim: nothing was created, so a "not sure" marker no longer holds.
+          if (overlay.delete(companyId)) emit()
+          return { ok: false, kind: 'match', message: e.message, found }
+        }
+      }
+      if (e.status === 409 && e.code === 'CONFLICT' && !asLink((e.body?.details as { link?: unknown } | undefined)?.link)) {
+        // Rosterio already holds this name and the server could not tell us more: nothing was made here, and "Check status" asks again.
+        overlay.set(companyId, { state: 'unknown' })
+        emit()
+        void pollOnce()
+        return { ok: false, kind: 'already', message: e.message }
+      }
       if (e.status === 409) {
         const details = e.body?.details as { link?: unknown } | undefined
         const link = asLink(details?.link)
@@ -162,6 +185,49 @@ export async function provision(companyId: string, req: RosterioProvisionRequest
     emit()
     void pollOnce()
     return { ok: false, kind: 'unsure', message: UNSURE_MESSAGE }
+  }
+}
+
+const REASONS: readonly string[] = ['name', 'administratorEmail', 'billingEmail']
+/** Reads the matches answer field by field; anything that is not shaped like one is treated as no answer. */
+export function asMatches(v: unknown): RosterioMatchesResponse | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  const o = v as Record<string, unknown>
+  if (!Array.isArray(o.matches)) return undefined
+  const one = (x: unknown) => {
+    if (typeof x !== 'object' || x === null) return undefined
+    const m = x as Record<string, unknown>
+    if (typeof m.accountId !== 'string' || typeof m.name !== 'string') return undefined
+    const matchedOn = (Array.isArray(m.matchedOn) ? m.matchedOn : []).filter((r): r is RosterioMatchReason => typeof r === 'string' && REASONS.includes(r))
+    return {
+      accountId: m.accountId, name: m.name, plan: typeof m.plan === 'string' ? m.plan : null, isTrial: m.isTrial === true,
+      status: typeof m.status === 'string' ? m.status : null, matchedOn,
+      companyId: typeof m.companyId === 'string' ? m.companyId : null, companyName: typeof m.companyName === 'string' ? m.companyName : null,
+    }
+  }
+  const matches = o.matches.map(one).filter((m): m is NonNullable<ReturnType<typeof one>> => !!m).map(m => ({ accountId: m.accountId, name: m.name, plan: m.plan, isTrial: m.isTrial, status: m.status, matchedOn: m.matchedOn }))
+  const alreadyLinked = (Array.isArray(o.alreadyLinked) ? o.alreadyLinked : []).map(one).filter((m): m is NonNullable<ReturnType<typeof one>> => !!m)
+  return { checked: o.checked !== false, matches, alreadyLinked, canConfirmNotDuplicate: o.canConfirmNotDuplicate === true }
+}
+
+export type MatchCheck =
+  | { kind: 'found'; found: RosterioMatchesResponse }
+  /** Nobody could say (Rosterio unreachable, a failed request): carry on as before. */
+  | { kind: 'unknown' }
+  /** Asked too often. The person tries again in a few minutes: this is not "no matches". */
+  | { kind: 'limited'; message: string }
+
+/**
+ * Asks whether Rosterio already has an account for this, before anything is created. Read-only. Trouble answers `unknown`: the form
+ * carries on as before and the server checks again when it provisions. Only being rate limited stops the person, with the server's words.
+ */
+export async function checkMatches(companyId: string, accountName: string, administratorEmail: string): Promise<MatchCheck> {
+  try {
+    const found = asMatches(await rosterioMatches({ companyId, accountName, administratorEmail }))
+    return found && found.checked ? { kind: 'found', found } : { kind: 'unknown' }
+  } catch (e) {
+    if (e instanceof SalesHttpError && e.status === 429) return { kind: 'limited', message: e.body?.error ?? 'Too many attempts. Try again in a few minutes.' }
+    return { kind: 'unknown' }
   }
 }
 
@@ -251,6 +317,8 @@ export function resetRosterioAccounts(): void {
   inflight = null
   lastGood = null
   overlay.clear()
+  refreshed.clear()
+  refreshing.clear()
   unlinkedHere.clear()
   pendingCreate.clear()
   emit()
@@ -319,6 +387,7 @@ export async function unlinkAccount(companyId: string): Promise<{ ok: true } | {
   try {
     await rosterioUnlink({ companyId })
     overlay.delete(companyId)
+    refreshed.delete(companyId)
     unlinkedHere.add(companyId)
     emit()
     void pollOnce()
@@ -365,6 +434,69 @@ export function standing(a: RosterioAccount, now: number = Date.now()): AccountS
   const days = Math.ceil((end - now) / 86_400_000)
   if (days < 0) return { kind: 'trialEnded', days: -days, label: `Trial ended ${-days} day${-days === 1 ? '' : 's'} ago` }
   return { kind: 'trial', days, label: days === 0 ? 'Trial · ends today' : `Trial · ${days} day${days === 1 ? '' : 's'} left` }
+}
+
+// ── the refreshed snapshot ─────────────────────────────────────────────────────────────────────────
+/** What the server last said when a company was opened. Held in memory only; the saved copy reaches the company through sync. */
+export interface Refreshed { at: number; link: RosterioLink | null; planDrift: RosterioPlanDrift | null; adminUrl?: string }
+const refreshed = new Map<string, Refreshed>()
+const refreshing = new Map<string, Promise<void>>()
+const FRESH_MS = 60_000
+
+export const refreshedOf = (companyId: string): Refreshed | undefined => refreshed.get(companyId)
+
+/**
+ * Asks the server to refresh this company's Rosterio snapshot, once a minute at most. Quiet by design: when Rosterio cannot be
+ * reached (refreshed: false, or the request fails) the saved link stands and nothing is shown. The deal is never touched.
+ */
+export function refreshRosterio(companyId: string): Promise<void> {
+  const running = refreshing.get(companyId)
+  if (running) return running
+  const last = refreshed.get(companyId)
+  if (last && Date.now() - last.at < FRESH_MS) return Promise.resolve()
+  const run = (async (): Promise<void> => {
+    try {
+      const r: RosterioRefreshResponse = await rosterioRefresh({ companyId })
+      if (unlinkedHere.has(companyId)) return
+      const link = asLink(r?.link) ?? null
+      const drift = r?.planDrift && asPlan(r.planDrift.dealPlan) && asPlan(r.planDrift.accountPlan) ? r.planDrift : null
+      refreshed.set(companyId, {
+        at: Date.now(), link: r?.refreshed ? link : null, planDrift: r?.refreshed ? drift : null,
+        ...(safeUrl(r?.adminUrl) ? { adminUrl: safeUrl(r.adminUrl) } : {}),
+      })
+    } catch {
+      // Quiet: the saved link is still what the page shows. The attempt still counts, so a failing server is not asked on every mount.
+      const prev = refreshed.get(companyId)
+      refreshed.set(companyId, { link: null, planDrift: null, ...prev, at: Date.now() })
+    } finally {
+      refreshing.delete(companyId)
+      emit()
+    }
+  })()
+  refreshing.set(companyId, run)
+  return run
+}
+
+/** An address the page may link to: https, or http on localhost for a developer's machine. Anything else is dropped. */
+export function safeUrl(v: unknown): string | undefined {
+  if (typeof v !== 'string' || !v) return undefined
+  try {
+    const u = new URL(v)
+    const local = u.hostname === 'localhost' || u.hostname === '127.0.0.1'
+    return u.protocol === 'https:' || (u.protocol === 'http:' && local) ? u.href : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** The refreshed snapshot for a company's card. Starts the refresh when the card opens on a provisioned link. */
+export function useRosterioRefresh(companyId: string, enabled: boolean): Refreshed | undefined {
+  useSyncExternalStore(subscribe, () => version)
+  useEffect(() => {
+    if (!enabled) return
+    void refreshRosterio(companyId)
+  }, [companyId, enabled])
+  return enabled ? refreshed.get(companyId) : undefined
 }
 
 /** The accounts from the last good read, for dialogs opened from the list. */

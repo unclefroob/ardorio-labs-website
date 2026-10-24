@@ -282,7 +282,7 @@ export type SalesErrorCode =
   | 'INVALID_URL' | 'AI_PROVIDER_ERROR' | 'AI_BAD_OUTPUT' | 'AI_CAP_REACHED' | 'NOT_CONFIGURED' | 'UPSTREAM_ERROR' | 'INTERNAL'
   | 'PHONE_CAP_REACHED' | 'PHONE_NO_INPUT' | 'PROVIDER_ERROR'
   | 'INVOICE_PAID' | 'INVOICE_ALREADY_VOID' | 'INVOICE_NOT_ISSUED' | 'LINK_DEACTIVATION_FAILED' | 'INVOICE_ALREADY_TEST' | 'INVOICE_NOT_TEST' | 'CONFIRMATION_MISMATCH' | 'INVOICE_DELETING' | 'REFUND_DUE_UNACKNOWLEDGED'   // LINK_DEACTIVATION_FAILED carries details: { linkId: string }
-  | 'DUPLICATE_EXTERNAL_REFERENCE' | 'NOT_EXTERNAL'   // DUPLICATE_EXTERNAL_REFERENCE carries details: { invoiceId: string; dealId: string | null }
+  | 'DUPLICATE_EXTERNAL_REFERENCE' | 'NOT_EXTERNAL' | 'ROSTERIO_MATCH'   // ROSTERIO_MATCH carries details: RosterioMatchesResponse. DUPLICATE_EXTERNAL_REFERENCE carries details: { invoiceId: string; dealId: string | null }
 
 // ── Contact enrichment (Grok). Mirrors the API contract; names are identical. ────────────────────
 /** 429 AI_CAP_REACHED carries this as `error.details`. `resetsOn` is 'YYYY-MM-01', the first day of next month (UTC). */
@@ -422,6 +422,14 @@ export interface RosterioLink {
   plan?: RosterioPlan
   isTrial?: boolean
   trialEndDate?: string               // ISO date
+  /** Snapshot of the live account, refreshed by the server from Rosterio: its status ('active' | 'suspended' | 'cancelled' | 'deleted'). */
+  accountStatus?: string
+  /** 'deleted' once Rosterio no longer has the account. The link is kept: only a person unlinks. */
+  accountState?: 'active' | 'deleted'
+  /** Locations the account has, from the on-open refresh only. null = the read failed and there was no earlier count. */
+  locationCount?: number | null
+  /** ISO time the snapshot was last read from Rosterio. */
+  refreshedAt?: string
   by?: string                         // member userId of whoever clicked Provision
   at?: string                         // ISO
 }
@@ -474,11 +482,53 @@ export interface RosterioProvisionRequest {
   plan: RosterioPlan
   isTrial?: boolean
   trialEndDate?: string               // ISO date; must be in the future when isTrial
+  /** Lets a person go past matches on the admin or billing email alone (one person can run several accounts). An exact name match never proceeds. */
+  confirmNotDuplicate?: boolean
 }
 /** 201, `Cache-Control: no-store`. `tempPassword` arrives once, only here, and is never stored by SalesOS. */
 export interface RosterioProvisionResponse {
   link: RosterioLink
   adminUser: { email: string; isNewUser: boolean; tempPassword: string | null }
+}
+
+// ---- Rosterio: is there already an account for this? ----
+// POST /sales/rosterio/matches RosterioMatchesRequest -> RosterioMatchesResponse. Read-only (edit rights in ros, like provisioning).
+// POST /sales/rosterio/provision runs the same check first: unlinked matches stop it with 409 ROSTERIO_MATCH, details = RosterioMatchesResponse.
+export interface RosterioMatchesRequest { companyId: string; accountName: string; administratorEmail: string }
+export type RosterioMatchReason = 'name' | 'administratorEmail' | 'billingEmail'
+export interface RosterioMatch {
+  accountId: string
+  name: string
+  plan: string | null
+  isTrial: boolean
+  status: string | null
+  /** Why it matched. Never an email address. */
+  matchedOn: RosterioMatchReason[]
+}
+/** A match already linked to a SalesOS company. companyName only when the caller can see that company. */
+export interface RosterioLinkedMatch extends RosterioMatch { companyId: string | null; companyName: string | null }
+export interface RosterioMatchesResponse {
+  /** false when Rosterio could not be asked: matches is then empty and provisioning would go ahead. */
+  checked: boolean
+  /** Not linked to any company: "Link this account instead" (POST /sales/rosterio/link) applies to these. */
+  matches: RosterioMatch[]
+  alreadyLinked: RosterioLinkedMatch[]
+  /** True when provisioning could go ahead with confirmNotDuplicate: matches is not empty and none matched on name. */
+  canConfirmNotDuplicate: boolean
+}
+
+// ---- Rosterio: keep the link snapshot fresh ----
+// POST /sales/rosterio/refresh RosterioRefreshRequest -> RosterioRefreshResponse, when a company page opens. Refreshes the link
+// snapshot from the live account (server-only write; the deal and the link itself are never changed). Nothing is unlinked automatically.
+export interface RosterioRefreshRequest { companyId: string }
+export interface RosterioPlanDrift { dealPlan: RosterioPlan; accountPlan: RosterioPlan }
+export interface RosterioRefreshResponse {
+  link: RosterioLink | null
+  refreshed: boolean
+  /** The deal's plan and the account's plan, only when both exist and differ. Informational: the deal is never modified. */
+  planDrift: RosterioPlanDrift | null
+  /** Rosterio admins only, and only when the server has an admin URL: `${ROSTERIO_ADMIN_URL}/accounts/${accountId}`. */
+  adminUrl?: string
 }
 
 // ---- Rosterio payments (Stripe) ----
@@ -542,9 +592,9 @@ export interface StartRosterioBillingResponse { billing: RosterioBilling; cardEm
 // and super users only (else ROLE_REQUIRED { needed: 'admin', businessId: 'ros' }). accountId is 24 hex (else 400
 // VALIDATION); an account Rosterio does not have -> 404 NOT_FOUND. Read field by field: no emails, phones, Stripe ids or
 // database names reach the browser. admins are the account's active super_admin members (name and role only).
+// The kiosk / payroll / compliance switches are operator features and are not part of this answer (they live in Rosterio Admin).
 // locationCount is null when Rosterio's location list could not be read. company is the SalesOS company linked to it
 // (data.rosterio.state 'provisioned' and accountId), else null.
-export interface RosterioAccountFeature { key: string; label: string; on: boolean }
 export interface RosterioAccountDetail {
   accountId: string; name: string; plan: string | null; status: string | null; isActive: boolean; isTrial: boolean
   trialEndDate: string | null; createdAt: string | null; subscriptionStatus: string | null
@@ -552,12 +602,17 @@ export interface RosterioAccountDetail {
   billingState: RosterioBillingState | null
   pricing: null | { source: 'plan' | 'custom'; managedContract: boolean; monthlyCost: number | null; billingQuantity: number | null }
   terms: RosterioBilling['terms']
-  features: RosterioAccountFeature[]
   aiCreditsPerPeriod: number | null
   awardSetup: null | { status: string; updatedAt: string | null }
   people: { active: number; byRole: { super_admin: number; manager: number; staff: number } }
   admins: Array<{ name: string; role: string }>
   company: null | { id: string; name: string }
+  /** @deprecated Always []. Kept so the type matches the API for one release. Never rendered: the switches live in Rosterio Admin. */
+  features: never[]
+  /** The deal's plan vs the account's plan; non-null only when both exist and differ. The deal is never modified. */
+  planDrift: RosterioPlanDrift | null
+  /** Rosterio admins only, and only when the server has an admin URL. */
+  adminUrl?: string
   fetchedAt: string
 }
 // Billing by account: GET /sales/rosterio/billing and POST /sales/rosterio/billing/start|stop|card-link now take
@@ -605,6 +660,7 @@ export interface InvoiceDto {
   test: InvoiceTestInfo | null
   source: InvoiceSource
   external: InvoiceExternalInfo | null
+  xero?: InvoiceXeroInfo | null
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
@@ -625,6 +681,23 @@ export interface MarkTestInput { reason: string }
 /** DELETE /invoices/:id/permanent (super only, test invoices only). `confirmNumber` must equal the invoice number exactly. */
 export interface DeleteTestInput { confirmNumber: string }
 export interface MarkPaidInput { method: InvoicePaymentMethod; paidAt?: string; reference?: string; amountCents?: number }
+// ---- Xero (SalesOS pushes issued invoices and payments to Xero; Xero stays the books) ----
+// InvoiceDto.xero is null for drafts, test invoices and external records. 'synced': Xero matches the SalesOS status. 'pending': sent before
+// but SalesOS has since changed. 'error': the last push failed (message is plain text). 'not_sent': never pushed; the page says why from
+// XeroStatus (not connected, or issued before settings.syncFrom). url opens the invoice in Xero once it exists. Optional here so a page
+// released ahead of the API still reads an invoice.
+export type XeroInfoState = 'synced' | 'pending' | 'error' | 'not_sent'
+export interface InvoiceXeroInfo { state: XeroInfoState; message: string; syncedAt: string | null; url: string | null }
+export type XeroTaxType = 'OUTPUT' | 'EXEMPTOUTPUT' | 'EXEMPTEXPORT' | 'NONE'
+export interface XeroSettings { salesAccountCode: string; paymentAccountCode: string; gstTaxType: XeroTaxType; noGstTaxType: XeroTaxType; autoSync: boolean; syncFrom: string }
+export interface XeroStatus {
+  configured: boolean; reason?: string; connected: boolean; tenantName: string; connectedAt: string | null
+  /** Xero turned the connection down (revoked or expired): offer Reconnect. */
+  problem: string | null
+  settings: XeroSettings | null; counts: { waiting: number; failed: number }
+}
+export interface XeroAccount { code: string; name: string }
+export interface XeroAccountsResponse { sales: XeroAccount[]; bank: XeroAccount[] }
 export interface InvoiceListResponse { invoices: InvoiceDto[] }
 export interface InvoiceCompanyTotals { companyId: string; clientSlug: string; clientName: string; invoicedCents: number; paidCents: number; outstandingCents: number; overdueCents: number; lastPaymentAt: string | null; lastPaymentMethod: InvoicePaymentMethod | null }
 export interface InvoiceSummary { tiles: { outstandingCents: number; overdueCents: number; paidThisMonthCents: number; draftCount: number; draftCents: number; needsRefundCount: number; needsRefundCents: number }; byCompany: InvoiceCompanyTotals[] }
