@@ -18,6 +18,7 @@ describe('the return from Xero', () => {
   it('reads connected and error, and ignores everything else', () => {
     expect(readXeroReturn('?xero=connected')).toEqual({ ok: true, reason: undefined })
     expect(readXeroReturn('?q=%7B%7D&xero=error&reason=choose-one')).toEqual({ ok: false, reason: 'choose-one' })
+    expect(readXeroReturn('?xero=error&reason=denied&xeroError=invalid_scope&xeroDetail=Invalid%20scope')).toEqual({ ok: false, reason: 'denied', error: 'invalid_scope', detail: 'Invalid scope' })
     expect(readXeroReturn('?xero=weird')).toBeNull()
     expect(readXeroReturn('')).toBeNull()
   })
@@ -25,6 +26,9 @@ describe('the return from Xero', () => {
     expect(xeroReturnMessage({ ok: true })).toMatch(/Choose a sales account/)
     expect(xeroReturnMessage({ ok: false, reason: 'choose-one' })).toMatch(/Select only one/)
     expect(xeroReturnMessage({ ok: false, reason: 'denied' })).toMatch(/cancelled/)
+    expect(xeroReturnMessage({ ok: false, reason: 'denied', error: 'access_denied' })).toMatch(/cancelled/)
+    expect(xeroReturnMessage({ ok: false, reason: 'denied', error: 'invalid_scope', detail: 'Invalid scope' })).toBe('Xero refused the connection: invalid_scope. Invalid scope')
+    expect(xeroReturnMessage({ ok: false, reason: 'denied', error: 'unauthorized_client' })).toBe('Xero refused the connection: unauthorized_client')
     expect(xeroReturnMessage({ ok: false, reason: 'surprise' })).toMatch(/couldn't be connected/)
     expect(xeroReturnMessage({ ok: false })).toMatch(/couldn't be connected/)
   })
