@@ -42,6 +42,12 @@ describe('Act.fillCompanyFromResearch', () => {
     expect(m.store.S.companies.find(x => x.id === 'co3')).toMatchObject({ hq: 'Perth', employees: 850 })
   })
 
+  it('fills the city and state of a company that only has a country, and keeps that country', async () => {
+    const m = await setup([co('co4', { country: 'New Zealand' })])
+    expect(m.Act.fillCompanyFromResearch('co4', found)).toBe(2)
+    expect(m.store.S.companies.find(x => x.id === 'co4')).toMatchObject({ hq: 'Sydney', state: 'NSW', country: 'New Zealand', employees: 850 })
+  })
+
   it('does nothing for an unknown company', async () => {
     const m = await setup([])
     expect(m.Act.fillCompanyFromResearch('nope', found)).toBe(0)

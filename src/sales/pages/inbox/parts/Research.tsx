@@ -12,6 +12,7 @@ import { BizSel } from '../../../shared/forms'
 import { similarCompanies } from '../../../shared/companyMatch'
 import { INDUSTRIES, domOf, norm } from '../../../shared/constants'
 import { useF } from '../../../shared/useF'
+import { researchProfileOf } from '../../../shared/companyProfile'
 import { normaliseUrl, WEBSITE_URL_MESSAGE } from '../../../shared/url'
 import { UI } from '../../../ui/store'
 import { ResearchView } from '../../companies/parts/ResearchView'
@@ -83,8 +84,11 @@ export function Research() {
     const cname = Q.company(cid)?.name ?? f.name
     Act.saveResearch({ ...res.r, companyId: cid, companyName: cname })
     setSavedCid(cid)
+    // The head office and headcount the search found go onto the company too, into empty fields only (nothing a person typed is replaced).
+    const found = researchProfileOf(res.r.profile)
+    const filled = found && Q.canEdit(bid) ? Act.fillCompanyFromResearch(cid, { headOffice: found.headOffice, employees: found.employees }) : 0
     const open = cid
-    UI.toast('Research saved to ' + cname, undefined, { label: 'Open company', fn: () => UI.nav('company', { id: open }) })
+    UI.toast(`Research saved to ${cname}${filled ? ', head office and size added' : ''}`, undefined, { label: 'Open company', fn: () => UI.nav('company', { id: open }) })
   }
 
   const stakeholder = res && Array.isArray(res.r.stakeholders) ? str(res.r.stakeholders[0]) : ''

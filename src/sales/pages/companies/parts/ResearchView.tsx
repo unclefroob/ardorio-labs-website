@@ -139,7 +139,7 @@ export const ResearchView: FC<ResearchViewProps> = ({ r, onSave, saved, onWrongC
 
   // What the search found that the company record lacks: the button only appears when it would fill something.
   const canFill = !!found && !!company && canEdit && (
-    (!!found.headOffice && !(company.hq || '').trim() && !(company.state || '').trim() && !(company.country || '').trim()) ||
+    (!!found.headOffice && !(company.hq || '').trim() && !(company.state || '').trim()) ||
     (!!found.employees && company.employees === null)
   )
   const fill = (): void => {

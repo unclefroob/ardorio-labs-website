@@ -254,4 +254,67 @@ describe('Xero card', () => {
       expect(text()).not.toContain('allow bank transactions')
     })
   })
+
+  describe('Stripe statement', () => {
+    const STMT = 'GET /sales/xero/stripe-statement.csv?from=2026-09-01&to=2026-09-30'
+    let saved: string[]
+    const open = async (stmt: () => Response = () => new Response('a,b', { headers: { 'Content-Type': 'text/csv' } })) => {
+      saved = []
+      const api = await show({ [STATUS]: () => json(200, status()), [ACCOUNTS]: () => json(200, ACCTS), [STMT]: stmt })
+      vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }))
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { saved.push(this.download) })
+      return api
+    }
+    const today = async (): Promise<string> => (await import('../../data/F')).F.today()
+
+    it('renders with To = today and From = the 1st of the previous month', async () => {
+      await open()
+      expect(text()).toContain('Stripe statement')
+      expect(text()).toContain('choose the date format YYYY-MM-DD')
+      const t = await today()
+      const prev = t.slice(5, 7) === '01' ? `${Number(t.slice(0, 4)) - 1}-12-01` : `${t.slice(0, 5)}${String(Number(t.slice(5, 7)) - 1).padStart(2, '0')}-01`
+      expect((field(host, 'To') as HTMLInputElement).value).toBe(t)
+      expect((field(host, 'From') as HTMLInputElement).value).toBe(prev)
+      expect(button(host, 'Download CSV')?.disabled).toBe(false)
+    })
+
+    it('an invalid range disables the button and says why', async () => {
+      await open()
+      await type(field(host, 'From'), '')
+      expect(text()).toContain('Choose a date')
+      expect(button(host, 'Download CSV')?.disabled).toBe(true)
+      await type(field(host, 'From'), '2024-01-01')
+      await type(field(host, 'To'), '2026-01-01')
+      expect(text()).toContain('Up to a year at a time')
+      expect(button(host, 'Download CSV')?.disabled).toBe(true)
+    })
+
+    it('downloads the chosen dates and says so', async () => {
+      const api = await open()
+      await type(field(host, 'From'), '2026-09-01')
+      await type(field(host, 'To'), '2026-09-30')
+      await click(button(host, 'Download CSV'))
+      await settle(4)
+      expect(api.count(STMT)).toBe(1)
+      expect(saved).toEqual(['stripe-statement-2026-09-01-2026-09-30.csv'])
+      expect(toasts()).toContain('Statement downloaded')
+    })
+
+    it('shows the server’s message when the download is refused', async () => {
+      await open(() => json(409, { error: 'Stripe is not set up', code: 'NOT_CONFIGURED' }))
+      await type(field(host, 'From'), '2026-09-01')
+      await type(field(host, 'To'), '2026-09-30')
+      await click(button(host, 'Download CSV'))
+      await settle(4)
+      expect(toasts()).toContain('Stripe is not set up')
+      expect(toasts()).not.toContain('Statement downloaded')
+    })
+
+    it('does not enable Save Xero settings', async () => {
+      await open()
+      await type(field(host, 'From'), '2026-09-01')
+      await type(field(host, 'To'), '2026-09-30')
+      expect(button(host, 'Save Xero settings')?.disabled).toBe(true)
+    })
+  })
 })
