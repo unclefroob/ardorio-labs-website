@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 import type { RosterioAccountDetail } from '../../api/contract'
-import { planDriftText, planLabel } from '../../data/rosterio'
+import { planDriftText, planLabel, safeUrl } from '../../data/rosterio'
 import { roleLabel } from '../../data/rosterioAccount'
 import { dayText, perOf, rosMoneyOf, statePill } from '../../data/rosterioBilling'
 import { Banner, Btn, Card, Chip, Prog } from '../../kit'
 import { AlsoOnAccount } from './AccountPanels'
 
-export type AccountTab = 'overview' | 'billing' | 'invoices' | 'people' | 'features' | 'activity'
+export type AccountTab = 'overview' | 'billing' | 'invoices' | 'people' | 'activity'
 
 function Fig({ label, value, sub, bar, onClick }: { label: string; value: ReactNode; sub?: ReactNode; bar?: number; onClick?: () => void }) {
   const body = (
@@ -56,7 +56,7 @@ export function AccountOverview({ d, go }: { d: RosterioAccountDetail; go: (t: A
       </div>
 
       <div className="grid g2" style={{ alignItems: 'start' }}>
-        <Card title="Contract terms" icon="file" right={managed && d.adminUrl ? <a className="sm" href={d.adminUrl} target="_blank" rel="noopener noreferrer">Correct terms</a> : undefined}>
+        <Card title="Contract terms" icon="file" right={managed && safeUrl(d.adminUrl) ? <a className="sm" href={safeUrl(d.adminUrl)} target="_blank" rel="noopener noreferrer">Correct terms</a> : undefined}>
           {t ? (
             <div className="col" style={{ gap: 8 }}>
               <Line label="Price">{priceText(t)} <span className="faint">ex GST</span></Line>

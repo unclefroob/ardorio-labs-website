@@ -55,7 +55,7 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
       ))}
       {row('Active users', <span className="num">{account.memberCount}</span>)}
       {account.createdAt && row('Customer since', F.date(account.createdAt))}
-      {account.billingEmail && row('Billing email', <span className="mono sm">{account.billingEmail}</span>)}
+      {account.billingEmail && Q.canAdmin('ros') && row('Billing email', <span className="mono sm">{account.billingEmail}</span>)}
       {Q.canAdmin('ros') && row('Billing', <Billing companyId={companyId} />)}
       {Q.canAdmin('ros') && row('Payments', <Payments companyId={companyId} />)}
       {account.isTrial && account.trialEndDate && row('Trial ends', F.date(account.trialEndDate))}
@@ -72,8 +72,8 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
       <div className="row" style={{ marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
         <span className="faint sm" title={F.dt(fetchedAt)}>Read from Rosterio {F.rel(fetchedAt)}</span>
         <span className="sp" />
-        <Btn size="xs" kind="ghost" icon="refresh" aria-label="Refresh" disabled={busy} onClick={reload} />
-        {edit && <Btn size="xs" kind="ghost" loading={unlinking} onClick={() => unlink(companyId, account.name, setUnlinking)}>{unlinking ? 'Unlinking…' : 'Unlink'}</Btn>}
+        <Btn size="xs" kind="ghost" className="tap" icon="refresh" aria-label="Refresh" disabled={busy} onClick={reload} />
+        {edit && <Btn size="xs" kind="ghost" className="tap" loading={unlinking} aria-label={`Unlink ${account.name}`} onClick={() => unlink(companyId, account.name, setUnlinking)}>{unlinking ? 'Unlinking…' : 'Unlink'}</Btn>}
       </div>
     </div>
   )
@@ -85,7 +85,7 @@ function Deleted({ companyId, accountName }: { companyId: string; accountName: s
   return (
     <Banner
       tone="warn"
-      action={Q.canEdit('ros') ? <Btn loading={unlinking} onClick={() => unlink(companyId, accountName, setUnlinking)}>{unlinking ? 'Unlinking…' : 'Unlink'}</Btn> : undefined}
+      action={Q.canEdit('ros') ? <Btn loading={unlinking} aria-label={`Unlink ${accountName}`} onClick={() => unlink(companyId, accountName, setUnlinking)}>{unlinking ? 'Unlinking…' : 'Unlink'}</Btn> : undefined}
     >
       <b>Account deleted in Rosterio</b>
       <div className="sm">Rosterio no longer has {accountName}. The link is kept until you unlink it, and nothing else changes.</div>
@@ -118,8 +118,12 @@ export function RosterioCard({ companyId, dealId }: { companyId: string; dealId?
   const fresh = acc.s === 'ok' ? acc.data : undefined
   const live = link?.accountId ? accountOf(fresh, link.accountId) : undefined
   const lastSeen = !live && acc.s === 'error' && link?.accountId ? accountOf(acc.previous, link.accountId) : undefined
-  const snap = rf?.link && rf.link.accountId === link?.accountId ? rf.link : link
-  const deleted = link?.state === 'provisioned' && (snap?.accountState === 'deleted' || link.accountState === 'deleted')
+  // The refresh counts only when it is for this very account; a fresh answer beats whatever was saved, in both directions.
+  const fresh0 = rf?.link && rf.link.accountId === link?.accountId ? rf : undefined
+  const snap = fresh0?.link ?? link
+  const drift = fresh0?.planDrift ?? null
+  const adminUrl = fresh0?.adminUrl
+  const deleted = link?.state === 'provisioned' && (snap?.accountState ?? link.accountState) === 'deleted'
   const taken = new Set(S.companies.map(c => rosterioLinkOf(c)?.accountId).filter((x): x is string => !!x))
   const found = !link && company && fresh ? accountForCompany(company, fresh.accounts, { linkOf: rosterioLinkOf, dismissed, takenIds: taken }) : null
 
@@ -133,8 +137,8 @@ export function RosterioCard({ companyId, dealId }: { companyId: string; dealId?
       right={live ? <Chip tone="ok">Live</Chip> : lastSeen && acc.s === 'error' && acc.previous ? <Chip tone="warn">Last seen {F.rel(acc.previous.fetchedAt)}</Chip> : !link && found ? <Chip>Not linked</Chip> : undefined}
     >
       {deleted && link && <Deleted companyId={companyId} accountName={snap?.accountName || link.accountName || 'this account'} />}
-      {!deleted && link?.state === 'provisioned' && rf?.planDrift && (
-        <div style={{ marginBottom: 10 }}><Banner tone="info">{planDriftText(rf.planDrift)} The deal is not changed.</Banner></div>
+      {!deleted && link?.state === 'provisioned' && drift && (
+        <div style={{ marginBottom: 10 }}><Banner tone="info">{planDriftText(drift)} The deal is not changed.</Banner></div>
       )}
       {!deleted && link?.state === 'provisioned' && live && fresh && (
         <Live account={live} companyId={companyId} fetchedAt={fresh.fetchedAt} reload={acc.reload} busy={acc.s !== 'ok'} />
@@ -154,8 +158,8 @@ export function RosterioCard({ companyId, dealId }: { companyId: string; dealId?
           {acc.s === 'ok' && <div className="faint sm">This account is not in the latest list from Rosterio.</div>}
         </div>
       )}
-      {!deleted && link?.state === 'provisioned' && rf?.adminUrl && (
-        <div className="sm" style={{ marginTop: 8 }}><a href={rf.adminUrl} target="_blank" rel="noopener noreferrer">Open in Admin</a></div>
+      {!deleted && link?.state === 'provisioned' && adminUrl && (
+        <div className="sm" style={{ marginTop: 8 }}><a className="tap" href={adminUrl} target="_blank" rel="noopener noreferrer">Open in Admin</a></div>
       )}
       {link?.state === 'provisioned' && <div className="faint sm" style={{ marginTop: 8 }}>{PAUSE_NOTE}</div>}
       {link?.state === 'provisioning' && <div className="sm">Setting up the Rosterio account…</div>}

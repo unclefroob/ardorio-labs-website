@@ -281,7 +281,7 @@ describe('Rosterio card: the refreshed snapshot', () => {
     const { account, accountsOf } = await import('../../testing/rosterioWorld')
     await setup({
       [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null }),
-      [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', plan: 'pro', isTrial: true, trialEndDate: '2999-01-31T00:00:00.000Z', memberCount: 12 })])),
+      [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', plan: 'pro', isTrial: true, trialEndDate: '2999-01-31T00:00:00.000Z', memberCount: 12, billingEmail: 'finance@acme.test' })])),
     }, { world: { company: linked } })
     await mount()
     expect(text()).toContain('Pro')
@@ -289,6 +289,104 @@ describe('Rosterio card: the refreshed snapshot', () => {
     expect(text()).toContain('31 Jan 2999')
     expect(text()).toContain('Active users')
     expect(text()).toContain('12')
-    for (const t of ['Kiosk', 'Payroll', 'Compliance', 'Monthly', 'Billing email']) expect(text()).not.toContain(t)
+    for (const t of ['Kiosk', 'Payroll', 'Compliance', 'Monthly', 'Billing email', 'finance@acme.test']) expect(text()).not.toContain(t)
+  })
+
+  it('shows the billing email to a Rosterio admin only', async () => {
+    const { account, accountsOf } = await import('../../testing/rosterioWorld')
+    await setup({
+      [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null }),
+      [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1', billingEmail: 'finance@acme.test' })])),
+      'GET /sales/rosterio/billing?companyId=co1': json(404, { error: 'none', code: 'NOT_FOUND' }),
+      'GET /sales/rosterio/invoices?companyId=co1': json(200, { configured: true, syncedAt: null, syncError: null, invoices: [] }),
+    }, { role: 'admin', world: { company: linked } })
+    await mount()
+    expect(text()).toContain('finance@acme.test')
+  })
+
+  it('a fresh answer of active beats a stored deleted (the account was restored)', async () => {
+    await setup({ [REFRESH]: json(200, { link: link({ accountState: 'active' }), refreshed: true, planDrift: null }) }, { world: { company: { rosterio: link({ accountState: 'deleted' }) } } })
+    await mount()
+    expect(text()).not.toContain('Account deleted in Rosterio')
+    expect(text()).toContain('Rosterio account: Acme Pty Ltd')
+  })
+
+  it('a stored deleted still shows when the refresh could not be made', async () => {
+    await setup({ [REFRESH]: json(500, { error: 'x', code: 'INTERNAL' }) }, { world: { company: { rosterio: link({ accountState: 'deleted' }) } } })
+    await mount()
+    expect(text()).toContain('Account deleted in Rosterio')
+  })
+
+  it('ignores a refresh that is for another account', async () => {
+    await setup({ [REFRESH]: json(200, { link: link({ accountId: 'other' }), refreshed: true, planDrift: { dealPlan: 'starter', accountPlan: 'pro' }, adminUrl: 'https://admin.rosterio.test/accounts/other' }) }, { world: { company: linked } })
+    await mount()
+    expect(text()).not.toContain('the deal says')
+    expect([...host.querySelectorAll('a')].some(x => x.textContent === 'Open in Admin')).toBe(false)
+  })
+
+  it('only links to an https address', async () => {
+    await setup({ [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null, adminUrl: 'javascript:alert(1)' }) }, { role: 'admin', world: { company: linked } })
+    await mount()
+    expect([...host.querySelectorAll('a')].some(x => x.textContent === 'Open in Admin')).toBe(false)
+    const { safeUrl } = await import('../../data/rosterio')
+    expect(safeUrl('http://admin.example.com/x')).toBeUndefined()
+    expect(safeUrl('http://localhost:5173/x')).toBe('http://localhost:5173/x')
+    expect(safeUrl('https://admin.example.com/x')).toBe('https://admin.example.com/x')
+  })
+
+  it('gives each Unlink the account name, and the 44px phone class to the small ones', async () => {
+    const { account, accountsOf } = await import('../../testing/rosterioWorld')
+    await setup({ [REFRESH]: json(200, { link: link(), refreshed: true, planDrift: null }), [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])) }, { world: { company: linked } })
+    await mount()
+    const u = host.querySelector('button[aria-label="Unlink Acme Pty Ltd"]')
+    expect(u).not.toBeNull()
+    expect(u?.className).toContain('tap')
+    expect(host.querySelector('button[aria-label="Refresh"]')?.className).toContain('tap')
+  })
+})
+
+describe('Rosterio refresh: the once-a-minute rule', () => {
+  const REFRESH = 'POST /sales/rosterio/refresh'
+  const ok = () => json(200, { link: link(), refreshed: true, planDrift: null })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('asks once a minute per company, separately for each company, and again after a minute', async () => {
+    const api = await setup({ [REFRESH]: ok })
+    const { refreshRosterio } = await import('../../data/rosterio')
+    let now = 1_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    await refreshRosterio('co1')
+    await refreshRosterio('co1')
+    expect(api.count(REFRESH)).toBe(1)
+    await refreshRosterio('co2')
+    expect(api.count(REFRESH)).toBe(2)
+    now += 61_000
+    await refreshRosterio('co1')
+    expect(api.count(REFRESH)).toBe(3)
+  })
+
+  it('counts a failed attempt too, so errors do not fire on every mount, and tries again after a minute', async () => {
+    const api = await setup({ [REFRESH]: json(500, { error: 'x', code: 'INTERNAL' }) })
+    const { refreshRosterio } = await import('../../data/rosterio')
+    let now = 5_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    await refreshRosterio('co1')
+    await refreshRosterio('co1')
+    expect(api.count(REFRESH)).toBe(1)
+    now += 61_000
+    await refreshRosterio('co1')
+    expect(api.count(REFRESH)).toBe(2)
+  })
+
+  it('sends one request when two callers ask together', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const api = await setup({ [REFRESH]: async () => { await gate; return ok() } })
+    const { refreshRosterio } = await import('../../data/rosterio')
+    const a = refreshRosterio('co1')
+    const b = refreshRosterio('co1')
+    release()
+    await Promise.all([a, b])
+    expect(api.count(REFRESH)).toBe(1)
   })
 })

@@ -302,6 +302,7 @@ export function resetRosterioAccounts(): void {
   lastGood = null
   overlay.clear()
   refreshed.clear()
+  refreshing.clear()
   unlinkedHere.clear()
   pendingCreate.clear()
   emit()
@@ -423,6 +424,7 @@ export function standing(a: RosterioAccount, now: number = Date.now()): AccountS
 /** What the server last said when a company was opened. Held in memory only; the saved copy reaches the company through sync. */
 export interface Refreshed { at: number; link: RosterioLink | null; planDrift: RosterioPlanDrift | null; adminUrl?: string }
 const refreshed = new Map<string, Refreshed>()
+const refreshing = new Map<string, Promise<void>>()
 const FRESH_MS = 60_000
 
 export const refreshedOf = (companyId: string): Refreshed | undefined => refreshed.get(companyId)
@@ -431,21 +433,43 @@ export const refreshedOf = (companyId: string): Refreshed | undefined => refresh
  * Asks the server to refresh this company's Rosterio snapshot, once a minute at most. Quiet by design: when Rosterio cannot be
  * reached (refreshed: false, or the request fails) the saved link stands and nothing is shown. The deal is never touched.
  */
-export async function refreshRosterio(companyId: string, signal?: AbortSignal): Promise<void> {
+export function refreshRosterio(companyId: string): Promise<void> {
+  const running = refreshing.get(companyId)
+  if (running) return running
   const last = refreshed.get(companyId)
-  if (last && Date.now() - last.at < FRESH_MS) return
+  if (last && Date.now() - last.at < FRESH_MS) return Promise.resolve()
+  const run = (async (): Promise<void> => {
+    try {
+      const r: RosterioRefreshResponse = await rosterioRefresh({ companyId })
+      if (unlinkedHere.has(companyId)) return
+      const link = asLink(r?.link) ?? null
+      const drift = r?.planDrift && asPlan(r.planDrift.dealPlan) && asPlan(r.planDrift.accountPlan) ? r.planDrift : null
+      refreshed.set(companyId, {
+        at: Date.now(), link: r?.refreshed ? link : null, planDrift: r?.refreshed ? drift : null,
+        ...(safeUrl(r?.adminUrl) ? { adminUrl: safeUrl(r.adminUrl) } : {}),
+      })
+    } catch {
+      // Quiet: the saved link is still what the page shows. The attempt still counts, so a failing server is not asked on every mount.
+      const prev = refreshed.get(companyId)
+      refreshed.set(companyId, { link: null, planDrift: null, ...prev, at: Date.now() })
+    } finally {
+      refreshing.delete(companyId)
+      emit()
+    }
+  })()
+  refreshing.set(companyId, run)
+  return run
+}
+
+/** An address the page may link to: https, or http on localhost for a developer's machine. Anything else is dropped. */
+export function safeUrl(v: unknown): string | undefined {
+  if (typeof v !== 'string' || !v) return undefined
   try {
-    const r: RosterioRefreshResponse = await rosterioRefresh({ companyId }, signal)
-    if (signal?.aborted || unlinkedHere.has(companyId)) return
-    const link = asLink(r?.link) ?? null
-    const drift = r?.planDrift && asPlan(r.planDrift.dealPlan) && asPlan(r.planDrift.accountPlan) ? r.planDrift : null
-    refreshed.set(companyId, {
-      at: Date.now(), link: r?.refreshed ? link : null, planDrift: r?.refreshed ? drift : null,
-      ...(typeof r?.adminUrl === 'string' && r.adminUrl ? { adminUrl: r.adminUrl } : {}),
-    })
-    emit()
+    const u = new URL(v)
+    const local = u.hostname === 'localhost' || u.hostname === '127.0.0.1'
+    return u.protocol === 'https:' || (u.protocol === 'http:' && local) ? u.href : undefined
   } catch {
-    // Quiet: the saved link is still what the page shows.
+    return undefined
   }
 }
 
@@ -454,9 +478,7 @@ export function useRosterioRefresh(companyId: string, enabled: boolean): Refresh
   useSyncExternalStore(subscribe, () => version)
   useEffect(() => {
     if (!enabled) return
-    const ctl = new AbortController()
-    void refreshRosterio(companyId, ctl.signal)
-    return () => ctl.abort()
+    void refreshRosterio(companyId)
   }, [companyId, enabled])
   return enabled ? refreshed.get(companyId) : undefined
 }

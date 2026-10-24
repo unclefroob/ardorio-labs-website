@@ -415,4 +415,52 @@ describe('Provision Rosterio account: an account that already exists', () => {
     await click(button(dialog(), 'Back'))
     expect(field(dialog(), 'Account name')?.value).toBe('Acme Group')
   })
+
+  it('voids the matches when the name or the admin email is edited after seeing them', async () => {
+    const api = await open({ [MATCHES]: json(200, found()), [PROVISION]: json(201, provisioned()) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create a new account anyway'))
+    await click(button(dialog(), 'Back'))
+    await click(button(dialog(), 'Back'))
+    await type(field(dialog(), 'Admin email'), 'someone@else.test')
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(api.count(MATCHES)).toBe(2)
+    expect(api.calls.find(c => c.path === '/sales/rosterio/provision')?.body).not.toHaveProperty('confirmNotDuplicate')
+  })
+
+  it('does not carry a go-ahead through a failed create, an edit and Check status', async () => {
+    let n = 0
+    const api = await open({
+      [MATCHES]: json(200, found()),
+      [PROVISION]: () => (++n === 1 ? json(504, { error: 'Gateway timeout', code: 'INTERNAL' }) : json(201, provisioned({ isNewUser: false, tempPassword: null }))),
+    })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create a new account anyway'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(api.calls.filter(c => c.path === '/sales/rosterio/provision')[0].body).toHaveProperty('confirmNotDuplicate', true)
+    expect(button(dialog(), 'Check status')).toBeDefined()
+    await type(field(dialog(), 'Account name'), 'A different name')
+    await click(button(dialog(), 'Check status'))
+    await settle()
+    const sent = api.calls.filter(c => c.path === '/sales/rosterio/provision')
+    expect(sent).toHaveLength(2)
+    expect(sent[1].body).not.toHaveProperty('confirmNotDuplicate')
+  })
+
+  it('locks the name and email fields while Rosterio is being asked, and links the match list to the dialog', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    await open({ [MATCHES]: async () => { await gate; return json(200, found()) } })
+    await click(button(dialog(), 'Continue'))
+    expect(field(dialog(), 'Account name')?.disabled).toBe(true)
+    expect(field(dialog(), 'Admin email')?.disabled).toBe(true)
+    release()
+    await settle(5)
+    const id = dialog().getAttribute('aria-describedby')
+    expect(id).toBeTruthy()
+    expect(dialog().querySelector(`[id="${id}"]`)?.textContent).toContain('Acme Group')
+  })
 })

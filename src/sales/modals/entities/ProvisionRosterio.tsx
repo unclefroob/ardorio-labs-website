@@ -82,7 +82,11 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
   const [linkErr, setLinkErr] = useState('')
   const sending = useRef(false)
   const checking = useRef(false)
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]): void => setF(o => ({ ...o, [k]: v }))
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]): void => {
+    // What was checked, and any go-ahead given, belongs to the name and admin email that were checked: change either and both are void.
+    if ((k === 'accountName' || k === 'adminEmail') && v !== f[k]) { setFound(null); setGoAhead(false) }
+    setF(o => ({ ...o, [k]: v }))
+  }
 
   const validate = (): boolean => {
     const e: Partial<Record<keyof Draft, string>> = {}
@@ -123,12 +127,13 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
       return
     }
     setProblem(r.message)
+    setGoAhead(false)
     setPhase('form')
   }
 
   const next = async (): Promise<void> => {
     if (!validate()) return
-    if (recover) { void send(); return }
+    if (recover) { setGoAhead(false); void send(); return }
     if (checking.current) return
     checking.current = true
     onStart()   // from here a sync landing mid-check must not swap the dialog away
@@ -165,6 +170,7 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
         icon="alert"
         sub={d.title}
         width={620}
+        describedBy="ros-match-list"
         footer={
           <>
             <Btn disabled={!!linking} onClick={() => setPhase('form')}>Back</Btn>
@@ -215,10 +221,10 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
       {recover && !problem && <Banner tone="warn">{UNSURE_MESSAGE} If the account was never created, this creates it now with a login for {f.adminEmail.trim() || 'the email below'}.</Banner>}
       {problem && <Banner tone="bad">{problem}</Banner>}
       <div className="grid g2" style={{ marginTop: 8 }}>
-        <Fld label="Account name" req err={err.accountName} style={{ gridColumn: '1/-1' }}><Inp value={f.accountName} onChange={v => set('accountName', v)} autoFocus /></Fld>
+        <Fld label="Account name" req err={err.accountName} style={{ gridColumn: '1/-1' }}><Inp value={f.accountName} onChange={v => set('accountName', v)} disabled={phase === 'checking'} autoFocus /></Fld>
         <Fld label="Admin first name" req err={err.adminFirstName}><Inp value={f.adminFirstName} onChange={v => set('adminFirstName', v)} /></Fld>
         <Fld label="Admin last name" req err={err.adminLastName}><Inp value={f.adminLastName} onChange={v => set('adminLastName', v)} /></Fld>
-        <Fld label="Admin email" req err={err.adminEmail} hint="This person gets the login."><Inp type="email" value={f.adminEmail} onChange={v => set('adminEmail', v)} /></Fld>
+        <Fld label="Admin email" req err={err.adminEmail} hint="This person gets the login."><Inp type="email" value={f.adminEmail} onChange={v => set('adminEmail', v)} disabled={phase === 'checking'} /></Fld>
         <Fld label="Admin phone"><Inp value={f.adminPhone} onChange={v => set('adminPhone', v)} /></Fld>
         <Fld label="Plan"><Sel value={f.plan} onChange={v => set('plan', asPlan(v) ?? 'starter')} options={PLAN_OPTIONS} /></Fld>
         <Fld label="Trial">
@@ -260,7 +266,7 @@ function AccountLine({ m }: { m: RosterioMatch }) {
 function MatchPanel({ found, linking, err, onLink }: { found: RosterioMatchesResponse; linking: string | null; err: string; onLink: (m: RosterioMatch) => void }) {
   const named = found.matches.some(m => m.matchedOn.includes('name'))
   return (
-    <div className="col" style={{ gap: 14 }}>
+    <div className="col" style={{ gap: 14 }} id="ros-match-list">
       {found.matches.length > 0 && (
         <div className="sm muted">
           {named || !found.canConfirmNotDuplicate

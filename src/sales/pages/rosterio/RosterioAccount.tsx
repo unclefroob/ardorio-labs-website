@@ -4,7 +4,7 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { useStore, S } from '../../data/store'
 import { useLoad } from '../../data/invoicing'
-import { accountSnapshot, planLabel, rosterioLinkOf, useRosterioAccounts } from '../../data/rosterio'
+import { accountSnapshot, planLabel, safeUrl, rosterioLinkOf, useRosterioAccounts } from '../../data/rosterio'
 import { detailStanding, standingText, useRosterioAccountDetail } from '../../data/rosterioAccount'
 import { useRosterioBilling } from '../../data/rosterioBilling'
 import { Banner, Btn, Chip, Empty, Link, Skel, Tabs } from '../../kit'
@@ -118,7 +118,7 @@ function Account({ id, route }: { id: string; route: Route }) {
       >
         <span className="faint sm" title={F.dt(d.fetchedAt)}>Read from Rosterio {F.rel(d.fetchedAt)}</span>
         <Btn icon="refresh" disabled={detail.loading} onClick={() => { detail.reload(); billing.reload(); invoices.reload() }}>Refresh</Btn>
-        {d.adminUrl && <a className="btn" href={d.adminUrl} target="_blank" rel="noopener noreferrer">Open in Admin</a>}
+        {safeUrl(d.adminUrl) && <a className="btn" href={safeUrl(d.adminUrl)} target="_blank" rel="noopener noreferrer">Open in Admin</a>}
       </PageHead>
 
       <Tabs

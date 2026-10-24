@@ -597,3 +597,6 @@
 .sos kbd.key{font:inherit;font-size:12px;line-height:15px;min-width:18px;text-align:center;padding:0 4px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;color:var(--fg3);background:var(--surf);margin-left:2px}
 .sos .btn.pri kbd.key{background:transparent;color:inherit;border-color:currentColor;opacity:.75}
 .sos .msg-pending{border-style:dashed}
+
+/* A small control that must still be a 44px target on a phone */
+@media (max-width:900px),(pointer:coarse){.sos .btn.tap{height:44px}.sos .btn.tap.icon{width:44px}.sos a.tap{display:inline-flex;align-items:center;min-height:44px}}
