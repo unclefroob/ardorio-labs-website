@@ -27,6 +27,9 @@ export function xeroReturnMessage(r: XeroReturn): string {
   return REASONS[r.reason ?? ''] ?? 'Xero couldn\'t be connected. Try again.'
 }
 
+/** A bank account with no code in Xero is chosen by its id; show its name alone. */
+export const isXeroId = (v: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+
 export const TAX_LABEL: Record<XeroTaxType, string> = {
   OUTPUT: 'GST on Income (10%)',
   EXEMPTOUTPUT: 'GST Free Income',
