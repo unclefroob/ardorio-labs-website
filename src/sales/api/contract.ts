@@ -426,6 +426,8 @@ export interface RosterioLink {
   accountStatus?: string
   /** 'deleted' once Rosterio no longer has the account. The link is kept: only a person unlinks. */
   accountState?: 'active' | 'deleted'
+  /** Locations the account has, from the on-open refresh only. null = the read failed and there was no earlier count. */
+  locationCount?: number | null
   /** ISO time the snapshot was last read from Rosterio. */
   refreshedAt?: string
   by?: string                         // member userId of whoever clicked Provision
@@ -605,6 +607,8 @@ export interface RosterioAccountDetail {
   people: { active: number; byRole: { super_admin: number; manager: number; staff: number } }
   admins: Array<{ name: string; role: string }>
   company: null | { id: string; name: string }
+  /** @deprecated Always []. Kept so the type matches the API for one release. Never rendered: the switches live in Rosterio Admin. */
+  features: never[]
   /** The deal's plan vs the account's plan; non-null only when both exist and differ. The deal is never modified. */
   planDrift: RosterioPlanDrift | null
   /** Rosterio admins only, and only when the server has an admin URL. */

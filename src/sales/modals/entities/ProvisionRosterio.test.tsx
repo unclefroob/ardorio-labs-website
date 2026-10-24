@@ -463,4 +463,32 @@ describe('Provision Rosterio account: an account that already exists', () => {
     expect(id).toBeTruthy()
     expect(dialog().querySelector(`[id="${id}"]`)?.textContent).toContain('Acme Group')
   })
+
+  it('shows a 409 CONFLICT from the duplicate-name fallback and makes Check status reachable', async () => {
+    const msg = 'This company already has that Rosterio account. Press "Check status" to see where it stands.'
+    await open({ [PROVISION]: json(409, { error: msg, code: 'CONFLICT', details: { accountId: 'acc1' } }) })
+    await click(button(dialog(), 'Continue'))
+    await click(button(dialog(), 'Create account'))
+    await settle()
+    expect(text()).toContain(msg)
+    expect(button(dialog(), 'Check status')).toBeDefined()
+    expect(button(dialog(), 'Continue')).toBeUndefined()
+  })
+
+  it('shows the rate-limit message from the check and lets the person try again, instead of reading it as no matches', async () => {
+    let n = 0
+    const api = await open({ [MATCHES]: () => (++n === 1 ? json(429, { error: 'Too many attempts. Try again in a few minutes.', code: 'RATE_LIMITED' }) : json(200, found())) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('Too many attempts. Try again in a few minutes.')
+    expect(text()).not.toContain('This creates a live Rosterio account')
+    expect(api.count(PROVISION)).toBe(0)
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('This looks like an existing Rosterio account')
+  })
+
+  it('explains a linked match with no company at all as linked to another company', async () => {
+    await open({ [MATCHES]: json(200, found({ matches: [], alreadyLinked: [{ ...match({ matchedOn: ['name'] }), companyId: null, companyName: null }], canConfirmNotDuplicate: false })) })
+    await click(button(dialog(), 'Continue'))
+    expect(text()).toContain('Already linked to another company')
+  })
 })

@@ -38,6 +38,7 @@ export function asLink(v: unknown): RosterioLink | undefined {
     state: o.state as RosterioLinkState, accountId: str(o.accountId), accountName: str(o.accountName), plan: asPlan(o.plan),
     isTrial: typeof o.isTrial === 'boolean' ? o.isTrial : undefined, trialEndDate: str(o.trialEndDate), by: str(o.by), at: str(o.at),
     accountStatus: str(o.accountStatus), accountState: o.accountState === 'active' || o.accountState === 'deleted' ? o.accountState : undefined, refreshedAt: str(o.refreshedAt),
+    locationCount: typeof o.locationCount === 'number' && o.locationCount >= 0 ? o.locationCount : o.locationCount === null ? null : undefined,
   }
 }
 
@@ -161,6 +162,13 @@ export async function provision(companyId: string, req: RosterioProvisionRequest
           return { ok: false, kind: 'match', message: e.message, found }
         }
       }
+      if (e.status === 409 && e.code === 'CONFLICT' && !asLink((e.body?.details as { link?: unknown } | undefined)?.link)) {
+        // Rosterio already holds this name and the server could not tell us more: nothing was made here, and "Check status" asks again.
+        overlay.set(companyId, { state: 'unknown' })
+        emit()
+        void pollOnce()
+        return { ok: false, kind: 'already', message: e.message }
+      }
       if (e.status === 409) {
         const details = e.body?.details as { link?: unknown } | undefined
         const link = asLink(details?.link)
@@ -202,16 +210,24 @@ export function asMatches(v: unknown): RosterioMatchesResponse | undefined {
   return { checked: o.checked !== false, matches, alreadyLinked, canConfirmNotDuplicate: o.canConfirmNotDuplicate === true }
 }
 
+export type MatchCheck =
+  | { kind: 'found'; found: RosterioMatchesResponse }
+  /** Nobody could say (Rosterio unreachable, a failed request): carry on as before. */
+  | { kind: 'unknown' }
+  /** Asked too often. The person tries again in a few minutes: this is not "no matches". */
+  | { kind: 'limited'; message: string }
+
 /**
- * Asks whether Rosterio already has an account for this, before anything is created. Read-only. Any trouble (Rosterio could not
- * be asked, a failed request) answers null: the form carries on as before, and the server checks again when it provisions.
+ * Asks whether Rosterio already has an account for this, before anything is created. Read-only. Trouble answers `unknown`: the form
+ * carries on as before and the server checks again when it provisions. Only being rate limited stops the person, with the server's words.
  */
-export async function checkMatches(companyId: string, accountName: string, administratorEmail: string): Promise<RosterioMatchesResponse | null> {
+export async function checkMatches(companyId: string, accountName: string, administratorEmail: string): Promise<MatchCheck> {
   try {
     const found = asMatches(await rosterioMatches({ companyId, accountName, administratorEmail }))
-    return found && found.checked ? found : null
-  } catch {
-    return null
+    return found && found.checked ? { kind: 'found', found } : { kind: 'unknown' }
+  } catch (e) {
+    if (e instanceof SalesHttpError && e.status === 429) return { kind: 'limited', message: e.body?.error ?? 'Too many attempts. Try again in a few minutes.' }
+    return { kind: 'unknown' }
   }
 }
 

@@ -36,7 +36,7 @@ function unlink(companyId: string, accountName: string, busy: (on: boolean) => v
   })
 }
 
-function Live({ account, companyId, fetchedAt, reload, busy }: { account: RosterioAccount; companyId: string; fetchedAt: string; reload: () => void; busy: boolean }) {
+function Live({ account, companyId, fetchedAt, reload, busy, locations }: { account: RosterioAccount; companyId: string; fetchedAt: string; reload: () => void; busy: boolean; locations?: number | null }) {
   const st = standing(account)
   const edit = Q.canEdit('ros')
   const [unlinking, setUnlinking] = useState(false)
@@ -54,6 +54,7 @@ function Live({ account, companyId, fetchedAt, reload, busy }: { account: Roster
         </span>
       ))}
       {row('Active users', <span className="num">{account.memberCount}</span>)}
+      {typeof locations === 'number' && row('Locations', <span className="num">{locations}</span>)}
       {account.createdAt && row('Customer since', F.date(account.createdAt))}
       {account.billingEmail && Q.canAdmin('ros') && row('Billing email', <span className="mono sm">{account.billingEmail}</span>)}
       {Q.canAdmin('ros') && row('Billing', <Billing companyId={companyId} />)}
@@ -122,6 +123,8 @@ export function RosterioCard({ companyId, dealId }: { companyId: string; dealId?
   const fresh0 = rf?.link && rf.link.accountId === link?.accountId ? rf : undefined
   const snap = fresh0?.link ?? link
   const drift = fresh0?.planDrift ?? null
+  // The count comes from the on-open refresh; an earlier saved count stands when the new read had none (null or absent shows nothing).
+  const locations = snap?.locationCount
   const adminUrl = fresh0?.adminUrl
   const deleted = link?.state === 'provisioned' && (snap?.accountState ?? link.accountState) === 'deleted'
   const taken = new Set(S.companies.map(c => rosterioLinkOf(c)?.accountId).filter((x): x is string => !!x))
@@ -141,7 +144,7 @@ export function RosterioCard({ companyId, dealId }: { companyId: string; dealId?
         <div style={{ marginBottom: 10 }}><Banner tone="info">{planDriftText(drift)} The deal is not changed.</Banner></div>
       )}
       {!deleted && link?.state === 'provisioned' && live && fresh && (
-        <Live account={live} companyId={companyId} fetchedAt={fresh.fetchedAt} reload={acc.reload} busy={acc.s !== 'ok'} />
+        <Live account={live} companyId={companyId} fetchedAt={fresh.fetchedAt} reload={acc.reload} busy={acc.s !== 'ok'} locations={locations} />
       )}
       {!deleted && link?.state === 'provisioned' && !live && (
         <div className="col" style={{ gap: 8 }}>
@@ -150,6 +153,7 @@ export function RosterioCard({ companyId, dealId }: { companyId: string; dealId?
             <span>Rosterio account: {linkSummary(snap ?? link)}</span>
             {snap?.accountStatus && snap.accountStatus !== 'active' && <Chip tone="bad">{snap.accountStatus.charAt(0).toUpperCase() + snap.accountStatus.slice(1)}</Chip>}
           </div>
+          {typeof locations === 'number' && <div className="sm"><span className="faint">Locations</span> <span className="num">{locations}</span></div>}
           {acc.s === 'error' && (
             <Banner tone="warn" action={Q.canEdit('ros') ? <Btn size="xs" onClick={acc.reload}>Retry</Btn> : undefined}>
               Rosterio can&apos;t be reached right now. This is {lastSeen ? 'the last status SalesOS saw' : 'the saved link'}.

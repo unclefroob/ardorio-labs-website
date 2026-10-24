@@ -345,6 +345,38 @@ describe('Rosterio card: the refreshed snapshot', () => {
   })
 })
 
+describe('Rosterio card: locations', () => {
+  const REFRESH = 'POST /sales/rosterio/refresh'
+  const ACCOUNTS = 'GET /sales/rosterio/accounts'
+  const linked = { rosterio: link({ accountId: 'acc1' }) }
+  const show = async () => {
+    const { RosterioCard } = await import('./RosterioCard')
+    await act(async () => { root.render(<RosterioCard companyId="co1" />) })
+    await settle(6)
+  }
+  const rowText = (l: string): string | undefined => [...host.querySelectorAll('.row')].find(r => r.firstElementChild?.textContent === l)?.textContent ?? undefined
+
+  it('shows the count to a salesperson, on the live card and the saved-link card', async () => {
+    const { account, accountsOf } = await import('../../testing/rosterioWorld')
+    await setup({ [REFRESH]: json(200, { link: link({ locationCount: 4 }), refreshed: true, planDrift: null }), [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])) }, { world: { company: linked } })
+    await show()
+    expect(rowText('Locations')).toBe('Locations4')
+  })
+
+  it('shows the count when the live list is unavailable too', async () => {
+    await setup({ [REFRESH]: json(200, { link: link({ locationCount: 2 }), refreshed: true, planDrift: null }) }, { world: { company: linked } })
+    await show()
+    expect(text()).toMatch(/Locations\s*2/)
+  })
+
+  it('shows nothing for null or an absent count', async () => {
+    const { account, accountsOf } = await import('../../testing/rosterioWorld')
+    await setup({ [REFRESH]: json(200, { link: link({ locationCount: null }), refreshed: true, planDrift: null }), [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])) }, { world: { company: linked } })
+    await show()
+    expect(text()).not.toContain('Locations')
+  })
+})
+
 describe('Rosterio refresh: the once-a-minute rule', () => {
   const REFRESH = 'POST /sales/rosterio/refresh'
   const ok = () => json(200, { link: link(), refreshed: true, planDrift: null })

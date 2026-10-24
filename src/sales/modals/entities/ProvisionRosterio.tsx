@@ -139,8 +139,16 @@ function Form({ d, recover, onStart, onDone }: { d: Deal; recover: boolean; onSt
     onStart()   // from here a sync landing mid-check must not swap the dialog away
     setProblem('')
     setPhase('checking')
-    const r = await checkMatches(d.companyId, f.accountName.trim(), f.adminEmail.trim())
+    const check = await checkMatches(d.companyId, f.accountName.trim(), f.adminEmail.trim())
     checking.current = false
+    if (check.kind === 'limited') {
+      // Not "no matches": say so and let the person try again later. Nothing was created.
+      setFound(null)
+      setProblem(check.message)
+      setPhase('form')
+      return
+    }
+    const r = check.kind === 'found' ? check.found : null
     setFound(r)
     setGoAhead(false)
     setLinkErr('')
