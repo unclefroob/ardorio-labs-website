@@ -91,7 +91,7 @@ export const detail = (o: Partial<RosterioAccountDetail> = {}): RosterioAccountD
   subscriptionStatus: 'active', memberCount: 12, maxUsers: 20, maxLocations: 5, locationCount: 3, billingState: null,
   pricing: { source: 'custom', managedContract: true, monthlyCost: 400, billingQuantity: null },
   terms: { billingModel: 'flat', amountCents: 40000, interval: 'monthly', effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null, contractReference: 'ACME-MSA', status: 'active' },
-  features: [{ key: 'kioskAttendance', label: 'Kiosk clock-in', on: true }, { key: 'payroll', label: 'Payroll', on: false }],
+  planDrift: null,
   aiCreditsPerPeriod: 500, awardSetup: { status: 'complete', updatedAt: '2026-09-02T00:00:00.000Z' },
   people: { active: 12, byRole: { super_admin: 2, manager: 3, staff: 7 } },
   admins: [{ name: 'Jo Park', role: 'super_admin' }, { name: 'Sam Lee', role: 'super_admin' }],
