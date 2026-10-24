@@ -17,6 +17,7 @@ import { ExternalChip, milestoneLabel, personName, RetainerChip, TermChip, Statu
 import { Activity, Totals } from './rail'
 import { PaidLinksCard } from './LinkPickers'
 import { XeroPanel } from './XeroPanel'
+import { ExternalXeroPanel } from './ExternalXeroPanel'
 
 /** The items of the More menu for an invoice, by status. Drafts have none: they keep Delete in the editor and were never issued. */
 export function moreItems(inv: InvoiceDto, o: { copy: () => void; duplicate: () => void; cancel: () => void } & TestOps): MoreItem[] {
@@ -257,7 +258,7 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
         </div>
         <div className="inv-rail">
           <Totals subtotal={inv.subtotalCents} gst={inv.gstCents} total={inv.totalCents} gstPct={gstPct} struck={a.voided} note={a.voided ? 'Removed from Outstanding and Invoiced.' : a.readOnly ? undefined : 'Revenue reports use the ex-GST figure.'} />
-          <XeroPanel invoice={inv} onChange={onChange} />
+          {ext ? <ExternalXeroPanel invoice={inv} canAct={Q.canAdmin('ard')} /> : <XeroPanel invoice={inv} onChange={onChange} />}
           <Activity items={activityItems(inv, personName)} />
           {paid && !ext && <div className="faint sm"><Icon n="info" s={12} /> The public invoice page shows a Paid stamp. Any unused card link was switched off when the invoice was marked paid.</div>}
         </div>

@@ -552,6 +552,13 @@ export interface RosterioInvoice {
 }
 export interface RosterioInvoicesResponse { invoices: RosterioInvoice[]; configured: boolean; syncedAt: string | null; syncError: string | null }
 
+// ---- An external record that is a Stripe invoice, sent to Xero ----
+// GET  /sales/invoices/:id/xero/stripe      -> ExternalStripeLink. No Stripe lookup: linked is null until someone finds it.
+// POST /sales/invoices/:id/xero/stripe-link -> RosterioInvoice. Looks the record's reference up in Stripe and keeps a copy; the
+//   usual Stripe Xero flow (contact, send, fee, payout) then applies to that copy. 409 CONFLICT with a plain reason when it is
+//   not found (e.g. 'No Stripe invoice has the number AIQGCIEQ-0002'). Admins of ard only, else 403.
+export interface ExternalStripeLink { linked: RosterioInvoice | null }
+
 // ---- Rosterio billing (a managed account's Stripe subscription) ----
 // Billing of a Rosterio account on negotiated (managed) terms, run by Rosterio (its managedBillingService); SalesOS only
 // asks. Rosterio admins and super users only (else ROLE_REQUIRED { needed: 'admin', businessId: 'ros' }); the company must
