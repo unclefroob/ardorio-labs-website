@@ -1,5 +1,6 @@
 import type { ExternalStripeLink, StripeFeePreview, InvoiceDto, RosterioInvoice, XeroAccountsResponse, XeroContactRef, XeroSettings, XeroStatus } from './contract'
-import { salesFetch } from './http'
+import { saveBlob } from './invoices'
+import { salesBlob, salesFetch } from './http'
 
 /** Xero for invoicing. Every call is limited by the server to admins of business `ard` (or super). */
 export const xeroStatus = (signal?: AbortSignal) => salesFetch<XeroStatus>('/xero/status', { signal })
@@ -22,3 +23,7 @@ export const xeroStripeFees = (invoiceId: string, signal?: AbortSignal, redo?: b
 export const externalStripeLink = (invoiceId: string, signal?: AbortSignal) => salesFetch<ExternalStripeLink>(`/invoices/${encodeURIComponent(invoiceId)}/xero/stripe`, { signal })
 /** Look the record's reference up in Stripe and keep a copy. Not found is a 409 with the reason. */
 export const findExternalInStripe = (invoiceId: string) => salesFetch<RosterioInvoice>(`/invoices/${encodeURIComponent(invoiceId)}/xero/stripe-link`, { method: 'POST', body: {} })
+/** Download the Stripe balance activity as a bank statement CSV for the Stripe clearing account in Xero. A bad range is a 400, Stripe or Xero not set up a 409, each with the reason. */
+export async function downloadStripeStatement(from: string, to: string): Promise<void> {
+  saveBlob(await salesBlob(`/xero/stripe-statement.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`), `stripe-statement-${from}-${to}.csv`)
+}
