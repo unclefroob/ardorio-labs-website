@@ -62,13 +62,22 @@ describe('Settings > Invoicing', () => {
     expect(text()).toContain('Defaults for new invoices')
   })
 
-  it('has a Xero not connected row, and Stripe connected only when the server has a key', async () => {
-    await show({ [GET]: () => json(200, SETTINGS) })
+  const XERO = 'GET /sales/xero/status'
+  const xeroStatus = (over: Record<string, unknown> = {}) => ({
+    configured: true, connected: false, tenantName: '', connectedAt: null, problem: null, settings: null, counts: { waiting: 0, failed: 0 }, ...over,
+  })
+
+  it('has a Xero row that follows the connection, and Stripe connected only when the server has a key', async () => {
+    await show({ [GET]: () => json(200, SETTINGS), [XERO]: () => json(200, xeroStatus()) })
     expect(text()).toMatch(/Xero.*Not connected/)
     expect(text()).toMatch(/Stripe card payments.*Connected/)
     act(() => root.unmount())
     root = createRoot(host)
-    await show({ [GET]: () => json(200, { ...SETTINGS, stripeConfigured: false }) })
+    await show({ [GET]: () => json(200, SETTINGS), [XERO]: () => json(200, xeroStatus({ connected: true, tenantName: 'Ardorio Pty Ltd', connectedAt: '2026-09-01T00:00:00Z', settings: { salesAccountCode: '200', paymentAccountCode: '090', gstTaxType: 'OUTPUT', noGstTaxType: 'EXEMPTOUTPUT', autoSync: true, syncFrom: '2026-09-01' } })) })
+    expect(text()).toMatch(/Sending to Ardorio Pty Ltd.*Connected/)
+    act(() => root.unmount())
+    root = createRoot(host)
+    await show({ [GET]: () => json(200, { ...SETTINGS, stripeConfigured: false }), [XERO]: () => json(200, xeroStatus()) })
     expect(text()).toMatch(/Stripe card payments.*Not set up/)
     expect(host.querySelector<HTMLButtonElement>('[aria-label="Offer card payment by default"]')?.disabled).toBe(true)
     expect(text()).toContain('Unavailable until card payments are set up')
