@@ -108,7 +108,7 @@ describe('Reports › Ardorio revenue (board 5)', () => {
   it('is its own Reports tab, with the board’s period control, and the Overview never asks for the revenue report', async () => {
     const api = await show({ route: null })
     const tabs = [...host.querySelectorAll('[role="tab"]')].map(t => t.textContent)
-    expect(tabs).toEqual(['Overview', 'Ardorio revenue'])
+    expect(tabs).toEqual(['Overview', 'Revenue', 'Ardorio revenue'])
     expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Overview')
     expect(section().querySelector('.kpi')).toBeNull()
     expect(api.calls.filter(c => c.path.startsWith('/sales/reports/revenue'))).toHaveLength(0)

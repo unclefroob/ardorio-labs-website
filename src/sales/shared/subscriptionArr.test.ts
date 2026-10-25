@@ -12,19 +12,21 @@ describe('subscriptionArr', () => {
   it('uses Rosterio accounts for Rosterio and leaves its won deals out, so no customer counts twice', () => {
     const a = subscriptionArr({ deals, rosterioInView: true, filtered: false, paying: [paid('x', 1000), paid('y', 500)] })
     expect(a).toMatchObject({ fromAccounts: 18000, fromDeals: 20000, total: 38000, priced: 2, paying: 2, rosterioNote: null })
+    expect(a.byBusiness).toEqual({ adv: 12000, pth: 8000, ros: 18000 })
   })
   it('counts an unpriced paying account in the denominator and adds nothing for it', () => {
     const a = subscriptionArr({ deals, rosterioInView: true, filtered: false, paying: [paid('x', 1000), paid('y')] })
     expect(a).toMatchObject({ fromAccounts: 12000, priced: 1, paying: 2 })
   })
-  it('falls back to the deals, with a note, when Rosterio sent no prices', () => {
+  it('leaves Rosterio out, with a note, when Rosterio sent no prices, rather than half-counting its won deals', () => {
     const a = subscriptionArr({ deals, rosterioInView: true, filtered: false, paying: [paid('x'), paid('y')] })
-    expect(a).toMatchObject({ total: 50000, fromAccounts: 0, rosterioNote: 'no-prices' })
+    expect(a).toMatchObject({ total: 20000, fromAccounts: 0, rosterioNote: 'no-prices' })
+    expect(a.byBusiness).toEqual({ adv: 12000, pth: 8000 })
   })
-  it('falls back to the deals while the accounts have not been read', () => {
-    expect(subscriptionArr({ deals, rosterioInView: true, filtered: false })).toMatchObject({ total: 50000, rosterioNote: 'no-prices' })
+  it('leaves Rosterio out while the accounts have not been read', () => {
+    expect(subscriptionArr({ deals, rosterioInView: true, filtered: false })).toMatchObject({ total: 20000, rosterioNote: 'no-prices' })
   })
-  it('does not use accounts when an owner, team, source or Mine filter is on, because accounts have no owner', () => {
+  it('does not use accounts when an owner, team, source or Mine filter is on, because accounts have no owner, and then counts the deals', () => {
     expect(subscriptionArr({ deals, rosterioInView: true, filtered: true, paying: [paid('x', 1000)] })).toMatchObject({ total: 50000, rosterioNote: 'filtered' })
   })
   it('ignores accounts and says nothing about Rosterio when it is not in view', () => {

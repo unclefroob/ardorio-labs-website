@@ -392,7 +392,8 @@
 .sos a.btn{text-decoration:none}
 .sos .page:focus,.sos h1:focus{outline:none}
 
-.sos .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* Fixed, not absolute: with no positioned ancestor an absolute one is placed against the page and stretches it, so a chart's hidden table far down the dashboard gave the whole page a second scrollbar beside the app's own. */
+.sos .sr-only{position:fixed;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .sos .cf{flex-wrap:wrap}
 .sos .cf-body{flex:1 1 280px;min-width:0}
 .sos .cf-head{margin-bottom:6px}

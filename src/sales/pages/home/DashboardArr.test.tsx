@@ -48,7 +48,7 @@ async function show(rosRole: 'admin' | 'sales', accounts: ReturnType<typeof acco
 }
 
 const arr = (): { v: string; s: string } | null => {
-  const t = [...host.querySelectorAll('.kpi')].find(x => x.querySelector('.l')?.textContent === 'Subscription ARR')
+  const t = [...host.querySelectorAll('.kpi')].find(x => x.querySelector('.l')?.textContent === 'Recurring revenue (ARR)')
   return t ? { v: t.querySelector('.v')?.textContent ?? '', s: t.querySelector('.s')?.textContent ?? '' } : null
 }
 
@@ -56,18 +56,18 @@ describe('Dashboard: subscription ARR includes Rosterio\'s live accounts', () =>
   it('adds twelve months of what paying Rosterio accounts pay, and leaves Rosterio\'s won deal out so it is not counted twice', async () => {
     await show('admin', [account({ id: 'a', name: 'A', monthlyCost: 1000 }), account({ id: 'b', name: 'B', monthlyCost: 500 }), account({ id: 't', name: 'Trial', isTrial: true, trialEndDate: '2999-01-01T00:00:00.000Z', monthlyCost: 9999 })])
     expect(arr()?.v).toBe('A$18k')
-    expect(arr()?.s).toContain('Rosterio 2 paying accounts A$18k')
+    expect(arr()?.s).toContain('Rosterio A$18k')
   })
 
-  it('says why when Rosterio sent no prices (not a Rosterio admin), and keeps the deals figure', async () => {
+  it('leaves Rosterio out and says why when it sent no prices (not a Rosterio admin), rather than half-counting its won deal', async () => {
     await show('sales', [account({ id: 'a', name: 'A' })])
-    expect(arr()?.v).toBe('A$30k')
-    expect(arr()?.s).toContain('Rosterio prices are shown to Rosterio admins')
+    expect(arr()?.v).toBe('A$0')
+    expect(arr()?.s).toContain('Rosterio is not included: its prices are shown to Rosterio admins')
   })
 
-  it('keeps the deals figure when the accounts cannot be read', async () => {
+  it('leaves Rosterio out when the accounts cannot be read', async () => {
     await show('admin', null)
-    expect(arr()?.v).toBe('A$30k')
-    expect(arr()?.s).toContain('Won subscription deals')
+    expect(arr()?.v).toBe('A$0')
+    expect(arr()?.s).toContain('Rosterio is not included')
   })
 })
