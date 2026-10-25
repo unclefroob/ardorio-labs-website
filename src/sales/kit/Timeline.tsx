@@ -47,11 +47,9 @@ export function Timeline({ items, showCompany }: { items: readonly Activity[]; s
                 {a.outcome && vis && <Chip>{a.outcome}</Chip>}
                 {isSimAct(a) && <SimChip />}
                 {vis && !gone && <OpenEmail a={a} />}
-                {gone && <Chip icon="x" title="Does not count in goals, reports or totals">Logged in error</Chip>}
+                {gone && <Chip icon="x" title="Mistake: does not count in goals, reports or totals"><span className="sr-only">Mistake, does not count</span></Chip>}
                 {!gone && canVoidActivity(a) && (
-                  <Btn size="xs" kind="ghost" style={{ marginLeft: 'auto' }} aria-label={`Mark ${vis ? `“${a.subject ?? ''}”` : 'this activity'} as logged in error`} onClick={() => UI.open('voidActivity', { id: a.id })}>
-                    Logged in error
-                  </Btn>
+                  <Btn size="xs" kind="ghost" icon="flag" style={{ marginLeft: 'auto' }} title="Mark as a mistake" aria-label={`Mark ${vis ? `“${a.subject ?? ''}”` : 'this activity'} as a mistake`} onClick={() => UI.open('voidActivity', { id: a.id })} />
                 )}
               </div>
               {gone && <div className="faint xs" style={{ marginTop: 2 }}>{voidedLine(a)}</div>}

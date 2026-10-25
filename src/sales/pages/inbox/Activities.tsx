@@ -94,7 +94,7 @@ export function Activities({ route }: { route: Route }) {
             <Icon n={ic} s={13} style={{ color: 'var(--fg3)' }} />
             <span className={'trunc' + (isVoided(a) ? ' strike' : '')} style={{ maxWidth: 340 }}>{Q.actVisible(a) ? a.subject : <><Icon n="lock" s={11} /> Private email: content restricted</>}</span>
             {isSimAct(a) && <SimChip />}
-            {isVoided(a) && <Chip icon="x" title={voidedLine(a)}>Logged in error</Chip>}
+            {isVoided(a) && <Chip icon="x" title={voidedLine(a)}><span className="sr-only">Mistake, does not count</span></Chip>}
           </span>
         )
       },
@@ -114,12 +114,10 @@ export function Activities({ route }: { route: Route }) {
         : canVoidActivity(a)
           ? (
             <Btn
-              size="xs" kind="ghost" aria-label={`Mark ${Q.actVisible(a) ? `“${a.subject ?? ''}”` : 'this activity'} as logged in error`}
+              size="xs" kind="ghost" icon="flag" title="Mark as a mistake" aria-label={`Mark ${Q.actVisible(a) ? `“${a.subject ?? ''}”` : 'this activity'} as a mistake`}
               onKeyDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); UI.open('voidActivity', { id: a.id }) }}
-            >
-              Logged in error
-            </Btn>
+            />
           )
           : '',
     },
@@ -132,7 +130,7 @@ export function Activities({ route }: { route: Route }) {
 
   return (
     <div className="page" style={{ maxWidth: 'none' }}>
-      <PageHead title="Activities" sub={`${counted} interaction${counted === 1 ? '' : 's'}${voidedN ? ` (${voidedN} logged in error, not counted)` : ''} · one central activity log shown on every related record`}>
+      <PageHead title="Activities" sub={`${counted} interaction${counted === 1 ? '' : 's'}${voidedN ? ` (${voidedN} marked as a mistake, not counted)` : ''} · one central activity log shown on every related record`}>
         <Btn icon="download" disabled={!rows.length} onClick={exportCsv}>Export</Btn>
       </PageHead>
       {all.length === 0 ? (

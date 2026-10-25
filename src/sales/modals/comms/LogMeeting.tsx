@@ -173,7 +173,7 @@ function MeetingEditor({ p, ex, biz }: { p: Props; ex: Meeting | undefined; biz:
       {noCompanies && <Banner tone="warn" action={<Btn size="sm" onClick={() => UI.open('newCompany')}>Add company</Btn>}>There are no companies yet. A meeting needs a company, so add one first.</Banner>}
       <div className="grid g3">
         <Fld label="Meeting title" req style={{ gridColumn: '1/-1' }}><Inp value={f.title} onChange={v => set('title', v)} /></Fld>
-        <Fld label="Status" hint={ex?.status === 'completed' ? 'A held meeting stays completed. If it did not happen, use “Logged in error” on its activity.' : undefined}><Seg label="Status" value={f.status} onChange={v => set('status', v)} opts={statuses.map(k => [k, MEETING_STATUS_LABEL[k]] as const)} /></Fld>
+        <Fld label="Status" hint={ex?.status === 'completed' ? 'A held meeting stays completed. If it did not happen, mark its activity as a mistake.' : undefined}><Seg label="Status" value={f.status} onChange={v => set('status', v)} opts={statuses.map(k => [k, MEETING_STATUS_LABEL[k]] as const)} /></Fld>
         <Fld label="Date" hint={moving ? 'Saving moves the meeting. The earlier time stays in its history.' : undefined}><Inp type="date" value={f.date} onChange={v => set('date', v)} /></Fld>
         <div className="row" style={{ gap: 8 }}>
           <Fld label="Time" style={{ flex: 1 }}><Inp type="time" value={f.time} onChange={v => set('time', v)} /></Fld>

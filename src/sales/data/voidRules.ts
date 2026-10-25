@@ -11,7 +11,7 @@ export function canVoidActivity(a: Pick<Activity, 'actorId' | 'businessId' | 'vo
   return a.actorId === S.session.userId && Q.canEdit(a.businessId)
 }
 
-/** "Logged in error by Priya on 14 Oct 2026: reason", with what the record says. voidedBy arrives once the server has it. */
+/** "Marked as a mistake by Priya on 14 Oct 2026: reason", with what the record says. voidedBy arrives once the server has it. */
 export function voidedLine(a: Pick<Activity, 'voidedAt' | 'voidedBy' | 'voidReason'>): string {
-  return 'Logged in error' + (a.voidedBy ? ` by ${a.voidedBy}` : '') + (a.voidedAt ? ` on ${F.date(a.voidedAt)}` : '') + (a.voidReason ? `: ${a.voidReason}` : '')
+  return 'Marked as a mistake' + (a.voidedBy ? ` by ${a.voidedBy}` : '') + (a.voidedAt ? ` on ${F.date(a.voidedAt)}` : '') + (a.voidReason ? `: ${a.voidReason}` : '')
 }
