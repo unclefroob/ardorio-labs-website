@@ -216,14 +216,14 @@ describe('Meeting form: statuses and delete', () => {
     expect([...seg.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Cancelled'])
   })
 
-  it('a completed meeting offers only Completed and points to Logged in error to correct it', async () => {
+  it('a completed meeting offers only Completed and points to marking its activity as a mistake', async () => {
     await hydrate()
     await renderWithHosts(null)
     await act(async () => { m.ui.UI.open('logMeeting', { id: 'done' }) })
     const d = dialog('Edit meeting')
     const seg = d.querySelector('[role="group"][aria-label="Status"]') as HTMLElement
     expect([...seg.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Completed'])
-    expect(d.textContent).toContain('If it did not happen, use “Logged in error” on its activity.')
+    expect(d.textContent).toContain('If it did not happen, mark its activity as a mistake.')
   })
 
   it('changing the date of an upcoming meeting in the form says it moves the meeting and keeps the old start', async () => {
