@@ -10,6 +10,7 @@ import { Bars, BizDot, Btn, Card, Chip, DataTable, Empty, Funnel, Kpi, Legend, L
 import { PER, type PeriodKey } from '../../shared/constants'
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
+import { RevenueOutlook } from './RevenueOutlook'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner']
 const go = (p: string, q?: Record<string, unknown>): void => UI.nav(p, { q })
@@ -172,11 +173,12 @@ export function Dashboard() {
       ) : (
         <>
           {ws && <BizKpis b={ws} open={open} />}
+          {sc.includes('ard') && <div style={{ marginBottom: 14 }}><RevenueOutlook filtered={mine || !!owner || !!team || !!src} /></div>}
           <div className="grid g6" style={{ marginBottom: 14 }}>
             <Kpi label="Open pipeline" value={F.money(tot, 1)} sub={`${open.length} deals`} onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label="Weighted pipeline" value={F.money(wt, 1)} sub="Value × stage probability" onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label={`Won · ${PER[per][0].toLowerCase()}`} value={F.money(sum(won, Q.wonAmount), 1)} sub={`${won.length} deals`} tone="ok" onClick={() => go('deals', { status: 'won', view: 'list' })} />
-            {!ardOnly && <Kpi label="Recurring revenue (ARR)" value={F.money(arr, 1)} sub="Won subscription deals" onClick={() => go('deals', { status: 'won', view: 'list' })} />}
+            {!ardOnly && <Kpi label={sc.includes('ard') ? 'Subscription ARR' : 'Recurring revenue (ARR)'} value={F.money(arr, 1)} sub="Won subscription deals" onClick={() => go('deals', { status: 'won', view: 'list' })} />}
             <Kpi label="New leads" value={leads} sub={PER[per][0]} onClick={() => go('contacts')} />
             <Kpi label="Deals at risk" value={risk.length} tone={risk.length ? 'bad2' : undefined} sub="High-risk signals" onClick={() => go('deals', { risk: 1, view: 'list' })} />
             <Kpi label="Meetings booked" value={cnt('meeting_booked')} onClick={() => go('activities', { type: 'meeting_booked', from })} />
