@@ -174,7 +174,7 @@ function Loaded({ filtered }: { filtered: boolean }) {
                 <tbody>
                   {next.map(e => (
                     <tr key={e.id}>
-                      <td>
+                      <td className="w" style={{ minWidth: 0 }}>
                         {e.dealId && S.deals.some(d => d.id === e.dealId) ? <Link to="deal" id={e.dealId} q={{ tab: 'billing' }}><b>{e.dealName}</b></Link> : <b>{e.dealName}</b>}
                         <div className="faint xs">{e.label}</div>
                       </td>
