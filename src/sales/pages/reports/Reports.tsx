@@ -14,6 +14,7 @@ import { seqStats, type SeqStats } from '../../shared/seqStats'
 import { UI, type Route } from '../../ui/store'
 import { ardorioOutOfScope, showArdorio } from '../../shared/reportLinks'
 import { ArdorioRevenue } from './ArdorioRevenue'
+import { RevenueAll } from './RevenueAll'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner', 'Cross-business introduction']
 const POSITIVE = ['Interested', 'Meeting Requested', 'More Information Requested']
@@ -24,19 +25,23 @@ const R: { textAlign: 'right' } = { textAlign: 'right' }
 interface UserRow { id: string; e: number; c: number; m: number; w: number }
 type SeqRow = SeqStats & { id: string; seqId: string }
 
-const TABS = [['overview', 'Overview'], ['ardorio', 'Ardorio revenue']] as const
+const TAB_OVERVIEW = ['overview', 'Overview'] as const
+const TAB_REVENUE = ['revenue', 'Revenue'] as const
+const TAB_ARDORIO = ['ardorio', 'Ardorio revenue'] as const
 
-/** Reports: the Overview, and for admins of Ardorio (or super) with Ardorio in view, the Ardorio revenue tab (board 5). */
+/** Reports: the Overview; Revenue for every business a person can read; and for admins of Ardorio (or super) with Ardorio in view, the Ardorio revenue tab (board 5). */
 export function Reports({ route }: { route?: Route } = {}) {
   const sc = Q.scope()
   // Ardorio money is for admins of Ardorio (or super) only; everyone else sees no tab, not an error.
   const ardTab = sc.includes('ard') && Q.canBill()
-  const [tab, setTab] = useState(route?.q?.tab === 'ardorio' ? 'ardorio' : 'overview')
+  const asked = route?.q?.tab
+  const [tab, setTab] = useState(asked === 'ardorio' ? 'ardorio' : asked === 'revenue' ? 'revenue' : 'overview')
   const chooseTab = (t: string): void => {
     setTab(t)
-    UI.setRoute({ q: t === 'ardorio' ? { tab: t } : {} })
+    UI.setRoute({ q: t === 'overview' ? {} : { tab: t } })
   }
-  const tabs = ardTab ? <Tabs tabs={TABS} value={tab} onChange={chooseTab} /> : null
+  const tabs = <Tabs tabs={ardTab ? [TAB_OVERVIEW, TAB_REVENUE, TAB_ARDORIO] : [TAB_OVERVIEW, TAB_REVENUE]} value={tab} onChange={chooseTab} />
+  if (tab === 'revenue') return <div className="page"><RevenueAll tabs={tabs} /></div>
   if (ardTab && tab === 'ardorio') return <div className="page"><ArdorioRevenue tabs={tabs} view={route?.q?.view === 'forecast' ? 'forecast' : 'report'} /></div>
   // A link asked for the Ardorio revenue report but this workspace hides Ardorio: say so instead of landing silently.
   const hidden = tab === 'ardorio' && ardorioOutOfScope()

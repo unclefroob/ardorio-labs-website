@@ -16,6 +16,8 @@ export interface SubscriptionArr {
   /** Paying Rosterio accounts that came with a price, and all that are paying; both 0 when accounts are not used. */
   priced: number
   paying: number
+  /** Dollars a year by business: Rosterio's from its accounts when they are used, every business's from its won recurring deals otherwise. */
+  byBusiness: Record<string, number>
   /** Rosterio is in view but its accounts are not used, and why. */
   rosterioNote: 'filtered' | 'no-prices' | null
 }
@@ -34,12 +36,20 @@ export function subscriptionArr(o: {
   filtered: boolean
 }): SubscriptionArr {
   const mrr: Mrr | undefined = o.rosterioInView && !o.filtered && o.paying ? mrrOf(o.paying) : undefined
-  const dealArr = (skipRos: boolean): number => o.deals.filter(d => d.status === 'won' && d.recurring && !(skipRos && d.businessId === 'ros')).reduce((a, d) => a + (d.value || 0), 0)
+  // Rosterio's own prices are the only source for Rosterio when it is in view and unfiltered: with no prices it is left out and says so,
+  // rather than being half-counted from whichever of its deals happen to be won.
+  const leaveRosterioOut = o.rosterioInView && !o.filtered && !mrr
+  const byBusiness: Record<string, number> = {}
+  for (const d of o.deals) {
+    if (d.status !== 'won' || !d.recurring) continue
+    if (d.businessId === 'ros' && (mrr || leaveRosterioOut)) continue
+    byBusiness[d.businessId] = (byBusiness[d.businessId] ?? 0) + (d.value || 0)
+  }
+  const fromDeals = Object.values(byBusiness).reduce((a, n) => a + n, 0)
   if (mrr) {
     const fromAccounts = mrr.total * 12
-    const fromDeals = dealArr(true)
-    return { total: fromDeals + fromAccounts, fromDeals, fromAccounts, priced: mrr.priced, paying: mrr.paying, rosterioNote: null }
+    byBusiness.ros = fromAccounts
+    return { total: fromDeals + fromAccounts, fromDeals, fromAccounts, priced: mrr.priced, paying: mrr.paying, byBusiness, rosterioNote: null }
   }
-  const fromDeals = dealArr(false)
-  return { total: fromDeals, fromDeals, fromAccounts: 0, priced: 0, paying: 0, rosterioNote: !o.rosterioInView ? null : o.filtered ? 'filtered' : 'no-prices' }
+  return { total: fromDeals, fromDeals, fromAccounts: 0, priced: 0, paying: 0, byBusiness, rosterioNote: !o.rosterioInView ? null : o.filtered ? 'filtered' : 'no-prices' }
 }

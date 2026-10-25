@@ -24,10 +24,11 @@ const field = (d: Deal, k: string): number => {
 }
 
 const arrSub = (a: SubscriptionArr): string => {
-  if (a.fromAccounts > 0) return `Rosterio ${a.paying} paying account${a.paying === 1 ? '' : 's'} ${F.money(a.fromAccounts, 1)}${a.fromDeals > 0 ? ` + won subscription deals ${F.money(a.fromDeals, 1)}` : ''}`
-  if (a.rosterioNote === 'no-prices') return 'Won subscription deals. Rosterio prices are shown to Rosterio admins.'
-  if (a.rosterioNote === 'filtered') return 'Won subscription deals. Rosterio accounts are not split by person.'
-  return 'Won subscription deals'
+  const parts = Object.entries(a.byBusiness).filter(([, v]) => v > 0).sort((x, y) => y[1] - x[1]).map(([id, v]) => `${Q.biz(id)?.name ?? id} ${F.money(v, 1)}`)
+  const base = parts.length ? parts.join(' · ') : 'Won subscription deals'
+  if (a.rosterioNote === 'no-prices') return `${base}. Rosterio is not included: its prices are shown to Rosterio admins.`
+  if (a.rosterioNote === 'filtered') return `${base}. Rosterio accounts are not split by person.`
+  return base
 }
 const arrTitle = (a: SubscriptionArr): string | undefined => (a.fromAccounts > 0 && a.priced < a.paying ? `${a.priced} of ${a.paying} paying Rosterio accounts have a price` : undefined)
 
@@ -115,7 +116,7 @@ export function Dashboard() {
   const rosData = rosAcc.s === 'ok' ? rosAcc.data : rosAcc.s === 'loading' || rosAcc.s === 'error' ? rosAcc.previous : undefined
   const sub = subscriptionArr({
     deals, rosterioInView: sc.includes('ros'), filtered: mine || !!owner || !!team || !!src,
-    paying: rosData ? payingAccounts(rosData.accounts, testAccountIds()) : undefined,
+    paying: rosData && Q.canAdmin('ros') ? payingAccounts(rosData.accounts, testAccountIds()) : undefined,
   })
   const risk = open.filter(d => Q.risk(d)?.level === 'high')
   const od = Q.tasks().filter(t => inOwn(t.assigneeId)).filter(Q.overdue)
@@ -195,7 +196,7 @@ export function Dashboard() {
             <Kpi label="Open pipeline" value={F.money(tot, 1)} sub={`${open.length} deals`} onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label="Weighted pipeline" value={F.money(wt, 1)} sub="Value × stage probability" onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label={`Won · ${PER[per][0].toLowerCase()}`} value={F.money(sum(won, Q.wonAmount), 1)} sub={`${won.length} deals`} tone="ok" onClick={() => go('deals', { status: 'won', view: 'list' })} />
-            {!ardOnly && <Kpi label={sc.includes('ard') ? 'Subscription ARR' : 'Recurring revenue (ARR)'} value={F.money(sub.total, 1)} sub={arrSub(sub)} title={arrTitle(sub)} onClick={() => go('deals', { status: 'won', view: 'list' })} />}
+            {!ardOnly && <Kpi label="Recurring revenue (ARR)" value={F.money(sub.total, 1)} sub={arrSub(sub)} title={arrTitle(sub) ?? 'Open the Revenue report'} onClick={() => go('reports', { tab: 'revenue' })} />}
             <Kpi label="New leads" value={leads} sub={PER[per][0]} onClick={() => go('contacts')} />
             <Kpi label="Deals at risk" value={risk.length} tone={risk.length ? 'bad2' : undefined} sub="High-risk signals" onClick={() => go('deals', { risk: 1, view: 'list' })} />
             <Kpi label="Meetings booked" value={cnt('meeting_booked')} onClick={() => go('activities', { type: 'meeting_booked', from })} />

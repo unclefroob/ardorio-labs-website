@@ -56,7 +56,7 @@ describe('Dashboard: one-off revenue words for Ardorio', () => {
 
   it('keeps the recurring revenue tile when Rosterio is in view too', async () => {
     await show(true)
-    expect(labels()).toContain('Subscription ARR')
+    expect(labels()).toContain('Recurring revenue (ARR)')
     expect(titles().some(t => t.startsWith('Won value by month'))).toBe(true)
   })
 })
