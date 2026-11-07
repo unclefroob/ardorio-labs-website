@@ -181,6 +181,8 @@ export function Dashboard() {
         <Sel className="sm" style={{ width: 130 }} value={src} onChange={setSrc} aria-label="Source" placeholder="All sources" options={SOURCES} />
       </PageHead>
       {nothing ? (
+        <>
+        {sc.includes('ros') && Q.canAdmin('ros') && <div style={{ marginBottom: 14 }}><RosterioCollections filtered={mine || !!owner || !!team || !!src} /></div>}
         <Card>
           <Empty
             icon="chart"
@@ -189,6 +191,7 @@ export function Dashboard() {
             action={Q.anyEdit() ? <Btn kind="pri" icon="plus" onClick={() => UI.nav('companies')}>Go to companies</Btn> : undefined}
           />
         </Card>
+        </>
       ) : (
         <>
           {ws && <BizKpis b={ws} open={open} />}

@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { InvoiceDto } from '../../api/contract'
 import { changes, rec } from '../../testing/fixtures'
 import { button, click, settle } from '../../testing/dom'
@@ -59,7 +59,8 @@ async function show(o: { ard?: 'admin' | 'sales'; ros?: 'admin' | 'sales'; accou
     billingPlans: [rec('bp_rit', { dealId: 'rit', businessId: 'ard', milestones: MS, contract: { baselineCents: 97000000, engagementType: 'fixed-price', contractedOn: '2026-06-01', contractedBy: 'Me', estimateAtWonCents: 97000000 } })],
   }))
   setArdRole(m, o.ard ?? 'admin', { ros: o.ros ?? 'admin', adv: 'sales' })
-  m.ui.bindNavigate(vi.fn())
+  nav = vi.fn<Navigate>()
+  m.ui.bindNavigate(nav)
   const api = fakeApi({
     'GET /sales/invoices': () => json(200, { invoices: o.invoices ?? INVOICES }),
     ...(o.rosInvoices === undefined ? {} : { 'GET /sales/rosterio/invoices': () => (o.rosInvoices === null ? json(500, { error: 'down', code: 'SERVER' }) : json(200, { configured: true, syncedAt: null, syncError: null, invoices: o.rosInvoices })) }),
@@ -71,6 +72,8 @@ async function show(o: { ard?: 'admin' | 'sales'; ros?: 'admin' | 'sales'; accou
   return api
 }
 
+type Navigate = (to: string | number, opts?: { replace?: boolean }) => void
+let nav: Mock<Navigate>
 const section = (): Element | null => host.querySelector('section[data-revenue-all]')
 const tile = (label: string): string => [...(section()?.querySelectorAll('.kpi') ?? [])].find(x => x.querySelector('.l')?.textContent?.includes(label))?.querySelector('.v')?.textContent ?? ''
 const row = (name: string): string[] => {
@@ -151,6 +154,20 @@ describe('Reports › Revenue (all businesses)', () => {
       expect(attention()).toContain('2 invoices unpaid')
       expect(row('Rosterio')[0]).toBe('$18,000')
       expect(tile('Recurring revenue (ARR)')).toBe('$30,000')
+    })
+
+    it('the chip and the attention line open the overdue or failed invoices, and say the amounts are as billed', async () => {
+      await show({ rosInvoices: RISK })
+      expect(attention()).toContain('as Stripe billed them')
+      const q = (): unknown => JSON.parse(new URLSearchParams(String(nav.mock.calls.at(-1)?.[0]).split('?')[1]).get('q') ?? '{}')
+      const tr = [...(section()?.querySelectorAll('table[aria-label="Revenue by business"] tbody tr') ?? [])].find(r => r.querySelector('td b')?.textContent === 'Rosterio')!
+      await click(button(tr, 'Open invoices')!)
+      expect(String(nav.mock.calls.at(-1)?.[0])).toContain('/invoices')
+      expect(q()).toEqual({ tab: 'ros', filter: 'late' })
+      nav.mockClear()
+      const card = [...(section()?.querySelectorAll<HTMLElement>('.card') ?? [])].find(c => c.querySelector('h3')?.textContent?.includes('Needs attention'))!
+      await click(button(card, 'Open')!)
+      expect(q()).toEqual({ tab: 'ros', filter: 'late' })
     })
 
     it('says nothing when nothing is overdue or failed', async () => {

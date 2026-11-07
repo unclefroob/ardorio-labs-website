@@ -78,23 +78,51 @@ const mix = async () => {
 }
 const shown = (): string[] => [...host.querySelectorAll('tbody tr')].map(r => r.textContent ?? '')
 const tabLabel = (name: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('[role="tab"]')].find(t => t.textContent?.startsWith(name))!
-const tile = (label: string): string => [...host.querySelectorAll('.card')].find(c => c.textContent?.startsWith(label))?.textContent ?? ''
+const tile = (label: string): string => [...host.querySelectorAll('.kpi')].find(c => c.textContent?.startsWith(label))?.textContent ?? ''
 
 describe('Rosterio invoices: collections', () => {
   it('tiles: collected, outstanding, overdue with its invoice count, and payment failed', async () => {
     fakeApi({ 'GET /sales/rosterio/invoices': mix })
     await page('ros')
-    expect(tile('Collected this month')).toContain('A$99.00')
+    expect(tile('Collected, last 30 days')).toContain('A$99.00')
     expect(tile('Outstanding')).toContain('A$150.00')
     expect(tile('Overdue or failed')).toContain('A$70.00')
     expect(tile('Overdue or failed')).toContain('3 invoices')
     expect(tile('Payment failed')).toContain('2')
   })
 
+  it('lists the most urgent first, with customer, status and amount leading', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    expect([...host.querySelectorAll('thead th')].slice(0, 4).map(h => h.textContent)).toEqual(['Customer', 'Status', 'Amount', 'Unpaid for'])
+    const names = shown().map(t => ['Failed Final', 'Retry Soon', 'Long Overdue', 'Not Due Yet', 'Paid Up Pty', 'Voided Pty'].find(n => t.includes(n)))
+    expect(names.slice(0, 4)).toEqual(['Failed Final', 'Retry Soon', 'Long Overdue', 'Not Due Yet'])
+  })
+
+  it('dates each invoice by what matters for it: paid, next retry, due, or issued', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    const date = (name: string): string => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[4]?.textContent ?? ''
+    expect(date('Failed Final')).toMatch(/^Issued /)
+    expect(date('Retry Soon')).toMatch(/^Retry /)
+    expect(date('Long Overdue')).toMatch(/^Due /)
+    expect(date('Paid Up Pty')).toMatch(/^Paid /)
+  })
+
+  it('a tile opens its invoices', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    await click([...host.querySelectorAll<HTMLElement>('.kpi')].find(k => k.textContent?.startsWith('Overdue or failed'))!)
+    expect(tabLabel('Overdue or failed').getAttribute('aria-selected')).toBe('true')
+    expect(shown()).toHaveLength(3)
+    await click([...host.querySelectorAll<HTMLElement>('.kpi')].find(k => k.textContent?.startsWith('Collected'))!)
+    expect(tabLabel('Paid').getAttribute('aria-selected')).toBe('true')
+  })
+
   it('labels each invoice by its raw state, and never red for one that is simply open', async () => {
     fakeApi({ 'GET /sales/rosterio/invoices': mix })
     await page('ros')
-    const chip = (name: string): Element | null => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[4]?.querySelector('.chip') ?? null
+    const chip = (name: string): Element | null => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[1]?.querySelector('.chip') ?? null
     expect(chip('Failed Final')?.textContent).toBe('Failed, no retries left')
     expect(chip('Retry Soon')?.textContent).toMatch(/^Failed, retrying/)
     expect(chip('Long Overdue')?.textContent).toBe('Overdue')
@@ -125,7 +153,7 @@ describe('Rosterio invoices: collections', () => {
   it('Unpaid for: days for an open invoice, a dash for the rest', async () => {
     fakeApi({ 'GET /sales/rosterio/invoices': mix })
     await page('ros')
-    const cell = (name: string): string => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[5]?.textContent ?? ''
+    const cell = (name: string): string => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[3]?.textContent ?? ''
     expect([...host.querySelectorAll('thead th')].map(h => h.textContent)).toContain('Unpaid for')
     expect(cell('Long Overdue')).toBe('40 days')
     expect(cell('Failed Final')).toBe('3 days')
@@ -169,7 +197,7 @@ describe('Rosterio invoices: collections', () => {
     fakeApi({ 'GET /sales/rosterio/invoices': () => json(200, { configured: true, syncedAt: iso(n), syncError: null, invoices: [open('rt', { createdAt: iso(n - DAYS), attemptCount: 1, nextAttemptAt: iso(n + DAYS), amountRemainingCents: 2000, amountDueCents: 2000 })] }) })
     await page('ros')
     expect(tile('Overdue or failed')).toContain('A$20.00')
-    const reds = [...host.querySelectorAll<HTMLElement>('.card .num')].filter(e => e.style.color.includes('bad2'))
+    const reds = [...host.querySelectorAll<HTMLElement>('.kpi .v')].filter(e => e.style.color.includes('bad2'))
     expect(reds).toHaveLength(0)
   })
 
