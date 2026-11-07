@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { Btn, Ck, Empty } from './basic'
 import { Icon } from './Icon'
+import { useNarrow } from './util'
 
 export interface Col<R> {
   k: string
@@ -42,9 +43,12 @@ export interface DataTableProps<R> {
   page?: number
   sortInit?: SortState | null
   dense?: boolean
+  /** On a phone, each row as a card instead of a table that scrolls sideways. */
+  card?: (r: R) => ReactNode
 }
 
-export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, setSel, onRow, rowClass, empty, page = 30, sortInit }: DataTableProps<R>) {
+export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, setSel, onRow, rowClass, empty, page = 30, sortInit, card }: DataTableProps<R>) {
+  const narrow = useNarrow()
   const [sort, setSort] = useState<SortState | null>(sortInit ?? null)
   const [n, setN] = useState(page)
   const get = (r: R, k: string): unknown => (r as Record<string, unknown>)[k]
@@ -70,6 +74,31 @@ export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, se
       e.preventDefault()
       onRow(r)
     }
+  }
+  const more = rows.length > n && (
+    <div className="row" style={{ justifyContent: 'center', padding: 10, borderTop: '1px solid var(--line)' }}>
+      <Btn size="sm" onClick={() => setN(n + page)}>Show more</Btn>
+      <span className="faint sm">Showing {n} of {rows.length}</span>
+    </div>
+  )
+  if (card && narrow) {
+    return (
+      <div>
+        <ul className="tcards">
+          {vis.map(r => {
+            const id = idOf(r)
+            const on = selected.includes(id)
+            return (
+              <li key={id} className={(onRow ? 'click ' : '') + (on ? 'sel ' : '') + (rowClass?.(r) ?? '')} tabIndex={onRow ? 0 : undefined} onClick={() => onRow?.(r)} onKeyDown={e => { if (onRow && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onRow(r) } }}>
+                {sel && setSel && <span onClick={e => e.stopPropagation()}><Ck checked={on} label="Select row" onChange={v => setSel(v ? selected.concat(id) : selected.filter(x => x !== id))} /></span>}
+                <div className="tcard-b">{card(r)}</div>
+              </li>
+            )
+          })}
+        </ul>
+        {more}
+      </div>
+    )
   }
   return (
     <div>
@@ -121,12 +150,7 @@ export function DataTable<R extends object>({ cols, rows, rowKey = 'id', sel, se
           </tbody>
         </table>
       </div>
-      {rows.length > n && (
-        <div className="row" style={{ justifyContent: 'center', padding: 10, borderTop: '1px solid var(--line)' }}>
-          <Btn size="sm" onClick={() => setN(n + page)}>Show more</Btn>
-          <span className="faint sm">Showing {n} of {rows.length}</span>
-        </div>
-      )}
+      {more}
     </div>
   )
 }
@@ -143,10 +167,13 @@ export function BulkBar({ n, clear, children }: { n: number; clear: () => void; 
   )
 }
 
-export function FilterBar({ children }: { children?: ReactNode }) {
+/** Filters above a list. On a phone everything but the search box folds behind a Filters button that counts the ones in use. */
+export function FilterBar({ children, active = 0 }: { children?: ReactNode; active?: number }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="row wrap fbar">
+    <div className={'row wrap fbar' + (open ? '' : ' shut')}>
       {children}
+      <Btn className="fbar-tog" size="sm" icon="filter" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide filters' : active ? `Filters (${active})` : 'Filters'}</Btn>
     </div>
   )
 }

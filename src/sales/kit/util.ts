@@ -2,6 +2,21 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { TOKEN_KEYS } from '../data/tokens'
 
 /** Line styles that tell series apart without relying on colour. Index matches the series order. */
+/** True while the window matches the media query: a phone by default. False where matchMedia is missing (tests, old browsers). */
+export function useNarrow(query = '(max-width: 600px)'): boolean {
+  const read = (): boolean => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches
+  const [on, setOn] = useState(read)
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia(query)
+    const change = (): void => setOn(mq.matches)
+    change()
+    mq.addEventListener?.('change', change)
+    return () => mq.removeEventListener?.('change', change)
+  }, [query])
+  return on
+}
+
 export const LINE_DASH: readonly string[] = ['', '7 4', '2 4', '9 3 2 3']
 
 export const TONE: Record<string, string> = { High: 'bad', Medium: 'warn', Low: '' }
