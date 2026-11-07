@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { rosterioBilling, type BillingRef } from '../api/rosterio'
 import type { RosterioAccount, RosterioBilling, RosterioBillingState } from '../api/contract'
+import type { AccountCollection } from '../shared/rosterioCollection'
 import { useLoad, type Loaded } from './invoicing'
 
 // A managed Rosterio account's Stripe billing, read from Rosterio through the API. The account page, the company card and the
@@ -41,7 +42,7 @@ export function firstOfNextMonth(today: string): string {
   return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
 }
 
-export interface Pill { label: string; tone: string }
+export interface Pill { label: string; tone: string; sub?: string }
 
 const STATE_PILL: Record<RosterioBillingState, Pill> = {
   starting: { label: 'Setting up…', tone: '' },
@@ -68,12 +69,18 @@ export const isSelfServe = (a: RosterioAccount): boolean => a.pricingSource === 
 /** A managed (custom contract) account with no running billing: the one Rosterio can start billing for. */
 export const isNotBilled = (a: RosterioAccount): boolean => a.pricingSource === 'custom' && (!a.billingState || a.billingState === 'stopped')
 
+/** Whether an account has a failed payment, retrying or not. */
+export const isFailing = (c: AccountCollection | undefined): boolean => c?.key === 'failed-final' || c?.key === 'retrying'
+
 /**
- * The Billing column on Customers › Rosterio (Rosterio admins). A failed invoice outranks everything. The list knows only
- * the billing state, not the first bill's date, so a start in the future reads "Scheduled".
+ * The Billing column on Customers › Rosterio (Rosterio admins). An account with invoices reads from them: its worst open
+ * state with the amount owing, or Paid up. Without invoices it reads from the billing state. The list knows only the billing
+ * state, not the first bill's date, so a start in the future reads "Scheduled". Stopped billing outranks Paid up: nothing more is coming.
  */
-export function listBillingPill(a: RosterioAccount, failed: ReadonlySet<string>): Pill | null {
-  if (failed.has(a.id)) return { label: 'Payment failed', tone: 'bad' }
+export function listBillingPill(a: RosterioAccount, states: ReadonlyMap<string, AccountCollection>): Pill | null {
+  const c = states.get(a.id)
+  if (c && c.key !== 'paid-up') return { label: c.label, tone: c.tone, sub: `${rosMoneyOf(c.owingCents)} owing` }
+  if (c && a.billingState !== 'stopped') return { label: c.label, tone: c.tone }
   if (isSelfServe(a)) return { label: 'Paid · checkout', tone: 'ok' }
   if (a.pricingSource !== 'custom') return null
   return !a.billingState || a.billingState === 'stopped' ? NOT_BILLED : STATE_PILL[a.billingState]

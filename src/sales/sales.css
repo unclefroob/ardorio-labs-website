@@ -79,9 +79,9 @@
 .sos .crumb button{background:none;border:0;padding:0;color:var(--fg2);cursor:pointer}
 .sos .crumb button:hover{color:var(--fg)}
 .sos .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
-.sos .card-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.sos .card-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .sos .card-h h3{margin:0;font-size:13px;font-weight:600}
-.sos .card-h .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.sos .card-h .r{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
 .sos .card-b{padding:14px}
 .sos .grid{display:grid;gap:14px}
 .sos .g2{grid-template-columns:repeat(2,minmax(0,1fr))}

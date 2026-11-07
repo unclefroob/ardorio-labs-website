@@ -14,7 +14,8 @@ import { accountForCompany, REASON_TEXT } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
 import { rosterioInvoices } from '../../api/rosterio'
 import { useLoad } from '../../data/invoicing'
-import { payState, rosMoney } from '../invoices/RosterioInvoices'
+import { accountCollection, ageText, collectionOf } from '../../shared/rosterioCollection'
+import { rosMoney } from '../invoices/RosterioInvoices'
 import { billingPill, useRosterioBilling } from '../../data/rosterioBilling'
 
 const open = (dealId: string): void => UI.open('provisionRosterio', { dealId })
@@ -216,15 +217,31 @@ function Payments({ companyId }: { companyId: string }) {
   if (!r.data) return r.error ? <span className="faint sm">Could not read payments</span> : <span className="faint sm">Checking Stripe…</span>
   const inv = r.data.invoices
   if (!inv.length) return <span className="faint sm">{r.data.configured ? 'No Stripe invoices yet' : 'Stripe is not connected'}</span>
-  const latest = inv[0]
-  const owing = inv.filter(i => i.status === 'open').reduce((t, i) => t + i.amountRemainingCents, 0)
-  const st = payState(latest)
+  const now = F.now().getTime()
+  const acct = accountCollection(inv, now)
+  const link = <a className="sm" href="/sales/invoices" onClick={e => { e.preventDefault(); UI.nav('invoices') }}>All invoices</a>
+  // Anything owing is told by its worst invoice. Late is red; a retry or an invoice not yet due is not.
+  if (acct && acct.worst) {
+    const w = acct.worst
+    const owing = rosMoney(acct.owingCents, w.currency)
+    const text = acct.late ? `${owing} owing · unpaid ${ageText(acct.oldestDays ?? 0).toLowerCase()}`
+      : acct.key === 'retrying' ? `${owing} owing`
+        : w.dueAt ? `${owing} due ${F.date(w.dueAt)}` : `${owing} open`
+    return (
+      <span className="row wrap" style={{ gap: 6 }}>
+        <Chip tone={acct.tone}>{acct.label}</Chip>
+        <span className="sm" style={acct.late ? { color: 'var(--bad2)' } : undefined}>{text}</span>
+        {link}
+      </span>
+    )
+  }
+  const latest = inv.find(i => i.status === 'paid') ?? inv[0]
+  const st = collectionOf(latest, now)
   return (
     <span className="row wrap" style={{ gap: 6 }}>
       <Chip tone={st.tone}>{st.label}</Chip>
       <span className="sm">{rosMoney(latest.amountDueCents, latest.currency)}{latest.paidAt ? ` on ${F.date(latest.paidAt)}` : ''}</span>
-      {owing > 0 && <span className="sm" style={{ color: 'var(--bad2)' }}>{rosMoney(owing)} owing</span>}
-      <a className="sm" href="/sales/invoices" onClick={e => { e.preventDefault(); UI.nav('invoices') }}>All invoices</a>
+      {link}
     </span>
   )
 }

@@ -1,8 +1,8 @@
 import { useMemo, useState, type MouseEvent } from 'react'
 import { rosterioInvoices } from '../../api/rosterio'
 import { useLoad } from '../../data/invoicing'
-import { isNotBilled, isSelfServe, listBillingPill } from '../../data/rosterioBilling'
-import type { RosterioAccount, RosterioAccountsResponse, RosterioTestAccount } from '../../api/contract'
+import { isFailing, isNotBilled, isSelfServe, listBillingPill } from '../../data/rosterioBilling'
+import type { RosterioAccount, RosterioAccountsResponse, RosterioInvoice, RosterioTestAccount } from '../../api/contract'
 import { Act } from '../../data/Act'
 import { F } from '../../data/F'
 import { Q } from '../../data/Q'
@@ -11,6 +11,7 @@ import { canMarkTest, DEFAULT_TEST_REASON, MARK_TEST_DENIED, TEST_REASON_MAX, te
 import { S, useStore } from '../../data/store'
 import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, Fld, Icon, Inp, Link, Menu, Prog, Seg, Skel, Spinner, Tabs, type Col } from '../../kit'
 import { routeToPath } from '../../routes'
+import { accountCollection, type AccountCollection } from '../../shared/rosterioCollection'
 import { accountTab, isPriced, mrrOf, trialDaysLeft, type RosterioTab } from '../../shared/customers'
 import { matchAccounts, REASON_TEXT, type AccountMatch } from '../../shared/rosterioMatch'
 import { UI } from '../../ui/store'
@@ -73,7 +74,14 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   // Billing is a Rosterio admin's view (as the prices are). Their invoices are read once, to mark accounts whose payment failed.
   const isAdmin = Q.canAdmin('ros')
   const invs = useLoad(sig => (isAdmin ? rosterioInvoices({}, sig) : Promise.resolve(null)), `ros-invoices-failed:${isAdmin}`)
-  const failedIds = useMemo(() => new Set((invs.data?.invoices ?? []).filter(i => i.failed).map(i => i.accountId)), [invs.data])
+  const collections = useMemo(() => {
+    const by = new Map<string, RosterioInvoice[]>()
+    for (const i of invs.data?.invoices ?? []) by.set(i.accountId, [...(by.get(i.accountId) ?? []), i])
+    const now = F.now().getTime()
+    const out = new Map<string, AccountCollection>()
+    for (const [id, l] of by) { const c = accountCollection(l, now); if (c) out.set(id, c) }
+    return out
+  }, [invs.data])
   const marked = testAccounts()
   const markedKey = marked.map(t => `${t.accountId}\u0000${t.reason}\u0000${t.markedAt}`).join('\u0001')
 
@@ -115,7 +123,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   const needle = q.trim().toLowerCase()
   const search = (r: Row): boolean => !needle || r.name.toLowerCase().includes(needle) || (r.billingEmail ?? '').toLowerCase().includes(needle)
   const billOf: Record<Exclude<BillFilter, 'all'>, (r: Row) => boolean> = {
-    unbilled: r => isNotBilled(r), failed: r => failedIds.has(r.id), self: r => isSelfServe(r),
+    unbilled: r => isNotBilled(r), failed: r => isFailing(collections.get(r.id)), self: r => isSelfServe(r),
   }
   const billN = (k: Exclude<BillFilter, 'all'>): number => paid.filter(billOf[k]).length
   // Until the invoices are read (or if they cannot be) the Payment failed count is not known, so it is not shown as 0.
@@ -237,7 +245,7 @@ export function RosterioCustomers({ tab, onTab }: { tab: RosterioTab; onTab: (t:
   }
   const billingCol: Col<Row> = {
     k: 'billing', l: 'Billing', nosort: true, hide: !isAdmin,
-    r: r => { const p = listBillingPill(r, failedIds); return p ? <Chip tone={p.tone}>{p.label}</Chip> : <span className="faint">—</span> },
+    r: r => { const p = listBillingPill(r, collections); return p ? <><Chip tone={p.tone}>{p.label}</Chip>{p.sub && <div className="faint xs" style={{ marginTop: 2 }}>{p.sub}</div>}</> : <span className="faint">—</span> },
   }
   const openCol: Col<Row> = {
     k: 'open', l: '', nosort: true, hide: !isAdmin,

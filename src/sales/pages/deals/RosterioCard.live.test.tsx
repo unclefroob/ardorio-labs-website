@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { changes } from '../../testing/fixtures'
 import { button, click, settle } from '../../testing/dom'
 import { loadSales, type Sales } from '../../testing/load'
-import { account, accountsOf, fakeApi, json, link, rosterioWorld, setRole, STATUS_OK } from '../../testing/rosterioWorld'
+import { account, accountsOf, fakeApi, invoice, json, link, rosterioWorld, setRole, STATUS_OK } from '../../testing/rosterioWorld'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 const getChanges = vi.fn()
@@ -75,8 +75,66 @@ describe('company card with the live Rosterio account', () => {
     }, { company: linked, role: 'admin' })
     expect(api.count('GET /sales/rosterio/invoices?companyId=co1')).toBe(1)
     expect(text()).toContain('Payments')
-    expect(text()).toContain('Payment failed')
-    expect(text()).toContain('A$99.00 owing')
+    expect(text()).toContain('Failed, no retries left')
+    expect(text()).toContain('A$99.00 owing · unpaid')
+  })
+
+  describe('payments by state', () => {
+    // Dates come from the app's clock, which the test world fixes.
+    const payments = async (invoices: (now: number) => ReturnType<typeof invoice>[]) => {
+      await show({
+        [ACCOUNTS]: json(200, accountsOf([account({ id: 'acc1' })])),
+        'GET /sales/rosterio/invoices?companyId=co1': async () => {
+          const now = (await import('../../data/F')).F.now().getTime()
+          return json(200, { configured: true, syncedAt: null, syncError: null, invoices: invoices(now) })
+        },
+      }, { company: linked, role: 'admin' })
+    }
+    const iso = (t: number): string => new Date(t).toISOString()
+    const DAY = 86_400_000
+    const owe = (o: Partial<ReturnType<typeof invoice>>) => invoice({ id: 'in_o', number: 'RS-9', status: 'open', amountPaidCents: 0, amountRemainingCents: 9900, amountDueCents: 9900, paidAt: null, attemptCount: 0, ...o })
+    const chips = (): string[] => [...host.querySelectorAll('.chip')].map(c => c.textContent ?? '')
+
+    it('failed for good: red, with how long it has been unpaid', async () => {
+      await payments(now => [owe({ createdAt: iso(now - 12 * DAY - 3_600_000), attemptCount: 3 })])
+      expect(chips()).toContain('Failed, no retries left')
+      expect(text()).toContain('A$99.00 owing · unpaid 12 days')
+      const owing = [...host.querySelectorAll<HTMLElement>('span.sm')].find(x => x.textContent?.startsWith('A$99.00 owing'))
+      expect(owing?.style.color).toBe('var(--bad2)')
+    })
+
+    it('overdue with no attempt is red too', async () => {
+      await payments(now => [owe({ createdAt: iso(now - 20 * DAY), dueAt: iso(now - DAY) })])
+      expect(chips()).toContain('Overdue')
+      expect(text()).toContain('A$99.00 owing · unpaid 20 days')
+    })
+
+    it('retrying: the retry date and the amount, not red', async () => {
+      await payments(now => [owe({ attemptCount: 1, nextAttemptAt: iso(now + 2 * DAY), dueAt: iso(now - 30 * DAY) })])
+      expect(chips().some(c => c.startsWith('Failed, retrying'))).toBe(true)
+      expect(text()).toContain('A$99.00 owing')
+      expect(text()).not.toContain('unpaid')
+      expect([...host.querySelectorAll<HTMLElement>('span.sm')].every(x => x.style.color !== 'var(--bad2)')).toBe(true)
+    })
+
+    it('merely open: the due date, or just open when there is none, and never red', async () => {
+      await payments(now => [owe({ dueAt: iso(now + 20 * DAY) })])
+      expect(chips()).toContain('Open')
+      expect(text()).toMatch(/A\$99\.00 due \d+ \w+/)
+      expect(text()).not.toContain('owing')
+      await act(async () => root.unmount())
+      root = createRoot(host)
+      await payments(() => [owe({ dueAt: null })])
+      expect(text()).toContain('A$99.00 open')
+      expect([...host.querySelectorAll<HTMLElement>('span.sm')].every(x => x.style.color !== 'var(--bad2)')).toBe(true)
+    })
+
+    it('nothing owing: a Paid chip with the latest paid invoice', async () => {
+      await payments(() => [invoice({ id: 'in_v', status: 'void' }), invoice()])
+      expect(chips()).toContain('Paid')
+      expect(text()).toContain('A$440.00 on 2 Oct')
+      expect(text()).toContain('All invoices')
+    })
   })
 
   it('anyone short of a Rosterio admin does not see payments, and nothing is asked of Stripe', async () => {

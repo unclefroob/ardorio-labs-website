@@ -4,12 +4,14 @@ import { SalesHttpError } from '../../api/http'
 import { rosterioInvoices, rosterioInvoicesSync } from '../../api/rosterio'
 import { F } from '../../data/F'
 import { useLoad } from '../../data/invoicing'
-import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, SearchInp, Skel, Tabs, type Col } from '../../kit'
+import { Banner, Btn, Card, Chip, CoLink, DataTable, Empty, SearchInp, Seg, Skel, Tabs, type Col } from '../../kit'
+import { qStr } from '../companies/query'
+import { ageBucket, ageText, collectionOf, collectionTotals, type AgeBucket, type Collection } from '../../shared/rosterioCollection'
 import { stripeXero } from '../../shared/xero'
 import { Q } from '../../data/Q'
 import { RosterioXeroPanel } from './RosterioXeroPanel'
 import { PageHead } from '../../shared/PageHead'
-import { UI } from '../../ui/store'
+import { UI, useUi } from '../../ui/store'
 
 // Rosterio's subscription invoices, as Stripe has them: who has paid, who is behind, whose card failed. Read-only: Stripe takes
 // the payments and SalesOS never changes anything there. Kept current every 15 minutes (and at once when Stripe tells the server).
@@ -17,32 +19,32 @@ import { UI } from '../../ui/store'
 export const rosMoney = (cents: number, cur = 'aud'): string =>
   (cur.toLowerCase() === 'aud' ? 'A$' : cur.toUpperCase() + ' ') + (cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-/** One word for where an invoice stands, most urgent first. */
-export function payState(i: RosterioInvoice): { label: string; tone: string } {
-  if (i.status === 'paid') return { label: 'Paid', tone: 'ok' }
-  if (i.status === 'void') return { label: 'Void', tone: '' }
-  if (i.status === 'uncollectible') return { label: 'Written off', tone: 'bad' }
-  if (i.status === 'draft') return { label: 'Draft', tone: '' }
-  if (i.failed) return { label: i.nextAttemptAt ? `Payment failed · retry ${F.date(i.nextAttemptAt)}` : 'Payment failed', tone: 'bad' }
-  if (i.overdue) return { label: 'Overdue', tone: 'warn' }
-  return { label: 'Open', tone: 'info' }
-}
-
-type Filter = 'all' | 'paid' | 'open' | 'failed' | 'overdue' | 'void'
-const FILTERS: Array<[Filter, string, (i: RosterioInvoice) => boolean]> = [
+type Filter = 'all' | 'unpaid' | 'late' | 'notdue' | 'paid' | 'void'
+const FILTERS: Array<[Filter, string, (c: Collection) => boolean]> = [
   ['all', 'All', () => true],
-  ['failed', 'Payment failed', i => i.failed],
-  ['overdue', 'Overdue', i => i.overdue && !i.failed],
-  ['open', 'Open', i => i.status === 'open'],
-  ['paid', 'Paid', i => i.status === 'paid'],
-  ['void', 'Void / written off', i => i.status === 'void' || i.status === 'uncollectible'],
+  ['unpaid', 'Unpaid', c => c.ageDays !== null],
+  ['late', 'Overdue or failed', c => c.rank <= 2],
+  ['notdue', 'Not yet due', c => c.key === 'open'],
+  ['paid', 'Paid', c => c.key === 'paid'],
+  ['void', 'Void / written off', c => c.key === 'void' || c.key === 'written-off'],
 ]
+const filterOf = (v: string): Filter => FILTERS.find(f => f[0] === v)?.[0] ?? 'all'
+
+type Bucket = 'all' | AgeBucket
+const BUCKETS: ReadonlyArray<readonly [Bucket, string]> = [['all', 'All'], ['0-7', '0-7 days'], ['8-30', '8-30 days'], ['30+', '30+ days']]
 
 const all_find = (l: RosterioInvoice[] | undefined, id: string | null): RosterioInvoice | null => (id && l ? l.find(i => i.id === id) ?? null : null)
 
 export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
   const list = useLoad(s => rosterioInvoices({}, s), 'ros-invoices')
-  const [f, setF] = useState<Filter>('all')
+  const route = useUi().route
+  // The filter lives in the address (q.filter), so a link can open one; an unknown one shows everything.
+  const f = filterOf(qStr(route.q, 'filter'))
+  const [bucket, setBucket] = useState<Bucket>('all')
+  const choose = (k: Filter): void => {
+    if (k === 'paid' || k === 'void') setBucket('all')
+    UI.setRoute({ q: k === 'all' ? { tab: 'ros' } : { tab: 'ros', filter: k } })
+  }
   const [q, setQ] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -50,11 +52,18 @@ export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
   const canAct = Q.canAdmin('ard')
   const open = all_find(list.data?.invoices, openId)
   const all = useMemo(() => list.data?.invoices ?? [], [list.data])
+  const now = F.now().getTime()
   const month = F.today().slice(0, 7)
   const collected = all.filter(i => i.status === 'paid' && (i.paidAt ?? '').slice(0, 7) === month).reduce((t, i) => t + i.amountPaidCents, 0)
-  const outstanding = all.filter(i => i.status === 'open').reduce((t, i) => t + i.amountRemainingCents, 0)
-  const failedN = all.filter(i => i.failed).length
-  const rows = all.filter(i => FILTERS.find(x => x[0] === f)![2](i)).filter(i => !q || i.customerName.toLowerCase().includes(q.toLowerCase()) || (i.number ?? '').toLowerCase().includes(q.toLowerCase()))
+  const tot = collectionTotals(all, now)
+  const states = new Map(all.map(i => [i.id, collectionOf(i, now)] as const))
+  const stateOf = (i: RosterioInvoice): Collection => states.get(i.id) ?? collectionOf(i, now)
+  const bucketCents = (b: Bucket): number => all.reduce((t, i) => { const c = stateOf(i); return c.ageDays !== null && (b === 'all' || ageBucket(c.ageDays) === b) ? t + c.owingCents : t }, 0)
+  const pick = FILTERS.find(x => x[0] === f)![2]
+  const rows = all
+    .filter(i => pick(stateOf(i)))
+    .filter(i => { const d = stateOf(i).ageDays; return bucket === 'all' || (d !== null && ageBucket(d) === bucket) })
+    .filter(i => !q || i.customerName.toLowerCase().includes(q.toLowerCase()) || (i.number ?? '').toLowerCase().includes(q.toLowerCase()))
 
   const check = async (): Promise<void> => {
     setSyncing(true)
@@ -75,7 +84,8 @@ export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
     { k: 'customer', l: 'Customer', sort: i => i.customerName, r: i => (i.companyId ? <CoLink id={i.companyId} /> : <span className="row" style={{ gap: 6 }}>{i.customerName}<Chip title="This Rosterio account is not linked to a company in SalesOS yet">Not linked</Chip></span>) },
     { k: 'period', l: 'Period', sort: i => i.periodStart ?? '', r: i => (i.periodStart && i.periodEnd ? <span className="sm">{F.date(i.periodStart)} – {F.date(i.periodEnd)}</span> : <span className="faint">—</span>) },
     { k: 'amount', l: 'Amount', right: true, sort: i => i.amountDueCents, r: i => <span className="num">{rosMoney(i.amountDueCents, i.currency)}</span> },
-    { k: 'status', l: 'Status', sort: i => payState(i).label, r: i => { const s = payState(i); return <Chip tone={s.tone}>{s.label}</Chip> } },
+    { k: 'status', l: 'Status', sort: i => stateOf(i).rank, r: i => { const s = stateOf(i); return <Chip tone={s.tone}>{s.label}</Chip> } },
+    { k: 'age', l: 'Unpaid for', sort: i => stateOf(i).ageDays ?? -1, r: i => { const d = stateOf(i).ageDays; return d === null ? <span className="faint">—</span> : <span className="sm">{ageText(d)}</span> } },
     { k: 'xero', l: 'Xero', sort: i => stripeXero(i.xero)?.label ?? '', r: i => { const x = stripeXero(i.xero); return x ? <Chip tone={x.tone}>{x.label}</Chip> : <span className="faint">—</span> } },
     { k: 'when', l: 'Paid / due', sort: i => i.paidAt ?? i.dueAt ?? i.createdAt, r: i => <span className="sm">{i.paidAt ? F.date(i.paidAt) : i.dueAt ? `Due ${F.date(i.dueAt)}` : F.date(i.createdAt)}</span> },
     { k: 'details', l: '', nosort: true, r: i => <Btn size="sm" kind="ghost" onClick={() => setOpenId(openId === i.id ? null : i.id)} aria-label={`Xero details for ${i.number ?? i.customerName}`}>Xero</Btn> },
@@ -92,16 +102,22 @@ export function RosterioInvoices({ tabs }: { tabs: ReactNode }) {
       <div className="col" style={{ gap: 14 }}>
         {list.data && !list.data.configured && <Banner tone="warn">Stripe or Rosterio is not connected on the server, so payments cannot be read. Nothing below is current.</Banner>}
         {list.data?.syncError && <Banner tone="bad">The last check with Stripe failed: {list.data.syncError}</Banner>}
-        <div className="grid g3">
+        <div className="grid g4">
           <Card><div className="faint xs">Collected this month</div><div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{list.data ? rosMoney(collected) : '—'}</div></Card>
-          <Card><div className="faint xs">Outstanding</div><div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{list.data ? rosMoney(outstanding) : '—'}</div></Card>
-          <Card><div className="faint xs">Payment failed</div><div className="num" style={{ fontSize: 22, fontWeight: 600, color: failedN ? 'var(--bad2)' : undefined }}>{list.data ? failedN : '—'}</div></Card>
+          <Card><div className="faint xs">Outstanding</div><div className="num" style={{ fontSize: 22, fontWeight: 600 }}>{list.data ? rosMoney(tot.outstanding) : '—'}</div></Card>
+          <Card>
+            <div className="faint xs">Overdue or failed</div>
+            <div className="num" style={{ fontSize: 22, fontWeight: 600, color: tot.overdue ? 'var(--bad2)' : undefined }}>{list.data ? rosMoney(tot.atRisk) : '—'}</div>
+            <div className="faint xs">{list.data ? `${tot.atRiskCount} invoice${tot.atRiskCount === 1 ? '' : 's'}` : ' '}</div>
+          </Card>
+          <Card><div className="faint xs">Payment failed</div><div className="num" style={{ fontSize: 22, fontWeight: 600, color: tot.finalCount ? 'var(--bad2)' : undefined }}>{list.data ? tot.failedCount : '—'}</div></Card>
         </div>
         <div className="row wrap" style={{ gap: 8 }}>
-          <Tabs tabs={FILTERS.map(([k, l, pick]) => [k, l, list.data ? all.filter(pick).length : null] as const)} value={f} onChange={k => setF(k as Filter)} />
+          <Tabs tabs={FILTERS.map(([k, l, fn]) => [k, l, list.data ? all.filter(i => fn(stateOf(i))).length : null] as const)} value={f} onChange={k => choose(filterOf(k))} />
           <span className="sp" />
           <SearchInp value={q} onChange={setQ} placeholder="Search customer or invoice" w={260} />
         </div>
+        {list.data && f !== 'paid' && f !== 'void' && <div className="row wrap" style={{ gap: 8 }}><span className="faint xs">Age of unpaid invoices</span><Seg className="nowrap" label="Age of unpaid invoices" value={bucket} onChange={k => setBucket(BUCKETS.find(b => b[0] === k)?.[0] ?? 'all')} opts={BUCKETS.map(([k, l]) => [k, `${l} · ${rosMoney(bucketCents(k))}`] as const)} /></div>}
         {list.error ? (
           <Banner tone="bad">{list.error instanceof SalesHttpError ? list.error.message : 'Could not load Rosterio invoices. Try again.'}</Banner>
         ) : !list.data ? (
