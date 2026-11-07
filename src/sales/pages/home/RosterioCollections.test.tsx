@@ -52,10 +52,10 @@ const invoices = async (): Promise<RosterioInvoice[]> => {
   ]
 }
 
-async function show(o: { ros?: 'admin' | 'sales'; routes?: Record<string, () => Response | Promise<Response>>; scopeRos?: boolean } = {}) {
+async function show(o: { ros?: 'admin' | 'sales'; routes?: Record<string, () => Response | Promise<Response>>; scopeRos?: boolean; empty?: boolean } = {}) {
   m = await loadSales()
   const w = invoicingWorld()
-  m.bootstrap.hydrate(invoicingWorld({ businesses: [w.collections.businesses[0], biz('ros', 'Rosterio')] }))
+  m.bootstrap.hydrate(invoicingWorld({ businesses: [w.collections.businesses[0], biz('ros', 'Rosterio')], ...(o.empty ? { companies: [], deals: [], activities: [] } : {}) }))
   setArdRole(m, 'admin', { ros: o.ros ?? 'admin' })
   nav = vi.fn<Navigate>()
   m.ui.bindNavigate(nav)
@@ -80,15 +80,15 @@ describe('Dashboard › Rosterio collections', () => {
   it('shows what was collected, what is outstanding and what is overdue or failed', async () => {
     const api = await show()
     expect(api.count(INV)).toBe(1)
-    expect(tile('Collected, last 30 days')?.v).toBe('$300')
-    expect(tile('Outstanding')?.v).toBe('$700')
-    expect(tile('Overdue or failed')).toMatchObject({ v: '$200', s: '2 invoices' })
+    expect(tile('Collected, last 30 days')?.v).toBe('A$300')
+    expect(tile('Outstanding')?.v).toBe('A$700')
+    expect(tile('Overdue or failed')).toMatchObject({ v: 'A$200', s: '2 invoices' })
   })
 
   it('red means late: a card that is only being retried counts, in the normal colour', async () => {
     const n = (await import('../../data/F')).F.now().getTime()
     await show({ routes: { [INV]: () => json(200, { configured: true, syncedAt: null, syncError: null, invoices: [invoice({ id: 'r', status: 'open', amountPaidCents: 0, paidAt: null, attemptCount: 1, nextAttemptAt: iso(n + DAY), amountRemainingCents: 5000 })] }) } })
-    expect(tile('Overdue or failed')).toMatchObject({ v: '$50', s: '1 invoice' })
+    expect(tile('Overdue or failed')).toMatchObject({ v: 'A$50', s: '1 invoice' })
     expect(tile('Overdue or failed')?.el.querySelector<HTMLElement>('.v')?.style.color).toBe('')
   })
 
@@ -102,6 +102,12 @@ describe('Dashboard › Rosterio collections', () => {
       expect(url).toContain('/invoices')
       expect(JSON.parse(new URLSearchParams(url.split('?')[1]).get('q') ?? '{}')).toEqual({ tab: 'ros', filter })
     }
+  })
+
+  it('still shows on a dashboard with no CRM records yet', async () => {
+    await show({ empty: true })
+    expect(host.textContent).toContain('Nothing to report yet')
+    expect(tile('Outstanding')?.v).toBe('A$700')
   })
 
   it('is not there for someone who is not a Rosterio admin, and asks for nothing', async () => {
@@ -135,7 +141,7 @@ describe('Dashboard › Rosterio collections', () => {
     await click(button(card()!, 'Try again'))
     await settle(4)
     expect(api.count(INV)).toBe(2)
-    expect(tile('Outstanding')?.v).toBe('$700')
+    expect(tile('Outstanding')?.v).toBe('A$700')
   })
 
   it('says that the owner, team, source and Mine filters do not apply when one is on', async () => {
