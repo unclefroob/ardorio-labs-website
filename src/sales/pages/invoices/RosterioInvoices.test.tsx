@@ -41,13 +41,14 @@ const inv = (id: string, o: Partial<RosterioInvoice> = {}): RosterioInvoice => (
 const LIST = { configured: true, syncedAt: new Date().toISOString(), syncError: null, invoices: [
   inv('1'),
   inv('2', { customerName: 'Forty Winks', status: 'open', failed: true, amountPaidCents: 0, amountRemainingCents: 4900, amountDueCents: 4900, paidAt: null, nextAttemptAt: '2026-10-20T00:00:00Z' }),
-  inv('3', { customerName: 'Kaffeehaus', status: 'open', overdue: true, amountPaidCents: 0, amountRemainingCents: 2000, amountDueCents: 2000, paidAt: null, dueAt: '2026-10-01T00:00:00Z' }),
+  inv('3', { customerName: 'Kaffeehaus', status: 'open', attemptCount: 0, amountPaidCents: 0, amountRemainingCents: 2000, amountDueCents: 2000, paidAt: null, dueAt: '2026-10-01T00:00:00Z' }),
 ] }
 
-async function page(ws: 'ros' | 'all', ardRole: Parameters<typeof setArdRole>[1] = 'admin') {
+async function page(ws: 'ros' | 'all', ardRole: Parameters<typeof setArdRole>[1] = 'admin', q?: Record<string, string>) {
   m = await loadSales()
   m.bootstrap.hydrate(invoicingWorld())
   setArdRole(m, ardRole, { ros: 'admin' })
+  if (q) m.ui.UI.setRoute({ page: 'invoices', q })
   const { Act } = await import('../../data/Act')
   Act.setSession({ ws })
   const { Invoices } = await import('./Invoices')
@@ -56,6 +57,138 @@ async function page(ws: 'ros' | 'all', ardRole: Parameters<typeof setArdRole>[1]
 }
 const text = (): string => host.textContent ?? ''
 
+const DAYS = 86_400_000
+// Dates are taken from the app's clock, which the test world fixes, not from the real one.
+const appNow = async (): Promise<number> => (await import('../../data/F')).F.now().getTime()
+const iso = (t: number): string => new Date(t).toISOString()
+const open = (id: string, o: Partial<RosterioInvoice>): RosterioInvoice => inv(id, { status: 'open', amountPaidCents: 0, paidAt: null, attemptCount: 0, ...o })
+// One of every state: failed for good (3 days, A$10), retrying (10 days, A$20), overdue (40 days, A$40), not yet due (2 days, A$80), plus paid and void.
+const mix = async () => {
+  const n = await appNow()
+  const ago = (d: number): string => iso(n - d * DAYS - 3_600_000)
+  const ahead = (d: number): string => iso(n + d * DAYS)
+  return json(200, { configured: true, syncedAt: iso(n), syncError: null, invoices: [
+    open('ff', { customerName: 'Failed Final', createdAt: ago(3), attemptCount: 3, amountRemainingCents: 1000, amountDueCents: 1000 }),
+    open('rt', { customerName: 'Retry Soon', createdAt: ago(10), attemptCount: 1, nextAttemptAt: ahead(2), amountRemainingCents: 2000, amountDueCents: 2000 }),
+    open('od', { customerName: 'Long Overdue', createdAt: ago(40), dueAt: ago(9), amountRemainingCents: 4000, amountDueCents: 4000 }),
+    open('nd', { customerName: 'Not Due Yet', createdAt: ago(2), dueAt: ahead(12), amountRemainingCents: 8000, amountDueCents: 8000 }),
+    inv('pd', { customerName: 'Paid Up Pty', createdAt: iso(n), paidAt: iso(n) }),
+    inv('vd', { customerName: 'Voided Pty', status: 'void', amountPaidCents: 0, paidAt: null }),
+  ] })
+}
+const shown = (): string[] => [...host.querySelectorAll('tbody tr')].map(r => r.textContent ?? '')
+const tabLabel = (name: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('[role="tab"]')].find(t => t.textContent?.startsWith(name))!
+const tile = (label: string): string => [...host.querySelectorAll('.card')].find(c => c.textContent?.startsWith(label))?.textContent ?? ''
+
+describe('Rosterio invoices: collections', () => {
+  it('tiles: collected, outstanding, overdue with its invoice count, and payment failed', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    expect(tile('Collected this month')).toContain('A$99.00')
+    expect(tile('Outstanding')).toContain('A$150.00')
+    expect(tile('Overdue or failed')).toContain('A$70.00')
+    expect(tile('Overdue or failed')).toContain('3 invoices')
+    expect(tile('Payment failed')).toContain('2')
+  })
+
+  it('labels each invoice by its raw state, and never red for one that is simply open', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    const chip = (name: string): Element | null => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[4]?.querySelector('.chip') ?? null
+    expect(chip('Failed Final')?.textContent).toBe('Failed, no retries left')
+    expect(chip('Retry Soon')?.textContent).toMatch(/^Failed, retrying/)
+    expect(chip('Long Overdue')?.textContent).toBe('Overdue')
+    expect(chip('Not Due Yet')?.textContent).toBe('Open')
+    expect(chip('Not Due Yet')?.className).not.toContain('bad')
+  })
+
+  it('filters: unpaid, overdue or failed, not yet due, paid, void', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    const names = (): string => shown().join('|')
+    expect(shown()).toHaveLength(6)
+    await click(tabLabel('Unpaid'))
+    expect(shown()).toHaveLength(4)
+    await click(tabLabel('Overdue or failed'))
+    expect(names()).toContain('Failed Final')
+    expect(names()).toContain('Retry Soon')
+    expect(names()).toContain('Long Overdue')
+    expect(shown()).toHaveLength(3)
+    await click(tabLabel('Not yet due'))
+    expect(shown()).toHaveLength(1)
+    expect(shown()[0]).toContain('Not Due Yet')
+    await click(tabLabel('Void'))
+    expect(shown()[0]).toContain('Voided Pty')
+    expect([...host.querySelectorAll('[role="tab"]')].map(t => t.textContent)).toEqual(['All6', 'Unpaid4', 'Overdue or failed3', 'Not yet due1', 'Paid1', 'Void / written off1'])
+  })
+
+  it('Unpaid for: days for an open invoice, a dash for the rest', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    const cell = (name: string): string => [...host.querySelectorAll('tbody tr')].find(r => r.textContent?.includes(name))?.querySelectorAll('td')[5]?.textContent ?? ''
+    expect([...host.querySelectorAll('thead th')].map(h => h.textContent)).toContain('Unpaid for')
+    expect(cell('Long Overdue')).toBe('40 days')
+    expect(cell('Failed Final')).toBe('3 days')
+    expect(cell('Paid Up Pty')).toBe('—')
+  })
+
+  it('age buckets show their amounts and narrow the list to unpaid invoices of that age', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros')
+    const seg = (): HTMLElement[] => [...host.querySelectorAll<HTMLElement>('.seg[aria-label="Age of unpaid invoices"] button')]
+    expect(seg().map(b => b.textContent)).toEqual(['All · A$150.00', '0-7 days · A$90.00', '8-30 days · A$20.00', '30+ days · A$40.00'])
+    await click(seg()[3])
+    expect(shown()).toHaveLength(1)
+    expect(shown()[0]).toContain('Long Overdue')
+    await click(seg()[1])
+    expect(shown()).toHaveLength(2)
+    expect(shown().join('|')).toContain('Failed Final')
+    expect(shown().join('|')).toContain('Not Due Yet')
+  })
+
+  it('opens the filter named in the link, and shows everything for one it does not know', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros', 'admin', { tab: 'ros', filter: 'late' })
+    expect(tabLabel('Overdue or failed').getAttribute('aria-selected')).toBe('true')
+    expect(shown()).toHaveLength(3)
+  })
+
+  it('hides the age control for paid and void invoices, and the address follows the filter', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros', 'admin', { tab: 'ros', filter: 'late' })
+    const seg = (): Element | null => host.querySelector('.seg[aria-label="Age of unpaid invoices"]')
+    expect(seg()?.classList.contains('nowrap')).toBe(true)
+    await click(tabLabel('Paid'))
+    expect(seg()).toBeNull()
+    expect(shown()).toHaveLength(1)
+    expect((await import('../../ui/store')).UI.get().route.q).toEqual({ tab: 'ros', filter: 'paid' })
+  })
+
+  it('does not paint a tile red for a card that is only being retried', async () => {
+    const n = await appNow()
+    fakeApi({ 'GET /sales/rosterio/invoices': () => json(200, { configured: true, syncedAt: iso(n), syncError: null, invoices: [open('rt', { createdAt: iso(n - DAYS), attemptCount: 1, nextAttemptAt: iso(n + DAYS), amountRemainingCents: 2000, amountDueCents: 2000 })] }) })
+    await page('ros')
+    expect(tile('Overdue or failed')).toContain('A$20.00')
+    const reds = [...host.querySelectorAll<HTMLElement>('.card .num')].filter(e => e.style.color.includes('bad2'))
+    expect(reds).toHaveLength(0)
+  })
+
+  it('an unknown filter falls back to All', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix })
+    await page('ros', 'admin', { filter: 'nonsense' })
+    expect(tabLabel('All').getAttribute('aria-selected')).toBe('true')
+    expect(shown()).toHaveLength(6)
+  })
+
+  it('in All businesses, tab=ros opens the Rosterio tab; without it Ardorio comes first', async () => {
+    fakeApi({ 'GET /sales/rosterio/invoices': mix, 'GET /sales/invoices': json(200, { invoices: [] }), 'GET /sales/invoices/summary': json(200, SUMMARY) })
+    await page('all', 'admin', { tab: 'ros', filter: 'paid' })
+    expect(text()).toContain('Rosterio subscriptions, as Stripe has them')
+    expect(tabLabel('Paid').getAttribute('aria-selected')).toBe('true')
+    expect(shown()).toHaveLength(1)
+  })
+})
+
 describe('Rosterio invoices', () => {
   it('in Rosterio\'s workspace: what was collected, what is owing, failed cards first-class, each with its Stripe page', async () => {
     fakeApi({ 'GET /sales/rosterio/invoices': json(200, LIST) })
@@ -63,11 +196,15 @@ describe('Rosterio invoices', () => {
     expect(text()).toContain('Rosterio subscriptions, as Stripe has them')
     expect(text()).toContain('A$99.00') // collected this month
     expect(text()).toContain('A$69.00') // outstanding: 49 + 20
-    expect(text()).toContain('Payment failed · retry')
+    expect(text()).toContain('Failed, retrying')
     expect(text()).toContain('Overdue')
     expect([...host.querySelectorAll('a')].map(a => a.getAttribute('href'))).toContain('https://invoice.stripe.test/1')
-    await click([...host.querySelectorAll('button')].find(b => b.textContent?.startsWith('Payment failed'))!)
+    await click([...host.querySelectorAll('button')].find(b => b.textContent?.startsWith('Overdue or failed'))!)
     expect(text()).toContain('Forty Winks')
+    expect(text()).toContain('Kaffeehaus')
+    expect(text()).not.toContain('Spuntino')
+    await click([...host.querySelectorAll('button')].find(b => b.textContent?.startsWith('Paid'))!)
+    expect(text()).toContain('Spuntino')
     expect(text()).not.toContain('Kaffeehaus')
   })
 

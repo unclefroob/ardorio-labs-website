@@ -14,6 +14,7 @@ import { payingAccounts, subscriptionArr, type SubscriptionArr } from '../../sha
 import { PageHead } from '../../shared/PageHead'
 import { UI } from '../../ui/store'
 import { RevenueOutlook } from './RevenueOutlook'
+import { RosterioCollections } from './RosterioCollections'
 
 const SOURCES = ['Outbound', 'Referral', 'Inbound enquiry', 'Event', 'Partner']
 const go = (p: string, q?: Record<string, unknown>): void => UI.nav(p, { q })
@@ -192,6 +193,7 @@ export function Dashboard() {
         <>
           {ws && <BizKpis b={ws} open={open} />}
           {sc.includes('ard') && <div style={{ marginBottom: 14 }}><RevenueOutlook filtered={mine || !!owner || !!team || !!src} /></div>}
+          {sc.includes('ros') && Q.canAdmin('ros') && <div style={{ marginBottom: 14 }}><RosterioCollections filtered={mine || !!owner || !!team || !!src} /></div>}
           <div className="grid g6" style={{ marginBottom: 14 }}>
             <Kpi label="Open pipeline" value={F.money(tot, 1)} sub={`${open.length} deals`} onClick={() => go('deals', { status: 'open', view: 'list' })} />
             <Kpi label="Weighted pipeline" value={F.money(wt, 1)} sub="Value × stage probability" onClick={() => go('deals', { status: 'open', view: 'list' })} />

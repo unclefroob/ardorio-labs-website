@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { invoiceError, listInvoices } from '../../api/invoices'
+import { rosterioInvoices } from '../../api/rosterio'
 import { F } from '../../data/F'
 import { useLoad } from '../../data/invoicing'
 import { Q } from '../../data/Q'
@@ -15,6 +16,7 @@ import { PageHead } from '../../shared/PageHead'
 import { monthName } from '../../shared/revenueReport'
 import { ardorioPlaceholder, ardorioRow, barsOf, dealsRow, rosterioRow, rowContracted, rowPipeline, totalsOf, type BizRevenue } from '../../shared/revenueAll'
 import { attentionOf, recurringRunRate } from '../../shared/revenueOutlook'
+import { collectionTotals } from '../../shared/rosterioCollection'
 import { UI } from '../../ui/store'
 
 // Reports > Revenue: what every business is expected to bring in, ex GST, from the source each one really has (see shared/revenueAll.ts).
@@ -83,6 +85,10 @@ export function RevenueAll({ tabs }: { tabs?: ReactNode }) {
   const hasArd = sc.includes('ard')
   const hasRos = sc.includes('ros')
   const inv = useLoad(s => (hasArd && canBill ? listInvoices({}, s).then(r => r.invoices) : Promise.resolve(null)), `ard-invoices:${hasArd && canBill}`)
+  // Rosterio's unpaid invoices are a note beside its recurring figure, never part of it. If they cannot be read, nothing is said about them.
+  const rosAdmin = hasRos && Q.canAdmin('ros')
+  const rosInv = useLoad(s => (rosAdmin ? rosterioInvoices({}, s) : Promise.resolve(null)), `ros-invoices-risk:${rosAdmin}`)
+  const risk = rosInv.data ? collectionTotals(rosInv.data.invoices, F.now().getTime()) : null
   const acc = useRosterioAccounts(hasRos ? 'ifStale' : 'never')
   const rosData = acc.s === 'ok' ? acc.data : acc.s === 'loading' || acc.s === 'error' ? acc.previous : undefined
   const tests = testAccountIds()
@@ -121,11 +127,12 @@ export function RevenueAll({ tabs }: { tabs?: ReactNode }) {
   const attention: Array<{ k: string; chip: string; tone: string; title: string; note: string }> = []
   if (ros?.unpriced) attention.push({ k: 'ros-unpriced', chip: plural(ros.unpriced, 'account'), tone: 'warn', title: 'Rosterio accounts with no price', note: 'Paying, but Rosterio sent no monthly cost. Counted as $0.' })
   if (ros?.trialsEnding) attention.push({ k: 'ros-trials', chip: plural(ros.trialsEnding, 'trial'), tone: 'info', title: 'Rosterio trials ending within 14 days', note: 'Not counted until they pay.' })
+  if (risk && risk.atRisk > 0) attention.push({ k: 'ros-at-risk', chip: fmt(risk.atRisk), tone: 'warn', title: 'Rosterio invoices overdue or failed', note: `${plural(risk.atRiskCount, 'invoice')} unpaid` })
   if (f) for (const a of attentionOf(f)) attention.push({ k: `ard-${a.key}`, chip: a.key === 'noContract' ? plural(a.count ?? 0, 'deal') : fmt(a.amount), tone: a.tone, title: `Ardorio: ${a.title.charAt(0).toLowerCase()}${a.title.slice(1)}`, note: a.note })
   for (const r of rows) if (r.id !== 'ros' && r.id !== 'ard') for (const n of r.notes) attention.push({ k: `${r.id}-note`, chip: r.name, tone: 'warn', title: `${r.name}: ${n}`, note: 'Nothing to forecast for it.' })
 
   const stateCell = (r: BizRevenue): ReactNode => {
-    if (r.state === 'ok') return <>{r.basis}{r.notes.map(n => <Chip key={n} tone="warn" style={{ marginLeft: 6 }}>{n}</Chip>)}{r.id === 'ard' && <> · <Btn size="sm" kind="ghost" onClick={() => UI.nav('reports', { q: { tab: 'ardorio', view: 'forecast' } })}>Ardorio forecast</Btn></>}</>
+    if (r.state === 'ok') return <>{r.basis}{r.notes.map(n => <Chip key={n} tone="warn" style={{ marginLeft: 6 }}>{n}</Chip>)}{r.id === 'ros' && risk && risk.atRisk > 0 && <Chip tone="warn" style={{ marginLeft: 6 }}>{fmt(risk.atRisk)} at risk</Chip>}{r.id === 'ard' && <> · <Btn size="sm" kind="ghost" onClick={() => UI.nav('reports', { q: { tab: 'ardorio', view: 'forecast' } })}>Ardorio forecast</Btn></>}</>
     if (r.state === 'loading') return <span className="muted">{r.reason}</span>
     if (r.state === 'error') return <span role="alert" style={{ color: 'var(--bad2)' }}>{r.reason} It is not in the totals. <Btn size="sm" onClick={() => (r.id === 'ard' ? inv.reload() : acc.reload())}>Try again</Btn></span>
     return <span className="row" style={{ gap: 6 }}><Icon n="lock" s={13} />{r.reason} Not counted in the totals.</span>

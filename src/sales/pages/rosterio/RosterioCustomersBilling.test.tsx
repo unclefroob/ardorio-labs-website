@@ -77,11 +77,13 @@ describe('Customers › Rosterio: Billing column (Rosterio admins)', () => {
     expect(cell('Spuntino Group')).toContain('Not billed yet')
     expect(cell('Harbour Retail')).toContain('Scheduled')
     expect(cell('Bayside Cafe')).toContain('Waiting for a card')
-    expect(cell('Northern Freight')).toContain('Billing')
+    // Paid in full, so it reads from its invoices.
+    expect(cell('Northern Freight')).toContain('Paid up')
     expect(cell('Westside Bakery')).toContain('Ending')
     expect(cell('Corner Store')).toContain('Paid · checkout')
-    // A failed invoice outranks a running subscription.
-    expect(cell('Failing Pty Ltd')).toContain('Payment failed')
+    // A failed invoice outranks a running subscription, and says what is owing.
+    expect(cell('Failing Pty Ltd')).toContain('Failed, no retries left')
+    expect(cell('Failing Pty Ltd')).toContain('A$440.00 owing')
     expect(cell('Failing Pty Ltd')).not.toContain('Billing')
   })
 
