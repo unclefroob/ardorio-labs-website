@@ -15,7 +15,7 @@ export const TaskTable: FC<TaskTableProps> = ({ rows, showAssignee = true }) => 
       k: 'd', l: '', nosort: true, w: 30,
       r: t => Q.done(t)
         ? <Icon n="check" s={14} style={{ color: 'var(--ok)' }} />
-        : <button type="button" className="btn xs icon" title={t.kind === 'email' ? 'Open email' : 'Complete'} aria-label={(t.kind === 'email' ? 'Open email: ' : 'Complete task: ') + t.title} disabled={!Q.canEdit(t.businessId)} onClick={e => { e.stopPropagation(); completeFlow(t) }} style={{ width: 20, height: 20, borderRadius: 10 }} />,
+        : <button type="button" className="btn xs icon hit" title={t.kind === 'email' ? 'Open email' : 'Complete'} aria-label={(t.kind === 'email' ? 'Open email: ' : 'Complete task: ') + t.title} disabled={!Q.canEdit(t.businessId)} onClick={e => { e.stopPropagation(); completeFlow(t) }} style={{ width: 20, height: 20, borderRadius: 10 }} />,
     },
     {
       k: 'title', l: 'Task',

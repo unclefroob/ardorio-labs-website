@@ -8,7 +8,7 @@ export function PageHead({ title, sub, children, crumb, eyebrow }: { title: Reac
       <div style={{ minWidth: 0 }}>
         {crumb && (
           <div className="crumb">
-            <button onClick={UI.back}><Icon n="left" s={12} /> Back</button>
+            <button className="hit" onClick={UI.back}><Icon n="left" s={12} /> Back</button>
             {crumb.map((c, i) => <Fragment key={i}><span>/</span>{c}</Fragment>)}
           </div>
         )}

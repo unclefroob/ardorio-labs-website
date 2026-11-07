@@ -38,9 +38,10 @@ function CallRow({ t }: { t: Task }) {
   return (
     <div className="row wrap" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', gap: 10 }}>
       <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-        <div className="row" style={{ gap: 6 }}>
-          <b className="trunc">{c ? <CtLink id={c.id} /> : t.title}</b>
-          {c && <span className="faint sm">· {c.title} · <CoLink id={c.companyId} /></span>}
+        {/* The name keeps its full width and wraps; the title and company drop to the next line when short of room. */}
+        <div className="row wrap" style={{ gap: '0 6px' }}>
+          <b style={{ flex: '0 1 auto', minWidth: 0, overflowWrap: 'anywhere' }}>{c ? <CtLink id={c.id} /> : t.title}</b>
+          {c && <span className="faint sm" style={{ flex: '1 1 auto', minWidth: 0 }}>· {c.title} · <CoLink id={c.companyId} /></span>}
         </div>
         <div className="sm muted trunc">{t.title}{t.seqId ? ' · sequence step' : ''}</div>
         {last && <div className="faint xs">Last: {last.subject ?? 'Activity'} · {F.rel(last.ts)}</div>}

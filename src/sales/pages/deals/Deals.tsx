@@ -3,7 +3,7 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
 import type { BusinessId, Deal } from '../../data/types'
-import { BizDot, Btn, Chip, Ck, DataTable, Empty, Icon, Owner, SearchInp, Seg, Sel } from '../../kit'
+import { BizDot, Btn, Chip, Ck, DataTable, Empty, FilterBar, Icon, Owner, SearchInp, Seg, Sel } from '../../kit'
 import { ArchivedChip, RestoreRowBtn } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
 import { tryMove } from '../../shared/moves'
@@ -143,10 +143,13 @@ export function Deals({ route }: { route: Route }) {
         <Btn icon="spark" disabled={!Q.canEdit(pb)} onClick={() => UI.open('checkSignals', { businessId: pb })} title="Search the web for hiring, expansion and funding news on companies with open deals">Check signals</Btn>
         {newDeal}
       </PageHead>
-      <div className="row wrap" style={{ marginBottom: 12, gap: 8 }}>
-        {(view === 'board' || Q.wsBiz()) && mem.length > 1 && (
+      {(view === 'board' || Q.wsBiz()) && mem.length > 1 && (
+        <div className="row wrap" style={{ marginBottom: 12 }}>
           <Seg value={pb} onChange={v => { setB(v); setStF('') }} opts={mem.map(x => [x, Q.biz(x)?.name ?? x] as const)} />
-        )}
+        </div>
+      )}
+      {/* Filters fold behind one button on a phone; the count is the filters not at their default. */}
+      <FilterBar active={[own, pri, cl, src, minV, risk, status !== 'open', view === 'list' && stF].filter(Boolean).length}>
         <SearchInp value={q} onChange={setQ} placeholder="Search deals" w={200} />
         <Sel className="sm" style={{ width: 150 }} aria-label="Owner" value={own} onChange={setOwn} placeholder="Any owner" options={owners.map(u => [u, Q.user(u)?.name ?? 'Unknown user'] as const)} />
         <Sel className="sm" style={{ width: 110 }} aria-label="Priority" value={pri} onChange={setPri} placeholder="Any priority" options={['High', 'Medium', 'Low']} />
@@ -163,7 +166,7 @@ export function Deals({ route }: { route: Route }) {
             <Sel className="sm" style={{ width: 150 }} aria-label="Stage" value={stF} onChange={setStF} placeholder="Any stage" options={pl.stages.map(s => [s.id, s.name] as const)} />
           </>
         )}
-      </div>
+      </FilterBar>
       {view === 'board' ? (
         pl.stages.length === 0 ? (
           <div className="card">

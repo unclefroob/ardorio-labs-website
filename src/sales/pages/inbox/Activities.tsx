@@ -7,7 +7,7 @@ import { canVoidActivity, voidedLine } from '../../data/voidRules'
 import { isVoided } from '../../data/voided'
 import { S, useStore } from '../../data/store'
 import type { Activity } from '../../data/types'
-import { AIC, BizDot, Btn, Card, Chip, DataTable, DlLink, Empty, FilterBar, Fld, Icon, Inp, Owner, SearchInp, Sel, SimChip, download, toCSV, type Col } from '../../kit'
+import { AIC, BizDot, Btn, Card, Chip, DataTable, DlLink, Empty, FilterBar, Icon, Inp, Owner, SearchInp, Sel, SimChip, download, toCSV, type Col } from '../../kit'
 import { MeetingHistory, MeetingMenu, MeetingStatusChip, OutcomePrompt } from '../../shared/meetingUi'
 import { PageHead } from '../../shared/PageHead'
 import { UI, type Route } from '../../ui/store'
@@ -139,12 +139,13 @@ export function Activities({ route }: { route: Route }) {
         <>
         {MEETING_TYPES.includes(ty) && <MeetingsCard bz={bz} />}
         <div className="card">
-          <FilterBar>
+          <FilterBar active={[ty, u, bz, from].filter(Boolean).length}>
             <SearchInp value={q} onChange={setQ} placeholder="Search activity" />
             <Sel className="sm" style={{ width: 170 }} aria-label="Activity type" value={ty} onChange={setTy} placeholder="All types" options={Object.entries(AIC).map(([k, v]) => [k, v[1]] as const)} />
             <Sel className="sm" style={{ width: 150 }} aria-label="User" value={u} onChange={setU} placeholder="Any user" options={S.users.map(x => [x.id, x.name] as const)} />
             {Q.scope().length > 1 && <Sel className="sm" style={{ width: 140 }} aria-label="Business" value={bz} onChange={setBz} placeholder="All businesses" options={Q.scope().map(b => [b, Q.biz(b)?.name ?? b] as const)} />}
-            <Fld><Inp type="date" className="sm" value={from} onChange={setFrom} aria-label="From date" /></Fld>
+            {/* No Fld wrapper: it is a flex column, so the bar's flex-basis on .inp became the field's height. */}
+            <Inp type="date" className="sm" value={from} onChange={setFrom} aria-label="From date" />
             {filtered && <Btn size="sm" kind="ghost" onClick={clear}>Clear</Btn>}
           </FilterBar>
           <DataTable

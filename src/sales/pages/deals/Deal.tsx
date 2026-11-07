@@ -4,7 +4,7 @@ import { F } from '../../data/F'
 import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
 import type { Deal as DealRec, Thread } from '../../data/types'
-import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Icon, Kpi, Menu, Owner, Tabs, TONE } from '../../kit'
+import { Banner, BizChip, Btn, Card, Chip, CLS_TONE, CoLink, Due, Empty, Fld, Icon, Kpi, Menu, Owner, Tabs, TONE, useNarrow } from '../../kit'
 import { DealFieldInput } from '../../shared/forms'
 import { tryMove } from '../../shared/moves'
 import { askReopen } from '../../shared/reopen'
@@ -58,6 +58,7 @@ function ThreadRow({ t }: { t: Thread }) {
 
 export function Deal({ route }: { route: Route }) {
   useStore()
+  const narrow = useNarrow()
   const d = route.id ? Q.deal(route.id) : undefined
   const qTab = route.q?.tab
   const [tab, setTab] = useState(typeof qTab === 'string' ? qTab : 'overview')
@@ -196,13 +197,25 @@ export function Deal({ route }: { route: Route }) {
             ]}
           />
           <Btn size="sm" icon="mail" onClick={() => UI.open('compose', { contactId: d.primaryContact, dealId: d.id, businessId: d.businessId })}>Send email</Btn>
-          <Btn size="sm" icon="checksq" onClick={newTask}>Add task</Btn>
-          <Btn size="sm" icon="user" onClick={() => setTab('people')}>Add contact</Btn>
+          {/* On a phone Add task, Add contact and Edit value sit behind More. */}
+          {!narrow && <Btn size="sm" icon="checksq" onClick={newTask}>Add task</Btn>}
+          {!narrow && <Btn size="sm" icon="user" onClick={() => setTab('people')}>Add contact</Btn>}
           <Menu
             trigger={<Btn size="sm" icon="kanban" iconRight="down">Change stage</Btn>}
             items={pl.stages.filter(s => s.id !== d.stageId).map(s => ({ label: s.name, right: s.prob + '%', onClick: () => tryMove(d.id, s.id) }))}
           />
-          <Btn size="sm" icon="dollar" onClick={() => setTab('commercials')}>Edit value</Btn>
+          {!narrow && <Btn size="sm" icon="dollar" onClick={() => setTab('commercials')}>Edit value</Btn>}
+          {narrow && (
+            <Menu
+              align="right"
+              trigger={<Btn size="sm" icon="more" iconRight="down">More</Btn>}
+              items={[
+                { label: 'Add task', icon: 'checksq', onClick: newTask },
+                { label: 'Add contact', icon: 'user', onClick: () => setTab('people') },
+                { label: 'Edit value', icon: 'dollar', onClick: () => setTab('commercials') },
+              ]}
+            />
+          )}
         </div>
       )}
       <Tabs
