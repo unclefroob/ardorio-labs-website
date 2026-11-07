@@ -3,13 +3,13 @@ import { F } from '../../data/F'
 import { useLoad } from '../../data/invoicing'
 import { Banner, Btn, Card, Kpi, Skel } from '../../kit'
 import { collectionTotals } from '../../shared/rosterioCollection'
-import { formatCentsTile } from '../../shared/money'
 import { UI } from '../../ui/store'
 
 // Dashboard > Rosterio collections: what Stripe has collected from Rosterio customers, what is owed, and what is late or failed.
 // Rosterio admins only. It reads every Rosterio invoice, so the owner, team, source and Mine filters do not apply.
 
-const fmt = formatCentsTile
+// Whole Australian dollars, like the dashboard tiles around it.
+const fmt = (cents: number): string => F.money(cents / 100)
 const open = (filter: 'paid' | 'unpaid' | 'late'): void => UI.nav('invoices', { q: { tab: 'ros', filter } })
 
 /** The dashboard card. `filtered`: an owner, team, source or Mine filter is on, which this card does not follow. */

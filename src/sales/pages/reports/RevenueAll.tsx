@@ -88,6 +88,7 @@ export function RevenueAll({ tabs }: { tabs?: ReactNode }) {
   // Rosterio's unpaid invoices are a note beside its recurring figure, never part of it. If they cannot be read, nothing is said about them.
   const rosAdmin = hasRos && Q.canAdmin('ros')
   const rosInv = useLoad(s => (rosAdmin ? rosterioInvoices({}, s) : Promise.resolve(null)), `ros-invoices-risk:${rosAdmin}`)
+  const openLate = (): void => UI.nav('invoices', { q: { tab: 'ros', filter: 'late' } })
   const risk = rosInv.data ? collectionTotals(rosInv.data.invoices, F.now().getTime()) : null
   const acc = useRosterioAccounts(hasRos ? 'ifStale' : 'never')
   const rosData = acc.s === 'ok' ? acc.data : acc.s === 'loading' || acc.s === 'error' ? acc.previous : undefined
@@ -124,15 +125,15 @@ export function RevenueAll({ tabs }: { tabs?: ReactNode }) {
   const shown = rows.filter(r => r.state === 'ok')
   const span = `${monthName(months[0])} to ${monthName(months[months.length - 1])}`
   const ros = rows.find(r => r.id === 'ros')
-  const attention: Array<{ k: string; chip: string; tone: string; title: string; note: string }> = []
+  const attention: Array<{ k: string; chip: string; tone: string; title: string; note: string; go?: () => void }> = []
   if (ros?.unpriced) attention.push({ k: 'ros-unpriced', chip: plural(ros.unpriced, 'account'), tone: 'warn', title: 'Rosterio accounts with no price', note: 'Paying, but Rosterio sent no monthly cost. Counted as $0.' })
   if (ros?.trialsEnding) attention.push({ k: 'ros-trials', chip: plural(ros.trialsEnding, 'trial'), tone: 'info', title: 'Rosterio trials ending within 14 days', note: 'Not counted until they pay.' })
-  if (risk && risk.atRisk > 0) attention.push({ k: 'ros-at-risk', chip: fmt(risk.atRisk), tone: 'warn', title: 'Rosterio invoices overdue or failed', note: `${plural(risk.atRiskCount, 'invoice')} unpaid` })
+  if (risk && risk.atRisk > 0) attention.push({ k: 'ros-at-risk', chip: fmt(risk.atRisk), tone: 'warn', title: 'Rosterio invoices overdue or failed', note: `${plural(risk.atRiskCount, 'invoice')} unpaid · as Stripe billed them, GST included where charged`, go: openLate })
   if (f) for (const a of attentionOf(f)) attention.push({ k: `ard-${a.key}`, chip: a.key === 'noContract' ? plural(a.count ?? 0, 'deal') : fmt(a.amount), tone: a.tone, title: `Ardorio: ${a.title.charAt(0).toLowerCase()}${a.title.slice(1)}`, note: a.note })
   for (const r of rows) if (r.id !== 'ros' && r.id !== 'ard') for (const n of r.notes) attention.push({ k: `${r.id}-note`, chip: r.name, tone: 'warn', title: `${r.name}: ${n}`, note: 'Nothing to forecast for it.' })
 
   const stateCell = (r: BizRevenue): ReactNode => {
-    if (r.state === 'ok') return <>{r.basis}{r.notes.map(n => <Chip key={n} tone="warn" style={{ marginLeft: 6 }}>{n}</Chip>)}{r.id === 'ros' && risk && risk.atRisk > 0 && <Chip tone="warn" style={{ marginLeft: 6 }}>{fmt(risk.atRisk)} at risk</Chip>}{r.id === 'ard' && <> · <Btn size="sm" kind="ghost" onClick={() => UI.nav('reports', { q: { tab: 'ardorio', view: 'forecast' } })}>Ardorio forecast</Btn></>}</>
+    if (r.state === 'ok') return <>{r.basis}{r.notes.map(n => <Chip key={n} tone="warn" style={{ marginLeft: 6 }}>{n}</Chip>)}{r.id === 'ros' && risk && risk.atRisk > 0 && <><Chip tone="warn" style={{ marginLeft: 6 }} title="As Stripe billed them, GST included where charged">{fmt(risk.atRisk)} at risk</Chip> · <Btn size="sm" kind="ghost" onClick={openLate}>Open invoices</Btn></>}{r.id === 'ard' && <> · <Btn size="sm" kind="ghost" onClick={() => UI.nav('reports', { q: { tab: 'ardorio', view: 'forecast' } })}>Ardorio forecast</Btn></>}</>
     if (r.state === 'loading') return <span className="muted">{r.reason}</span>
     if (r.state === 'error') return <span role="alert" style={{ color: 'var(--bad2)' }}>{r.reason} It is not in the totals. <Btn size="sm" onClick={() => (r.id === 'ard' ? inv.reload() : acc.reload())}>Try again</Btn></span>
     return <span className="row" style={{ gap: 6 }}><Icon n="lock" s={13} />{r.reason} Not counted in the totals.</span>
@@ -220,6 +221,7 @@ export function RevenueAll({ tabs }: { tabs?: ReactNode }) {
                 <li key={a.k} className="row" style={{ gap: 10, padding: '8px 14px', alignItems: 'flex-start' }}>
                   <Chip tone={a.tone}>{a.chip}</Chip>
                   <span><b>{a.title}</b><div className="faint xs">{a.note}</div></span>
+                  {a.go && <><span className="sp" /><Btn size="sm" kind="ghost" iconRight="arrow" onClick={a.go}>Open</Btn></>}
                 </li>
               ))}
             </ul>
