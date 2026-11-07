@@ -534,7 +534,8 @@ export interface RosterioRefreshResponse {
 // ---- Rosterio payments (Stripe) ----
 // GET /sales/rosterio/invoices?companyId=|accountId= -> RosterioInvoicesResponse: Rosterio's subscription invoices as Stripe has them,
 // newest first (at most 1000). Rosterio admins and super users only (else ROLE_REQUIRED { needed: 'admin', businessId: 'ros' }), like
-// Rosterio's revenue figures. failed = open, attempted, still owing; overdue = open past its due date or with no retry left.
+// Rosterio's revenue figures. failed = open, attempted, still owing; overdue = open, owing, no retry coming, and attempted or past its
+// due date. The web works each invoice's state out from the raw fields (shared/rosterioCollection.ts) and does not read overdue.
 // POST /sales/rosterio/invoices/sync (same role) runs the sync now -> { invoices, syncedAt, error }. Read-only: nothing is written to Stripe.
 export type RosterioInvoiceStatus = 'draft' | 'open' | 'paid' | 'void' | 'uncollectible'
 export interface RosterioInvoice {

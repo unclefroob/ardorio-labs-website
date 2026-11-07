@@ -3,13 +3,14 @@ import { F } from '../../data/F'
 import { roleLabel } from '../../data/rosterioAccount'
 import { Banner, Card, Chip, DataTable, Empty, type Col } from '../../kit'
 import type { RosterioInvoice } from '../../api/contract'
-import { payState, rosMoney } from '../invoices/RosterioInvoices'
+import { collectionOf } from '../../shared/rosterioCollection'
+import { rosMoney } from '../invoices/RosterioInvoices'
 
 const cols: Col<RosterioInvoice>[] = [
   { k: 'number', l: 'Invoice', sort: i => i.number ?? '', r: i => <span className="mono sm">{i.number ?? '—'}</span> },
   { k: 'period', l: 'Period', sort: i => i.periodStart ?? '', r: i => (i.periodStart && i.periodEnd ? <span className="sm">{F.date(i.periodStart)} – {F.date(i.periodEnd)}</span> : <span className="faint">—</span>) },
   { k: 'amount', l: 'Amount', right: true, sort: i => i.amountDueCents, r: i => <span className="num">{rosMoney(i.amountDueCents, i.currency)}</span> },
-  { k: 'status', l: 'Status', sort: i => payState(i).label, r: i => { const s = payState(i); return <Chip tone={s.tone}>{s.label}</Chip> } },
+  { k: 'status', l: 'Status', sort: i => collectionOf(i, F.now().getTime()).rank, r: i => { const s = collectionOf(i, F.now().getTime()); return <Chip tone={s.tone}>{s.label}</Chip> } },
   { k: 'when', l: 'Paid / due', sort: i => i.paidAt ?? i.dueAt ?? i.createdAt, r: i => <span className="sm">{i.paidAt ? F.date(i.paidAt) : i.dueAt ? `Due ${F.date(i.dueAt)}` : F.date(i.createdAt)}</span> },
   { k: 'open', l: '', nosort: true, r: i => (i.hostedUrl?.startsWith('https://') ? <a className="sm" href={i.hostedUrl} target="_blank" rel="noopener noreferrer">View in Stripe</a> : null) },
 ]

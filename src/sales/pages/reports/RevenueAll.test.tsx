@@ -6,7 +6,7 @@ import { changes, rec } from '../../testing/fixtures'
 import { button, click, settle } from '../../testing/dom'
 import { ardDeal, dto, invoicingWorld, setArdRole } from '../../testing/invoicingWorld'
 import { loadSales } from '../../testing/load'
-import { account, accountsOf, fakeApi, json } from '../../testing/rosterioWorld'
+import { account, accountsOf, fakeApi, invoice, json } from '../../testing/rosterioWorld'
 
 vi.mock('../../../lib/apiClient', () => ({ API_BASE: 'https://api.test' }))
 vi.mock('../../api/records', () => ({ postBatch: vi.fn(), getChanges: () => Promise.resolve(changes([])), getBootstrap: vi.fn() }))
@@ -44,7 +44,7 @@ const MS = [
 const INVOICES: InvoiceDto[] = [paidInv('i1', 'p1', 50000, '2026-07-01', '2026-08-14'), paidInv('i2', 'p2', 41455, '2026-08-20', '2026-10-03')]
 const biz = (id: string, name: string) => rec(id, { name, short: id.toUpperCase(), accent: '#654321', desc: '', currency: 'AUD', tz: 'Australia/Melbourne', pipelineId: 'pl2', industries: [], roles: [] })
 
-async function show(o: { ard?: 'admin' | 'sales'; ros?: 'admin' | 'sales'; accounts?: ReturnType<typeof account>[] | null; invoices?: InvoiceDto[] } = {}) {
+async function show(o: { ard?: 'admin' | 'sales'; ros?: 'admin' | 'sales'; accounts?: ReturnType<typeof account>[] | null; invoices?: InvoiceDto[]; rosInvoices?: ReturnType<typeof invoice>[] | null } = {}) {
   const m = await loadSales()
   const w = invoicingWorld()
   m.bootstrap.hydrate(invoicingWorld({
@@ -62,6 +62,7 @@ async function show(o: { ard?: 'admin' | 'sales'; ros?: 'admin' | 'sales'; accou
   m.ui.bindNavigate(vi.fn())
   const api = fakeApi({
     'GET /sales/invoices': () => json(200, { invoices: o.invoices ?? INVOICES }),
+    ...(o.rosInvoices === undefined ? {} : { 'GET /sales/rosterio/invoices': () => (o.rosInvoices === null ? json(500, { error: 'down', code: 'SERVER' }) : json(200, { configured: true, syncedAt: null, syncError: null, invoices: o.rosInvoices })) }),
     'GET /sales/rosterio/accounts': () => (o.accounts === null ? json(500, { error: 'down', code: 'SERVER' }) : json(200, accountsOf(o.accounts ?? [account({ id: 'a', name: 'A', monthlyCost: 1000 }), account({ id: 'b', name: 'B', monthlyCost: 500 }), account({ id: 'c', name: 'C' })]))),
   })
   const { Reports } = await import('./Reports')
@@ -130,6 +131,45 @@ describe('Reports › Revenue (all businesses)', () => {
     await click(button(section()!, 'Try again'))
     await settle(4)
     expect(api.count('GET /sales/rosterio/accounts')).toBeGreaterThan(before)
+  })
+
+  describe('Rosterio invoices at risk', () => {
+    const owe = (id: string, o: Partial<ReturnType<typeof invoice>>) => invoice({ id, status: 'open', amountPaidCents: 0, paidAt: null, attemptCount: 1, ...o })
+    const RISK = [
+      owe('f', { amountRemainingCents: 12000 }),
+      owe('r', { amountRemainingCents: 5000, nextAttemptAt: '2099-01-01T00:00:00Z' }),
+      owe('n', { amountRemainingCents: 70000, attemptCount: 0, dueAt: '2099-01-01T00:00:00Z' }),
+      invoice({ id: 'p' }),
+    ]
+    const attention = (): string => [...(section()?.querySelectorAll('.card') ?? [])].find(c => c.querySelector('.hd, h3, header')?.textContent?.includes('Needs attention'))?.textContent ?? ''
+
+    it('a warn chip on the Rosterio row and a Needs attention line, and the recurring figure does not move', async () => {
+      await show({ rosInvoices: RISK })
+      expect(row('Rosterio')[3]).toContain('$170 at risk')
+      expect(attention()).toContain('Rosterio invoices overdue or failed')
+      expect(attention()).toContain('$170')
+      expect(attention()).toContain('2 invoices unpaid')
+      expect(row('Rosterio')[0]).toBe('$18,000')
+      expect(tile('Recurring revenue (ARR)')).toBe('$30,000')
+    })
+
+    it('says nothing when nothing is overdue or failed', async () => {
+      await show({ rosInvoices: [invoice({ id: 'p' }), owe('n', { amountRemainingCents: 70000, attemptCount: 0, dueAt: '2099-01-01T00:00:00Z' })] })
+      expect(row('Rosterio')[3]).not.toContain('at risk')
+      expect(section()?.textContent).not.toContain('Rosterio invoices overdue or failed')
+    })
+
+    it('shows nothing about them, and the page stands, when they cannot be read', async () => {
+      await show({ rosInvoices: null })
+      expect(row('Rosterio')[0]).toBe('$18,000')
+      expect(section()?.textContent).not.toContain('at risk')
+      expect(section()?.textContent).not.toContain('Rosterio invoices overdue or failed')
+    })
+
+    it('is not asked for at all by someone who is not a Rosterio admin', async () => {
+      const api = await show({ ros: 'sales', rosInvoices: RISK })
+      expect(api.count('GET /sales/rosterio/invoices')).toBe(0)
+    })
   })
 
   it('draws a bar a month and a financial year each', async () => {

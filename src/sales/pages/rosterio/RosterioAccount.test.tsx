@@ -411,7 +411,7 @@ describe('Rosterio account page: other tabs', () => {
     }, { q: { tab: 'invoices' } })
     expect(api.count(INVOICES)).toBe(1)
     expect(text()).toContain('RS-2')
-    expect(text()).toContain('Payment failed')
+    expect(text()).toContain('Failed, no retries left')
     expect(text()).toContain('RS-1')
     expect([...host.querySelectorAll('[role="tab"]')].find(t => t.textContent?.startsWith('Invoices'))?.textContent).toBe('Invoices2')
   })

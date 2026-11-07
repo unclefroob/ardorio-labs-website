@@ -5,13 +5,14 @@ import { F } from '../../data/F'
 import { dealName, useLoad } from '../../data/invoicing'
 import { useStore } from '../../data/store'
 import { Q } from '../../data/Q'
+import { qStr } from '../companies/query'
 import { RosterioInvoices } from './RosterioInvoices'
 import { Banner, Btn, Card, Chip, DataTable, DlLink, Empty, Icon, Menu, SearchInp, Sel, Skel, Tabs, type Col } from '../../kit'
 import { filterInvoices, dueCell, fmtDay, issuedText, needsRefund, TABS, tabCounts, tileFacts, voidReasonLabel, type InvoiceTab } from '../../shared/invoices'
 import { invoiceRef } from '../../shared/externalInvoices'
 import { formatCents, formatCentsTile } from '../../shared/money'
 import { PageHead } from '../../shared/PageHead'
-import { UI } from '../../ui/store'
+import { UI, useUi } from '../../ui/store'
 import { copyLink, downloadPdf } from './actions'
 import { CustomerLink, ExternalChip, MethodChip, RetainerChip, TermChip, StatusChip, TestChip, milestoneLabel } from './parts'
 import { InvoicesDenied } from './states'
@@ -30,9 +31,17 @@ export function Invoices() {
   useStore()
   const ard = Q.canAdmin('ard') && Q.inScope('ard')
   const ros = Q.canAdmin('ros') && Q.inScope('ros')
+  const route = useUi().route
+  // A link can open the Rosterio tab (q.tab) when both are there.
+  const linked = qStr(route.q, 'tab')
   const [tab, setTab] = useState<'ard' | 'ros'>(ard ? 'ard' : 'ros')
-  const tabs = ard && ros ? <Tabs tabs={[['ard', Q.biz('ard')?.name ?? 'Ardorio'], ['ros', `${Q.biz('ros')?.name ?? 'Rosterio'} (Stripe)`]]} value={tab} onChange={k => setTab(k === 'ros' ? 'ros' : 'ard')} /> : null
-  if (ros && (!ard || tab === 'ros')) return <RosterioInvoices tabs={tabs} />
+  const active = ros && linked === 'ros' ? 'ros' : tab
+  const choose = (k: string): void => {
+    setTab(k === 'ros' ? 'ros' : 'ard')
+    UI.setRoute({ q: k === 'ros' ? { tab: 'ros' } : {} })
+  }
+  const tabs = ard && ros ? <Tabs tabs={[['ard', Q.biz('ard')?.name ?? 'Ardorio'], ['ros', `${Q.biz('ros')?.name ?? 'Rosterio'} (Stripe)`]]} value={active} onChange={choose} /> : null
+  if (ros && (!ard || active === 'ros')) return <RosterioInvoices tabs={tabs} />
   return <ArdorioInvoices tabs={tabs} />
 }
 
