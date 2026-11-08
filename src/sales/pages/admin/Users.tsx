@@ -59,6 +59,15 @@ function TeamCard({ t }: { t: Team }) {
   )
 }
 
+// The access chips wrap on a phone instead of being cut off.
+function access(u: SalesUser) {
+  return u.super
+    ? <Chip tone="acc" style={{ whiteSpace: 'normal', height: 'auto' }}>Super Administrator · all businesses</Chip>
+    : Object.keys(u.m).length
+      ? <span className="row wrap" style={{ gap: 4 }}>{S.businesses.filter(b => u.m[b.id]).map(b => <Chip key={b.id}><BizDot b={b.id} />{b.name}: {u.m[b.id]}</Chip>)}</span>
+      : <span className="faint">No access</span>
+}
+
 export function Users() {
   const [tab, setTab] = useState('users')
   const [q, setQ] = useState('')
@@ -71,11 +80,7 @@ export function Users() {
     { k: 'title', l: 'Title' },
     {
       k: 'm', l: 'Access', nosort: true,
-      r: u => (u.super
-        ? <Chip tone="acc">Super Administrator · all businesses</Chip>
-        : Object.keys(u.m).length
-          ? <span className="row wrap" style={{ gap: 4 }}>{S.businesses.filter(b => u.m[b.id]).map(b => <Chip key={b.id}><BizDot b={b.id} />{b.name}: {u.m[b.id]}</Chip>)}</span>
-          : <span className="faint">No access</span>),
+      r: access,
     },
     { k: 't', l: 'Teams', sort: u => S.teams.filter(t => t.members.includes(u.id)).map(t => t.name).join(', '), r: u => S.teams.filter(t => t.members.includes(u.id)).map(t => t.name).join(', ') || '—' },
     { k: 'active', l: 'Status', r: u => <Chip tone={u.active ? 'ok' : ''}>{u.active ? 'Active' : 'Deactivated'}</Chip> },
@@ -104,6 +109,13 @@ export function Users() {
             rows={rows}
             cols={cols}
             onRow={u => UI.drawer('user', { id: u.id })}
+            card={u => (
+              <div className="col" style={{ gap: 4, minWidth: 0 }}>
+                <span className="row" style={{ gap: 8 }}><Av u={u} s={26} /><div style={{ minWidth: 0 }}><b>{u.name}</b><div className="faint xs" style={{ overflowWrap: 'anywhere' }}>{u.email}</div></div></span>
+                {access(u)}
+                {!u.active && <Chip>Deactivated</Chip>}
+              </div>
+            )}
             empty={q
               ? <Empty icon="search" title="No users match" body={`Nobody matches “${q}”.`} action={<Btn size="sm" onClick={() => setQ('')}>Clear search</Btn>} />
               : <Empty icon="users" title="No users yet" body="Add an existing login to give them access to SalesOS." action={<Btn size="sm" icon="plus" onClick={() => UI.open('userEdit')}>Add user</Btn>} />}

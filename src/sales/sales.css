@@ -601,3 +601,21 @@
 
 /* A small control that must still be a 44px target on a phone */
 @media (max-width:900px),(pointer:coarse){.sos .btn.tap{height:44px}.sos .btn.tap.icon{width:44px}.sos a.tap{display:inline-flex;align-items:center;min-height:44px}}
+
+/* Phones. Text boxes at 16px so iPhone Safari does not zoom in when one is tapped. */
+@media (max-width:900px){.sos input:not([type=checkbox]):not([type=radio]):not([type=range]),.sos select,.sos textarea{font-size:16px!important}}
+/* Column headers that sort are real targets on a touch screen. */
+@media (max-width:900px),(pointer:coarse){.sos .tbl th.s>button{min-height:36px}}
+/* The name column wraps on a phone rather than being cut mid-word. */
+@media (max-width:600px){.sos .tbl:not(.tbl-sel) td:first-child,.sos .tbl-sel td:nth-child(2){white-space:normal}}
+/* FilterBar: the Filters button only shows on a phone, where the filters fold away until it is pressed. */
+.sos .fbar-tog{display:none}
+@media (max-width:600px){.sos .fbar .fbar-tog{display:inline-flex;flex:0 0 auto}.sos .fbar.shut>:not(.sbox):not(.fbar-tog){display:none}.sos .fbar .sbox{flex:1 1 0;width:auto!important}}
+/* DataTable cards on a phone. */
+.sos .tcards{list-style:none;margin:0;padding:0}
+.sos .tcards li{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line);min-height:44px}
+.sos .tcards li.click{cursor:pointer}
+.sos .tcards li.sel{background:var(--acc-soft)}
+.sos .tcard-b{flex:1;min-width:0;overflow-wrap:anywhere}
+/* A small control whose tap area grows on a touch screen without changing how it looks. */
+@media (max-width:900px),(pointer:coarse){.sos .hit{position:relative}.sos .hit::before{content:'';position:absolute;inset:-12px -10px}}
