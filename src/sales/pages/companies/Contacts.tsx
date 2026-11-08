@@ -152,7 +152,7 @@ export function Contacts({ route }: { route: Route }) {
         <Btn kind="pri" icon="plus" disabled={!can} onClick={() => UI.open('newContact')}>New contact</Btn>
       </PageHead>
       <div className="card">
-        <FilterBar>
+        <FilterBar active={[bz, ind, sen, own, ls, em, ph, seqF, minS, eng].filter(Boolean).length}>
           <Seg label="Show contacts" value={arch ? 'archived' : 'active'} onChange={v => { setArch(v === 'archived'); setSel([]) }} opts={[['active', 'Active'], ['archived', 'Archived', 'archive']]} />
           <SearchInp value={q} onChange={setQ} placeholder="Name, email, title, company" />
           {sc.length > 1 && <Sel className="sm" style={{ width: 130 }} aria-label="Business" value={bz} onChange={setBz} placeholder="All businesses" options={sc.map(b => [b, Q.biz(b)?.name ?? b] as const)} />}
@@ -185,6 +185,18 @@ export function Contacts({ route }: { route: Route }) {
           sel={arch ? undefined : picked}
           setSel={arch ? undefined : setSel}
           onRow={c => UI.nav('contact', { id: c.id })}
+          card={c => (
+            <div className="col" style={{ gap: 2, minWidth: 0 }}>
+              <span className="row" style={{ gap: 6 }}><b style={{ overflowWrap: 'anywhere' }}>{c.name}</b>{arch && <ArchivedChip r={c} />}</span>
+              {(c.title || c.co) && <span className="sm" style={{ overflowWrap: 'anywhere' }}>{[c.title, c.co?.name].filter(Boolean).join(' · ')}</span>}
+              <span className="row wrap" style={{ gap: 4 }}>
+                {!c.email && <Chip tone="warn">No email</Chip>}
+                {c.deliverability === 'Bounced' && <Chip tone="bad">Bounced</Chip>}
+                {c.rel?.leadStatus && <Chip>{c.rel.leadStatus}</Chip>}
+                {c.enr && <EnrolChip s={c.enr.status} />}
+              </span>
+            </div>
+          )}
           sortInit={sortInit}
           empty={
             arch && !filtered

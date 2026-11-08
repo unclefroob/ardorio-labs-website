@@ -111,7 +111,7 @@ function Editor({ b, onSwitch, bs }: { b: BusinessId; onSwitch: (b: BusinessId, 
                         {s.required.map(r => (
                           <Chip key={r}>
                             {reqOpts.find(o => o[0] === r)?.[1] ?? r}
-                            <button type="button" style={{ border: 0, background: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setStage(s.id, { required: s.required.filter(x => x !== r) })} aria-label="Remove">×</button>
+                            <button type="button" className="hit" style={{ border: 0, background: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setStage(s.id, { required: s.required.filter(x => x !== r) })} aria-label="Remove">×</button>
                           </Chip>
                         ))}
                         <Menu
@@ -168,7 +168,7 @@ function Editor({ b, onSwitch, bs }: { b: BusinessId; onSwitch: (b: BusinessId, 
                 {d.lostReasons.map(r => (
                   <Chip key={r}>
                     {r}
-                    <button type="button" style={{ border: 0, background: 'none', cursor: 'pointer', padding: 0 }} aria-label={`Remove ${r}`} onClick={() => patch({ lostReasons: d.lostReasons.filter(x => x !== r) })}>×</button>
+                    <button type="button" className="hit" style={{ border: 0, background: 'none', cursor: 'pointer', padding: 0 }} aria-label={`Remove ${r}`} onClick={() => patch({ lostReasons: d.lostReasons.filter(x => x !== r) })}>×</button>
                   </Chip>
                 ))}
                 <Btn size="xs" kind="ghost" icon="plus" onClick={() => UI.ask(v => patch({ lostReasons: [...d.lostReasons, v] }), 'New loss reason')}>Add</Btn>

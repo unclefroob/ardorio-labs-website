@@ -5,7 +5,7 @@ import { Q } from '../../data/Q'
 import { isRevoked, S, useStore } from '../../data/store'
 import { standingActs } from '../../data/voided'
 import type { Contact } from '../../data/types'
-import { Av, BizDot, Btn, Card, Chip, type Col, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, FormattedSwitch, Icon, Link, MarkdownText, Menu, Owner, Tabs, Timeline, useFormatted } from '../../kit'
+import { Av, BizDot, Btn, Card, Chip, type Col, CtLink, DataTable, DlLink, Due, Empty, EnrolChip, FormattedSwitch, Icon, Link, MarkdownText, Menu, Owner, Tabs, Timeline, useFormatted, useNarrow } from '../../kit'
 import { askArchive } from '../../shared/archiveActions'
 import { ArchivedBanner } from '../../shared/archiveUi'
 import { PageHead } from '../../shared/PageHead'
@@ -22,6 +22,8 @@ import { RosterioCard } from '../deals/RosterioCard'
 import { qStr, safeHref } from './query'
 import { Coord, DealTable } from './tables'
 
+const PHONE_QA = ['Log call', 'Create deal', 'Add contact']
+
 const dash = <span className="faint">—</span>
 
 export function Company({ route }: { route: Route }) {
@@ -29,6 +31,7 @@ export function Company({ route }: { route: Route }) {
   const c = Q.company(route.id)
   const [tab, setTab] = useState(qStr(route.q, 'tab') || 'overview')
   const [formatted, setFormatted] = useFormatted()
+  const narrow = useNarrow()
 
   if (!c) {
     const revoked = isRevoked('companies', route.id)
@@ -139,7 +142,15 @@ export function Company({ route }: { route: Route }) {
         <Coord companyId={c.id} />
         {can && (
           <div className="row wrap" style={{ gap: 6 }}>
-            {qa.map(([l, i, fn]) => <Btn key={l} size="sm" icon={i} onClick={fn}>{l}</Btn>)}
+            {/* On a phone only the most used actions stay as buttons; the rest sit behind More. */}
+            {(narrow ? qa.filter(([l]) => PHONE_QA.includes(l)) : qa).map(([l, i, fn]) => <Btn key={l} size="sm" icon={i} onClick={fn}>{l}</Btn>)}
+            {narrow && (
+              <Menu
+                align="right"
+                trigger={<Btn size="sm" icon="more" iconRight="down">More</Btn>}
+                items={qa.filter(([l]) => !PHONE_QA.includes(l)).map(([l, i, fn]) => ({ label: l, icon: i, onClick: fn }))}
+              />
+            )}
           </div>
         )}
       </div>

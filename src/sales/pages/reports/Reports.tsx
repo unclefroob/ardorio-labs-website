@@ -153,7 +153,7 @@ function ReportsOverview({ tabs, notice }: { tabs: ReactNode; notice?: ReactNode
       {notice && <div style={{ marginBottom: 14 }}>{notice}</div>}
       {tabs}
       <div className="card" style={{ marginBottom: 14 }}>
-        <FilterBar>
+        <FilterBar active={[per !== 'quarter', bz, tm, u, src, ind, ds].filter(Boolean).length}>
           <Sel className="sm" style={{ width: 130 }} value={per} onChange={v => setPer(v as PeriodKey)} aria-label="Period" options={(Object.keys(PER) as PeriodKey[]).map(k => [k, PER[k][0]] as const)} />
           {sc.length > 1 && <Sel className="sm" style={{ width: 150 }} value={bz} onChange={setBz} aria-label="Business" placeholder="All businesses" options={sc.map(b => [b, `${Q.biz(b)?.name ?? b} pipeline`] as const)} />}
           <Sel className="sm" style={{ width: 150 }} value={tm} onChange={v => { setTm(v); setU('') }} aria-label="Team" placeholder="All teams" options={S.teams.filter(t => bs.includes(t.businessId)).map(t => [t.id, t.name] as const)} />

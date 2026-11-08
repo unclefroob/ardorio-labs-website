@@ -5,7 +5,7 @@ import { Q } from '../../data/Q'
 import { setWorkspace } from '../../data/session'
 import { S, useStore } from '../../data/store'
 import type { Task, TaskStatus } from '../../data/types'
-import { Av, BizDot, Banner, Btn, Card, Chip, Due, Empty, Icon, Menu, SearchInp, Seg, Sel, TONE, Tabs, type TabDef } from '../../kit'
+import { Av, BizDot, Banner, Btn, Card, Chip, Due, Empty, FilterBar, Icon, Menu, SearchInp, Seg, Sel, TONE, Tabs, type TabDef } from '../../kit'
 import { PageHead } from '../../shared/PageHead'
 import { completeFlow } from '../../shared/moves'
 import { UI, type Route } from '../../ui/store'
@@ -146,13 +146,13 @@ export function Tasks({ route }: { route: Route }) {
             </div>
           )}
           <Tabs value={view} onChange={k => { if (isView(k)) setView(k) }} tabs={tabs} />
-          <div className="row wrap" style={{ marginBottom: 12 }}>
+          <FilterBar active={[ty, pri].filter(Boolean).length}>
             <SearchInp value={q} onChange={setQ} placeholder="Search tasks" />
             <Sel className="sm" style={{ width: 160 }} aria-label="Task type" value={ty} onChange={setTy} placeholder="All types" options={TYPES} />
             <Sel className="sm" style={{ width: 120 }} aria-label="Priority" value={pri} onChange={setPri} placeholder="Any priority" options={PRIORITIES} />
             {mineOnly && view !== 'mine' && <Chip icon="user">Assigned to me</Chip>}
             {filtered && <Btn size="sm" kind="ghost" onClick={clear}>Clear filters</Btn>}
-          </div>
+          </FilterBar>
           {mode === 'list' && (
             <div className="card">
               {rows.length ? <TaskTable rows={rows} /> : (

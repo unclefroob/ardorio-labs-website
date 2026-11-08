@@ -6,7 +6,7 @@ import { isRevoked, S, useStore } from '../../data/store'
 import { standingActs } from '../../data/voided'
 import type { EnrichField } from '../../api/contract'
 import type { BusinessId, Contact as ContactT } from '../../data/types'
-import { Av, Banner, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, Empty, Icon, Link, Menu, Owner, ScoreRing, Seg, Sel, Tabs, Timeline } from '../../kit'
+import { Av, Banner, BizDot, Btn, Card, Chip, CLS_TONE, CoLink, Empty, Icon, Link, Menu, Owner, ScoreRing, Seg, Sel, Tabs, Timeline, useNarrow } from '../../kit'
 import { LEAD_STATUSES } from '../../modals/entities/options'
 import { PERM } from '../../shared/constants'
 import { canArchive } from '../../data/archive'
@@ -44,6 +44,7 @@ export function Contact({ route }: { route: Route }) {
   const ct = Q.contact(route.id)
   const [tab, setTab] = useState(qStr(route.q, 'tab') || 'overview')
   const [bSel, setB] = useState('')
+  const narrow = useNarrow()
 
   if (!ct) {
     const revoked = isRevoked('contacts', route.id)
@@ -82,13 +83,26 @@ export function Contact({ route }: { route: Route }) {
   const deals = S.deals.filter(d => d.contactIds.includes(ct.id) && Q.member(d.businessId) && d.archived !== true)
   const tasks = S.tasks.filter(t => t.contactId === ct.id && Q.member(t.businessId))
   const live = Q.activeEnrol(ct.id)
+  const more: ReadonlyArray<readonly [label: string, icon: string, fn: () => void]> = [
+    ['Enrol in sequence', 'send', () => UI.open('enrol', { contactIds: [ct.id] })],
+    ['Enrich contact', 'zap', () => UI.open('enrich', { contactId: ct.id })],
+    ['Find mobile', 'phone', () => UI.open('findMobile', { contactId: ct.id })],
+    ['Research contact', 'spark', () => setTab('intel')],
+    ['Create deal', 'kanban', () => UI.open('newDeal', { companyId: ct.companyId, contactIds: [ct.id], businessId: b })],
+  ]
+  const liItems = [
+    { label: 'Open profile', icon: 'ext', disabled: !li, onClick: () => { if (li) window.open(li, '_blank', 'noopener') } },
+    { label: 'Log connection request', onClick: () => UI.open('linkedin', { contactId: ct.id, businessId: b }) },
+    { label: 'Log message / response', onClick: () => UI.open('linkedin', { contactId: ct.id, businessId: b }) },
+    { label: 'LinkedIn follow-up task', onClick: () => UI.open('newTask', { ...tCtx, type: 'LinkedIn Activity', title: 'LinkedIn follow-up — ' + ct.firstName }) },
+  ]
   const tCtx = { businessId: b, companyId: ct.companyId, contactId: ct.id }
 
   return (
     <div className="page">
       <PageHead
         crumb={[<Link to="contacts">Contacts</Link>, ...(co ? [<CoLink id={co.id} />] : [])]}
-        title={<span className="row" style={{ gap: 12 }}><Av name={ct.name} s={40} color="var(--acc)" />{ct.name}</span>}
+        title={<span className="row" style={{ gap: 12 }}><span aria-hidden="true"><Av name={ct.name} s={40} color="var(--acc)" /></span>{ct.name}</span>}
         sub={
           <span className="row wrap" style={{ gap: 8 }}>
             <span>{ct.title || 'No title'}{co && <> at <CoLink id={co.id} /></>}</span>
@@ -132,19 +146,12 @@ export function Contact({ route }: { route: Route }) {
             <Btn size="sm" icon="mail" onClick={() => UI.open('compose', { contactId: ct.id, businessId: b })}>Send email</Btn>
             <Btn size="sm" icon="phone" onClick={() => UI.open('logCall', { contactId: ct.id, businessId: b })}>Log call</Btn>
             <Btn size="sm" icon="checksq" onClick={() => UI.open('newTask', tCtx)}>Create task</Btn>
-            <Btn size="sm" icon="send" onClick={() => UI.open('enrol', { contactIds: [ct.id] })}>Enrol in sequence</Btn>
-            <Btn size="sm" icon="zap" onClick={() => UI.open('enrich', { contactId: ct.id })}>Enrich contact</Btn>
-            <Btn size="sm" icon="phone" onClick={() => UI.open('findMobile', { contactId: ct.id })}>Find mobile</Btn>
-            <Btn size="sm" icon="spark" onClick={() => setTab('intel')}>Research contact</Btn>
-            <Btn size="sm" icon="kanban" onClick={() => UI.open('newDeal', { companyId: ct.companyId, contactIds: [ct.id], businessId: b })}>Create deal</Btn>
+            {/* On a phone the rest of the actions sit behind one More menu. */}
+            {!narrow && more.map(([l, i, fn]) => <Btn key={l} size="sm" icon={i} onClick={fn}>{l}</Btn>)}
             <Menu
-              trigger={<Btn size="sm" icon="li" iconRight="down">LinkedIn</Btn>}
-              items={[
-                { label: 'Open profile', icon: 'ext', disabled: !li, onClick: () => { if (li) window.open(li, '_blank', 'noopener') } },
-                { label: 'Log connection request', onClick: () => UI.open('linkedin', { contactId: ct.id, businessId: b }) },
-                { label: 'Log message / response', onClick: () => UI.open('linkedin', { contactId: ct.id, businessId: b }) },
-                { label: 'LinkedIn follow-up task', onClick: () => UI.open('newTask', { ...tCtx, type: 'LinkedIn Activity', title: 'LinkedIn follow-up — ' + ct.firstName }) },
-              ]}
+              align={narrow ? 'right' : undefined}
+              trigger={narrow ? <Btn size="sm" icon="more" iconRight="down">More</Btn> : <Btn size="sm" icon="li" iconRight="down">LinkedIn</Btn>}
+              items={narrow ? [...more.map(([l, i, fn]) => ({ label: l, icon: i, onClick: fn })), '-' as const, { label: 'LinkedIn', head: true }, ...liItems] : liItems}
             />
           </div>
         )}

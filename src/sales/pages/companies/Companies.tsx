@@ -125,7 +125,7 @@ export function Companies({ route }: { route: Route }) {
         <Btn kind="pri" icon="plus" disabled={!can} onClick={() => UI.open('newCompany')}>New company</Btn>
       </PageHead>
       <div className="card">
-        <FilterBar>
+        <FilterBar active={[ind, st, bz, own, minLoc, imp].filter(Boolean).length}>
           <Seg label="Show companies" value={arch ? 'archived' : 'active'} onChange={v => { setArch(v === 'archived'); setSel([]) }} opts={[['active', 'Active'], ['archived', 'Archived', 'archive']]} />
           <SearchInp value={q} onChange={setQ} placeholder="Search name, domain, industry" />
           <Sel className="sm" style={{ width: 150 }} aria-label="Industry" value={ind} onChange={setInd} placeholder="All industries" options={INDUSTRIES} />
@@ -167,6 +167,14 @@ export function Companies({ route }: { route: Route }) {
           sel={arch ? undefined : picked}
           setSel={arch ? undefined : setSel}
           onRow={c => UI.nav('company', { id: c.id })}
+          card={c => (
+            <div className="col" style={{ gap: 2, minWidth: 0 }}>
+              <span className="row" style={{ gap: 6 }}><b style={{ overflowWrap: 'anywhere' }}>{c.name}</b>{arch && <ArchivedChip r={c} />}{c.pri && <Chip tone={TONE[c.pri]}>{c.pri}</Chip>}</span>
+              {c.domain && <span className="faint xs" style={{ overflowWrap: 'anywhere' }}>{c.domain}</span>}
+              <span className="sm" style={{ overflowWrap: 'anywhere' }}>{[c.industry, c.hq ? c.hq + ', ' + c.state : ''].filter(Boolean).join(' · ')}</span>
+              {c.owner && <span className="faint xs">Owner: {Q.user(c.owner)?.name ?? 'Unknown user'}</span>}
+            </div>
+          )}
           empty={
             arch && !filtered
               ? <Empty icon="archive" title="No archived companies" body="Companies you archive appear here, ready to restore." action={<Btn onClick={() => setArch(false)}>Show active companies</Btn>} />
