@@ -619,3 +619,17 @@
 .sos .tcard-b{flex:1;min-width:0;overflow-wrap:anywhere}
 /* A small control whose tap area grows on a touch screen without changing how it looks. */
 @media (max-width:900px),(pointer:coarse){.sos .hit{position:relative}.sos .hit::before{content:'';position:absolute;inset:-12px -10px}}
+
+/* Companies list, Research column: a fixed-width status line, then one button, so the buttons line up down the table. */
+.sos .rcell{display:inline-grid;grid-template-columns:168px auto;align-items:center;gap:8px}
+.sos .rcell-s{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12.5px;color:var(--fg2);white-space:nowrap}
+.sos .rcell-t{overflow:hidden;text-overflow:ellipsis}
+.sos .rcell-s>svg,.sos .rcell-spin,.sos .rcell-dot{flex:none}
+.sos .rcell-s.mute{color:var(--fg3)}
+.sos .rcell-s.ok>svg{color:var(--ok)}
+.sos .rcell-s.ai{color:#6D28D9}
+.sos[data-theme=dark] .rcell-s.ai{color:#C4B5FD}
+.sos .rcell-s.warn{color:var(--warn)}
+.sos .rcell-s.bad{color:var(--bad-ink)}
+.sos .rcell-dot{width:9px;height:9px;margin:0 2px;border-radius:50%;border:1.5px solid var(--line2)}
+.sos .rcell-spin{width:11px;height:11px;border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%}
