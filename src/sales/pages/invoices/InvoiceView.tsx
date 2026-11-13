@@ -16,6 +16,7 @@ import { MoreMenu, type MoreItem } from './MoreMenu'
 import { ExternalChip, milestoneLabel, personName, RetainerChip, TermChip, StatusChip, TestChip } from './parts'
 import { Activity, Totals } from './rail'
 import { PaidLinksCard } from './LinkPickers'
+import { accountOf, useRosterioAccounts } from '../../data/rosterio'
 import { XeroPanel } from './XeroPanel'
 import { ExternalXeroPanel } from './ExternalXeroPanel'
 
@@ -103,6 +104,8 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
       UI.toast(invoiceError(e, 'load').message, 'bad')
     }
   }
+  const rosAcc = useRosterioAccounts(inv.rosterioAccountId ? 'ifStale' : 'never')
+  const rosName = inv.rosterioAccountId ? accountOf(rosAcc.s === 'ok' ? rosAcc.data : rosAcc.lastGood ?? undefined, inv.rosterioAccountId)?.name : undefined
   const ta = useTestActions(inv, onChange)
   const more = moreItems(inv, {
     markTest: ta.markTest, unmarkTest: ta.unmarkTest, deleteTest: ta.deleteTest, isSuper: ta.isSuper,
@@ -211,6 +214,11 @@ export function InvoiceView({ invoice: inv, onChange, onEdit }: { invoice: Invoi
                 <div className={a.voided ? 'strike' : inv.overdue ? 'late' : ''}>{fmtDay(inv.dueDate)} · {inv.paymentTermsDays} days{inv.overdue && ` · ${Math.max(1, daysBetween(inv.dueDate, today))} days overdue`}</div>
               </div>
             </div>
+            {inv.rosterioAccountId && (
+              <div className="faint sm" style={{ marginBottom: 12 }}>
+                Bills the Rosterio account {rosName ?? 'linked to it'}.{inv.status === 'sent' && !inv.test ? ' Rosterio warns its admins if this goes unpaid.' : ''}
+              </div>
+            )}
             <div className="tw">
               <table className="tbl">
                 <thead><tr><th>Description</th><th style={{ textAlign: 'right' }}>Qty</th><th style={{ textAlign: 'right' }}>Unit price</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>

@@ -664,6 +664,8 @@ export type InvoiceSource = 'manual' | 'retainer' | 'external' | 'term'
 export interface InvoiceDto {
   id: string; invoiceNumber: string; clientSlug: string; clientName: string
   companyId: string | null; dealId: string | null; milestoneId: string | null
+  /** The Rosterio account this invoice bills for its subscription. Optional here so a page released ahead of the API still reads an invoice. */
+  rosterioAccountId?: string | null
   lineItems: InvoiceLine[]; gstRate: number; notes: string
   issueDate: string; paymentTermsDays: number; dueDate: string
   status: InvoiceStatus; overdue: boolean; payment: InvoicePayment | null
@@ -678,6 +680,8 @@ export interface InvoiceDto {
 }
 export interface InvoiceInput {
   clientSlug: string; companyId?: string | null; dealId?: string | null; milestoneId?: string | null
+  /** Left out keeps it, null clears it. Setting or changing it needs a Rosterio admin (403 ROLE_REQUIRED otherwise). */
+  rosterioAccountId?: string | null
   lineItems: Array<{ description: string; detail?: string; qty: number; unitPriceCents: number }>
   gstRate?: number; notes?: string; issueDate: string; paymentTermsDays: number; dueDate?: string
   offerCardPayment?: boolean; paymentLinkUrl?: string
@@ -797,7 +801,7 @@ export interface InvoiceExternalInfo { source: ExternalInvoiceSource; reference:
 // linked to a company, it may only go on that company (else 400 VALIDATION, field companyId).
 // Linking an invoice never links its billing client and never changes the client, the bill-to, the number, the status,
 // the totals, the dates, the public token or the card link: the invoice stays addressed to the client it was sent to.
-export interface InvoiceLinksInput { companyId?: string | null; dealId?: string | null; milestoneId?: string | null }
+export interface InvoiceLinksInput { companyId?: string | null; dealId?: string | null; milestoneId?: string | null; rosterioAccountId?: string | null }
 // PUT /sales/invoices/:id/links (InvoiceLinksInput) -> InvoiceDto (ard admins or super only). Draft, sent or paid. A void
 // invoice is 409 INVOICE_ALREADY_VOID; an external record is 409 CONFLICT { external: true } (use PUT /invoices/:id/external);
 // any other key is 400 VALIDATION. A key left out is kept, null clears, clearing the deal clears the milestone. Writes only

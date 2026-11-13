@@ -148,6 +148,8 @@ export interface InvoiceForm {
   clientSlug: string
   dealId: string
   milestoneId: string
+  /** The Rosterio account this invoice bills; '' for none. */
+  rosterioAccountId: string
   issueDate: string
   terms: string
   dueDate: string
@@ -162,14 +164,14 @@ export interface InvoiceForm {
 export function blankForm(today: string, d: { terms?: number; gstPct?: string; card?: boolean } = {}): InvoiceForm {
   const terms = d.terms ?? DEFAULT_TERMS_DAYS
   return {
-    companyId: '', clientSlug: '', dealId: '', milestoneId: '', issueDate: today, terms: String(terms), dueDate: addDays(today, terms), dueEdited: false,
+    companyId: '', clientSlug: '', dealId: '', milestoneId: '', rosterioAccountId: '', issueDate: today, terms: String(terms), dueDate: addDays(today, terms), dueEdited: false,
     gstPct: d.gstPct ?? DEFAULT_GST_PERCENT, notes: '', offerCard: !!d.card, paymentLink: '', lines: [emptyLine()],
   }
 }
 
 export function formFromInvoice(inv: InvoiceDto): InvoiceForm {
   return {
-    companyId: inv.companyId ?? '', clientSlug: inv.clientSlug, dealId: inv.dealId ?? '', milestoneId: inv.milestoneId ?? '',
+    companyId: inv.companyId ?? '', clientSlug: inv.clientSlug, dealId: inv.dealId ?? '', milestoneId: inv.milestoneId ?? '', rosterioAccountId: inv.rosterioAccountId ?? '',
     issueDate: inv.issueDate, terms: String(inv.paymentTermsDays), dueDate: inv.dueDate,
     // A stored due date that is not issue + terms was set by hand; keep it.
     dueEdited: inv.dueDate !== addDays(inv.issueDate, inv.paymentTermsDays),
@@ -217,7 +219,7 @@ export function validateForm(f: InvoiceForm): { ok: boolean; errors: FormErrors 
  * link (pasted, or cleared) switches the automatic one off at Stripe.
  * Left out, the API keeps the link as it is, and a total change deactivates and clears it as intended.
  */
-export function buildInput(f: InvoiceForm, stored?: Pick<InvoiceDto, 'status' | 'paymentLinkUrl'> | null): InvoiceInput {
+export function buildInput(f: InvoiceForm, stored?: Pick<InvoiceDto, 'status' | 'paymentLinkUrl' | 'rosterioAccountId'> | null): InvoiceInput {
   const bp = parsePercentBp(f.gstPct) ?? 0
   const link = f.paymentLink.trim()
   const linkUnchanged = !!stored && stored.status !== 'draft' && link === (stored.paymentLinkUrl ?? '')
@@ -226,6 +228,8 @@ export function buildInput(f: InvoiceForm, stored?: Pick<InvoiceDto, 'status' | 
     companyId: f.companyId || null,
     dealId: f.dealId || null,
     milestoneId: f.milestoneId || null,
+    // Only sent when it differs from what is stored: anyone but a Rosterio admin is refused a change, so an untouched invoice never asks.
+    ...(f.rosterioAccountId !== (stored?.rosterioAccountId ?? '') ? { rosterioAccountId: f.rosterioAccountId || null } : {}),
     lineItems: f.lines.map(l => ({
       description: l.description.trim(),
       ...(l.detail.trim() ? { detail: l.detail.trim() } : {}),
@@ -242,11 +246,11 @@ export function buildInput(f: InvoiceForm, stored?: Pick<InvoiceDto, 'status' | 
   }
 }
 
-const LINK_KEYS = ['companyId', 'dealId', 'milestoneId'] as const
+const LINK_KEYS = ['companyId', 'dealId', 'milestoneId', 'rosterioAccountId'] as const
 
 /** True when the form differs from the stored invoice in its company, deal or milestone at most. */
 export function onlyLinksChanged(f: InvoiceForm, inv: InvoiceDto): boolean {
-  const strip = (x: InvoiceForm): InvoiceForm => ({ ...x, companyId: '', dealId: '', milestoneId: '', clientSlug: '' })
+  const strip = (x: InvoiceForm): InvoiceForm => ({ ...x, companyId: '', dealId: '', milestoneId: '', rosterioAccountId: '', clientSlug: '' })
   return JSON.stringify(strip(f)) === JSON.stringify(strip(formFromInvoice(inv)))
 }
 
@@ -255,7 +259,7 @@ export function onlyLinksChanged(f: InvoiceForm, inv: InvoiceDto): boolean {
  * stored, so an unchanged company is not validated again. That route writes nothing but the links, so the invoice is
  * never reissued, renumbered or re-addressed and its card link stays as it is.
  */
-export function linkChanges(inv: Pick<InvoiceDto, 'companyId' | 'dealId' | 'milestoneId'>, f: Pick<InvoiceForm, 'companyId' | 'dealId' | 'milestoneId'>): InvoiceLinksInput {
+export function linkChanges(inv: Pick<InvoiceDto, 'companyId' | 'dealId' | 'milestoneId' | 'rosterioAccountId'>, f: Pick<InvoiceForm, 'companyId' | 'dealId' | 'milestoneId' | 'rosterioAccountId'>): InvoiceLinksInput {
   const out: InvoiceLinksInput = {}
   for (const k of LINK_KEYS) {
     const v = f[k] || null
