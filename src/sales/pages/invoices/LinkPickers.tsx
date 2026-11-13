@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BillingClient, InvoiceDto } from '../../api/contract'
 import { errorField, invoiceError, linkBillingClient, listBillingClients, listInvoices, updateInvoiceLinks } from '../../api/invoices'
+import { SalesHttpError } from '../../api/http'
+import { accountOf, useRosterioAccounts } from '../../data/rosterio'
 import { ardCompanies, ardDeals, billingPlans, useLoad } from '../../data/invoicing'
 import { Q } from '../../data/Q'
 import { useStore } from '../../data/store'
@@ -9,8 +11,9 @@ import { linkChanges, milestoneStatus, planFor } from '../../shared/invoices'
 import { formatCents } from '../../shared/money'
 import { UI } from '../../ui/store'
 
-export type LinkField = 'companyId' | 'dealId' | 'milestoneId'
-export type LinkValues = Record<LinkField, string>
+export type LinkField = 'companyId' | 'dealId' | 'milestoneId' | 'rosterioAccountId'
+/** rosterioAccountId is left out by a caller that offers no Rosterio picker. */
+export type LinkValues = Record<'companyId' | 'dealId' | 'milestoneId', string> & { rosterioAccountId?: string }
 export type ClientsState = 'loading' | 'ready' | 'failed'
 export type LinkErr = { field: LinkField; message: string } | null
 
@@ -26,10 +29,46 @@ export function onlyLinkedTo(inv: InvoiceDto | null, companyId: string, clients:
   return clients.find(c => c.slug === inv.clientSlug)?.linkedCompanyId !== companyId
 }
 
-/** A server VALIDATION that names one of the three pickers, else null. */
+/**
+ * A server refusal that belongs under one of the pickers, else null. A VALIDATION names its field. The Rosterio picker
+ * also gets the 403 a non-admin receives for changing it, in the server's own words.
+ */
 export function linkErrOf(e: unknown): LinkErr {
+  if (e instanceof SalesHttpError && e.status === 403 && e.code === 'ROLE_REQUIRED' && e.body?.details?.businessId === 'ros') {
+    return { field: 'rosterioAccountId', message: e.message }
+  }
   const field = errorField(e)
+  if (field === 'rosterioAccountId') return { field, message: e instanceof Error ? e.message : invoiceError(e, 'save').message }
   return field === 'companyId' || field === 'dealId' || field === 'milestoneId' ? { field, message: invoiceError(e, 'save').message } : null
+}
+
+/** Whether this user may set the Rosterio account an invoice bills (a Rosterio admin or a super user). */
+export const canSetRosterioAccount = (): boolean => Q.canAdmin('ros')
+
+const ROS_LABEL = 'Bills a Rosterio account'
+const ROS_HINT = 'Rosterio warns this account’s admins and pauses publishing if this invoice goes unpaid. Leave empty for anything that isn’t their Rosterio subscription.'
+
+/**
+ * Which Rosterio account an invoice bills. A Rosterio admin picks it; everyone else sees the linked account's name, or
+ * nothing when there is none. The accounts are a live read of Rosterio, so the stored account stays an option even if
+ * the list has not loaded or no longer includes it.
+ */
+function RosterioAccountPicker({ value, onChange, err }: { value: string; onChange: (id: string) => void; err?: string }) {
+  const can = canSetRosterioAccount()
+  const acc = useRosterioAccounts('ifStale')
+  const data = acc.s === 'ok' ? acc.data : acc.lastGood ?? undefined
+  const name = accountOf(data, value)?.name
+  if (!can) {
+    return value ? <div><div className="faint sm">{ROS_LABEL}</div><div>{name ?? 'A Rosterio account'}</div></div> : null
+  }
+  const options = (data?.accounts ?? []).map(a => [a.id, a.name] as const)
+  if (value && !options.some(([id]) => id === value)) options.unshift([value, name ?? 'The linked Rosterio account'] as const)
+  const note = acc.s === 'error' ? `The Rosterio accounts could not be loaded. ${acc.message}` : acc.s === 'notConfigured' ? 'Rosterio is not connected, so accounts can’t be listed.' : undefined
+  return (
+    <Fld label={ROS_LABEL} err={err ?? note} hint={ROS_HINT}>
+      <Sel value={value} onChange={onChange} placeholder="None" aria-invalid={!!err || undefined} options={options} />
+    </Fld>
+  )
 }
 
 interface Props {
@@ -116,6 +155,10 @@ export function LinkPickers({ invoice, value, onPick, onMilestone, clients, clie
     else onPick({ milestoneId })
   }
   const addressedOnly = invoice && onlyLinkedTo(invoice, value.companyId, clients, clientsState)
+  const pickRosterio = (rosterioAccountId: string): void => {
+    if (linkErr?.field === 'rosterioAccountId') setLinkErr(null)
+    onPick({ rosterioAccountId })
+  }
 
   return (
     <>
@@ -141,6 +184,7 @@ export function LinkPickers({ invoice, value, onPick, onMilestone, clients, clie
           />
         </Fld>
       </div>
+      {value.rosterioAccountId !== undefined && <RosterioAccountPicker value={value.rosterioAccountId} onChange={pickRosterio} err={errFor('rosterioAccountId')} />}
 
       {confirm && invoice && (
         <Banner
@@ -193,11 +237,11 @@ export function PaidLinksCard({ invoice, onSaved, onClose }: { invoice: InvoiceD
   useStore()
   const clients = useLoad(s => listBillingClients(s), 'clients')
   const clientsState: ClientsState = clients.data ? 'ready' : clients.error ? 'failed' : 'loading'
-  const [value, setValue] = useState<LinkValues>({ companyId: invoice.companyId ?? '', dealId: invoice.dealId ?? '', milestoneId: invoice.milestoneId ?? '' })
+  const [value, setValue] = useState<LinkValues>({ companyId: invoice.companyId ?? '', dealId: invoice.dealId ?? '', milestoneId: invoice.milestoneId ?? '', rosterioAccountId: invoice.rosterioAccountId ?? '' })
   const [linkErr, setLinkErr] = useState<LinkErr>(null)
   const [fail, setFail] = useState('')
   const [busy, setBusy] = useState(false)
-  const changes = linkChanges(invoice, value)
+  const changes = linkChanges(invoice, { ...value, rosterioAccountId: value.rosterioAccountId ?? '' })
   const dirty = Object.keys(changes).length > 0
 
   const save = async (): Promise<void> => {

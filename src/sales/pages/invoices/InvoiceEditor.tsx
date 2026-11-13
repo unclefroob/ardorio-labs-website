@@ -163,8 +163,9 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
       }
       return saved
     } catch (e) {
-      const le = issuedState ? linkErrOf(e) : null
-      if (le) {
+      const le = linkErrOf(e)
+      // A draft shows a refused company, deal or milestone in the banner as before; a refused Rosterio account goes under its own picker.
+      if (le && (issuedState || le.field === 'rosterioAccountId')) {
         setLinkErr(le)
         setFail('')
       } else {
@@ -304,7 +305,7 @@ function EditorForm({ invoice, initial, onChange, onCancel, settings, clients, c
           <Card title="Customer">
             <div className="col" style={{ gap: 14 }}>
               <LinkPickers
-                invoice={invoice} value={{ companyId: f.companyId, dealId: f.dealId, milestoneId: f.milestoneId }} onPick={set} onMilestone={pickMilestone}
+                invoice={invoice} value={{ companyId: f.companyId, dealId: f.dealId, milestoneId: f.milestoneId, rosterioAccountId: f.rosterioAccountId }} onPick={set} onMilestone={pickMilestone}
                 clients={clients} clientsState={clientsState} reloadClients={reloadClients}
                 linkErr={linkErr} setLinkErr={setLinkErr} customerErr={showErr('customer')} required
               />
